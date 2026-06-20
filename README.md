@@ -19,6 +19,27 @@ compliance).
 
 ---
 
+## TL;DR for judges
+
+- **What:** a private cross-border remittance corridor. USDC enters, crosses with
+  amount + counterparties **hidden on-chain**, exits — with **ZK compliance proofs
+  at the edges** and **selective disclosure** to regulators.
+- **ZK is load-bearing:** three Circom/Groth16/BN254 circuits do the real work
+  (shielded transfer, ASP compliance, selective disclosure). Without them the
+  product does not exist.
+- **It runs on Stellar — 4 contracts live on testnet, all exercised:**
+
+  | Contract | Role | Verified call |
+  |---|---|---|
+  | [pool](https://lab.stellar.org/r/testnet/contract/CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
+  | [disclosure verifier](https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA) | selective disclosure to regulator | `verify` → `true`; tampered → rejected |
+  | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CBMD5HNVN6CQEXSSIKGNKKTRK6ZJIW5MNXLNHSYZ2GGR3BB4FN5ZBDBF) | shielded JoinSplit | `verify` → `true` |
+  | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CBHTB52I3F7FUH23IVTTEF5GGK3YYWN6O5R7JWGJF457HYPN76X4N4OO) | ASP allow/deny | `verify` → `true` |
+
+- **Try it in 3 commands:** `npm install && npm run circuit:all && npm run serve`
+  → open http://localhost:8000 and generate a real ZK proof in your browser.
+- **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
+
 ## What the ZK is doing (load-bearing)
 
 The zero-knowledge is not decorative — it is the entire product. Three circuits,
@@ -100,19 +121,23 @@ reference (Apache-2.0 / GPLv3). **Not audited — do not use with real assets.**
 ```bash
 npm install                         # snarkjs, circomlib, circomlibjs
 
-# A) Off-chain: compile + prove + verify the disclosure circuit
-npm run circuit:disclosure
+# A) Off-chain: compile + prove + verify ALL THREE circuits (Groth16/BN254)
+npm run circuit:all                 # or circuit:disclosure / circuit:transfer / circuit:compliance
 
 # B) Validate the in-browser proving flow (valid / tampered / false-witness)
-node scripts/test-fullprove.mjs
+npm run test:proving
 
 # C) Launch the corridor demo (in-browser ZK proving)
 npm run serve                       # -> http://localhost:8000
 ```
 
-The verifier WASM is built in WSL/Linux (Windows lacks the MSVC linker); see
-`docs/ONCHAIN.md` and `scripts/wsl-build-verifier.sh`. On-chain verify reproduction
-is in `docs/ONCHAIN.md`.
+**On-chain** (the contracts are already deployed — IDs above):
+- Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 4/4)
+- Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
+
+> Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`
+> the host build scripts need. WSL Ubuntu (cargo + gcc) builds cleanly.
 
 ---
 

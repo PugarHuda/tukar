@@ -6,6 +6,10 @@
   "description": "Confidential cross-border payment corridors on Stellar",
   "scripts": {
     "circuit:disclosure": "bash scripts/build-disclosure.sh",
+    "circuit:transfer": "bash scripts/build-circuit.sh transfer 14 scripts/gen-input-transfer.mjs",
+    "circuit:compliance": "bash scripts/build-circuit.sh compliance 14 scripts/gen-input-compliance.mjs",
+    "circuit:all": "bash scripts/build-all-circuits.sh",
+    "test:proving": "node scripts/test-fullprove.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
