@@ -1,30 +1,38 @@
 {
   "network": "testnet",
-  "description": "Corredor disclosure-proof verifier (BN254 Groth16) deployed on Stellar testnet",
+  "description": "Corredor ZK verifiers (BN254 Groth16) deployed on Stellar testnet",
   "identity": {
     "alias": "corredor",
     "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
   },
-  "verifier": {
-    "contractId": "CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA",
-    "wasmHash": "3bc906e1f803055d3ceb656fe80a8b6593f0cafe7cd1b872e6b79cbcb014db3c",
-    "wasmSizeBytes": 4685,
-    "circuit": "circuits/disclosure.circom",
-    "curve": "BN254",
-    "proofSystem": "Groth16",
-    "explorer": "https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA"
-  },
-  "transactions": {
-    "deployUpload": "75a834a377f795e50d748dfc167989bc03a34a8a95f8a4075a1b82d04bc424e7",
-    "deployCreate": "8f94ad598df5c2795ee6be129f58787f22d2bfed7b1a189805c131d159799975",
-    "verifyValidProof": {
+  "verifiers": {
+    "disclosure": {
+      "contractId": "CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA",
+      "circuit": "circuits/disclosure.circom",
+      "publicInputs": 3,
+      "verifyResult": "true",
+      "tamperedResult": "rejected (InvalidProof)",
       "tx": "6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1",
-      "result": "true",
       "explorer": "https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1"
     },
-    "verifyTamperedInput": {
-      "result": "Error(Contract, #0) = Groth16Error::InvalidProof",
-      "note": "claimed disclosedAmount 99999999 instead of true 50000000 -> rejected on-chain"
+    "transfer": {
+      "contractId": "CBMD5HNVN6CQEXSSIKGNKKTRK6ZJIW5MNXLNHSYZ2GGR3BB4FN5ZBDBF",
+      "circuit": "circuits/transfer.circom",
+      "publicInputs": 7,
+      "verifyResult": "true",
+      "note": "2-in 2-out shielded JoinSplit, Merkle depth 10"
+    },
+    "compliance": {
+      "contractId": "CBHTB52I3F7FUH23IVTTEF5GGK3YYWN6O5R7JWGJF457HYPN76X4N4OO",
+      "circuit": "circuits/compliance.circom",
+      "publicInputs": 6,
+      "verifyResult": "true",
+      "tx": "2c0bbb0090f31488d620f704b1aebfbb729b7bf59df6e2f23b1fe85908a1b25c",
+      "explorer": "https://stellar.expert/explorer/testnet/tx/2c0bbb0090f31488d620f704b1aebfbb729b7bf59df6e2f23b1fe85908a1b25c",
+      "note": "ASP allow-list membership + deny-list non-membership"
     }
-  }
+  },
+  "curve": "BN254",
+  "proofSystem": "Groth16",
+  "protocol": "Stellar Protocol 25/26 (X-Ray / Yardstick) native BN254 host functions"
 }

@@ -38,25 +38,26 @@ layer that turns "private payments" into *compliant* private payments. See
 
 ## ✅ Live on Stellar testnet
 
-The disclosure proof is **verified on-chain today**. A regulator's selective-
-disclosure proof (329-constraint Groth16/BN254 circuit, proven client-side) is
-checked inside a Soroban contract:
+**All three circuits are verified on-chain** by deployed Soroban contracts
+(Groth16 / BN254, proofs generated client-side):
 
-- **Verifier contract:** [`CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA`](https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA)
-- **Valid proof → `true`:** [on-chain tx](https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1)
-- **Tampered claim → rejected** on-chain (`InvalidProof`). Soundness proven both
-  off-chain (witness rejected) and on-chain (pairing check fails).
+| Circuit | Verifier contract | Result |
+|---|---|---|
+| `disclosure` | [`CDE3ZYEC…NVDTA`](https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA) | ✅ `true` ([tx](https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1)) · tampered → rejected |
+| `transfer` | [`CBMD5HNV…BDBF`](https://lab.stellar.org/r/testnet/contract/CBMD5HNVN6CQEXSSIKGNKKTRK6ZJIW5MNXLNHSYZ2GGR3BB4FN5ZBDBF) | ✅ `true` |
+| `compliance` | [`CBHTB52I…N4OO`](https://lab.stellar.org/r/testnet/contract/CBHTB52I3F7FUH23IVTTEF5GGK3YYWN6O5R7JWGJF457HYPN76X4N4OO) | ✅ `true` ([tx](https://stellar.expert/explorer/testnet/tx/2c0bbb0090f31488d620f704b1aebfbb729b7bf59df6e2f23b1fe85908a1b25c)) |
 
-Full reproduction steps and artifacts: [`docs/ONCHAIN.md`](docs/ONCHAIN.md) ·
-[`deployments/testnet.json`](deployments/testnet.json).
+Soundness for `disclosure` is proven both off-chain (false witness rejected) and
+on-chain (tampered public input → `InvalidProof`). Full artifacts:
+[`deployments/testnet.json`](deployments/testnet.json) · [`docs/ONCHAIN.md`](docs/ONCHAIN.md).
 
 ---
 
 ## Repository layout
 
 ```
-circuits/        Circom — disclosure.circom (✅ done); transfer/compliance (designed)
-contracts/       Built BN254 Groth16 verifier WASM (deployed) + build log
+circuits/        Circom — disclosure, transfer, compliance (all ✅ verified on-chain)
+contracts/       Built BN254 Groth16 verifier WASMs (3 deployed) + build logs
 deployments/     testnet.json — live contract id + tx hashes
 frontend/        Corridor demo UI + regulator panel (in-browser ZK proving)  ✅
 scripts/         build / prove / convert / test helpers
@@ -68,15 +69,16 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
 
 ## Status (honest WIP)
 
-- ✅ **Done & live:** `disclosure` circuit (selective disclosure / proof-of-total);
-  client-side proving in the browser; **on-chain BN254 Groth16 verification on
-  Stellar testnet** (valid → `true`, tampered → rejected); corridor demo UI +
-  regulator panel.
-- 🟡 **Designed, not yet built:** the `transfer` (shielded JoinSplit) and
-  `compliance` (ASP membership/non-membership) circuits + pool contract — the
-  corridor's private-transfer core. Fully specified in `docs/ARCHITECTURE.md`,
-  reusing the Nethermind privacy-pool pattern. The compliance/disclosure wedge
-  (our differentiator) is what's already working end-to-end.
+- ✅ **Done & live:** all three circuits — `disclosure` (selective disclosure),
+  `transfer` (2-in/2-out shielded JoinSplit, Merkle depth 10), `compliance` (ASP
+  membership + deny-list non-membership) — compile, prove, and **verify on-chain
+  on Stellar testnet**. Client-side proving in the browser. Corridor demo UI +
+  regulator panel. `disclosure` soundness proven off-chain and on-chain.
+- 🟡 **Not yet built:** a stateful `pool` contract that ties the three verifiers
+  together (stores the commitment tree + nullifier set and orchestrates
+  deposit/transfer/withdraw). The verifiers and circuits exist and pass on-chain;
+  the orchestration layer is the next step (design in `docs/ARCHITECTURE.md`,
+  reusing the Nethermind privacy-pool pattern).
 - 🟡 **Mocked (and we say so):** fiat anchor on/off-ramps (assume testnet USDC at
   the edges), ASP lists seeded manually, single corridor A→B.
 
