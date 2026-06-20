@@ -1,6 +1,6 @@
 # On-Chain Verification (Stellar testnet)
 
-How Corredor verifies a Groth16 proof inside a Soroban smart contract using
+How Tukar verifies a Groth16 proof inside a Soroban smart contract using
 Stellar's native BN254 host functions (Protocol 25 "X-Ray" / 26 "Yardstick").
 
 The verifier contract pattern is adapted from Nethermind's
@@ -23,7 +23,7 @@ contracts/build/circom_groth16_verifier.wasm  ──deploy──►  Soroban (te
                                                           true / error
 ```
 
-## 1. Build the verifier with Corredor's VK
+## 1. Build the verifier with Tukar's VK
 
 The VK is baked into the WASM at compile time via the crate's `build.rs`
 (`VERIFIER_VK_JSON` env var). Built against the cloned reference workspace:
@@ -80,7 +80,7 @@ without revealing any private salary/amount detail.
 
 ## Status — ✅ VERIFIED ON TESTNET
 
-- [x] Verifier WASM build with Corredor VK (4685 bytes, exports `verify`)
+- [x] Verifier WASM build with Tukar VK (4685 bytes, exports `verify`)
 - [x] Deployed to testnet — contract `CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA`
 - [x] Proof → Soroban arg converter (`scripts/gen-invoke-args.mjs`, G2 c1‖c0 swap)
 - [x] Invoke `verify` with valid proof → **`true`** ([tx](https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1))

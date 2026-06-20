@@ -1,9 +1,9 @@
-# Corredor — Architecture
+# Tukar — Architecture
 
 > **Confidential cross-border payment corridors on Stellar.**
 > Fiat in → shielded USDC transfer → fiat out, private in the middle, accountable at the edges.
 
-Corredor is a **private cross-border remittance corridor**. Money enters in one
+Tukar is a **private cross-border remittance corridor**. Money enters in one
 country, moves across the corridor with its **amount and counterparties hidden
 on-chain**, and exits as local fiat in another country. At each **edge** of the
 corridor, zero-knowledge **compliance proofs** keep the system auditable without
@@ -20,7 +20,7 @@ are visible, in-corridor transfers are private, and an Association Set Provider
 
 Stellar exists for one thing above all: **moving real money across borders
 cheaply** (stablecoins, anchors, remittance corridors like US↔Mexico,
-US↔Philippines). Corredor takes that exact rail and makes it confidential while
+US↔Philippines). Tukar takes that exact rail and makes it confidential while
 keeping it compliant. The ZK is *load-bearing*: without it there is no privacy,
 and without the compliance proofs there is no real-world deployability.
 
@@ -74,7 +74,7 @@ transfer (the reference Nethermind PoC already does that), but a full
    USDC.* This edge is **publicly visible** (compliance by design).
 
 2. **Shielded deposit + membership proof.** Sender deposits USDC into the
-   Corredor pool, creating a confidential commitment (UTXO note). They attach an
+   Tukar pool, creating a confidential commitment (UTXO note). They attach an
    **ASP membership proof**: a ZK proof that the deposit source is in the
    approved set — *without revealing which member they are*.
 
@@ -112,7 +112,7 @@ functions (Protocol 25/26). Secrets never leave the device.
 | **`compliance`** | Deposit source ∈ ASP allow-list **and** ∉ deny-list, bound to the transfer | ASP roots, transfer binding | Steps 2 & 4 |
 | **`disclosure`** | A confidential commitment opens to a disclosed amount (or sum ≤ threshold), bound to an audit context | commitment(s), disclosed value, audit-context hash | Step 6 |
 
-The **`disclosure`** circuit is Corredor's differentiator — the selective-
+The **`disclosure`** circuit is Tukar's differentiator — the selective-
 disclosure layer that turns "private payments" into "compliant private payments."
 
 ### Note / commitment scheme
@@ -159,7 +159,7 @@ skill.)
 
 ## 7. Roadmap → Stellar Community Fund
 
-Corredor is structured to graduate into an SCF Build Award:
+Tukar is structured to graduate into an SCF Build Award:
 
 1. **M1 — ZK core** (this hackathon): shielded transfer + compliance + disclosure
    on testnet, demo corridor.

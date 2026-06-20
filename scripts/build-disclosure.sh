@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compile -> trusted setup -> prove -> verify the Corredor disclosure circuit.
+# Compile -> trusted setup -> prove -> verify the Tukar disclosure circuit.
 # End-to-end proof that the ZK works (Groth16 over BN254, snarkjs default curve).
 set -euo pipefail
 

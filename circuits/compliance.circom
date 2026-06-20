@@ -1,6 +1,6 @@
 pragma circom 2.1.6;
 
-// Corredor — Compliance circuit (ASP membership + non-membership)
+// Tukar — Compliance circuit (ASP membership + non-membership)
 // -----------------------------------------------------------------------------
 // Proves, at a corridor edge, that the source of funds is compliant — WITHOUT
 // revealing which member it is:

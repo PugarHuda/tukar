@@ -1,4 +1,4 @@
-// Zero-dependency static server for the Corredor frontend.
+// Zero-dependency static server for the Tukar frontend.
 // Serves correct MIME types (notably application/wasm) so the in-browser prover
 // can stream the circuit.  Usage: node frontend/serve.mjs [port]
 import { createServer } from "node:http";
@@ -34,5 +34,5 @@ createServer(async (req, res) => {
     res.writeHead(404, { "Content-Type": "text/plain" }).end("not found");
   }
 }).listen(PORT, () => {
-  console.log(`Corredor frontend → http://localhost:${PORT}`);
+  console.log(`Tukar frontend → http://localhost:${PORT}`);
 });

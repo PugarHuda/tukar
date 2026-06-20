@@ -1,6 +1,6 @@
 {
   "network": "testnet",
-  "description": "Corredor ZK verifiers (BN254 Groth16) deployed on Stellar testnet",
+  "description": "Tukar ZK verifiers (BN254 Groth16) deployed on Stellar testnet",
   "identity": {
     "alias": "corredor",
     "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"

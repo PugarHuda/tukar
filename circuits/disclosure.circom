@@ -1,8 +1,8 @@
 pragma circom 2.1.6;
 
-// Corredor — Selective Disclosure circuit
+// Tukar — Selective Disclosure circuit
 // -----------------------------------------------------------------------------
-// The compliance wedge of Corredor. A confidential payment in the corridor is
+// The compliance wedge of Tukar. A confidential payment in the corridor is
 // represented on-chain only by a commitment:
 //     commitment = Poseidon(amount, pubKey, blinding)
 // The amount and counterparties are hidden. With this circuit the holder can

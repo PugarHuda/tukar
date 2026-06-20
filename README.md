@@ -1,16 +1,16 @@
-# Corredor
+# Tukar
 
 > **Confidential cross-border payment corridors on Stellar.**
 > Fiat in → shielded USDC transfer → fiat out. Private in the middle, accountable at the edges.
 
-Corredor is a **private cross-border remittance corridor** built for the
+Tukar is a **private cross-border remittance corridor** built for the
 [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)
 hackathon. Money enters in one country, crosses the corridor with its **amount
 and counterparties hidden on-chain**, and exits as local fiat in another country.
 At each **edge**, zero-knowledge **compliance proofs** keep the corridor auditable
 without ever exposing the private payment graph.
 
-Stellar's whole reason for existing is moving real money across borders. Corredor
+Stellar's whole reason for existing is moving real money across borders. Tukar
 takes that exact rail and makes it confidential *and* compliant — a direct
 implementation of Stellar's privacy strategy and the
 [Privacy Pools whitepaper](https://privacypools.com/whitepaper.pdf)
@@ -32,7 +32,7 @@ functions (Protocol 25/26). Secrets never leave the device.
 | **compliance** | Source ∈ ASP allow-list and ∉ deny-list, bound to the transfer | corridor edges |
 | **disclosure** | A confidential commitment opens to a disclosed amount, bound to an audit request | regulator view |
 
-The **disclosure** circuit is Corredor's differentiator: the selective-disclosure
+The **disclosure** circuit is Tukar's differentiator: the selective-disclosure
 layer that turns "private payments" into *compliant* private payments. See
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 

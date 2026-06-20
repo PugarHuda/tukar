@@ -1,4 +1,4 @@
-# Corredor — 2–3 minute demo video script
+# Tukar — 2–3 minute demo video script
 
 Goal: show (1) a real-world money use case (private cross-border remittance),
 (2) ZK doing the load-bearing work, (3) it touching Stellar (proof verified
@@ -9,9 +9,9 @@ Total target: ~2:30. Keep each scene tight.
 ---
 
 ## Scene 0 — Hook (0:00–0:15)
-**Screen:** Title card "Corredor — confidential cross-border corridors on Stellar".
+**Screen:** Title card "Tukar — confidential cross-border corridors on Stellar".
 **Say:**
-> "Stellar moves real money across borders. Corredor makes that money private —
+> "Stellar moves real money across borders. Tukar makes that money private —
 > while keeping it compliant. Amounts stay hidden on-chain, but a regulator can
 > still verify exactly what they need to, using zero-knowledge proofs verified
 > inside a Stellar smart contract."
@@ -60,7 +60,7 @@ Show it print `true`. Then open the live tx on stellar.expert.
 **Say:**
 > "This isn't a mock. The exact same Groth16 BN254 proof is verified inside a
 > Soroban smart contract on Stellar testnet — returning true. Here's the
-> transaction on-chain. Corredor: real-world money, made private, kept
+> transaction on-chain. Tukar: real-world money, made private, kept
 > compliant — on Stellar."
 
 ## Scene 6 — Close (2:35–2:40)

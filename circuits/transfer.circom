@@ -1,6 +1,6 @@
 pragma circom 2.1.6;
 
-// Corredor — Shielded transfer (JoinSplit) circuit
+// Tukar — Shielded transfer (JoinSplit) circuit
 // -----------------------------------------------------------------------------
 // The private core of the corridor. Spends nIns input notes and creates nOuts
 // output notes, proving — without revealing amounts or owners:

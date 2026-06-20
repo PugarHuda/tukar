@@ -1,4 +1,4 @@
-// Corredor frontend — confidential corridor demo.
+// Tukar frontend — confidential corridor demo.
 // ZK proofs are generated *in this browser* (snarkjs + the disclosure circuit),
 // mirroring the on-chain BN254 Groth16 verifier deployed on Stellar testnet.
 import * as snarkjs from "https://cdn.jsdelivr.net/npm/snarkjs@0.7.5/+esm";
