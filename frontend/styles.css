@@ -1,0 +1,98 @@
+:root {
+  --bg: #0b0f1a;
+  --panel: #131a2a;
+  --panel2: #0f1521;
+  --border: #243049;
+  --text: #e6ecf7;
+  --muted: #8a97b0;
+  --accent: #5b8cff;
+  --accent2: #3ddc97;
+  --danger: #ff5d6c;
+  --shield: #b083ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: radial-gradient(1200px 600px at 70% -10%, #16203a 0%, var(--bg) 55%);
+  color: var(--text);
+  min-height: 100vh;
+}
+header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px 28px; border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; gap: 14px; align-items: center; }
+.logo {
+  font-size: 30px; color: var(--accent2);
+  background: #0d1626; border: 1px solid var(--border);
+  width: 48px; height: 48px; border-radius: 12px;
+  display: grid; place-items: center;
+}
+h1 { margin: 0; font-size: 22px; letter-spacing: .3px; }
+.tag { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.net { font-size: 13px; color: var(--muted); }
+.net a { color: var(--accent); text-decoration: none; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent2); box-shadow: 0 0 8px var(--accent2); margin-right: 4px; }
+
+main {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 18px; padding: 24px 28px; max-width: 1280px; margin: 0 auto;
+}
+@media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+
+.panel {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+  border: 1px solid var(--border); border-radius: 16px; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.panel-head { display: flex; align-items: center; gap: 10px; }
+.panel-head h2 { font-size: 16px; margin: 0; }
+.flag { font-size: 22px; }
+.hint { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
+
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+input, select {
+  background: #0c1220; border: 1px solid var(--border); color: var(--text);
+  padding: 10px 12px; border-radius: 10px; font-size: 14px; outline: none;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--danger); }
+
+button.primary {
+  margin-top: 4px; background: var(--accent); color: #07101f; border: none;
+  padding: 12px 14px; border-radius: 10px; font-weight: 600; font-size: 14px;
+  cursor: pointer; transition: transform .05s ease, filter .15s ease;
+}
+button.primary:hover { filter: brightness(1.08); }
+button.primary:active { transform: translateY(1px); }
+button.primary:disabled { opacity: .5; cursor: progress; }
+
+.ledger { display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
+.empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 10px 0; }
+.note {
+  background: #0c1220; border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; font-size: 12px;
+}
+.note .row { display: flex; justify-content: space-between; gap: 8px; }
+.note .label { color: var(--muted); }
+.note .commit { font-family: ui-monospace, monospace; color: var(--shield); word-break: break-all; }
+.note .shield { color: var(--shield); font-weight: 600; }
+
+.result { border-radius: 12px; padding: 14px; font-size: 14px; line-height: 1.6; }
+.result.ok { background: rgba(61,220,151,.08); border: 1px solid rgba(61,220,151,.4); }
+.result.bad { background: rgba(255,93,108,.08); border: 1px solid rgba(255,93,108,.4); }
+.result .big { font-size: 16px; font-weight: 700; }
+.result .mono { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
+.result a { color: var(--accent); }
+.hidden { display: none; }
+
+footer {
+  padding: 14px 28px; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 13px; position: sticky; bottom: 0;
+  background: var(--bg);
+}
+.spin { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

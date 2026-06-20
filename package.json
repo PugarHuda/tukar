@@ -1,0 +1,16 @@
+{
+  "name": "corredor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Confidential cross-border payment corridors on Stellar",
+  "scripts": {
+    "circuit:disclosure": "bash scripts/build-disclosure.sh",
+    "serve": "node frontend/serve.mjs"
+  },
+  "devDependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.5"
+  }
+}

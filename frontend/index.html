@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Corredor — Confidential cross-border corridors on Stellar</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="logo">⟶</span>
+      <div>
+        <h1>Corredor</h1>
+        <p class="tag">Confidential cross-border payment corridors on Stellar</p>
+      </div>
+    </div>
+    <div class="net">
+      <span class="dot"></span> Stellar testnet ·
+      <a id="verifierLink" target="_blank" rel="noreferrer">verifier contract ↗</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- COUNTRY A: SENDER -->
+    <section class="panel">
+      <div class="panel-head">
+        <span class="flag">🇺🇸</span>
+        <h2>Country A · Sender</h2>
+      </div>
+      <p class="hint">Fiat on-ramp → USDC enters the corridor. Only a commitment
+      goes on-chain — the amount and recipient stay hidden.</p>
+      <label>Amount (USDC)
+        <input id="amount" type="number" min="1" step="0.01" value="500" />
+      </label>
+      <label>Recipient (Country B)
+        <input id="recipient" type="text" value="María, Mexico City" />
+      </label>
+      <button id="sendBtn" class="primary">Send into corridor →</button>
+    </section>
+
+    <!-- CORRIDOR: ON-CHAIN PUBLIC VIEW -->
+    <section class="panel">
+      <div class="panel-head">
+        <span class="flag">🔒</span>
+        <h2>Corridor · public on-chain view</h2>
+      </div>
+      <p class="hint">This is everything the public ledger reveals. Amounts and
+      counterparties are <strong>shielded</strong>.</p>
+      <div id="ledger" class="ledger">
+        <div class="empty">No confidential payments yet.</div>
+      </div>
+    </section>
+
+    <!-- REGULATOR -->
+    <section class="panel">
+      <div class="panel-head">
+        <span class="flag">⚖️</span>
+        <h2>Regulator · selective disclosure</h2>
+      </div>
+      <p class="hint">On audit request, the holder proves one fact — the amount —
+      with a zero-knowledge proof generated in this browser. The regulator learns
+      <em>only</em> that fact. Nothing else in the corridor is revealed.</p>
+
+      <label>Confidential payment to audit
+        <select id="auditSelect"><option value="">— none —</option></select>
+      </label>
+      <label>Audit context (period · regulator id)
+        <input id="auditCtx" type="text" value="2026-Q2 · CNBV" />
+      </label>
+      <label class="check">
+        <input id="tamper" type="checkbox" />
+        Tamper: claim a false amount (demonstrate on-chain rejection)
+      </label>
+      <button id="proveBtn" class="primary">Generate &amp; verify disclosure proof</button>
+
+      <div id="result" class="result hidden"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="status">Initializing zero-knowledge prover…</span>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

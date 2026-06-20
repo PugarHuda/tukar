@@ -1,0 +1,30 @@
+{
+  "network": "testnet",
+  "description": "Corredor disclosure-proof verifier (BN254 Groth16) deployed on Stellar testnet",
+  "identity": {
+    "alias": "corredor",
+    "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
+  },
+  "verifier": {
+    "contractId": "CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA",
+    "wasmHash": "3bc906e1f803055d3ceb656fe80a8b6593f0cafe7cd1b872e6b79cbcb014db3c",
+    "wasmSizeBytes": 4685,
+    "circuit": "circuits/disclosure.circom",
+    "curve": "BN254",
+    "proofSystem": "Groth16",
+    "explorer": "https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA"
+  },
+  "transactions": {
+    "deployUpload": "75a834a377f795e50d748dfc167989bc03a34a8a95f8a4075a1b82d04bc424e7",
+    "deployCreate": "8f94ad598df5c2795ee6be129f58787f22d2bfed7b1a189805c131d159799975",
+    "verifyValidProof": {
+      "tx": "6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1",
+      "result": "true",
+      "explorer": "https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1"
+    },
+    "verifyTamperedInput": {
+      "result": "Error(Contract, #0) = Groth16Error::InvalidProof",
+      "note": "claimed disclosedAmount 99999999 instead of true 50000000 -> rejected on-chain"
+    }
+  }
+}

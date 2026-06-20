@@ -1,0 +1,40 @@
+# Reference repo (cloned for study, not part of submission)
+_reference/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# Circom / snarkjs build artifacts
+circuits/build/
+contracts/build/
+*.r1cs
+*.wasm
+*.zkey
+*.wtns
+!circuits/**/*.circom
+# but DO ship the demo's circuit artifacts (needed to serve the frontend)
+!frontend/circuit/
+!frontend/circuit/*.wasm
+!frontend/circuit/*.zkey
+!frontend/circuit/*.json
+
+# Powers of Tau (large)
+*.ptau
+
+# Rust / Soroban
+target/
+**/target/
+
+# Stellar keys / secrets
+.env
+*.secret
+deployments/**/*.secret.json
+
+# Downloaded tool binaries (circom.exe, stellar.exe) — not part of source
+tools/bin/
+
+# OS
+.DS_Store
+Thumbs.db
