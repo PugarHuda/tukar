@@ -7,13 +7,19 @@ frontend/dist/
 frontend/node_modules/
 
 # Circom / snarkjs build artifacts
-circuits/build/
+circuits/build/*
 contracts/build/
 *.r1cs
 *.wasm
 *.zkey
 *.wtns
 !circuits/**/*.circom
+# Commit the canonical verification keys (the deployed verifiers match these).
+# Proving keys (.zkey) are large + regenerable, so they stay ignored.
+!circuits/build/verification_key.json
+!circuits/build/transfer_vk.json
+!circuits/build/compliance_vk.json
+!circuits/build/pool_deny_list.json
 # but DO ship the demo's circuit artifacts (needed to serve the frontend)
 !frontend/circuit/
 !frontend/circuit/*.wasm

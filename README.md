@@ -31,10 +31,10 @@ compliance).
 
   | Contract | Role | Verified call |
   |---|---|---|
-  | [pool](https://lab.stellar.org/r/testnet/contract/CDTBAA7BM4EFLFO64U3SSVPOS757F7VHYO7PTAOB6EJXWBT6QGQ7W5V7) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
-  | [disclosure verifier](https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA) | selective disclosure to regulator | `verify` → `true`; tampered → rejected |
-  | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CBMD5HNVN6CQEXSSIKGNKKTRK6ZJIW5MNXLNHSYZ2GGR3BB4FN5ZBDBF) | shielded JoinSplit | `verify` → `true` |
-  | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CBHTB52I3F7FUH23IVTTEF5GGK3YYWN6O5R7JWGJF457HYPN76X4N4OO) | ASP allow/deny | `verify` → `true` |
+  | [pool](https://lab.stellar.org/r/testnet/contract/CDYZXKCZH23BDDJDCWOMRSQM52G2I4DZTSDEN7BS3OZSL7ZJOQRF67LX) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
+  | [disclosure verifier](https://lab.stellar.org/r/testnet/contract/CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2) | selective disclosure to regulator | `verify` → `true`; tampered → rejected |
+  | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B) | shielded JoinSplit | `verify` → `true` |
+  | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ASP allow/deny | `verify` → `true` |
 
 - **Try it in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → open http://localhost:8000 and generate a real ZK proof in your browser.
@@ -64,9 +64,9 @@ layer that turns "private payments" into *compliant* private payments. See
 
 | Circuit | Verifier contract | Result |
 |---|---|---|
-| `disclosure` | [`CDE3ZYEC…NVDTA`](https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA) | ✅ `true` ([tx](https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1)) · tampered → rejected |
-| `transfer` | [`CBMD5HNV…BDBF`](https://lab.stellar.org/r/testnet/contract/CBMD5HNVN6CQEXSSIKGNKKTRK6ZJIW5MNXLNHSYZ2GGR3BB4FN5ZBDBF) | ✅ `true` |
-| `compliance` | [`CBHTB52I…N4OO`](https://lab.stellar.org/r/testnet/contract/CBHTB52I3F7FUH23IVTTEF5GGK3YYWN6O5R7JWGJF457HYPN76X4N4OO) | ✅ `true` ([tx](https://stellar.expert/explorer/testnet/tx/2c0bbb0090f31488d620f704b1aebfbb729b7bf59df6e2f23b1fe85908a1b25c)) |
+| `disclosure` | [`CA2HHH…K47G2`](https://lab.stellar.org/r/testnet/contract/CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2) | ✅ `true` ([tx](https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1)) · tampered → rejected |
+| `transfer` | [`CB6M6IO…6Q3B`](https://lab.stellar.org/r/testnet/contract/CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B) | ✅ `true` |
+| `compliance` | [`CB67JH7…W3XO`](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ✅ `true` ([tx](https://stellar.expert/explorer/testnet/tx/2c0bbb0090f31488d620f704b1aebfbb729b7bf59df6e2f23b1fe85908a1b25c)) |
 
 Soundness for `disclosure` is proven both off-chain (false witness rejected) and
 on-chain (tampered public input → `InvalidProof`). Full artifacts:
@@ -96,7 +96,7 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
   on Stellar testnet**. Client-side proving in the browser. Corridor demo UI +
   regulator panel. `disclosure` soundness proven off-chain and on-chain.
 - ✅ **Pool contract live & hardened:** a stateful `pool` Soroban contract
-  ([`CDTBAA7B…W5V7`](https://lab.stellar.org/r/testnet/contract/CDTBAA7BM4EFLFO64U3SSVPOS757F7VHYO7PTAOB6EJXWBT6QGQ7W5V7))
+  ([`CDYZXKCZ…67LX`](https://lab.stellar.org/r/testnet/contract/CDYZXKCZH23BDDJDCWOMRSQM52G2I4DZTSDEN7BS3OZSL7ZJOQRF67LX))
   orchestrating the three verifiers. **Binding (the key property):** the pool
   builds the verifier's public inputs from the typed signals itself, so the spent
   nullifiers, recorded commitments and root are *exactly* the ones the proof
@@ -106,18 +106,25 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
   commitments; a **double-spend bypass** (valid proof, tampered nullifiers) is
   **rejected** (`InvalidProof`); replay → `NullifierUsed`; unknown root →
   `UnknownRoot`; disclosure of an unknown commitment → `UnknownCommitment`.
-  **8/8 unit tests pass.** (See `docs/TESTING.md`.)
+  **9/9 unit tests pass.** (See `docs/TESTING.md`.)
+- ✅ **Real token custody:** the pool holds a token (the demo uses the native XLM
+  SAC as a USDC stand-in on testnet). `deposit` pulls tokens **into** the pool;
+  `withdraw` releases them to a recipient, where the released amount is **bound to
+  the proof's verified `public_amount`** — releasing a different amount is rejected
+  (`AmountNotBound`). Demonstrated on testnet: deposit 100 → pool balance 100 →
+  withdraw 50 (bound) → balance 50.
 - 🟡 **Honestly simplified / mocked:**
-  - **No real token custody yet** — `deposit`/`withdraw` track commitments and
-    authorize amounts via proofs but do **not** move a USDC SAC token; custody is
-    the next integration step.
   - **Merkle tree off-chain** — maintained by the operator/indexer, which
     publishes roots via admin-only `register_root` (Nethermind bootnode pattern).
     The operator is trusted for *tree construction*; spends stay trustless.
   - **Fiat anchors mocked** (assume testnet USDC at the edges); ASP allow/deny
     lists seeded manually; single corridor A→B.
-  - **Throwaway trusted setup** — the demo Groth16 keys come from a single-
-    contributor setup (known toxic waste), not a real ceremony.
+  - **Dev trusted setup** — the demo Groth16 keys are from a single-contributor
+    setup (known toxic waste). The committed **verification keys**
+    (`circuits/build/*_vk.json`) are canonical and match the deployed verifiers;
+    the build reuses an existing proving key rather than regenerating it (snarkjs
+    setup isn't bit-reproducible). Production needs a real multi-party ceremony —
+    Nethermind's `ceremony-cli` + the Hermez Powers-of-Tau is the path.
   - **Frontend scope** — the browser demo exercises the **disclosure** flow
     (client-side proving + verify); the pool/transfer/compliance are exercised via
     CLI on testnet, not yet wired into the UI.

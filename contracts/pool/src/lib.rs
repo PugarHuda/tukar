@@ -1,40 +1,32 @@
 #![no_std]
 
 //! Tukar pool — the stateful corridor contract that orchestrates the three ZK
-//! verifiers.
+//! verifiers and custodies the corridor's tokens.
 //!
 //! **Binding (the key security property).** The pool never accepts a pre-built
-//! `Vec<Bn254Fr>`. Instead it receives the public signals as typed values and
-//! *builds* the verifier's public-input vector itself, in circuit order. The
-//! exact same values are then used for the pool's own logic (root check,
-//! nullifier spend, commitment recording). A caller therefore cannot present a
-//! valid proof while spending different nullifiers or storing different
-//! commitments — any mismatch changes the public inputs and the proof fails to
-//! verify. This closes the double-spend-bypass class of bugs.
+//! `Vec<Bn254Fr>`. It receives the public signals as typed values and *builds*
+//! the verifier's public-input vector itself, in circuit order. The same values
+//! are then used for the pool's own logic (root check, nullifier spend,
+//! commitment recording, token amount). A caller therefore cannot present a
+//! valid proof while spending different nullifiers, recording different
+//! commitments, or withdrawing a different amount — any mismatch changes the
+//! public inputs and the proof fails to verify.
 //!
-//! Responsibilities:
-//!   * **Root registry** — the commitment Merkle tree is maintained off-chain by
-//!     the operator/indexer (Nethermind-reference style); the operator publishes
-//!     roots via `register_root`. The pool trusts the operator for tree
-//!     *construction*, but spends are still trustless (proof + nullifier).
-//!   * **Nullifier set** — persistent double-spend prevention.
-//!   * **Commitment set** — every commitment the pool has seen (deposits +
-//!     transfer outputs); a selective disclosure is only accepted for a
-//!     commitment the pool actually knows.
-//!   * **Compliant deposits** — `deposit` requires a compliance proof whose ASP
-//!     allow/deny roots are the contract's *pinned* trusted values and whose
-//!     bound hash is the deposited commitment.
+//! **Custody.** `deposit` pulls `amount` tokens from the depositor into the pool;
+//! `withdraw` releases tokens to a recipient, where the released `amount` is
+//! bound to the proof's verified `public_amount`. Token = a SAC address (the
+//! demo uses the native XLM SAC as a USDC stand-in on testnet).
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype,
     crypto::bn254::{Bn254Fr, Bn254G1Affine, Bn254G2Affine},
-    symbol_short, vec, Address, BytesN, Env, IntoVal, Symbol, Vec,
+    symbol_short, token::TokenClient, vec, Address, BytesN, Env, IntoVal, Symbol, Vec,
 };
 
 const VERIFY: Symbol = symbol_short!("verify");
+const DENY_LEN: u32 = 4;
 
-/// Groth16 proof — identical layout to the verifier's `Groth16Proof` so it
-/// forwards across the cross-contract call unchanged.
+/// Groth16 proof — identical layout to the verifier's `Groth16Proof`.
 #[contracttype]
 #[derive(Clone)]
 pub struct Groth16Proof {
@@ -51,38 +43,35 @@ pub enum PoolError {
     NullifierUsed = 2,
     UnknownCommitment = 3,
     BadDenyList = 4,
+    InvalidAmount = 5,
+    AmountNotBound = 6,
 }
 
 #[contracttype]
 enum DataKey {
     Admin,
+    Token,
     TransferVerifier,
     ComplianceVerifier,
     DisclosureVerifier,
-    AspRoot,                 // pinned trusted ASP allow-list root
-    DenyList,               // pinned trusted deny-list (Vec<BytesN<32>>, len 4)
+    AspRoot,
+    DenyList,
     CurrentRoot,
     Count,
-    Root(BytesN<32>),       // -> () : a known (historical) Merkle root
-    Nullifier(BytesN<32>),  // -> () : a spent nullifier
-    Commitment(BytesN<32>), // -> () : a commitment the pool has recorded
+    Root(BytesN<32>),
+    Nullifier(BytesN<32>),
+    Commitment(BytesN<32>),
 }
-
-const DENY_LEN: u32 = 4;
 
 #[contract]
 pub struct Pool;
 
 #[contractimpl]
 impl Pool {
-    /// Initialize the pool.
-    ///
-    /// `asp_root` and `deny_list` are the trusted ASP allow-list root and
-    /// deny-list that every deposit's compliance proof is checked against — they
-    /// are pinned here, never supplied by a depositor.
     pub fn __constructor(
         env: Env,
         admin: Address,
+        token: Address,
         transfer_verifier: Address,
         compliance_verifier: Address,
         disclosure_verifier: Address,
@@ -95,6 +84,7 @@ impl Pool {
         }
         let s = env.storage().instance();
         s.set(&DataKey::Admin, &admin);
+        s.set(&DataKey::Token, &token);
         s.set(&DataKey::TransferVerifier, &transfer_verifier);
         s.set(&DataKey::ComplianceVerifier, &compliance_verifier);
         s.set(&DataKey::DisclosureVerifier, &disclosure_verifier);
@@ -113,11 +103,21 @@ impl Pool {
         env.events().publish((symbol_short!("root"),), new_root);
     }
 
-    /// Compliant deposit: a commitment enters the corridor only with a valid
-    /// compliance proof. The proof's ASP allow/deny inputs are the contract's
-    /// pinned trusted values, and its bound hash is the commitment itself — so
-    /// the proof cannot be detached from this deposit or use a forged ASP set.
-    pub fn deposit(env: Env, commitment: BytesN<32>, proof: Groth16Proof) -> u32 {
+    /// Compliant deposit: pull `amount` tokens from `from` into the pool and
+    /// record the commitment — only with a compliance proof whose pinned ASP
+    /// allow/deny inputs verify and whose bound hash is this commitment.
+    pub fn deposit(
+        env: Env,
+        from: Address,
+        amount: i128,
+        commitment: BytesN<32>,
+        proof: Groth16Proof,
+    ) -> u32 {
+        if amount <= 0 {
+            soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
+        }
+        from.require_auth();
+
         // compliance public inputs: [aspRoot, deny0..3, bindHash=commitment]
         let asp_root: BytesN<32> = env.storage().instance().get(&DataKey::AspRoot).unwrap();
         let deny: Vec<BytesN<32>> = env.storage().instance().get(&DataKey::DenyList).unwrap();
@@ -125,17 +125,20 @@ impl Pool {
         for d in deny.iter() {
             pi.push_back(Self::fr(&env, &d));
         }
-        pi.push_back(Self::fr(&env, &commitment)); // bindHash == commitment
+        pi.push_back(Self::fr(&env, &commitment));
         Self::verify(&env, DataKey::ComplianceVerifier, &proof, &pi);
 
+        // move tokens in
+        Self::token(&env).transfer(&from, &env.current_contract_address(), &amount);
+
         let index = Self::record_commitment(&env, &commitment);
-        env.events().publish((symbol_short!("deposit"), index), commitment);
+        env.events().publish((symbol_short!("deposit"), index), (commitment, amount));
         index
     }
 
-    /// Trustless private transfer (JoinSplit). The pool builds the verifier's
-    /// public inputs from the typed signals below, so the spent nullifiers and
-    /// recorded commitments are exactly the ones the proof attests to.
+    /// Trustless private transfer (JoinSplit). Inputs are built from the typed
+    /// signals so the spent nullifiers and recorded commitments are exactly the
+    /// ones the proof attests.
     pub fn transfer(
         env: Env,
         proof: Groth16Proof,
@@ -155,10 +158,9 @@ impl Pool {
         env.events().publish((symbol_short!("transfer"),), root);
     }
 
-    /// Trustless withdraw at a corridor edge. `public_amount` is bound by the
-    /// proof (it is a verified public input), so the contract cannot be told to
-    /// release an amount the proof did not authorize. (Token movement is mocked
-    /// in this MVP — see README; the amount/authorization is real.)
+    /// Trustless withdraw at a corridor edge. The released token `amount` must
+    /// equal the proof's verified `public_amount`, so the contract cannot be told
+    /// to release more than the proof authorizes.
     pub fn withdraw(
         env: Env,
         proof: Groth16Proof,
@@ -168,7 +170,15 @@ impl Pool {
         nullifiers: Vec<BytesN<32>>,
         out_commitments: Vec<BytesN<32>>,
         recipient: Address,
+        amount: i128,
     ) {
+        if amount <= 0 {
+            soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
+        }
+        // bind the released amount to the verified public input
+        if public_amount != Self::amount_bytes(&env, amount) {
+            soroban_sdk::panic_with_error!(&env, PoolError::AmountNotBound);
+        }
         Self::require_known_root(&env, &root);
         let pi = Self::transfer_inputs(&env, &root, &public_amount, &ext_data_hash, &nullifiers, &out_commitments);
         Self::verify(&env, DataKey::TransferVerifier, &proof, &pi);
@@ -176,13 +186,12 @@ impl Pool {
         for c in out_commitments.iter() {
             Self::record_commitment(&env, &c);
         }
-        env.events()
-            .publish((symbol_short!("withdraw"), recipient), public_amount);
+        Self::token(&env).transfer(&env.current_contract_address(), &recipient, &amount);
+        env.events().publish((symbol_short!("withdraw"), recipient), amount);
     }
 
     /// Verify a selective-disclosure proof for a regulator. The disclosed
-    /// commitment must be one the pool actually knows, so a regulator can't be
-    /// handed a disclosure about a fabricated commitment.
+    /// commitment must be one the pool actually knows.
     pub fn disclose(
         env: Env,
         proof: Groth16Proof,
@@ -219,18 +228,34 @@ impl Pool {
     pub fn commitment_count(env: Env) -> u32 {
         env.storage().instance().get(&DataKey::Count).unwrap_or(0)
     }
+    pub fn balance(env: Env) -> i128 {
+        Self::token(&env).balance(&env.current_contract_address())
+    }
 
     // ---- internals ----
     fn admin(env: &Env) -> Address {
         env.storage().instance().get(&DataKey::Admin).unwrap()
     }
-
+    fn token(env: &Env) -> TokenClient {
+        let addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        TokenClient::new(env, &addr)
+    }
     fn fr(env: &Env, b: &BytesN<32>) -> Bn254Fr {
         Bn254Fr::from_bytes(b.clone())
     }
 
-    /// Build the transfer/withdraw circuit public inputs in circuit order:
-    /// [root, public_amount, ext_data_hash, nullifiers.., out_commitments..].
+    /// 32-byte big-endian field-element encoding of a positive i128.
+    fn amount_bytes(env: &Env, amount: i128) -> BytesN<32> {
+        let mut buf = [0u8; 32];
+        let be = amount.to_be_bytes(); // 16 bytes
+        let mut i = 0;
+        while i < 16 {
+            buf[16 + i] = be[i];
+            i += 1;
+        }
+        BytesN::from_array(env, &buf)
+    }
+
     fn transfer_inputs(
         env: &Env,
         root: &BytesN<32>,
@@ -277,8 +302,6 @@ impl Pool {
         count
     }
 
-    /// Cross-contract call to a verifier's `verify(proof, public_inputs)`.
-    /// Reverts (via the verifier's own error) if the proof is invalid.
     fn verify(env: &Env, which: DataKey, proof: &Groth16Proof, public_inputs: &Vec<Bn254Fr>) {
         let verifier: Address = env.storage().instance().get(&which).unwrap();
         let _ok: bool = env.invoke_contract(

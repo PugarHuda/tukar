@@ -1,51 +1,51 @@
 {
   "network": "testnet",
-  "description": "Tukar ZK verifiers (BN254 Groth16) deployed on Stellar testnet",
+  "description": "Tukar — confidential cross-border corridor. ZK verifiers (BN254 Groth16) + stateful pool with token custody on Stellar testnet.",
   "identity": {
     "alias": "corredor",
     "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
   },
+  "token": {
+    "address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    "note": "native XLM SAC, used as a USDC stand-in for the testnet custody demo"
+  },
   "verifiers": {
     "disclosure": {
-      "contractId": "CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA",
+      "contractId": "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2",
       "circuit": "circuits/disclosure.circom",
       "publicInputs": 3,
       "verifyResult": "true",
-      "tamperedResult": "rejected (InvalidProof)",
-      "tx": "6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1",
-      "explorer": "https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1"
+      "tamperedResult": "rejected (InvalidProof)"
     },
     "transfer": {
-      "contractId": "CBMD5HNVN6CQEXSSIKGNKKTRK6ZJIW5MNXLNHSYZ2GGR3BB4FN5ZBDBF",
+      "contractId": "CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B",
       "circuit": "circuits/transfer.circom",
       "publicInputs": 7,
       "verifyResult": "true",
       "note": "2-in 2-out shielded JoinSplit, Merkle depth 10"
     },
     "compliance": {
-      "contractId": "CBHTB52I3F7FUH23IVTTEF5GGK3YYWN6O5R7JWGJF457HYPN76X4N4OO",
+      "contractId": "CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO",
       "circuit": "circuits/compliance.circom",
       "publicInputs": 6,
       "verifyResult": "true",
-      "tx": "2c0bbb0090f31488d620f704b1aebfbb729b7bf59df6e2f23b1fe85908a1b25c",
-      "explorer": "https://stellar.expert/explorer/testnet/tx/2c0bbb0090f31488d620f704b1aebfbb729b7bf59df6e2f23b1fe85908a1b25c",
       "note": "ASP allow-list membership + deny-list non-membership"
     }
   },
   "pool": {
-    "contractId": "CDTBAA7BM4EFLFO64U3SSVPOS757F7VHYO7PTAOB6EJXWBT6QGQ7W5V7",
-    "supersedes": "CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5 (had unbound nullifier/commitment args — replaced)",
+    "contractId": "CDYZXKCZH23BDDJDCWOMRSQM52G2I4DZTSDEN7BS3OZSL7ZJOQRF67LX",
     "wasm": "contracts/pool/",
-    "description": "Hardened corridor pool: builds the verifier public inputs from typed signals so nullifiers/commitments/root are BOUND to the proof; root registry + nullifier set + commitment set + pinned ASP allow/deny",
-    "constructor": ["admin", "transferVerifier", "complianceVerifier", "disclosureVerifier", "initialRoot", "aspRoot", "denyList[4]"],
+    "description": "Hardened corridor pool with token custody. Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw.",
+    "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "initialRoot", "aspRoot", "denyList[4]"],
     "tested": {
-      "deposit": "success — requires a compliance proof whose pinned ASP allow/deny inputs and bound hash (= commitment) verify",
-      "transfer": "success — cross-verifies the JoinSplit proof, spends 2 nullifiers, records 2 commitments",
-      "bindingFix": "transfer with a valid proof but TAMPERED nullifiers -> rejected (Error #0): nullifiers are part of the verified public inputs, so a double-spend bypass is impossible",
-      "doubleSpendReplay": "rejected with PoolError::NullifierUsed (Error #2)",
-      "unknownRoot": "rejected with PoolError::UnknownRoot (Error #1)",
-      "unknownCommitmentDisclose": "rejected with PoolError::UnknownCommitment (Error #3)",
-      "unitTests": "8/8 pass"
+      "deposit": "success — compliance proof bound to commitment; pulled 100 tokens into the pool (balance 0 -> 100)",
+      "withdraw": "success — released 50 tokens (balance 100 -> 50); released amount bound to the proof's public_amount",
+      "amountBindingFix": "withdraw with amount=999 but public_amount=50 -> rejected (AmountNotBound, Error #6)",
+      "bindingFix": "transfer/withdraw with a valid proof but TAMPERED nullifiers -> rejected (InvalidProof, Error #0): nullifiers are part of the verified public inputs, so a double-spend bypass is impossible",
+      "doubleSpendReplay": "rejected with NullifierUsed (Error #2)",
+      "unknownRoot": "rejected with UnknownRoot (Error #1)",
+      "unknownCommitmentDisclose": "rejected with UnknownCommitment (Error #3)",
+      "unitTests": "9/9 pass"
     }
   },
   "curve": "BN254",

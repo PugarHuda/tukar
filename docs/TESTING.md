@@ -44,11 +44,11 @@ Positive — all return `true`:
 
 | Call | Contract | Result |
 |---|---|---|
-| `disclosure.verify` | `CDE3ZYEC…NVDTA` | `true` |
-| `transfer.verify` | `CBMD5HNV…BDBF` | `true` |
-| `compliance.verify` | `CBHTB52I…N4OO` | `true` |
-| `pool.deposit` | `CDTBAA7B…W5V7` | success (compliance proof bound to commitment) |
-| `pool.transfer` | `CDTBAA7B…W5V7` | success (spent 2 nullifiers, recorded 2 commitments) |
+| `disclosure.verify` | `CA2HHH…K47G2` | `true` |
+| `transfer.verify` | `CB6M6IO…6Q3B` | `true` |
+| `compliance.verify` | `CB67JH7…W3XO` | `true` |
+| `pool.deposit` | `CDYZXKCZ…67LX` | success (compliance proof bound to commitment) |
+| `pool.transfer` | `CDYZXKCZ…67LX` | success (spent 2 nullifiers, recorded 2 commitments) |
 
 Negative — all correctly rejected:
 

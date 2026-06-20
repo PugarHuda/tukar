@@ -4,7 +4,7 @@
 import * as snarkjs from "https://cdn.jsdelivr.net/npm/snarkjs@0.7.5/+esm";
 import { buildPoseidon } from "https://cdn.jsdelivr.net/npm/circomlibjs@0.1.7/+esm";
 
-const VERIFIER_CONTRACT = "CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA";
+const VERIFIER_CONTRACT = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
 const WASM = "./circuit/disclosure.wasm";
 const ZKEY = "./circuit/disclosure_final.zkey";

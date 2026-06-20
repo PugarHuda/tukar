@@ -21,9 +21,15 @@ if [ ! -f "$BUILD/pot12_final.ptau" ]; then
   $SNARKJS powersoftau prepare phase2 "$BUILD/pot12_0001.ptau" "$BUILD/pot12_final.ptau" -v
 fi
 
-echo "==> [3/6] Groth16 setup (phase 2)"
-$SNARKJS groth16 setup "$BUILD/disclosure.r1cs" "$BUILD/pot12_final.ptau" "$BUILD/disclosure_0000.zkey"
-$SNARKJS zkey contribute "$BUILD/disclosure_0000.zkey" "$BUILD/disclosure_final.zkey" --name="corredor-key" -v -e="corredor entropy two"
+# Reproducibility: reuse the committed proving key if present (snarkjs setup is
+# not bit-reproducible; regenerating it would invalidate the deployed verifier).
+if [ -f "$BUILD/disclosure_final.zkey" ]; then
+  echo "==> [3/6] Reusing existing disclosure_final.zkey (committed key)"
+else
+  echo "==> [3/6] Groth16 setup (phase 2)"
+  $SNARKJS groth16 setup "$BUILD/disclosure.r1cs" "$BUILD/pot12_final.ptau" "$BUILD/disclosure_0000.zkey"
+  $SNARKJS zkey contribute "$BUILD/disclosure_0000.zkey" "$BUILD/disclosure_final.zkey" --name="corredor-key" -v -e="corredor entropy two"
+fi
 $SNARKJS zkey export verificationkey "$BUILD/disclosure_final.zkey" "$BUILD/verification_key.json"
 
 echo "==> [4/6] Generate sample input"

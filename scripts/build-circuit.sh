@@ -31,9 +31,17 @@ else
   echo "==> [2/5] Reusing $PTAU"
 fi
 
-echo "==> [3/5] Groth16 setup"
-$SNARKJS groth16 setup "$BUILD/$NAME.r1cs" "$PTAU" "$BUILD/${NAME}_0.zkey"
-$SNARKJS zkey contribute "$BUILD/${NAME}_0.zkey" "$BUILD/${NAME}_final.zkey" --name=k1 -v -e="corredor $NAME key"
+# Reproducibility: reuse the committed proving key if present. snarkjs trusted
+# setup is NOT bit-reproducible, so regenerating it would invalidate the already
+# deployed verifier. Delete circuits/build/${NAME}_final.zkey to force a new setup
+# (then you must rebuild + redeploy that verifier).
+if [ -f "$BUILD/${NAME}_final.zkey" ]; then
+  echo "==> [3/5] Reusing existing ${NAME}_final.zkey (committed key)"
+else
+  echo "==> [3/5] Groth16 setup"
+  $SNARKJS groth16 setup "$BUILD/$NAME.r1cs" "$PTAU" "$BUILD/${NAME}_0.zkey"
+  $SNARKJS zkey contribute "$BUILD/${NAME}_0.zkey" "$BUILD/${NAME}_final.zkey" --name=k1 -v -e="corredor $NAME key"
+fi
 $SNARKJS zkey export verificationkey "$BUILD/${NAME}_final.zkey" "$BUILD/${NAME}_vk.json"
 
 echo "==> [4/5] Input + witness + proof"
