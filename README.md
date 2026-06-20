@@ -31,7 +31,7 @@ compliance).
 
   | Contract | Role | Verified call |
   |---|---|---|
-  | [pool](https://lab.stellar.org/r/testnet/contract/CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
+  | [pool](https://lab.stellar.org/r/testnet/contract/CDTBAA7BM4EFLFO64U3SSVPOS757F7VHYO7PTAOB6EJXWBT6QGQ7W5V7) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
   | [disclosure verifier](https://lab.stellar.org/r/testnet/contract/CDE3ZYECJ3XFDXM2ARUWDEDCOURCMI6WZNKJDROBFU277FRTNKZNVDTA) | selective disclosure to regulator | `verify` → `true`; tampered → rejected |
   | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CBMD5HNVN6CQEXSSIKGNKKTRK6ZJIW5MNXLNHSYZ2GGR3BB4FN5ZBDBF) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CBHTB52I3F7FUH23IVTTEF5GGK3YYWN6O5R7JWGJF457HYPN76X4N4OO) | ASP allow/deny | `verify` → `true` |
@@ -95,19 +95,32 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
   membership + deny-list non-membership) — compile, prove, and **verify on-chain
   on Stellar testnet**. Client-side proving in the browser. Corridor demo UI +
   regulator panel. `disclosure` soundness proven off-chain and on-chain.
-- ✅ **Pool contract live:** a stateful `pool` Soroban contract
-  ([`CAOSABAC…V2AC5`](https://lab.stellar.org/r/testnet/contract/CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5))
-  that orchestrates the three verifiers via cross-contract calls, maintains a
-  **root registry** and a **nullifier set**, and was tested on testnet:
-  `transfer` cross-verifies the proof + records commitments + spends nullifiers
-  ([tx](https://stellar.expert/explorer/testnet/tx/311e8b3f19ea0db97a306fc46897b1e00db147558cfb63e0f38e00bead873d2c)),
-  a **double-spend replay is rejected** (`NullifierUsed`), and `check_compliance`
-  / `disclose` route to their verifiers (both → `true`). 4/4 unit tests pass.
-- 🟡 **Simplified (and we say so):** the commitment Merkle tree is maintained
-  off-chain by the operator/indexer which publishes roots via `register_root`
-  (the Nethermind reference uses a bootnode indexer for this). Fiat anchor
-  on/off-ramps are mocked (assume testnet USDC at the edges); ASP lists seeded
-  manually; single corridor A→B.
+- ✅ **Pool contract live & hardened:** a stateful `pool` Soroban contract
+  ([`CDTBAA7B…W5V7`](https://lab.stellar.org/r/testnet/contract/CDTBAA7BM4EFLFO64U3SSVPOS757F7VHYO7PTAOB6EJXWBT6QGQ7W5V7))
+  orchestrating the three verifiers. **Binding (the key property):** the pool
+  builds the verifier's public inputs from the typed signals itself, so the spent
+  nullifiers, recorded commitments and root are *exactly* the ones the proof
+  attests — a caller cannot present a valid proof while spending different
+  nullifiers. On testnet: `deposit` requires a compliance proof bound to the
+  commitment (pinned ASP allow/deny); `transfer` spends nullifiers + records
+  commitments; a **double-spend bypass** (valid proof, tampered nullifiers) is
+  **rejected** (`InvalidProof`); replay → `NullifierUsed`; unknown root →
+  `UnknownRoot`; disclosure of an unknown commitment → `UnknownCommitment`.
+  **8/8 unit tests pass.** (See `docs/TESTING.md`.)
+- 🟡 **Honestly simplified / mocked:**
+  - **No real token custody yet** — `deposit`/`withdraw` track commitments and
+    authorize amounts via proofs but do **not** move a USDC SAC token; custody is
+    the next integration step.
+  - **Merkle tree off-chain** — maintained by the operator/indexer, which
+    publishes roots via admin-only `register_root` (Nethermind bootnode pattern).
+    The operator is trusted for *tree construction*; spends stay trustless.
+  - **Fiat anchors mocked** (assume testnet USDC at the edges); ASP allow/deny
+    lists seeded manually; single corridor A→B.
+  - **Throwaway trusted setup** — the demo Groth16 keys come from a single-
+    contributor setup (known toxic waste), not a real ceremony.
+  - **Frontend scope** — the browser demo exercises the **disclosure** flow
+    (client-side proving + verify); the pool/transfer/compliance are exercised via
+    CLI on testnet, not yet wired into the UI.
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
 "Yardstick"). The verifier pattern is adapted from Nethermind's
@@ -131,6 +144,9 @@ npm run test:negative               # full QA report: docs/TESTING.md
 # C) Launch the corridor demo (in-browser ZK proving)
 npm run serve                       # -> http://localhost:8000
 ```
+
+> The browser demo loads `snarkjs` and `circomlibjs` from a CDN at runtime, so it
+> needs an internet connection. Everything else runs locally.
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`

@@ -26,7 +26,15 @@ contracts/build/circom_groth16_verifier.wasm  ──deploy──►  Soroban (te
 ## 1. Build the verifier with Tukar's VK
 
 The VK is baked into the WASM at compile time via the crate's `build.rs`
-(`VERIFIER_VK_JSON` env var). Built against the cloned reference workspace:
+(`VERIFIER_VK_JSON` env var). The verifier crate itself comes from Nethermind's
+reference, so **clone it first** (it is gitignored in this repo):
+
+```bash
+git clone https://github.com/NethermindEth/stellar-private-payments \
+  _reference/stellar-private-payments
+```
+
+Then build against that workspace (in WSL/Linux):
 
 ```bash
 VERIFIER_VK_JSON="circuits/build/verification_key.json" \

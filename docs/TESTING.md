@@ -32,9 +32,11 @@ cd contracts/pool && cargo test          # 4/4
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **4/4 passed**: deposit increments count; `register_root` marks
-known + current; `register_root` requires admin auth (panics without); nullifier
-unused by default.
+`contracts/pool` — **8/8 passed** (`cargo test`): deposit records commitment;
+`register_root` marks known + current; `register_root` requires admin auth;
+transfer spends nullifiers + records outputs; **double-spend replay rejected**
+(`NullifierUsed`); **unknown root rejected** (`UnknownRoot`); disclose requires a
+known commitment; disclose of an unknown commitment rejected (`UnknownCommitment`).
 
 ## 4. On-chain behaviour (Stellar testnet) ✅
 
@@ -45,18 +47,24 @@ Positive — all return `true`:
 | `disclosure.verify` | `CDE3ZYEC…NVDTA` | `true` |
 | `transfer.verify` | `CBMD5HNV…BDBF` | `true` |
 | `compliance.verify` | `CBHTB52I…N4OO` | `true` |
-| `pool.transfer` | `CAOSABAC…V2AC5` | success (spent 2 nullifiers, recorded 2 commitments) |
-| `pool.check_compliance` / `pool.disclose` | pool → verifiers | `true` / `true` |
+| `pool.deposit` | `CDTBAA7B…W5V7` | success (compliance proof bound to commitment) |
+| `pool.transfer` | `CDTBAA7B…W5V7` | success (spent 2 nullifiers, recorded 2 commitments) |
 
 Negative — all correctly rejected:
 
 | Scenario | Expected error | Result |
 |---|---|---|
-| `disclosure.verify` with tampered public input | `InvalidProof` (#0) | rejected ✅ |
-| `transfer.verify` with tampered public input | `InvalidProof` (#0) | rejected ✅ |
-| `pool.transfer` with unknown root | `UnknownRoot` (#1) | rejected ✅ |
+| `disclosure.verify` / `transfer.verify` tampered public input | `InvalidProof` (#0) | rejected ✅ |
+| **`pool.transfer` valid proof but TAMPERED nullifiers (double-spend bypass)** | `InvalidProof` (#0) | **rejected ✅** |
 | `pool.transfer` replay (double-spend) | `NullifierUsed` (#2) | rejected ✅ |
+| `pool.transfer` with unknown root | `UnknownRoot` (#1) | rejected ✅ |
+| `pool.disclose` of unknown commitment | `UnknownCommitment` (#3) | rejected ✅ (unit) |
 | `pool.register_root` without admin auth | auth failure | rejected ✅ (unit) |
+
+The **double-spend-bypass** row is the important one: because the pool builds the
+verifier's public inputs from the typed nullifiers/commitments/root itself, a
+caller cannot present a valid proof while spending different nullifiers — the
+verification fails. This closes the binding gap found in QA.
 
 State checks after the test transfer: `pool.current_root` = registered root,
 `commitment_count` = 2, `is_root_known(root)` = true, `is_nullifier_used(spent)` = true.

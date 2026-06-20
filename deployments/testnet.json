@@ -33,19 +33,19 @@
     }
   },
   "pool": {
-    "contractId": "CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5",
+    "contractId": "CDTBAA7BM4EFLFO64U3SSVPOS757F7VHYO7PTAOB6EJXWBT6QGQ7W5V7",
+    "supersedes": "CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5 (had unbound nullifier/commitment args — replaced)",
     "wasm": "contracts/pool/",
-    "description": "Stateful corridor pool: root registry + nullifier set + cross-contract verification of the three verifiers",
-    "constructor": ["admin", "transferVerifier", "complianceVerifier", "disclosureVerifier", "initialRoot"],
+    "description": "Hardened corridor pool: builds the verifier public inputs from typed signals so nullifiers/commitments/root are BOUND to the proof; root registry + nullifier set + commitment set + pinned ASP allow/deny",
+    "constructor": ["admin", "transferVerifier", "complianceVerifier", "disclosureVerifier", "initialRoot", "aspRoot", "denyList[4]"],
     "tested": {
-      "transfer": {
-        "result": "success (cross-verified proof, recorded 2 output commitments, spent 2 nullifiers)",
-        "tx": "311e8b3f19ea0db97a306fc46897b1e00db147558cfb63e0f38e00bead873d2c"
-      },
-      "doubleSpend": "replay rejected with PoolError::NullifierUsed (Error #2)",
-      "checkCompliance": "true (routes to compliance verifier)",
-      "disclose": "true (routes to disclosure verifier)",
-      "commitmentCount": 2
+      "deposit": "success — requires a compliance proof whose pinned ASP allow/deny inputs and bound hash (= commitment) verify",
+      "transfer": "success — cross-verifies the JoinSplit proof, spends 2 nullifiers, records 2 commitments",
+      "bindingFix": "transfer with a valid proof but TAMPERED nullifiers -> rejected (Error #0): nullifiers are part of the verified public inputs, so a double-spend bypass is impossible",
+      "doubleSpendReplay": "rejected with PoolError::NullifierUsed (Error #2)",
+      "unknownRoot": "rejected with PoolError::UnknownRoot (Error #1)",
+      "unknownCommitmentDisclose": "rejected with PoolError::UnknownCommitment (Error #3)",
+      "unitTests": "8/8 pass"
     }
   },
   "curve": "BN254",
