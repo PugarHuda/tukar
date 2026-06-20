@@ -32,6 +32,22 @@
       "note": "ASP allow-list membership + deny-list non-membership"
     }
   },
+  "pool": {
+    "contractId": "CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5",
+    "wasm": "contracts/pool/",
+    "description": "Stateful corridor pool: root registry + nullifier set + cross-contract verification of the three verifiers",
+    "constructor": ["admin", "transferVerifier", "complianceVerifier", "disclosureVerifier", "initialRoot"],
+    "tested": {
+      "transfer": {
+        "result": "success (cross-verified proof, recorded 2 output commitments, spent 2 nullifiers)",
+        "tx": "311e8b3f19ea0db97a306fc46897b1e00db147558cfb63e0f38e00bead873d2c"
+      },
+      "doubleSpend": "replay rejected with PoolError::NullifierUsed (Error #2)",
+      "checkCompliance": "true (routes to compliance verifier)",
+      "disclose": "true (routes to disclosure verifier)",
+      "commitmentCount": 2
+    }
+  },
   "curve": "BN254",
   "proofSystem": "Groth16",
   "protocol": "Stellar Protocol 25/26 (X-Ray / Yardstick) native BN254 host functions"

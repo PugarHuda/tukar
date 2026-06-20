@@ -57,7 +57,7 @@ on-chain (tampered public input → `InvalidProof`). Full artifacts:
 
 ```
 circuits/        Circom — disclosure, transfer, compliance (all ✅ verified on-chain)
-contracts/       Built BN254 Groth16 verifier WASMs (3 deployed) + build logs
+contracts/pool/  Stateful corridor pool (Rust/Soroban) — orchestrates the verifiers ✅
 deployments/     testnet.json — live contract id + tx hashes
 frontend/        Corridor demo UI + regulator panel (in-browser ZK proving)  ✅
 scripts/         build / prove / convert / test helpers
@@ -74,13 +74,19 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
   membership + deny-list non-membership) — compile, prove, and **verify on-chain
   on Stellar testnet**. Client-side proving in the browser. Corridor demo UI +
   regulator panel. `disclosure` soundness proven off-chain and on-chain.
-- 🟡 **Not yet built:** a stateful `pool` contract that ties the three verifiers
-  together (stores the commitment tree + nullifier set and orchestrates
-  deposit/transfer/withdraw). The verifiers and circuits exist and pass on-chain;
-  the orchestration layer is the next step (design in `docs/ARCHITECTURE.md`,
-  reusing the Nethermind privacy-pool pattern).
-- 🟡 **Mocked (and we say so):** fiat anchor on/off-ramps (assume testnet USDC at
-  the edges), ASP lists seeded manually, single corridor A→B.
+- ✅ **Pool contract live:** a stateful `pool` Soroban contract
+  ([`CAOSABAC…V2AC5`](https://lab.stellar.org/r/testnet/contract/CAOSABAC4RAIF5WC3DPMR43V4T7CR7BJYEAJUV2VEEZHI2QFPOQV2AC5))
+  that orchestrates the three verifiers via cross-contract calls, maintains a
+  **root registry** and a **nullifier set**, and was tested on testnet:
+  `transfer` cross-verifies the proof + records commitments + spends nullifiers
+  ([tx](https://stellar.expert/explorer/testnet/tx/311e8b3f19ea0db97a306fc46897b1e00db147558cfb63e0f38e00bead873d2c)),
+  a **double-spend replay is rejected** (`NullifierUsed`), and `check_compliance`
+  / `disclose` route to their verifiers (both → `true`). 4/4 unit tests pass.
+- 🟡 **Simplified (and we say so):** the commitment Merkle tree is maintained
+  off-chain by the operator/indexer which publishes roots via `register_root`
+  (the Nethermind reference uses a bootnode indexer for this). Fiat anchor
+  on/off-ramps are mocked (assume testnet USDC at the edges); ASP lists seeded
+  manually; single corridor A→B.
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
 "Yardstick"). The verifier pattern is adapted from Nethermind's
