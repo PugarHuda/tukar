@@ -124,8 +124,9 @@ npm install                         # snarkjs, circomlib, circomlibjs
 # A) Off-chain: compile + prove + verify ALL THREE circuits (Groth16/BN254)
 npm run circuit:all                 # or circuit:disclosure / circuit:transfer / circuit:compliance
 
-# B) Validate the in-browser proving flow (valid / tampered / false-witness)
+# B) Tests: in-browser proving flow + circuit soundness (negative tests)
 npm run test:proving
+npm run test:negative               # full QA report: docs/TESTING.md
 
 # C) Launch the corridor demo (in-browser ZK proving)
 npm run serve                       # -> http://localhost:8000

@@ -10,6 +10,7 @@
     "circuit:compliance": "bash scripts/build-circuit.sh compliance 14 scripts/gen-input-compliance.mjs",
     "circuit:all": "bash scripts/build-all-circuits.sh",
     "test:proving": "node scripts/test-fullprove.mjs",
+    "test:negative": "node scripts/test-negative.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
