@@ -54,6 +54,7 @@ enum DataKey {
     TransferVerifier,
     ComplianceVerifier,
     DisclosureVerifier,
+    UpdateVerifier,
     AspRoot,
     DenyList,
     CurrentRoot,
@@ -75,6 +76,7 @@ impl Pool {
         transfer_verifier: Address,
         compliance_verifier: Address,
         disclosure_verifier: Address,
+        update_verifier: Address,
         initial_root: BytesN<32>,
         asp_root: BytesN<32>,
         deny_list: Vec<BytesN<32>>,
@@ -88,6 +90,7 @@ impl Pool {
         s.set(&DataKey::TransferVerifier, &transfer_verifier);
         s.set(&DataKey::ComplianceVerifier, &compliance_verifier);
         s.set(&DataKey::DisclosureVerifier, &disclosure_verifier);
+        s.set(&DataKey::UpdateVerifier, &update_verifier);
         s.set(&DataKey::AspRoot, &asp_root);
         s.set(&DataKey::DenyList, &deny_list);
         s.set(&DataKey::CurrentRoot, &initial_root);
@@ -95,12 +98,38 @@ impl Pool {
         env.storage().persistent().set(&DataKey::Root(initial_root), &());
     }
 
-    /// Operator publishes a new Merkle root (after off-chain tree updates).
+    /// Admin root registration — genesis / emergency only. The normal path is
+    /// `register_root_verified`, which is trustless.
     pub fn register_root(env: Env, new_root: BytesN<32>) {
         Self::admin(&env).require_auth();
         env.storage().persistent().set(&DataKey::Root(new_root.clone()), &());
         env.storage().instance().set(&DataKey::CurrentRoot, &new_root);
         env.events().publish((symbol_short!("root"),), new_root);
+    }
+
+    /// Trustless root advance (G6). Anyone may advance the tree, but only with a
+    /// proof that inserting `new_leaf` at an empty slot of a *known* `old_root`
+    /// yields exactly `new_root`. The operator therefore cannot register an
+    /// arbitrary root — tree integrity no longer depends on trusting them.
+    pub fn register_root_verified(
+        env: Env,
+        proof: Groth16Proof,
+        old_root: BytesN<32>,
+        new_leaf: BytesN<32>,
+        new_root: BytesN<32>,
+    ) {
+        Self::require_known_root(&env, &old_root);
+        let pi = vec![
+            &env,
+            Self::fr(&env, &old_root),
+            Self::fr(&env, &new_leaf),
+            Self::fr(&env, &new_root),
+        ];
+        Self::verify(&env, DataKey::UpdateVerifier, &proof, &pi);
+        Self::record_commitment(&env, &new_leaf);
+        env.storage().persistent().set(&DataKey::Root(new_root.clone()), &());
+        env.storage().instance().set(&DataKey::CurrentRoot, &new_root);
+        env.events().publish((symbol_short!("root"), new_leaf), new_root);
     }
 
     /// Compliant deposit: pull `amount` tokens from `from` into the pool and

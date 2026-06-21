@@ -31,7 +31,7 @@ compliance).
 
   | Contract | Role | Verified call |
   |---|---|---|
-  | [pool](https://lab.stellar.org/r/testnet/contract/CDYZXKCZH23BDDJDCWOMRSQM52G2I4DZTSDEN7BS3OZSL7ZJOQRF67LX) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
+  | [pool](https://lab.stellar.org/r/testnet/contract/CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
   | [disclosure verifier](https://lab.stellar.org/r/testnet/contract/CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2) | selective disclosure to regulator | `verify` → `true`; tampered → rejected |
   | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ASP allow/deny | `verify` → `true` |
@@ -96,7 +96,7 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
   on Stellar testnet**. Client-side proving in the browser. Corridor demo UI +
   regulator panel. `disclosure` soundness proven off-chain and on-chain.
 - ✅ **Pool contract live & hardened:** a stateful `pool` Soroban contract
-  ([`CDYZXKCZ…67LX`](https://lab.stellar.org/r/testnet/contract/CDYZXKCZH23BDDJDCWOMRSQM52G2I4DZTSDEN7BS3OZSL7ZJOQRF67LX))
+  ([`CC6CSZ6T…KYEW`](https://lab.stellar.org/r/testnet/contract/CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW))
   orchestrating the three verifiers. **Binding (the key property):** the pool
   builds the verifier's public inputs from the typed signals itself, so the spent
   nullifiers, recorded commitments and root are *exactly* the ones the proof
@@ -113,10 +113,13 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
   the proof's verified `public_amount`** — releasing a different amount is rejected
   (`AmountNotBound`). Demonstrated on testnet: deposit 100 → pool balance 100 →
   withdraw 50 (bound) → balance 50.
+- ✅ **Trustless tree updates:** a fourth circuit (`merkleUpdate`) lets anyone
+  advance the pool's root only with a proof that inserting a leaf into a *known*
+  `old_root` yields the claimed `new_root` (`register_root_verified`). The
+  operator can **no longer register an arbitrary root** — registering a fake root
+  with a real proof is rejected on-chain (`InvalidProof`). The witness (Merkle
+  path) is still computed off-chain, but integrity is enforced by the proof.
 - 🟡 **Honestly simplified / mocked:**
-  - **Merkle tree off-chain** — maintained by the operator/indexer, which
-    publishes roots via admin-only `register_root` (Nethermind bootnode pattern).
-    The operator is trusted for *tree construction*; spends stay trustless.
   - **Fiat anchors mocked** (assume testnet USDC at the edges); ASP allow/deny
     lists seeded manually; single corridor A→B.
   - **Dev trusted setup** — the demo Groth16 keys are from a single-contributor

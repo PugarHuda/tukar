@@ -8,6 +8,7 @@
     "circuit:disclosure": "bash scripts/build-disclosure.sh",
     "circuit:transfer": "bash scripts/build-circuit.sh transfer 14 scripts/gen-input-transfer.mjs",
     "circuit:compliance": "bash scripts/build-circuit.sh compliance 14 scripts/gen-input-compliance.mjs",
+    "circuit:merkleupdate": "bash scripts/build-circuit.sh merkleUpdate 14 scripts/gen-input-merkleupdate.mjs",
     "circuit:all": "bash scripts/build-all-circuits.sh",
     "test:proving": "node scripts/test-fullprove.mjs",
     "test:negative": "node scripts/test-negative.mjs",

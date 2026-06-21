@@ -16,9 +16,14 @@ echo "############################################"
 bash scripts/build-circuit.sh transfer 14 scripts/gen-input-transfer.mjs
 
 echo "############################################"
-echo "# 3/3  compliance (ASP membership)         #"
+echo "# 3/4  compliance (ASP membership)         #"
 echo "############################################"
 bash scripts/build-circuit.sh compliance 14 scripts/gen-input-compliance.mjs
 
+echo "############################################"
+echo "# 4/4  merkleUpdate (trustless root)       #"
+echo "############################################"
+bash scripts/build-circuit.sh merkleUpdate 14 scripts/gen-input-merkleupdate.mjs
+
 echo ""
-echo "✅ All three circuits compiled, proven, and verified (Groth16 / BN254)."
+echo "✅ All four circuits compiled, proven, and verified (Groth16 / BN254)."

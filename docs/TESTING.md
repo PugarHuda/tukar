@@ -32,11 +32,13 @@ cd contracts/pool && cargo test          # 4/4
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **8/8 passed** (`cargo test`): deposit records commitment;
-`register_root` marks known + current; `register_root` requires admin auth;
-transfer spends nullifiers + records outputs; **double-spend replay rejected**
-(`NullifierUsed`); **unknown root rejected** (`UnknownRoot`); disclose requires a
-known commitment; disclose of an unknown commitment rejected (`UnknownCommitment`).
+`contracts/pool` — **11/11 passed** (`cargo test`): deposit pulls tokens + records
+commitment; withdraw releases the bound amount; mismatched-amount withdraw
+rejected (`AmountNotBound`); `register_root` admin auth; transfer spends
+nullifiers + records outputs; **double-spend replay rejected** (`NullifierUsed`);
+**unknown root rejected** (`UnknownRoot`); disclose requires a known commitment;
+unknown-commitment disclose rejected (`UnknownCommitment`);
+`register_root_verified` advances from a known root and rejects an unknown one.
 
 ## 4. On-chain behaviour (Stellar testnet) ✅
 
@@ -47,8 +49,10 @@ Positive — all return `true`:
 | `disclosure.verify` | `CA2HHH…K47G2` | `true` |
 | `transfer.verify` | `CB6M6IO…6Q3B` | `true` |
 | `compliance.verify` | `CB67JH7…W3XO` | `true` |
-| `pool.deposit` | `CDYZXKCZ…67LX` | success (compliance proof bound to commitment) |
-| `pool.transfer` | `CDYZXKCZ…67LX` | success (spent 2 nullifiers, recorded 2 commitments) |
+| `pool.deposit` | `CC6CSZ6T…KYEW` | success — pulled 100 tokens in (balance 0→100) |
+| `pool.withdraw` | `CC6CSZ6T…KYEW` | success — released 50 (balance 100→50), amount bound |
+| `pool.register_root_verified` | `CC6CSZ6T…KYEW` | success — trustless root advance |
+| `merkleUpdate.verify` | `CASMZC2A…BWXF` | `true` |
 
 Negative — all correctly rejected:
 
@@ -58,6 +62,8 @@ Negative — all correctly rejected:
 | **`pool.transfer` valid proof but TAMPERED nullifiers (double-spend bypass)** | `InvalidProof` (#0) | **rejected ✅** |
 | `pool.transfer` replay (double-spend) | `NullifierUsed` (#2) | rejected ✅ |
 | `pool.transfer` with unknown root | `UnknownRoot` (#1) | rejected ✅ |
+| `pool.withdraw` amount ≠ proof public_amount | `AmountNotBound` (#6) | rejected ✅ |
+| **`register_root_verified` with a FAKE new_root** | `InvalidProof` (#0) | **rejected ✅** |
 | `pool.disclose` of unknown commitment | `UnknownCommitment` (#3) | rejected ✅ (unit) |
 | `pool.register_root` without admin auth | auth failure | rejected ✅ (unit) |
 

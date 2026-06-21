@@ -64,6 +64,7 @@ fn setup(env: &Env) -> Ctx {
             v.clone(),
             v.clone(),
             v.clone(),
+            v.clone(), // update verifier
             b32(env, 0),   // initial_root
             b32(env, 100), // asp_root
             deny,
@@ -179,4 +180,26 @@ fn disclose_unknown_commitment_rejected() {
     let env = Env::default();
     let c = setup(&env);
     c.pool.disclose(&dummy_proof(&env), &b32(&env, 200), &b32(&env, 50), &b32(&env, 42));
+}
+
+#[test]
+fn register_root_verified_advances_from_known_root() {
+    let env = Env::default();
+    let c = setup(&env);
+    let old = b32(&env, 0); // known initial root
+    let leaf = b32(&env, 42);
+    let newr = b32(&env, 77);
+    assert!(!c.pool.is_root_known(&newr));
+    c.pool.register_root_verified(&dummy_proof(&env), &old, &leaf, &newr);
+    assert!(c.pool.is_root_known(&newr));
+    assert_eq!(c.pool.current_root(), newr);
+    assert!(c.pool.is_commitment_known(&leaf));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")] // UnknownRoot
+fn register_root_verified_rejects_unknown_old_root() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.register_root_verified(&dummy_proof(&env), &b32(&env, 250), &b32(&env, 42), &b32(&env, 77));
 }

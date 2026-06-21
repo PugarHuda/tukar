@@ -19,6 +19,7 @@ contracts/build/
 !circuits/build/verification_key.json
 !circuits/build/transfer_vk.json
 !circuits/build/compliance_vk.json
+!circuits/build/merkleUpdate_vk.json
 !circuits/build/pool_deny_list.json
 # but DO ship the demo's circuit artifacts (needed to serve the frontend)
 !frontend/circuit/
