@@ -4,8 +4,8 @@
 // snarkjs + circomlibjs load from jsDelivr's `+esm` (self-contained bundles that
 // resolve their own deps, e.g. ffjavascript — a plain vendored copy does not).
 // The demo therefore needs internet for these two libraries; everything else is local.
-import * as snarkjs from "https://cdn.jsdelivr.net/npm/snarkjs@0.7.5/+esm";
-import { buildPoseidon } from "https://cdn.jsdelivr.net/npm/circomlibjs@0.1.7/+esm";
+import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
+import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
 
 const VERIFIER_CONTRACT = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
@@ -54,12 +54,23 @@ function fmtUsdc(stroops) {
 
 const short = (s) => `${s.slice(0, 10)}…${s.slice(-8)}`;
 
+const BUILD = "v3-cdn";
 async function init() {
-  poseidon = await buildPoseidon();
-  F = poseidon.F;
-  vkey = await (await fetch(VKEY)).json();
-  status.textContent = "Ready · zero-knowledge prover loaded.";
-  render();
+  try {
+    console.log(`[tukar ${BUILD}] loading Poseidon (circomlibjs)…`);
+    status.textContent = "Loading Poseidon hasher…";
+    poseidon = await buildPoseidon();
+    F = poseidon.F;
+    console.log(`[tukar ${BUILD}] Poseidon ready; loading verification key…`);
+    status.textContent = "Loading verification key…";
+    vkey = await (await fetch(VKEY)).json();
+    console.log(`[tukar ${BUILD}] init complete — ready`);
+    status.textContent = `Ready · zero-knowledge prover loaded. (${BUILD})`;
+    render();
+  } catch (e) {
+    console.error("[tukar] init failed:", e);
+    status.textContent = "Init error: " + ((e && e.message) || e) + " — open the console (F12) for details.";
+  }
 }
 
 // Sender: create a confidential payment (commitment) entering the corridor.
@@ -174,6 +185,13 @@ async function proveAndVerify() {
   }
 }
 
-$("sendBtn").addEventListener("click", createPayment);
-$("proveBtn").addEventListener("click", proveAndVerify);
-init().catch((e) => { status.textContent = "Init error: " + ((e && e.message) || e); });
+$("sendBtn").addEventListener("click", () => {
+  if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
+  createPayment();
+});
+$("proveBtn").addEventListener("click", () => {
+  if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
+  proveAndVerify();
+});
+console.log("[tukar] app.js module executed — wiring UI");
+init();

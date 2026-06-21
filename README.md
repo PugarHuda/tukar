@@ -157,9 +157,11 @@ npm run test:negative               # full QA report: docs/TESTING.md
 npm run serve                       # -> http://localhost:8000
 ```
 
-> The browser demo loads `snarkjs` and `circomlibjs` from jsDelivr's `+esm`
-> (self-contained bundles), so it needs an internet connection for those two
+> The browser demo loads `snarkjs` and `circomlibjs` from **esm.sh** (a browser-
+> ESM CDN that polyfills Node built-ins — jsDelivr's `+esm` bundles reference
+> `Stream`/`process` and fail in the browser). It needs internet for those two
 > libraries; the circuit artifacts and everything else are served locally.
+> Verified end-to-end in a headless browser (`scripts/browser-test.mjs`).
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
