@@ -152,8 +152,9 @@ npm run test:negative               # full QA report: docs/TESTING.md
 npm run serve                       # -> http://localhost:8000
 ```
 
-> The browser demo loads `snarkjs` and `circomlibjs` from a CDN at runtime, so it
-> needs an internet connection. Everything else runs locally.
+> `snarkjs` is vendored locally (`frontend/vendor/`). The demo still loads
+> `circomlibjs` (Poseidon, for commitment hashing) from a CDN, so it needs
+> internet for that one small library; everything else runs locally.
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
