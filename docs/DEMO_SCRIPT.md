@@ -2,85 +2,92 @@
 
 Goal: show (1) a real-world money use case (private cross-border remittance),
 (2) ZK doing the load-bearing work, (3) it touching Stellar (proofs verified
-on-chain, real tokens moving). You do **not** need to appear on camera —
-screen-record + voiceover.
+on-chain, live contract reads). You do **not** need to be on camera —
+screen-record the live site + voiceover.
 
-Live contracts (testnet, see `deployments/testnet.json`):
-- pool `CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW`
-- disclosure verifier `CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2`
+**Just open https://tukar-six.vercel.app** — no install. Wait ~2s for the status
+bar to say "Ready · zero-knowledge prover loaded." (Optional: open the console
+with F12 to show the `[tukar]` logs and the on-chain calls.)
 
-Before recording: `npm install && npm run circuit:all` (so the proof args exist),
-then pre-warm the browser tab once (first proof loads the 1.8 MB wasm).
+Tip: pre-load the page once before recording so the prover is warm.
 
 ---
 
-## Scene 0 — Hook (0:00–0:15)
-**Screen:** title card "Tukar — confidential cross-border corridors on Stellar".
+## Scene 0 — Hook / the landing (0:00–0:25)
+**Screen:** the top of the page — the hero: *"Private cross-border payments,
+verified on Stellar"*, the chips (4 ZK circuits · 5 contracts live · proofs
+verified on-chain · open source), and the **Sender → Shielded corridor →
+Receiver** flow strip.
 **Say:**
 > "Stellar exists to move real money across borders. Tukar makes that money
-> private — and keeps it compliant. Amounts and counterparties are hidden
-> on-chain, yet a regulator can still verify exactly what they need to, with
-> zero-knowledge proofs checked inside Stellar smart contracts."
+> private — and keeps it compliant. USDC enters a corridor, crosses with its
+> amount and counterparties hidden on-chain, and exits as local fiat — with
+> zero-knowledge proofs verified inside Stellar smart contracts. Four circuits,
+> five live contracts. Let's try it."
 
-## Scene 1 — The corridor, sender side (0:15–0:40)
-**Screen:** `npm run serve` → http://localhost:8000. Enter "500 USDC", recipient
-"María, Mexico City", click **Send into corridor**. Add one or two more.
+## Scene 1 — Country A · Sender (0:25–0:45)
+**Screen:** the **Country A · Sender** panel. Amount = 500 USDC, recipient
+"María, Mexico City". Click **Send into corridor →**.
 **Say:**
-> "A sender pays 500 USDC into the corridor. On the public ledger you see only a
-> commitment — amount and recipient are shielded. Every payment looks like this."
+> "A sender pays 500 USDC into the corridor. Watch the middle panel — on the
+> public Stellar ledger you see only a commitment. The amount and the recipient
+> are shielded."
 
-## Scene 2 — Compliance without surveillance (0:40–1:20) ← the wedge
-**Screen:** Regulator panel. Pick the payment, set context "2026-Q2 · CNBV",
-click **Generate & verify disclosure proof**. Watch "Generating proof in your
-browser…" → green ✅ showing **500 USDC**.
+## Scene 2 — Corridor on Stellar, live (0:45–1:05)
+**Screen:** the **Corridor · on Stellar** panel: the commitment appears, amount &
+recipient show "shielded". Point at the bottom line: **"Live on Stellar: … 
+custodied · N commitments · pool ↗"**.
 **Say:**
-> "An audit request comes in. The holder generates a zero-knowledge proof — right
-> here in the browser — that selectively discloses one fact: the amount. The
-> regulator learns it's 500 USDC and that the proof is valid, and nothing else —
-> no keys, no other payments. That's compliant privacy, straight from the Privacy
-> Pools whitepaper."
-**Screen:** tick **Tamper**, click again → red ⛔ REJECTED.
-**Say:** "And you can't lie — a false amount is rejected."
+> "Every payment looks like this publicly — just a commitment. And this isn't a
+> mock: that bottom line is read live from the pool contract on Stellar testnet —
+> its real custody balance and commitment count, straight from chain."
 
-## Scene 3 — Real money moves on Stellar (1:20–2:05)
-**Screen:** terminal. Show the pool balance, deposit, withdraw (commands from
-`docs/ONCHAIN.md` / the deploy session). Highlight the balance going 0 → 100 → 50.
-```
-stellar contract invoke --id <POOL> -- balance                 # 0
-stellar contract invoke --id <POOL> -- deposit  ... amount 100  # tokens IN
-stellar contract invoke --id <POOL> -- balance                 # 100
-stellar contract invoke --id <POOL> -- withdraw ... amount 50   # tokens OUT
-stellar contract invoke --id <POOL> -- balance                 # 50
-```
+## Scene 3 — Country B · Receiver + off-ramp (1:05–1:30)
+**Screen:** the **Country B · Receiver** panel — the payment is "shielded in
+transit". Click **Off-ramp to MXN →**. It reveals **"500 USDC → 8,525 MXN"**.
 **Say:**
-> "This isn't a mock ledger. The pool custodies a real token on testnet. A
-> compliant deposit pulls 100 in; a withdraw releases 50 — and the released
-> amount is bound to the proof, so the contract can't be told to pay out more
-> than the proof authorizes. Every transfer cross-verifies a Groth16 proof inside
-> the Soroban pool."
+> "On the receiving side the payment arrives still shielded. Only at the off-ramp
+> edge — where it converts to local fiat — is the amount revealed: 500 USDC
+> becomes about 8,500 pesos. Private through the middle, visible exactly where
+> compliance needs it."
 
-## Scene 4 — The security: nothing can be forged (2:05–2:40)
-**Screen:** run the three rejections (each prints `Error(Contract, #…)`):
-- withdraw with a **tampered nullifier** → `#0 InvalidProof` (double-spend bypass closed)
-- `register_root_verified` with a **fake new root** → `#0 InvalidProof` (trustless tree)
-- replay a spent transfer → `#2 NullifierUsed`
+## Scene 4 — Regulator: ZK disclosure, verified on-chain (1:30–2:10) ← the wedge
+**Screen:** the **Regulator** panel. Audit context "2026-Q2 · CNBV". Click
+**Generate & verify disclosure proof**. Watch the status: a proof is generated in
+the browser → green **✅ Disclosure proof VALID — 500 USDC**, then the line
+**"⛓ Verified on-chain too — by the live Stellar verifier ↗"** appears.
 **Say:**
-> "Because the pool builds the proof's public inputs itself, you can't present a
-> valid proof while spending different notes — a double-spend bypass is
-> impossible. You can't register a fake Merkle root — the tree advances only with
-> a proof of correct insertion. And a spent note can't be spent twice."
+> "Now an audit. The holder generates a zero-knowledge proof — right here in the
+> browser — that discloses one fact: the amount. The regulator learns it's 500
+> USDC and nothing else: no keys, no other payments. And it isn't just checked
+> locally — the same proof is verified by the live Stellar verifier contract.
+> That's compliant privacy."
 
-## Scene 5 — Close (2:40–2:55)
-**Screen:** the README "Live on Stellar testnet" table + a contract on
-stellar.expert.
+## Scene 5 — You can't cheat (2:10–2:35)
+**Screen:** tick **Tamper: claim a false amount**, click **Generate & verify**
+again → red **⛔ Disclosure REJECTED**, and **"⛓ The live Stellar verifier also
+rejected it (InvalidProof)."**
 **Say:**
-> "Four ZK circuits, a hardened custody pool, five contracts live on Stellar —
-> all open source. Tukar: real-world money, made private, kept compliant."
+> "And a false claim can't pass. Tamper with the amount, and it's rejected — in
+> the browser and by the on-chain contract. The proof is sound."
+
+## Scene 6 — Close (2:35–2:55)
+**Screen:** scroll to the footer (GitHub + pool-contract links), or open the pool
+on stellar.expert.
+**Say:**
+> "Under the hood: a hardened custody pool with real token movement, double-spend
+> protection, and trustless tree updates — all tested on-chain. Open source.
+> Tukar: real-world money, made private, kept compliant — on Stellar."
 
 ---
 
+### Optional B-roll (deeper on-chain proof, for a longer cut)
+A terminal showing the CLI flows from `docs/ONCHAIN.md`: `pool.deposit` (tokens
+in), `pool.withdraw` (tokens out, amount bound), a **double-spend bypass rejected**
+(`InvalidProof`), and `register_root_verified` rejecting a **fake root**. These
+prove the full custody + security layer that the UI summarizes.
+
 ### Recording tips
-- Pre-run `npm run circuit:all` and the deposit so balances/args exist.
-- Keep the terminal font large; trim dead air during proof generation.
-- The exact CLI commands are in `docs/ONCHAIN.md`; contract IDs in
-  `deployments/testnet.json`.
+- Pre-warm the page; the first proof loads a 1.8 MB wasm.
+- Keep the browser zoom up so panels are readable; trim dead air during proving.
+- The on-chain line takes ~2–3s after the in-browser result — don't cut early.
