@@ -110,7 +110,8 @@ functions (Protocol 25/26). Secrets never leave the device.
 |---|---|---|---|
 | **`transfer`** | Ownership of input notes, correct nullifiers (no double-spend), valid Merkle inclusion, balance conservation (in = out + public) | merkle root, public amount, ext-data hash | Steps 2–4 |
 | **`compliance`** | Deposit source ∈ ASP allow-list **and** ∉ deny-list, bound to the transfer | ASP roots, transfer binding | Steps 2 & 4 |
-| **`disclosure`** | A confidential commitment opens to a disclosed amount (or sum ≤ threshold), bound to an audit context | commitment(s), disclosed value, audit-context hash | Step 6 |
+| **`disclosure`** | A confidential commitment opens to a disclosed amount, bound to an audit context | commitment, disclosed value, audit-context hash | Step 6 |
+| **`merkleUpdate`** | Inserting `newLeaf` into a known `oldRoot` yields exactly `newRoot` (trustless root registration) | old root, new leaf, new root | root advance |
 
 The **`disclosure`** circuit is Tukar's differentiator — the selective-
 disclosure layer that turns "private payments" into "compliant private payments."
@@ -131,29 +132,38 @@ Merkle paths cheap both in-circuit and on-chain.
 
 ## 5. On-chain contracts (Soroban)
 
+As deployed on testnet (see `deployments/testnet.json`):
+
 | Contract | Responsibility |
 |---|---|
-| **`pool`** | Holds the commitment Merkle tree + nullifier set; processes deposit / transfer / withdraw; calls the verifier. |
-| **`groth16-verifier`** | Verifies BN254 Groth16 proofs (forked pattern from Nethermind's `circom-groth16-verifier`; VK embedded at compile time). |
-| **`asp-membership`** | Merkle tree of approved sources (allow-list). |
-| **`asp-non-membership`** | Sparse Merkle tree of sanctioned addresses (deny-list). |
+| **`pool`** | Custodies the token; holds the root registry, nullifier set, and commitment set; processes deposit / transfer / withdraw / disclose / register_root_verified. Builds each verifier's public inputs from typed signals so every value is **bound** to the proof. |
+| **`disclosure` verifier** | BN254 Groth16 verifier for the selective-disclosure circuit (VK embedded at compile time). |
+| **`transfer` verifier** | …for the shielded JoinSplit circuit. |
+| **`compliance` verifier** | …for the ASP membership + deny-list circuit. The allow-list root and deny-list are **pinned in the pool**, not separate contracts. |
+| **`merkleUpdate` verifier** | …for the tree-update circuit, enabling trustless `register_root_verified`. |
+| **token (SAC)** | The asset the pool custodies (the demo uses the native XLM SAC as a USDC stand-in). |
 
-The **policy/verification split**: the verifier only checks cryptographic
-validity; the pool enforces business rules (amount ranges, nullifier uniqueness,
-ASP roots); state transitions are separate. (Pattern recommended by Stellar's ZK
-skill.)
+The **policy/verification split**: each verifier only checks cryptographic
+validity; the pool enforces business rules (binding, nullifier uniqueness, known
+roots, amount binding, token movement). (Pattern recommended by Stellar's ZK
+skill.) The ASP allow/deny sets are folded into the `compliance` circuit and
+pinned in the pool rather than living in separate Merkle-tree contracts.
 
 ---
 
 ## 6. What is real vs mocked in the MVP (honesty first)
 
-- **Real:** the ZK circuits, client-side proving, on-chain Groth16 verification,
-  shielded deposit/transfer/withdraw, ASP membership/non-membership, selective
-  disclosure to a regulator.
+- **Real:** the four ZK circuits, client-side proving, on-chain Groth16
+  verification, shielded deposit/transfer/withdraw with **real token custody**
+  (deposit pulls tokens in, withdraw releases them with the amount bound to the
+  proof), ASP membership/non-membership, selective disclosure to a regulator, and
+  **trustless tree updates** (`register_root_verified`).
 - **Mocked / simplified (stated clearly):** fiat anchor on/off-ramps (we assume
-  testnet USDC at the edges), ASP curation policy (allow/deny lists seeded
-  manually), single corridor (A→B). These are integration surfaces, not the ZK
-  core — the load-bearing cryptography is real.
+  testnet tokens at the edges), ASP curation policy (allow/deny lists seeded
+  manually), the Merkle witness is computed off-chain (but its correctness is
+  proven), single corridor (A→B), dev trusted setup (not a real ceremony). These
+  are integration surfaces, not the ZK core — the load-bearing cryptography is
+  real.
 
 ---
 
