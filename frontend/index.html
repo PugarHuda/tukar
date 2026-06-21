@@ -25,10 +25,7 @@
   <main>
     <!-- COUNTRY A: SENDER -->
     <section class="panel">
-      <div class="panel-head">
-        <span class="flag">🇺🇸</span>
-        <h2>Country A · Sender</h2>
-      </div>
+      <div class="panel-head"><span class="flag">🇺🇸</span><h2>Country A · Sender</h2></div>
       <p class="hint">Fiat on-ramp → USDC enters the corridor. Only a commitment
       goes on-chain — the amount and recipient stay hidden.</p>
       <label>Amount (USDC)
@@ -42,28 +39,31 @@
 
     <!-- CORRIDOR: ON-CHAIN PUBLIC VIEW -->
     <section class="panel">
-      <div class="panel-head">
-        <span class="flag">🔒</span>
-        <h2>Corridor · public on-chain view</h2>
-      </div>
-      <p class="hint">This is everything the public ledger reveals. Amounts and
-      counterparties are <strong>shielded</strong>.</p>
+      <div class="panel-head"><span class="flag">🔒</span><h2>Corridor · on Stellar</h2></div>
+      <p class="hint">Everything the public ledger reveals — just commitments.
+      Amounts and counterparties are <strong>shielded</strong>.</p>
       <div id="ledger" class="ledger">
         <div class="empty">No confidential payments yet.</div>
       </div>
       <div id="poolState" class="poolstate">Reading live pool state from Stellar…</div>
     </section>
 
+    <!-- COUNTRY B: RECEIVER -->
+    <section class="panel">
+      <div class="panel-head"><span class="flag">🇲🇽</span><h2>Country B · Receiver</h2></div>
+      <p class="hint">Payments arrive shielded. At the off-ramp edge the receiver
+      reveals the amount to convert to local fiat (MXN) — compliance by design.</p>
+      <div id="incoming" class="ledger">
+        <div class="empty">Nothing received yet.</div>
+      </div>
+    </section>
+
     <!-- REGULATOR -->
     <section class="panel">
-      <div class="panel-head">
-        <span class="flag">⚖️</span>
-        <h2>Regulator · selective disclosure</h2>
-      </div>
-      <p class="hint">On audit request, the holder proves one fact — the amount —
-      with a zero-knowledge proof generated in this browser. The regulator learns
-      <em>only</em> that fact. Nothing else in the corridor is revealed.</p>
-
+      <div class="panel-head"><span class="flag">⚖️</span><h2>Regulator</h2></div>
+      <p class="hint">On audit, the holder proves one fact — the amount — with a ZK
+      proof made in this browser and <strong>verified on-chain</strong>. The
+      regulator learns only that fact.</p>
       <label>Confidential payment to audit
         <select id="auditSelect"><option value="">— none —</option></select>
       </label>
@@ -72,10 +72,9 @@
       </label>
       <label class="check">
         <input id="tamper" type="checkbox" />
-        Tamper: claim a false amount (demonstrate on-chain rejection)
+        Tamper: claim a false amount (watch it get rejected on-chain)
       </label>
       <button id="proveBtn" class="primary">Generate &amp; verify disclosure proof</button>
-
       <div id="result" class="result hidden"></div>
     </section>
   </main>
@@ -84,6 +83,6 @@
     <span id="status">Initializing zero-knowledge prover…</span>
   </footer>
 
-  <script type="module" src="./app.js?v=4"></script>
+  <script type="module" src="./app.js?v=5"></script>
 </body>
 </html>

@@ -136,6 +136,35 @@ function render() {
   sel.innerHTML = '<option value="">— none —</option>' +
     notes.map((n) => `<option value="${n.id}">#${n.id} · ${n.recipient} · ${n.ts}</option>`).join("");
   sel.value = cur;
+  renderReceiver();
+}
+
+const offramped = new Set();
+const MXN_RATE = 17.05; // mock USDC->MXN rate for the off-ramp edge
+
+// Country B receiver view: payments arrive shielded; off-ramp reveals the amount.
+function renderReceiver() {
+  const el = $("incoming");
+  if (!el) return;
+  if (!notes.length) {
+    el.innerHTML = '<div class="empty">Nothing received yet.</div>';
+    return;
+  }
+  el.innerHTML = notes
+    .map((n) => {
+      const opened = offramped.has(n.id);
+      const usdc = fmtUsdc(BigInt(n.amount));
+      const mxn = (Number(usdc) * MXN_RATE).toLocaleString("en-US", { maximumFractionDigits: 2 });
+      const body = opened
+        ? `<div class="row"><span class="label">off-ramped</span><span class="reveal">${usdc} USDC → ${mxn} MXN</span></div>`
+        : `<div class="row"><span class="label">amount</span><span class="shield">•••• (shielded in transit)</span></div>
+           <button class="offramp" data-id="${n.id}">Off-ramp to MXN →</button>`;
+      return `<div class="note">
+        <div class="row"><span class="label">incoming · #${n.id}</span><span class="ts">${n.ts}</span></div>
+        ${body}
+      </div>`;
+    })
+    .join("");
 }
 
 // Regulator: holder generates a disclosure proof; regulator verifies it.
@@ -227,5 +256,13 @@ $("proveBtn").addEventListener("click", () => {
   if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
   proveAndVerify();
 });
+$("incoming").addEventListener("click", (e) => {
+  const btn = e.target.closest(".offramp");
+  if (!btn) return;
+  offramped.add(Number(btn.dataset.id));
+  renderReceiver();
+  status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat.";
+});
+
 console.log("[tukar] app.js module executed — wiring UI");
 init();
