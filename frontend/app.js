@@ -6,6 +6,7 @@
 // The demo therefore needs internet for these two libraries; everything else is local.
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
+import { verifyDisclosureOnChain, readPoolState, explorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 
 const VERIFIER_CONTRACT = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
@@ -65,11 +66,26 @@ async function init() {
     status.textContent = "Loading verification key…";
     vkey = await (await fetch(VKEY)).json();
     console.log(`[tukar ${BUILD}] init complete — ready`);
-    status.textContent = `Ready · zero-knowledge prover loaded. (${BUILD})`;
+    status.textContent = `Ready · zero-knowledge prover loaded.`;
     render();
+    loadPoolState();
   } catch (e) {
     console.error("[tukar] init failed:", e);
     status.textContent = "Init error: " + ((e && e.message) || e) + " — open the console (F12) for details.";
+  }
+}
+
+// Read the pool's live custody state from Stellar testnet and show it.
+async function loadPoolState() {
+  const el = $("poolState");
+  if (!el) return;
+  try {
+    const { balance, commitments } = await readPoolState();
+    const usdc = fmtUsdc(BigInt(balance));
+    el.innerHTML = `Live on Stellar: <b>${usdc}</b> custodied · <b>${commitments}</b> commitments ·
+      <a href="${explorer(POOL)}" target="_blank" rel="noreferrer">pool ↗</a>`;
+  } catch (_) {
+    el.textContent = "Live pool state unavailable (network).";
   }
 }
 
@@ -152,6 +168,7 @@ async function proveAndVerify() {
 
     const ok = await snarkjs.groth16.verify(vkey, claimed, proof);
 
+    const onchainLine = `<div class="onchain mono">⛓ confirming on the live Stellar contract…</div>`;
     if (ok) {
       result.className = "result ok";
       result.innerHTML = `
@@ -162,17 +179,34 @@ async function proveAndVerify() {
         no other payments.<br/>
         <div class="mono">audit context: ${$("auditCtx").value} → ${short(auditContextHash)}</div>
         <div class="mono">commitment: ${short(note.commitment)}</div>
-        Same Groth16/BN254 proof is verifiable on-chain by the
-        <a href="${VERIFIER_URL}" target="_blank" rel="noreferrer">Stellar verifier contract ↗</a>.`;
-      status.textContent = "Disclosure verified. Privacy preserved, compliance satisfied.";
+        ${onchainLine}`;
+      status.textContent = "Disclosure verified in your browser. Confirming on Stellar…";
     } else {
       result.className = "result bad";
       result.innerHTML = `
         <div class="big">⛔ Disclosure REJECTED</div>
         The claimed amount <strong>${fmtUsdc(claimed[1])} USDC</strong> does not match
-        the proof. A false claim cannot pass verification — exactly as the on-chain
-        verifier rejects it with <span class="mono">InvalidProof</span>.`;
-      status.textContent = "Tampered claim rejected — the proof is sound.";
+        the proof. A false claim cannot pass verification.<br/>
+        ${onchainLine}`;
+      status.textContent = "Tampered claim rejected in your browser. Confirming on Stellar…";
+    }
+    // Live on-chain verification by the deployed Stellar verifier (read-only RPC simulation).
+    try {
+      const oc = await verifyDisclosureOnChain(proof, claimed);
+      const el = result.querySelector(".onchain");
+      const link = `<a href="${explorer(DISCLOSURE_VERIFIER)}" target="_blank" rel="noreferrer">${short(DISCLOSURE_VERIFIER)} ↗</a>`;
+      if (ok && oc.verified) {
+        el.innerHTML = `⛓ <b>Verified on-chain</b> too — by the live Stellar verifier ${link}`;
+        status.textContent = "Disclosure verified — in your browser AND on Stellar. Privacy preserved, compliance satisfied.";
+      } else if (!ok && !oc.verified) {
+        el.innerHTML = `⛓ The live Stellar verifier ${link} <b>also rejected it</b> (InvalidProof).`;
+        status.textContent = "Tampered claim rejected — in your browser AND on-chain. The proof is sound.";
+      } else {
+        el.textContent = `⛓ on-chain result: ${oc.verified ? "verified" : "rejected"}`;
+      }
+    } catch (_) {
+      const el = result.querySelector(".onchain");
+      if (el) el.textContent = "⛓ on-chain check unavailable (network).";
     }
   } catch (e) {
     result.className = "result bad";

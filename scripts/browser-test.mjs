@@ -46,6 +46,13 @@ for (let i = 0; i < 30; i++) {
 }
 console.log("DISCLOSURE RESULT:", JSON.stringify(resultText));
 
+// wait for the live on-chain confirmation line + pool state
+await new Promise((r) => setTimeout(r, 8000));
+const onchain = await page.$eval("#result .onchain", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(no .onchain)");
+const poolState = await page.$eval("#poolState", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(no #poolState)");
+console.log("ON-CHAIN LINE:", JSON.stringify(onchain));
+console.log("POOL STATE   :", JSON.stringify(poolState));
+
 console.log("\nCONSOLE / ERRORS:");
 console.log(logs.join("\n") || "  (none)");
 await browser.close();

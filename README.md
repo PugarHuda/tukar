@@ -37,7 +37,8 @@ compliance).
   | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ASP allow/deny | `verify` → `true` |
 
 - **🌐 Live demo:** **https://tukar-six.vercel.app** — generate a real ZK proof in
-  your browser (no install).
+  your browser, then watch it get **verified on-chain by the live Stellar
+  contract** (and see the pool's live custody balance read from chain). No install.
 - **Or run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
@@ -130,9 +131,11 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
     the build reuses an existing proving key rather than regenerating it (snarkjs
     setup isn't bit-reproducible). Production needs a real multi-party ceremony —
     Nethermind's `ceremony-cli` + the Hermez Powers-of-Tau is the path.
-  - **Frontend scope** — the browser demo exercises the **disclosure** flow
-    (client-side proving + verify); the pool/transfer/compliance are exercised via
-    CLI on testnet, not yet wired into the UI.
+  - **Frontend scope** — the browser demo runs the **disclosure** flow end-to-end:
+    client-side proving, **live on-chain verification by the deployed Stellar
+    verifier** (read-only RPC simulation), and a **live read of the pool's custody
+    balance** from chain. The transfer / compliance / withdraw / register_root
+    flows are exercised via CLI on testnet, not yet wired into the UI.
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
 "Yardstick"). The verifier pattern is adapted from Nethermind's
