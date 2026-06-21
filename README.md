@@ -36,8 +36,10 @@ compliance).
   | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ASP allow/deny | `verify` → `true` |
 
-- **Try it in 3 commands:** `npm install && npm run circuit:all && npm run serve`
-  → open http://localhost:8000 and generate a real ZK proof in your browser.
+- **🌐 Live demo:** **https://tukar-six.vercel.app** — generate a real ZK proof in
+  your browser (no install).
+- **Or run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
+  → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
 
 ## What the ZK is doing (load-bearing)
