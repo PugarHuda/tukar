@@ -1,10 +1,10 @@
 // Tukar frontend — confidential corridor demo.
 // ZK proofs are generated *in this browser* (snarkjs + the disclosure circuit),
 // mirroring the on-chain BN254 Groth16 verifier deployed on Stellar testnet.
-// snarkjs (the proving/verifying library) is vendored locally — no CDN at runtime.
-import * as snarkjs from "./vendor/snarkjs.esm.js";
-// circomlibjs is only used to compute the Poseidon commitment; it still loads
-// from a CDN (it is CJS and can't be bundled to ESM in this build environment).
+// snarkjs + circomlibjs load from jsDelivr's `+esm` (self-contained bundles that
+// resolve their own deps, e.g. ffjavascript — a plain vendored copy does not).
+// The demo therefore needs internet for these two libraries; everything else is local.
+import * as snarkjs from "https://cdn.jsdelivr.net/npm/snarkjs@0.7.5/+esm";
 import { buildPoseidon } from "https://cdn.jsdelivr.net/npm/circomlibjs@0.1.7/+esm";
 
 const VERIFIER_CONTRACT = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
