@@ -61,6 +61,23 @@ const poolState = await page.$eval("#poolState", (el) => el.textContent.replace(
 console.log("ON-CHAIN LINE:", JSON.stringify(onchain));
 console.log("POOL STATE   :", JSON.stringify(poolState));
 
+// tamper round: tick Tamper, re-prove, expect rejection in-browser + on-chain
+await page.evaluate(() => {
+  document.querySelector("#tamper").checked = true;
+  document.querySelector("#result").innerHTML = ""; // clear stale valid result
+  document.querySelector("#proveBtn").click();
+});
+let tRes = "";
+for (let i = 0; i < 30; i++) {
+  tRes = await page.$eval("#result", (el) => el.textContent.replace(/\s+/g, " ").trim().slice(0, 70)).catch(() => "");
+  if (/REJECTED/.test(tRes)) break;
+  await new Promise((r) => setTimeout(r, 1000));
+}
+await new Promise((r) => setTimeout(r, 7000));
+const tOnchain = await page.$eval("#result .onchain", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(none)");
+console.log("TAMPER RESULT:", JSON.stringify(tRes));
+console.log("TAMPER ONCHAIN:", JSON.stringify(tOnchain));
+
 console.log("\nCONSOLE / ERRORS:");
 console.log(logs.join("\n") || "  (none)");
 await browser.close();
