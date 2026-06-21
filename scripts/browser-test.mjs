@@ -37,7 +37,7 @@ console.log("LEDGER AFTER SEND:", JSON.stringify(ledger));
 // receiver (Country B) panel + off-ramp
 const incoming = await page.$eval("#incoming", (el) => el.textContent.replace(/\s+/g, " ").trim().slice(0, 70)).catch(() => "(err)");
 console.log("RECEIVER INCOMING:", JSON.stringify(incoming));
-await page.click("#incoming .offramp").catch((e) => console.log("offramp err", e.message));
+await page.evaluate(() => document.querySelector("#incoming .offramp")?.click());
 await new Promise((r) => setTimeout(r, 400));
 const reveal = await page.$eval("#incoming .reveal", (el) => el.textContent.trim()).catch(() => "(no reveal)");
 console.log("OFF-RAMP REVEAL :", JSON.stringify(reveal));

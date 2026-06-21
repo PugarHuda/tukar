@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 360" font-family="Inter, Segoe UI, system-ui, sans-serif">
+  <rect width="980" height="360" rx="16" fill="#0b0f1a"/>
+  <text x="32" y="40" fill="#e6ecf7" font-size="20" font-weight="700">Tukar — confidential cross-border corridor on Stellar</text>
+  <text x="32" y="62" fill="#8a97b0" font-size="13">Private in the middle, accountable at the edges. ZK proofs verified on-chain.</text>
+
+  <!-- arrows -->
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#5b8cff"/>
+    </marker>
+  </defs>
+
+  <!-- Sender -->
+  <rect x="32" y="110" width="200" height="92" rx="12" fill="#131a2a" stroke="#243049"/>
+  <text x="48" y="140" font-size="22">🇺🇸</text>
+  <text x="84" y="138" fill="#e6ecf7" font-size="15" font-weight="600">Country A · Sender</text>
+  <text x="48" y="166" fill="#8a97b0" font-size="12">fiat on-ramp → USDC</text>
+  <text x="48" y="186" fill="#8a97b0" font-size="12">+ compliance proof (ASP)</text>
+
+  <line x1="232" y1="156" x2="372" y2="156" stroke="#5b8cff" stroke-width="2" marker-end="url(#a)"/>
+  <text x="252" y="148" fill="#5b8cff" font-size="12">USDC</text>
+
+  <!-- Corridor -->
+  <rect x="372" y="100" width="236" height="112" rx="12" fill="#131a2a" stroke="#b083ff"/>
+  <text x="388" y="130" font-size="20">🔒</text>
+  <text x="420" y="128" fill="#e6ecf7" font-size="15" font-weight="600">Shielded corridor</text>
+  <text x="388" y="154" fill="#8a97b0" font-size="12">on Stellar (Soroban pool)</text>
+  <text x="388" y="174" fill="#b083ff" font-size="12">amount + parties hidden</text>
+  <text x="388" y="194" fill="#8a97b0" font-size="12">commitments · nullifiers</text>
+
+  <line x1="608" y1="156" x2="748" y2="156" stroke="#5b8cff" stroke-width="2" marker-end="url(#a)"/>
+  <text x="628" y="148" fill="#5b8cff" font-size="12">USDC</text>
+
+  <!-- Receiver -->
+  <rect x="748" y="110" width="200" height="92" rx="12" fill="#131a2a" stroke="#243049"/>
+  <text x="764" y="140" font-size="22">🇲🇽</text>
+  <text x="800" y="138" fill="#e6ecf7" font-size="15" font-weight="600">Country B · Receiver</text>
+  <text x="764" y="166" fill="#8a97b0" font-size="12">USDC → fiat off-ramp</text>
+  <text x="764" y="186" fill="#8a97b0" font-size="12">+ non-membership proof</text>
+
+  <!-- Regulator -->
+  <line x1="490" y1="212" x2="490" y2="262" stroke="#3ddc97" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="360" y="262" width="260" height="66" rx="12" fill="#0f1521" stroke="#3ddc97"/>
+  <text x="378" y="290" font-size="18">⚖️</text>
+  <text x="408" y="289" fill="#e6ecf7" font-size="14" font-weight="600">Regulator · selective disclosure</text>
+  <text x="378" y="312" fill="#3ddc97" font-size="12">learns one fact only — verified on-chain, nothing else revealed</text>
+
+  <!-- contracts row -->
+  <text x="660" y="250" fill="#8a97b0" font-size="11">Live verifiers (BN254 Groth16):</text>
+  <g fill="#0e1626" stroke="#243049">
+    <rect x="660" y="262" width="70" height="24" rx="12"/>
+    <rect x="736" y="262" width="84" height="24" rx="12"/>
+    <rect x="660" y="294" width="92" height="24" rx="12"/>
+    <rect x="758" y="294" width="96" height="24" rx="12"/>
+  </g>
+  <g fill="#e6ecf7" font-size="11">
+    <text x="672" y="278">transfer</text>
+    <text x="748" y="278">compliance</text>
+    <text x="672" y="310">disclosure</text>
+    <text x="770" y="310">merkleUpdate</text>
+  </g>
+</svg>

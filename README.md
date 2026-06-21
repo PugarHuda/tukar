@@ -19,6 +19,8 @@ compliance).
 
 ---
 
+![Tukar architecture](docs/architecture.svg)
+
 ## TL;DR for judges
 
 - **What:** a private cross-border remittance corridor. USDC enters, crosses with

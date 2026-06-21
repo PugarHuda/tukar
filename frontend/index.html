@@ -22,6 +22,28 @@
     </div>
   </header>
 
+  <section class="hero">
+    <h2 class="hero-title">Private cross-border payments, <span>verified on Stellar</span>.</h2>
+    <p class="hero-sub">USDC enters a corridor, crosses with its amount and counterparties
+    <strong>hidden on-chain</strong>, and exits as local fiat — with zero-knowledge
+    <strong>compliance proofs at the edges</strong> and <strong>selective disclosure</strong> to regulators.</p>
+    <div class="chips">
+      <span class="chip">4 ZK circuits</span>
+      <span class="chip">5 contracts live on testnet</span>
+      <span class="chip">proofs verified on-chain</span>
+      <span class="chip">open source</span>
+    </div>
+    <div class="flow">
+      <div class="flow-node"><span class="fi">🇺🇸</span><b>Sender</b><small>fiat → USDC</small></div>
+      <div class="flow-arrow">USDC&nbsp;→</div>
+      <div class="flow-node mid"><span class="fi">🔒</span><b>Shielded corridor</b><small>Stellar · amount hidden</small></div>
+      <div class="flow-arrow">→&nbsp;USDC</div>
+      <div class="flow-node"><span class="fi">🇲🇽</span><b>Receiver</b><small>USDC → fiat</small></div>
+    </div>
+    <div class="flow-reg">⚖️ Regulator — selective ZK disclosure, <strong>verified on-chain</strong> &amp; non-revealing</div>
+  </section>
+
+  <h3 class="try">Try the live corridor ↓</h3>
   <main>
     <!-- COUNTRY A: SENDER -->
     <section class="panel">
@@ -81,6 +103,11 @@
 
   <footer>
     <span id="status">Initializing zero-knowledge prover…</span>
+    <span class="links">
+      <a href="https://github.com/PugarHuda/tukar" target="_blank" rel="noreferrer">GitHub ↗</a> ·
+      <a href="https://stellar.expert/explorer/testnet/contract/CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW" target="_blank" rel="noreferrer">pool contract ↗</a> ·
+      Built for Stellar Hacks: Real-World ZK
+    </span>
   </footer>
 
   <script type="module" src="./app.js?v=5"></script>
