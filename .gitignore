@@ -48,3 +48,10 @@ tools/bin/
 Thumbs.db
 
 .vercel
+
+# headless screenshots
+_shot*.png
+shot.png
+
+*.webm
+*.mp4
