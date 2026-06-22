@@ -38,9 +38,10 @@ compliance).
   | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ASP allow/deny | `verify` → `true` |
 
-- **🌐 Live demo:** **https://tukar-six.vercel.app** — generate a real ZK proof in
-  your browser, then watch it get **verified on-chain by the live Stellar
-  contract** (and see the pool's live custody balance read from chain). No install.
+- **🌐 Live demo:** **https://tukar-six.vercel.app** — click **Send** and it builds
+  a compliance proof in your browser and **deposits on-chain for real** (watch the
+  pool's commitment count go up); audit a payment and its disclosure proof is
+  **verified on-chain by the live Stellar verifier**. No install, no wallet.
 - **Or run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
@@ -133,11 +134,16 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
     the build reuses an existing proving key rather than regenerating it (snarkjs
     setup isn't bit-reproducible). Production needs a real multi-party ceremony —
     Nethermind's `ceremony-cli` + the Hermez Powers-of-Tau is the path.
-  - **Frontend scope** — the browser demo runs the **disclosure** flow end-to-end:
-    client-side proving, **live on-chain verification by the deployed Stellar
-    verifier** (read-only RPC simulation), and a **live read of the pool's custody
-    balance** from chain. The transfer / compliance / withdraw / register_root
-    flows are exercised via CLI on testnet, not yet wired into the UI.
+  - **Frontend scope** — the browser demo is wired to live contracts: **"Send"
+    builds a compliance proof in-browser and submits a real signed `pool.deposit`**
+    (the on-chain commitment count goes up and a tiny testnet token moves), the
+    **disclosure proof is verified on-chain** by the deployed verifier, and the
+    pool's custody state is read live from chain. Deposits are signed by a
+    **throwaway non-admin testnet key embedded in the frontend** so anyone can try
+    it without a wallet (it holds only free testnet XLM — never do this with real
+    funds). The deposit amount is a small fixed testnet amount; the note's real
+    value is the hidden commitment. The transfer / withdraw / register_root flows
+    are still exercised via CLI, not yet wired into the UI.
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
 "Yardstick"). The verifier pattern is adapted from Nethermind's

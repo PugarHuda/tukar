@@ -1,7 +1,16 @@
-// Tukar — live Stellar testnet reads from the browser (no secret key needed;
-// everything here is a read-only RPC simulation).
-const mod = await import("https://esm.sh/@stellar/stellar-sdk@13");
+// Tukar — live Stellar testnet from the browser.
+//  * reads (balance, verify) are read-only RPC simulations — no key needed;
+//  * deposit() is a real signed write. It uses a THROWAWAY testnet demo key
+//    (non-admin, holds only free testnet XLM) embedded below so anyone can try
+//    the demo without a wallet. Never reuse this pattern for real funds.
+const mod = await import("https://esm.sh/@stellar/stellar-sdk@14");
 const Sdk = mod.default ?? mod;
+import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
+
+// Throwaway testnet demo key (non-admin). Used only to sign deposit txs so the
+// browser demo can write on-chain. Public on purpose; holds only free testnet XLM.
+const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
+const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (testnet)
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
@@ -77,4 +86,66 @@ export async function verifyDisclosureOnChain(proof, publicSignals) {
   }
 }
 
+const buf32 = (dec) => buf(BigInt(dec).toString(16).padStart(64, "0"));
+
+let _asp;
+async function aspWitness() {
+  if (!_asp) _asp = await (await fetch("./circuit/asp-witness.json")).json();
+  return _asp;
+}
+
+let _poolWrite;
+async function poolWriteClient() {
+  if (!_poolWrite) {
+    const kp = Sdk.Keypair.fromSecret(DEMO_SECRET);
+    const signer = Sdk.contract.basicNodeSigner(kp, PASSPHRASE);
+    _poolWrite = await Sdk.contract.Client.from({
+      contractId: POOL,
+      networkPassphrase: PASSPHRASE,
+      rpcUrl: RPC,
+      publicKey: kp.publicKey(),
+      signTransaction: signer.signTransaction,
+      signAuthEntry: signer.signAuthEntry,
+    });
+    _poolWrite._from = kp.publicKey();
+  }
+  return _poolWrite;
+}
+
+/**
+ * Real on-chain deposit: builds a compliance proof in the browser (the source is
+ * a member of the pinned ASP allow-list, bound to this commitment), then signs
+ * and submits pool.deposit. The pool's commitment count goes up and tokens move.
+ * Returns { ok, hash } or { ok:false, error }.
+ */
+export async function depositOnChain(commitmentDecimal) {
+  try {
+    const asp = await aspWitness();
+    const input = {
+      aspRoot: asp.aspRoot,
+      denyList: asp.denyList,
+      bindHash: commitmentDecimal,
+      sourceKey: asp.sourceKey,
+      pathElements: asp.pathElements,
+      leafIndex: asp.leafIndex,
+    };
+    const { proof } = await snarkjs.groth16.fullProve(
+      input, "./circuit/compliance.wasm", "./circuit/compliance_final.zkey",
+    );
+    const client = await poolWriteClient();
+    const at = await client.deposit({
+      from: client._from,
+      amount: DEPOSIT_STROOPS,
+      commitment: buf32(commitmentDecimal),
+      proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
+    });
+    const res = await at.signAndSend();
+    const hash = res?.sendTransactionResponse?.hash || res?.getTransactionResponse?.txHash || "";
+    return { ok: true, hash };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+export const txExplorer = (h) => `https://stellar.expert/explorer/testnet/tx/${h}`;
 export const explorer = (id) => `https://stellar.expert/explorer/testnet/contract/${id}`;

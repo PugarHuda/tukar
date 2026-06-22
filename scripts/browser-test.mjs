@@ -31,6 +31,16 @@ console.log("FINAL STATUS:", JSON.stringify(statusText));
 // click Send into corridor
 await page.click("#sendBtn").catch((e) => console.log("send click err", e.message));
 await new Promise((r) => setTimeout(r, 800));
+// wait for the on-chain deposit to finish (compliance proof + signed tx, ~15-30s)
+let depStatus = "";
+for (let i = 0; i < 50; i++) {
+  depStatus = await page.$eval("#status", (el) => el.textContent.trim()).catch(() => "");
+  if (/Deposited on-chain|deposit failed/i.test(depStatus)) break;
+  await new Promise((r) => setTimeout(r, 1000));
+}
+console.log("DEPOSIT STATUS:", JSON.stringify(depStatus));
+const badge = await page.$eval("#ledger .okc, #ledger .fail", (el) => el.textContent.trim()).catch(() => "(no badge)");
+console.log("DEPOSIT BADGE :", JSON.stringify(badge));
 const ledger = await page.$eval("#ledger", (el) => el.textContent.replace(/\s+/g, " ").trim().slice(0, 90)).catch(() => "(err)");
 console.log("LEDGER AFTER SEND:", JSON.stringify(ledger));
 

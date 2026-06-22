@@ -6,7 +6,7 @@
 // The demo therefore needs internet for these two libraries; everything else is local.
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, explorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, depositOnChain, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 
 const VERIFIER_CONTRACT = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
@@ -81,8 +81,9 @@ async function loadPoolState() {
   if (!el) return;
   try {
     const { balance, commitments } = await readPoolState();
-    const usdc = fmtUsdc(BigInt(balance));
-    el.innerHTML = `Live on Stellar: <b>${usdc}</b> custodied · <b>${commitments}</b> commitments ·
+    const xlm = fmtUsdc(BigInt(balance)); // 7 decimals, same as XLM
+    el.innerHTML = `Live pool on Stellar: <b>${commitments}</b> commitments recorded ·
+      <b>${xlm} XLM</b> custodied <span class="muted">(testnet token, stands in for USDC)</span> ·
       <a href="${explorer(POOL)}" target="_blank" rel="noreferrer">pool ↗</a>`;
   } catch (_) {
     el.textContent = "Live pool state unavailable (network).";
@@ -90,7 +91,7 @@ async function loadPoolState() {
 }
 
 // Sender: create a confidential payment (commitment) entering the corridor.
-function createPayment() {
+async function createPayment() {
   const usdc = $("amount").value;
   const recipient = $("recipient").value.trim() || "unknown";
   if (!usdc || Number(usdc) <= 0) return;
@@ -99,7 +100,7 @@ function createPayment() {
   const blinding = randomFieldElement();
   const commitment = F.toObject(poseidon([amount, pubKey, blinding]));
 
-  notes.push({
+  const note = {
     id: notes.length + 1,
     recipient,
     amount: amount.toString(),       // secret (kept client-side)
@@ -107,9 +108,30 @@ function createPayment() {
     blinding: blinding.toString(),   // secret
     commitment: commitment.toString(),
     ts: new Date().toLocaleTimeString(),
-  });
+    onchain: "pending",
+  };
+  notes.push(note);
   render();
-  status.textContent = `Payment #${notes.length} entered the corridor — amount shielded on-chain.`;
+  status.innerHTML = `<span class="spin">◠</span> Payment #${note.id} created — building compliance proof &amp; depositing on-chain…`;
+
+  // Real on-chain deposit: in-browser compliance proof -> signed pool.deposit.
+  const dep = await depositOnChain(commitment.toString());
+  if (dep.ok) {
+    note.onchain = dep.hash || "ok";
+    status.textContent = "Deposited on-chain ✓ — the Stellar pool recorded the commitment. Amount stays shielded.";
+  } else {
+    note.onchain = "failed";
+    status.textContent = "On-chain deposit failed (note kept locally): " + dep.error;
+  }
+  render();
+  loadPoolState();
+}
+
+function onchainBadge(s) {
+  if (s === "pending") return '<span class="pend">⏳ depositing…</span>';
+  if (s === "failed") return '<span class="fail">✗ local only</span>';
+  if (s === "ok" || !s) return '<span class="okc">✓ deposited</span>';
+  return `<a class="okc" href="${txExplorer(s)}" target="_blank" rel="noreferrer">✓ deposited ↗</a>`;
 }
 
 function render() {
@@ -128,6 +150,7 @@ function render() {
         <div class="row">
           <span class="label">recipient</span><span class="shield">•••• (shielded)</span>
         </div>
+        <div class="row"><span class="label">on-chain</span>${onchainBadge(n.onchain)}</div>
       </div>`).join("");
   }
   // Audit dropdown
@@ -248,9 +271,10 @@ async function proveAndVerify() {
   }
 }
 
-$("sendBtn").addEventListener("click", () => {
+$("sendBtn").addEventListener("click", async () => {
   if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
-  createPayment();
+  $("sendBtn").disabled = true;
+  try { await createPayment(); } finally { $("sendBtn").disabled = false; }
 });
 $("proveBtn").addEventListener("click", () => {
   if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
