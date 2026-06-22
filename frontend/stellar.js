@@ -14,7 +14,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW";
+export const POOL = "CBQYBR6BUY527DC4BLHUNKXITY6MJLJXGLQ7XAT25AHB37S3YWNE3MHM";
 export const DISCLOSURE_VERIFIER = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -118,26 +118,35 @@ async function poolWriteClient() {
  * and submits pool.deposit. The pool's commitment count goes up and tokens move.
  * Returns { ok, hash } or { ok:false, error }.
  */
-export async function depositOnChain(commitmentDecimal) {
+const scProof = (p) => ({ a: buf(g1(p.pi_a)), b: buf(g2(p.pi_b)), c: buf(g1(p.pi_c)) });
+
+export async function depositOnChain(note) {
   try {
     const asp = await aspWitness();
-    const input = {
-      aspRoot: asp.aspRoot,
-      denyList: asp.denyList,
-      bindHash: commitmentDecimal,
-      sourceKey: asp.sourceKey,
-      pathElements: asp.pathElements,
-      leafIndex: asp.leafIndex,
+    // 1. compliance proof (source allow-listed, bound to commitment)
+    const compInput = {
+      aspRoot: asp.aspRoot, denyList: asp.denyList, bindHash: note.commitment,
+      sourceKey: asp.sourceKey, pathElements: asp.pathElements, leafIndex: asp.leafIndex,
     };
-    const { proof } = await snarkjs.groth16.fullProve(
-      input, "./circuit/compliance.wasm", "./circuit/compliance_final.zkey",
+    const { proof: compProof } = await snarkjs.groth16.fullProve(
+      compInput, "./circuit/compliance.wasm", "./circuit/compliance_final.zkey",
     );
+    // 2. binding proof (disclosure): commitment opens to exactly `amount`, ctx=7
+    const bindInput = {
+      commitment: note.commitment, disclosedAmount: note.amount, auditContextHash: "7",
+      amount: note.amount, pubKey: note.pubKey, blinding: note.blinding,
+    };
+    const { proof: bindProof } = await snarkjs.groth16.fullProve(
+      bindInput, "./circuit/disclosure.wasm", "./circuit/disclosure_final.zkey",
+    );
+    // 3. signed deposit moving the REAL token amount
     const client = await poolWriteClient();
     const at = await client.deposit({
       from: client._from,
-      amount: DEPOSIT_STROOPS,
-      commitment: buf32(commitmentDecimal),
-      proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
+      amount: BigInt(note.amount),
+      commitment: buf32(note.commitment),
+      proof: scProof(compProof),
+      binding_proof: scProof(bindProof),
     });
     const res = await at.signAndSend();
     const hash = res?.sendTransactionResponse?.hash || res?.getTransactionResponse?.txHash || "";
@@ -194,7 +203,7 @@ export async function withdrawSubmit(proof, publicSignals, recipientPub) {
       nullifiers: [buf32(n0), buf32(n1)],
       out_commitments: [buf32(oc0), buf32(oc1)],
       recipient: recipientPub || DEMO_ADDRESS,
-      amount: WITHDRAW_STROOPS,
+      amount: BigInt(publicAmount), // release exactly the proof's public amount
     });
     const res = await at.signAndSend();
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };

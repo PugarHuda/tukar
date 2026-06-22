@@ -141,13 +141,15 @@ impl Pool {
         amount: i128,
         commitment: BytesN<32>,
         proof: Groth16Proof,
+        binding_proof: Groth16Proof,
     ) -> u32 {
         if amount <= 0 {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
         }
         from.require_auth();
 
-        // compliance public inputs: [aspRoot, deny0..3, bindHash=commitment]
+        // 1. Compliance: source is allow-listed, bound to this commitment.
+        // public inputs: [aspRoot, deny0..3, bindHash=commitment]
         let asp_root: BytesN<32> = env.storage().instance().get(&DataKey::AspRoot).unwrap();
         let deny: Vec<BytesN<32>> = env.storage().instance().get(&DataKey::DenyList).unwrap();
         let mut pi = vec![&env, Self::fr(&env, &asp_root)];
@@ -157,7 +159,20 @@ impl Pool {
         pi.push_back(Self::fr(&env, &commitment));
         Self::verify(&env, DataKey::ComplianceVerifier, &proof, &pi);
 
-        // move tokens in
+        // 2. Amount binding: the commitment opens to exactly `amount` (disclosure
+        // circuit: [commitment, disclosedAmount=amount, ctx=7]). This ties the
+        // deposited token amount to the note's hidden value — no decoupling.
+        let amt = Self::amount_bytes(&env, amount);
+        let ctx = Self::amount_bytes(&env, 7);
+        let bind_pi = vec![
+            &env,
+            Self::fr(&env, &commitment),
+            Self::fr(&env, &amt),
+            Self::fr(&env, &ctx),
+        ];
+        Self::verify(&env, DataKey::DisclosureVerifier, &binding_proof, &bind_pi);
+
+        // 3. Move the real token amount in.
         Self::token(&env).transfer(&from, &env.current_contract_address(), &amount);
 
         let index = Self::record_commitment(&env, &commitment);

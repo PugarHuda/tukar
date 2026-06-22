@@ -84,9 +84,9 @@ async function loadPoolState() {
   if (!el) return;
   try {
     const { balance, commitments } = await readPoolState();
-    const xlm = fmtUsdc(BigInt(balance)); // 7 decimals, same as XLM
+    const usdc = fmtUsdc(BigInt(balance));
     el.innerHTML = `Live pool on Stellar: <b>${commitments}</b> commitments recorded ·
-      <b>${xlm} XLM</b> custodied <span class="muted">(testnet token, stands in for USDC)</span> ·
+      <b>${usdc} USDC</b> custodied <span class="muted">(real testnet USDC asset)</span> ·
       <a href="${explorer(POOL)}" target="_blank" rel="noreferrer">pool ↗</a>`;
   } catch (_) {
     el.textContent = "Live pool state unavailable (network).";
@@ -120,8 +120,8 @@ async function createPayment() {
   render();
   status.innerHTML = `<span class="spin">◠</span> Payment #${note.id} — compliance proof &amp; depositing on-chain…`;
 
-  // 1) Real on-chain deposit: in-browser compliance proof -> signed pool.deposit.
-  const dep = await depositOnChain(commitment.toString());
+  // 1) Real on-chain deposit: compliance + amount-binding proofs -> signed pool.deposit.
+  const dep = await depositOnChain(note);
   if (!dep.ok) {
     note.onchain = "failed";
     status.textContent = "On-chain deposit failed (note kept locally): " + dep.error;
@@ -230,8 +230,8 @@ async function withdrawNote(note) {
   renderReceiver();
   status.innerHTML = `<span class="spin">◠</span> Withdraw #${note.id} — building shielded transfer proof…`;
   try {
-    const W = 100n;
     const amt = BigInt(note.amount);
+    const W = amt; // release the note's full amount
     const dPriv = randomFieldElement(), dBlind = randomFieldElement();
     const dPub = F.toObject(poseidon([dPriv]));
     const dCommit = F.toObject(poseidon([0n, dPub, dBlind]));

@@ -33,7 +33,7 @@ compliance).
 
   | Contract | Role | Verified call |
   |---|---|---|
-  | [pool](https://lab.stellar.org/r/testnet/contract/CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
+  | [pool](https://lab.stellar.org/r/testnet/contract/CBQYBR6BUY527DC4BLHUNKXITY6MJLJXGLQ7XAT25AHB37S3YWNE3MHM) | orchestration, root registry, nullifier set | `transfer` ✅ · double-spend rejected ✅ |
   | [disclosure verifier](https://lab.stellar.org/r/testnet/contract/CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2) | selective disclosure to regulator | `verify` → `true`; tampered → rejected |
   | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ASP allow/deny | `verify` → `true` |
@@ -104,7 +104,7 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
   on Stellar testnet**. Client-side proving in the browser. Corridor demo UI +
   regulator panel. `disclosure` soundness proven off-chain and on-chain.
 - ✅ **Pool contract live & hardened:** a stateful `pool` Soroban contract
-  ([`CC6CSZ6T…KYEW`](https://lab.stellar.org/r/testnet/contract/CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW))
+  ([`CBQYBR6B…3MHM`](https://lab.stellar.org/r/testnet/contract/CBQYBR6BUY527DC4BLHUNKXITY6MJLJXGLQ7XAT25AHB37S3YWNE3MHM))
   orchestrating the three verifiers. **Binding (the key property):** the pool
   builds the verifier's public inputs from the typed signals itself, so the spent
   nullifiers, recorded commitments and root are *exactly* the ones the proof

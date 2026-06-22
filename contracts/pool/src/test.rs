@@ -82,7 +82,7 @@ fn deposit_pulls_tokens_and_records_commitment() {
     let env = Env::default();
     let c = setup(&env);
     let commit = b32(&env, 1);
-    assert_eq!(c.pool.deposit(&c.user, &300, &commit, &dummy_proof(&env)), 0);
+    assert_eq!(c.pool.deposit(&c.user, &300, &commit, &dummy_proof(&env), &dummy_proof(&env)), 0);
     assert_eq!(c.pool.balance(), 300); // tokens now custodied by the pool
     assert_eq!(c.token.balance(&c.user), 700);
     assert!(c.pool.is_commitment_known(&commit));
@@ -92,7 +92,7 @@ fn deposit_pulls_tokens_and_records_commitment() {
 fn withdraw_releases_bound_amount() {
     let env = Env::default();
     let c = setup(&env);
-    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
 
     let recipient = Address::generate(&env);
     let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
@@ -111,7 +111,7 @@ fn withdraw_releases_bound_amount() {
 fn withdraw_amount_must_match_public_amount() {
     let env = Env::default();
     let c = setup(&env);
-    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
     let recipient = Address::generate(&env);
     let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
@@ -170,7 +170,7 @@ fn disclose_requires_known_commitment() {
     let env = Env::default();
     let c = setup(&env);
     let commit = b32(&env, 1);
-    c.pool.deposit(&c.user, &100, &commit, &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &commit, &dummy_proof(&env), &dummy_proof(&env));
     assert!(c.pool.disclose(&dummy_proof(&env), &commit, &b32(&env, 50), &b32(&env, 42)));
 }
 

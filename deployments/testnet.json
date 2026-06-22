@@ -6,8 +6,8 @@
     "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
   },
   "token": {
-    "address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-    "note": "native XLM SAC, used as a USDC stand-in for the testnet custody demo"
+    "address": "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2",
+    "note": "real testnet USDC asset (issuer GC7SWGHR...), SAC; deposits move the real amount, bound to the commitment via a disclosure proof"
   },
   "verifiers": {
     "disclosure": {
@@ -40,7 +40,7 @@
     }
   },
   "pool": {
-    "contractId": "CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW",
+    "contractId": "CBQYBR6BUY527DC4BLHUNKXITY6MJLJXGLQ7XAT25AHB37S3YWNE3MHM",
     "wasm": "contracts/pool/",
     "description": "Hardened corridor pool with token custody + trustless tree updates. Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw; advances the root only with a merkleUpdate proof.",
     "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[4]"],

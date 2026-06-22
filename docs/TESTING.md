@@ -49,9 +49,9 @@ Positive — all return `true`:
 | `disclosure.verify` | `CA2HHH…K47G2` | `true` |
 | `transfer.verify` | `CB6M6IO…6Q3B` | `true` |
 | `compliance.verify` | `CB67JH7…W3XO` | `true` |
-| `pool.deposit` | `CC6CSZ6T…KYEW` | success — pulled 100 tokens in (balance 0→100) |
-| `pool.withdraw` | `CC6CSZ6T…KYEW` | success — released 50 (balance 100→50), amount bound |
-| `pool.register_root_verified` | `CC6CSZ6T…KYEW` | success — trustless root advance |
+| `pool.deposit` | `CBQYBR6B…3MHM` | success — pulled 100 tokens in (balance 0→100) |
+| `pool.withdraw` | `CBQYBR6B…3MHM` | success — released 50 (balance 100→50), amount bound |
+| `pool.register_root_verified` | `CBQYBR6B…3MHM` | success — trustless root advance |
 | `merkleUpdate.verify` | `CASMZC2A…BWXF` | `true` |
 
 Negative — all correctly rejected:
