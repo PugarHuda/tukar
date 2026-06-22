@@ -1,0 +1,23 @@
+import puppeteer from "puppeteer-core";
+const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const URL = process.argv[2] || "http://localhost:8000/";
+const browser = await puppeteer.launch({ executablePath: CHROME, headless: "new", args: ["--no-sandbox"] });
+const page = await browser.newPage();
+const errs = [];
+page.on("pageerror", (e) => errs.push("[pageerror] " + e.message));
+page.on("requestfailed", (r) => { const u = r.url(); if (!u.includes("fonts.gstatic")) errs.push("[reqfail] " + u); });
+await page.goto(URL, { waitUntil: "networkidle2", timeout: 60000 });
+const h1 = await page.$eval("h1", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(no h1)");
+const cta = await page.$eval('a.btn-primary', (el) => el.getAttribute("href")).catch(() => "(no cta)");
+const tickers = await page.$$eval(".ticker-track", (els) => els.length);
+// scroll to trigger reveals
+await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+await new Promise((r) => setTimeout(r, 1200));
+const revealed = await page.$$eval(".reveal.in", (els) => els.length);
+const totalReveal = await page.$$eval(".reveal", (els) => els.length);
+console.log("H1          :", JSON.stringify(h1));
+console.log("PRIMARY CTA :", JSON.stringify(cta));
+console.log("TICKERS     :", tickers);
+console.log("REVEALED    :", revealed + "/" + totalReveal);
+console.log("ERRORS      :", errs.length ? errs.join("\n") : "(none)");
+await browser.close();

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tukar — Confidential cross-border corridors on Stellar</title>
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'&gt;&lt;text y='14' font-size='14'&gt;⟶&lt;/text&gt;&lt;/svg&gt;" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <a href="/" class="logo" title="Tukar home">⟶</a>
+      <div>
+        <h1>Tukar</h1>
+        <p class="tag">Confidential cross-border payment corridors on Stellar</p>
+      </div>
+    </div>
+    <div class="net">
+      <span class="dot"></span> Stellar testnet ·
+      <a id="verifierLink" target="_blank" rel="noreferrer">verifier contract ↗</a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h2 class="hero-title">Private cross-border payments, <span>verified on Stellar</span>.</h2>
+    <p class="hero-sub">USDC enters a corridor, crosses with its amount and counterparties
+    <strong>hidden on-chain</strong>, and exits as local fiat — with zero-knowledge
+    <strong>compliance proofs at the edges</strong> and <strong>selective disclosure</strong> to regulators.</p>
+    <div class="chips">
+      <span class="chip">4 ZK circuits</span>
+      <span class="chip">5 contracts live on testnet</span>
+      <span class="chip">proofs verified on-chain</span>
+      <span class="chip">open source</span>
+    </div>
+    <div class="flow">
+      <div class="flow-node"><span class="fi">🇺🇸</span><b>Sender</b><small>fiat → USDC</small></div>
+      <div class="flow-arrow">USDC&nbsp;→</div>
+      <div class="flow-node mid"><span class="fi">🔒</span><b>Shielded corridor</b><small>Stellar · amount hidden</small></div>
+      <div class="flow-arrow">→&nbsp;USDC</div>
+      <div class="flow-node"><span class="fi">🇲🇽</span><b>Receiver</b><small>USDC → fiat</small></div>
+    </div>
+    <div class="flow-reg">⚖️ Regulator — selective ZK disclosure, <strong>verified on-chain</strong> &amp; non-revealing</div>
+  </section>
+
+  <h3 class="try">Try the live corridor ↓</h3>
+  <main>
+    <!-- COUNTRY A: SENDER -->
+    <section class="panel">
+      <div class="panel-head"><span class="flag">🇺🇸</span><h2>Country A · Sender</h2></div>
+      <p class="hint">Fiat on-ramp → USDC enters the corridor. Only a commitment
+      goes on-chain — the amount and recipient stay hidden.</p>
+      <label>Amount (USDC)
+        <input id="amount" type="number" min="1" step="0.01" value="500" />
+      </label>
+      <label>Recipient (Country B)
+        <input id="recipient" type="text" value="María, Mexico City" />
+      </label>
+      <button id="sendBtn" class="primary">Send into corridor →</button>
+    </section>
+
+    <!-- CORRIDOR: ON-CHAIN PUBLIC VIEW -->
+    <section class="panel">
+      <div class="panel-head"><span class="flag">🔒</span><h2>Corridor · on Stellar</h2></div>
+      <p class="hint">Everything the public ledger reveals — just commitments.
+      Amounts and counterparties are <strong>shielded</strong>.</p>
+      <div id="ledger" class="ledger">
+        <div class="empty">No confidential payments yet.</div>
+      </div>
+      <div id="poolState" class="poolstate">Reading live pool state from Stellar…</div>
+    </section>
+
+    <!-- COUNTRY B: RECEIVER -->
+    <section class="panel">
+      <div class="panel-head"><span class="flag">🇲🇽</span><h2>Country B · Receiver</h2></div>
+      <p class="hint">Payments arrive shielded. At the off-ramp edge the receiver
+      reveals the amount to convert to local fiat (MXN) — compliance by design.</p>
+      <div id="incoming" class="ledger">
+        <div class="empty">Nothing received yet.</div>
+      </div>
+    </section>
+
+    <!-- REGULATOR -->
+    <section class="panel">
+      <div class="panel-head"><span class="flag">⚖️</span><h2>Regulator</h2></div>
+      <p class="hint">On audit, the holder proves one fact — the amount — with a ZK
+      proof made in this browser and <strong>verified on-chain</strong>. The
+      regulator learns only that fact.</p>
+      <label>Confidential payment to audit
+        <select id="auditSelect"><option value="">— none —</option></select>
+      </label>
+      <label>Audit context (period · regulator id)
+        <input id="auditCtx" type="text" value="2026-Q2 · CNBV" />
+      </label>
+      <label class="check">
+        <input id="tamper" type="checkbox" />
+        Tamper: claim a false amount (watch it get rejected on-chain)
+      </label>
+      <button id="proveBtn" class="primary">Generate &amp; verify disclosure proof</button>
+      <div id="result" class="result hidden"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="status">Initializing zero-knowledge prover…</span>
+    <span class="links">
+      <a href="https://github.com/PugarHuda/tukar" target="_blank" rel="noreferrer">GitHub ↗</a> ·
+      <a href="https://stellar.expert/explorer/testnet/contract/CC6CSZ6T2AKG5AN6JPU3IG5AVB2RE5V33EUH7RCO7EBXTISL3EULKYEW" target="_blank" rel="noreferrer">pool contract ↗</a> ·
+      Built for Stellar Hacks: Real-World ZK
+    </span>
+  </footer>
+
+  <script type="module" src="./app.js?v=6"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+// Scroll-reveal for the landing page. Staggers elements in as they enter view.
+const io = new IntersectionObserver(
+  (entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) {
+        e.target.classList.add("in");
+        io.unobserve(e.target);
+      }
+    }
+  },
+  { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+);
+
+document.querySelectorAll(".reveal").forEach((el, i) => {
+  // light stagger for groups
+  el.style.transitionDelay = `${(i % 4) * 70}ms`;
+  io.observe(el);
+});

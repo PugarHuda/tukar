@@ -38,8 +38,10 @@ compliance).
   | [transfer verifier](https://lab.stellar.org/r/testnet/contract/CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://lab.stellar.org/r/testnet/contract/CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO) | ASP allow/deny | `verify` → `true` |
 
-- **🌐 Live demo:** **https://tukar-six.vercel.app** — click **Send** and it builds
-  a compliance proof in your browser and **deposits on-chain for real** (watch the
+- **🌐 Live site:** **https://tukar-six.vercel.app** — a landing page; hit
+  **Launch the live demo** (or go straight to
+  [`/demo`](https://tukar-six.vercel.app/demo)). There, **Send** builds a
+  compliance proof in your browser and **deposits on-chain for real** (watch the
   pool's commitment count go up); audit a payment and its disclosure proof is
   **verified on-chain by the live Stellar verifier**. No install, no wallet.
 - **Or run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
