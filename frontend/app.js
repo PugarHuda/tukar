@@ -237,7 +237,7 @@ async function withdrawNote(note) {
     const dCommit = F.toObject(poseidon([0n, dPub, dBlind]));
     const o0Priv = randomFieldElement(), o0Blind = randomFieldElement();
     const o0Pub = F.toObject(poseidon([o0Priv]));
-    const o0Amt = amt + W;
+    const o0Amt = amt - W; // change note left in the pool (0 for a full withdraw)
     const o0Commit = F.toObject(poseidon([o0Amt, o0Pub, o0Blind]));
     const o1Priv = randomFieldElement(), o1Blind = randomFieldElement();
     const o1Pub = F.toObject(poseidon([o1Priv]));
@@ -246,8 +246,11 @@ async function withdrawNote(note) {
     const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
     const root = tree.root(leaves);
     const path = tree.pathElements(leaves, note.leafIndex).map((x) => x.toString());
+    // Withdraw moves value OUT of the shielded set, so publicAmount is negative
+    // (field-encoded as r - W). The JoinSplit equation sum(in)+publicAmount=sum(out)
+    // then forces the outputs to sum to V - W (the change), matching tokens leaving.
     const input = {
-      root: root.toString(), publicAmount: W.toString(), extDataHash: "1",
+      root: root.toString(), publicAmount: ((R - W) % R).toString(), extDataHash: "1",
       inputNullifier: [n0.toString(), n1.toString()],
       outputCommitment: [o0Commit.toString(), o1Commit.toString()],
       inAmount: [note.amount, "0"],
@@ -261,7 +264,7 @@ async function withdrawNote(note) {
     };
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm", "./circuit/transfer_final.zkey");
     status.innerHTML = `<span class="spin">◠</span> Withdraw #${note.id} — releasing tokens on-chain…`;
-    const res = await withdrawSubmit(proof, publicSignals);
+    const res = await withdrawSubmit(proof, publicSignals, undefined, W);
     note.withdrawing = false;
     if (res.ok) {
       note.withdrawn = res.hash || "ok";

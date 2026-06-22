@@ -40,13 +40,13 @@
     }
   },
   "pool": {
-    "contractId": "CDEAN5OULSP2CT6GFK4WGF532Z5GWJ2H4NOCRFD2VWYHTWIZPUPPK2HW",
+    "contractId": "CC5XBHHZAII6DNYGKQVA2OX3AIU3YQJ2OW33YU6AQNNXELY3HIY6X4GG",
     "wasm": "contracts/pool/",
     "description": "Hardened corridor pool with token custody + FULLY TRUSTLESS tree updates (no admin root backdoor — the only way to advance the root is a merkleUpdate proof). Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set (idempotent, no double-count) + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw.",
     "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[4]"],
     "tested": {
       "deposit": "success — compliance proof bound to commitment; pulled 100 tokens into the pool (balance 0 -> 100)",
-      "withdraw": "success — released 50 tokens (balance 100 -> 50); released amount bound to the proof's public_amount",
+      "withdraw": "success — released tokens; publicAmount is NEGATIVE (r - amount: value leaving the shielded set, the correct JoinSplit sign), and the pool binds the released amount to that field-negative so it cannot release more than the proof authorizes",
       "registerRootVerified": "success — trustless root advance via merkleUpdate proof (oldRoot -> newRoot)",
       "trustlessTreeAttack": "registering a FAKE new_root with the real proof -> rejected (InvalidProof, Error #0)",
       "amountBindingFix": "withdraw with amount=999 but public_amount=50 -> rejected (AmountNotBound, Error #6)",

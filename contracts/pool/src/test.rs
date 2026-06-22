@@ -32,6 +32,33 @@ fn amt_bytes(env: &Env, amount: i128) -> BytesN<32> {
     BytesN::from_array(env, &buf)
 }
 
+// Field-negative of `amount` (r - amount), BE — the publicAmount convention a
+// real withdraw proof carries (value leaving the shielded set).
+fn neg_amt_bytes(env: &Env, amount: i128) -> BytesN<32> {
+    const FIELD_R: [u8; 32] = [
+        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58,
+        0x5d, 0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00,
+        0x00, 0x01,
+    ];
+    let amt = amt_bytes(env, amount).to_array();
+    let mut out = [0u8; 32];
+    let mut borrow: i16 = 0;
+    let mut i = 31i32;
+    while i >= 0 {
+        let k = i as usize;
+        let diff = FIELD_R[k] as i16 - amt[k] as i16 - borrow;
+        if diff < 0 {
+            out[k] = (diff + 256) as u8;
+            borrow = 1;
+        } else {
+            out[k] = diff as u8;
+            borrow = 0;
+        }
+        i -= 1;
+    }
+    BytesN::from_array(env, &out)
+}
+
 fn dummy_proof(env: &Env) -> Groth16Proof {
     Groth16Proof {
         a: Bn254G1Affine::from_bytes(BytesN::from_array(env, &[0u8; 64])),
@@ -97,9 +124,9 @@ fn withdraw_releases_bound_amount() {
     let recipient = Address::generate(&env);
     let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
-    // public_amount must equal the released amount (binding)
+    // public_amount must equal the field-negative of the released amount (binding)
     c.pool.withdraw(
-        &dummy_proof(&env), &b32(&env, 0), &amt_bytes(&env, 120), &b32(&env, 5),
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120), &b32(&env, 5),
         &nulls, &outs, &recipient, &120,
     );
     assert_eq!(c.token.balance(&recipient), 120);
@@ -115,9 +142,9 @@ fn withdraw_amount_must_match_public_amount() {
     let recipient = Address::generate(&env);
     let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
-    // public_amount says 50 but caller tries to release 120 -> rejected
+    // public_amount binds to 50 but caller tries to release 120 -> rejected
     c.pool.withdraw(
-        &dummy_proof(&env), &b32(&env, 0), &amt_bytes(&env, 50), &b32(&env, 5),
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 50), &b32(&env, 5),
         &nulls, &outs, &recipient, &120,
     );
 }

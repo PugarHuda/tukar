@@ -14,7 +14,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CDEAN5OULSP2CT6GFK4WGF532Z5GWJ2H4NOCRFD2VWYHTWIZPUPPK2HW";
+export const POOL = "CC5XBHHZAII6DNYGKQVA2OX3AIU3YQJ2OW33YU6AQNNXELY3HIY6X4GG";
 export const DISCLOSURE_VERIFIER = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -189,21 +189,22 @@ export const DEMO_ADDRESS = Sdk.Keypair.fromSecret(DEMO_SECRET).publicKey();
 
 /**
  * Submit a signed pool.withdraw given a transfer proof + its public signals.
- * Spends the note's nullifier on-chain and releases WITHDRAW_STROOPS tokens.
+ * Spends the note's nullifier on-chain and releases `releaseAmount` tokens. The
+ * proof's public_amount is the field-negative (r - releaseAmount): value leaving.
  */
-export async function withdrawSubmit(proof, publicSignals, recipientPub) {
+export async function withdrawSubmit(proof, publicSignals, recipientPub, releaseAmount) {
   try {
     const [root, publicAmount, extDataHash, n0, n1, oc0, oc1] = publicSignals;
     const client = await poolWriteClient();
     const at = await client.withdraw({
       proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
       root: buf32(root),
-      public_amount: buf32(publicAmount),
+      public_amount: buf32(publicAmount), // field-negative (r - amount): value leaving
       ext_data_hash: buf32(extDataHash),
       nullifiers: [buf32(n0), buf32(n1)],
       out_commitments: [buf32(oc0), buf32(oc1)],
       recipient: recipientPub || DEMO_ADDRESS,
-      amount: BigInt(publicAmount), // release exactly the proof's public amount
+      amount: BigInt(releaseAmount), // magnitude released; pool binds it to (r - amount)
     });
     const res = await at.signAndSend();
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };

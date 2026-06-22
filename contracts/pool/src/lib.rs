@@ -210,8 +210,10 @@ impl Pool {
         if amount <= 0 {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
         }
-        // bind the released amount to the verified public input
-        if public_amount != Self::amount_bytes(&env, amount) {
+        // Bind the released amount to the verified public input. A withdraw has a
+        // NEGATIVE publicAmount (value leaving the shielded set), so we bind to
+        // the field-negative of `amount` — not the positive encoding.
+        if public_amount != Self::neg_amount_bytes(&env, amount) {
             soroban_sdk::panic_with_error!(&env, PoolError::AmountNotBound);
         }
         Self::require_known_root(&env, &root);
@@ -286,6 +288,38 @@ impl Pool {
             i += 1;
         }
         BytesN::from_array(env, &buf)
+    }
+
+    /// 32-byte big-endian encoding of (r - amount) where r is the BN254 scalar
+    /// field modulus — i.e. the field-negative of a positive i128. A withdraw
+    /// moves value OUT of the shielded set, so in the JoinSplit value equation
+    /// `sum(in) + publicAmount == sum(out)` its publicAmount is negative. We bind
+    /// the released token `amount` to that negative public input, so the proof's
+    /// semantics (value leaving) match what the contract actually does.
+    fn neg_amount_bytes(env: &Env, amount: i128) -> BytesN<32> {
+        // r = 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
+        const FIELD_R: [u8; 32] = [
+            0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81,
+            0x58, 0x5d, 0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93,
+            0xf0, 0x00, 0x00, 0x01,
+        ];
+        let amt = Self::amount_bytes(env, amount).to_array(); // [u8; 32] BE
+        let mut out = [0u8; 32];
+        let mut borrow: i16 = 0;
+        let mut i = 31i32;
+        while i >= 0 {
+            let k = i as usize;
+            let diff = FIELD_R[k] as i16 - amt[k] as i16 - borrow;
+            if diff < 0 {
+                out[k] = (diff + 256) as u8;
+                borrow = 1;
+            } else {
+                out[k] = diff as u8;
+                borrow = 0;
+            }
+            i -= 1;
+        }
+        BytesN::from_array(env, &out)
     }
 
     fn transfer_inputs(
