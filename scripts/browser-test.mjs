@@ -33,9 +33,9 @@ await page.click("#sendBtn").catch((e) => console.log("send click err", e.messag
 await new Promise((r) => setTimeout(r, 800));
 // wait for the on-chain deposit to finish (compliance proof + signed tx, ~15-30s)
 let depStatus = "";
-for (let i = 0; i < 50; i++) {
+for (let i = 0; i < 70; i++) {
   depStatus = await page.$eval("#status", (el) => el.textContent.trim()).catch(() => "");
-  if (/Deposited on-chain|deposit failed/i.test(depStatus)) break;
+  if (/registered on-chain|registration failed|deposit failed/i.test(depStatus)) break;
   await new Promise((r) => setTimeout(r, 1000));
 }
 console.log("DEPOSIT STATUS:", JSON.stringify(depStatus));
@@ -51,6 +51,16 @@ await page.evaluate(() => document.querySelector("#incoming .offramp")?.click())
 await new Promise((r) => setTimeout(r, 400));
 const reveal = await page.$eval("#incoming .reveal", (el) => el.textContent.trim()).catch(() => "(no reveal)");
 console.log("OFF-RAMP REVEAL :", JSON.stringify(reveal));
+
+// withdraw the deposited note on-chain (spend note -> pool.withdraw)
+await page.evaluate(() => document.querySelector("#incoming .withdraw")?.click());
+let wd = "";
+for (let i = 0; i < 70; i++) {
+  wd = await page.$eval("#status", (el) => el.textContent.trim()).catch(() => "");
+  if (/Withdrawn on-chain|Withdraw failed/i.test(wd)) break;
+  await new Promise((r) => setTimeout(r, 1000));
+}
+console.log("WITHDRAW STATUS :", JSON.stringify(wd));
 
 // try generating a disclosure proof (select the note first)
 await page.select("#auditSelect", "1").catch(() => {});

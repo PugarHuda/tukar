@@ -6,7 +6,8 @@
 // The demo therefore needs internet for these two libraries; everything else is local.
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, depositOnChain, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, depositOnChain, registerRootOnChain, withdrawSubmit, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { makeTree } from "./tree.js";
 
 const VERIFIER_CONTRACT = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
@@ -19,8 +20,9 @@ const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
 
 const $ = (id) => document.getElementById(id);
 const status = $("status");
-let poseidon, F, vkey;
+let poseidon, F, vkey, tree;
 let notes = [];
+let leaves = []; // BigInt commitments registered on-chain, in tree order
 
 $("verifierLink").href = VERIFIER_URL;
 
@@ -62,6 +64,7 @@ async function init() {
     status.textContent = "Loading Poseidon hasher…";
     poseidon = await buildPoseidon();
     F = poseidon.F;
+    tree = makeTree(F, poseidon);
     console.log(`[tukar ${BUILD}] Poseidon ready; loading verification key…`);
     status.textContent = "Loading verification key…";
     vkey = await (await fetch(VKEY)).json();
@@ -96,32 +99,53 @@ async function createPayment() {
   const recipient = $("recipient").value.trim() || "unknown";
   if (!usdc || Number(usdc) <= 0) return;
   const amount = usdcToStroops(usdc);
-  const pubKey = randomFieldElement();
+  const privKey = randomFieldElement();
+  const pubKey = F.toObject(poseidon([privKey])); // pubKey = Poseidon(privKey) -> spendable
   const blinding = randomFieldElement();
   const commitment = F.toObject(poseidon([amount, pubKey, blinding]));
 
   const note = {
     id: notes.length + 1,
     recipient,
-    amount: amount.toString(),       // secret (kept client-side)
-    pubKey: pubKey.toString(),       // secret
-    blinding: blinding.toString(),   // secret
+    amount: amount.toString(),
+    privKey: privKey.toString(),
+    pubKey: pubKey.toString(),
+    blinding: blinding.toString(),
     commitment: commitment.toString(),
+    leafIndex: leaves.length,
     ts: new Date().toLocaleTimeString(),
     onchain: "pending",
   };
   notes.push(note);
   render();
-  status.innerHTML = `<span class="spin">◠</span> Payment #${note.id} created — building compliance proof &amp; depositing on-chain…`;
+  status.innerHTML = `<span class="spin">◠</span> Payment #${note.id} — compliance proof &amp; depositing on-chain…`;
 
-  // Real on-chain deposit: in-browser compliance proof -> signed pool.deposit.
+  // 1) Real on-chain deposit: in-browser compliance proof -> signed pool.deposit.
   const dep = await depositOnChain(commitment.toString());
-  if (dep.ok) {
-    note.onchain = dep.hash || "ok";
-    status.textContent = "Deposited on-chain ✓ — the Stellar pool recorded the commitment. Amount stays shielded.";
-  } else {
+  if (!dep.ok) {
     note.onchain = "failed";
     status.textContent = "On-chain deposit failed (note kept locally): " + dep.error;
+    render(); loadPoolState();
+    return;
+  }
+  note.onchain = dep.hash || "ok";
+  render();
+
+  // 2) Advance the on-chain Merkle root so the commitment is spendable (merkleUpdate proof).
+  status.innerHTML = `<span class="spin">◠</span> Deposited ✓ — registering it into the on-chain tree…`;
+  const index = leaves.length;
+  const oldRoot = tree.root(leaves);
+  const path = tree.pathElements(leaves, index).map((x) => x.toString());
+  const newLeaves = [...leaves, commitment];
+  const newRoot = tree.root(newLeaves);
+  const reg = await registerRootOnChain(oldRoot.toString(), commitment.toString(), newRoot.toString(), index, path);
+  if (reg.ok) {
+    leaves = newLeaves;
+    note.spendable = true;
+    note.root = newRoot.toString();
+    status.textContent = "Deposited & registered on-chain ✓ — the note is now spendable from the corridor.";
+  } else {
+    status.textContent = "Deposited ✓ (tree registration failed — withdraw disabled for this note): " + reg.error;
   }
   render();
   loadPoolState();
@@ -178,16 +202,79 @@ function renderReceiver() {
       const opened = offramped.has(n.id);
       const usdc = fmtUsdc(BigInt(n.amount));
       const mxn = (Number(usdc) * MXN_RATE).toLocaleString("en-US", { maximumFractionDigits: 2 });
-      const body = opened
+      const amountRow = opened
         ? `<div class="row"><span class="label">off-ramped</span><span class="reveal">${usdc} USDC → ${mxn} MXN</span></div>`
-        : `<div class="row"><span class="label">amount</span><span class="shield">•••• (shielded in transit)</span></div>
-           <button class="offramp" data-id="${n.id}">Off-ramp to MXN →</button>`;
+        : `<div class="row"><span class="label">amount</span><span class="shield">•••• (shielded in transit)</span></div>`;
+      let action;
+      if (n.withdrawn) {
+        action = `<div class="row"><span class="label">withdraw</span><a class="okc" href="${txExplorer(n.withdrawn)}" target="_blank" rel="noreferrer">✓ withdrawn on-chain ↗</a></div>`;
+      } else if (n.withdrawing) {
+        action = `<span class="pend">⏳ withdrawing on-chain…</span>`;
+      } else {
+        const off = opened ? "" : `<button class="offramp" data-id="${n.id}">Off-ramp to MXN →</button>`;
+        const wd = n.spendable ? `<button class="withdraw" data-id="${n.id}">Withdraw on-chain →</button>` : "";
+        action = off + wd;
+      }
       return `<div class="note">
         <div class="row"><span class="label">incoming · #${n.id}</span><span class="ts">${n.ts}</span></div>
-        ${body}
+        ${amountRow}${action}
       </div>`;
     })
     .join("");
+}
+
+// Spend a deposited note on-chain: build a transfer proof, submit pool.withdraw.
+async function withdrawNote(note) {
+  if (!note.spendable || note.withdrawn || note.withdrawing) return;
+  note.withdrawing = true;
+  renderReceiver();
+  status.innerHTML = `<span class="spin">◠</span> Withdraw #${note.id} — building shielded transfer proof…`;
+  try {
+    const W = 100n;
+    const amt = BigInt(note.amount);
+    const dPriv = randomFieldElement(), dBlind = randomFieldElement();
+    const dPub = F.toObject(poseidon([dPriv]));
+    const dCommit = F.toObject(poseidon([0n, dPub, dBlind]));
+    const o0Priv = randomFieldElement(), o0Blind = randomFieldElement();
+    const o0Pub = F.toObject(poseidon([o0Priv]));
+    const o0Amt = amt + W;
+    const o0Commit = F.toObject(poseidon([o0Amt, o0Pub, o0Blind]));
+    const o1Priv = randomFieldElement(), o1Blind = randomFieldElement();
+    const o1Pub = F.toObject(poseidon([o1Priv]));
+    const o1Commit = F.toObject(poseidon([0n, o1Pub, o1Blind]));
+    const n0 = F.toObject(poseidon([BigInt(note.commitment), BigInt(note.leafIndex), BigInt(note.privKey)]));
+    const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
+    const root = tree.root(leaves);
+    const path = tree.pathElements(leaves, note.leafIndex).map((x) => x.toString());
+    const input = {
+      root: root.toString(), publicAmount: W.toString(), extDataHash: "1",
+      inputNullifier: [n0.toString(), n1.toString()],
+      outputCommitment: [o0Commit.toString(), o1Commit.toString()],
+      inAmount: [note.amount, "0"],
+      inPrivKey: [note.privKey, dPriv.toString()],
+      inBlinding: [note.blinding, dBlind.toString()],
+      inLeafIndex: [String(note.leafIndex), "0"],
+      inPathElements: [path, new Array(10).fill("0")],
+      outAmount: [o0Amt.toString(), "0"],
+      outPubkey: [o0Pub.toString(), o1Pub.toString()],
+      outBlinding: [o0Blind.toString(), o1Blind.toString()],
+    };
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm", "./circuit/transfer_final.zkey");
+    status.innerHTML = `<span class="spin">◠</span> Withdraw #${note.id} — releasing tokens on-chain…`;
+    const res = await withdrawSubmit(proof, publicSignals);
+    note.withdrawing = false;
+    if (res.ok) {
+      note.withdrawn = res.hash || "ok";
+      status.textContent = "Withdrawn on-chain ✓ — the note was spent and tokens released from the pool.";
+    } else {
+      status.textContent = "Withdraw failed: " + res.error;
+    }
+  } catch (e) {
+    note.withdrawing = false;
+    status.textContent = "Withdraw failed: " + ((e && e.message) || e);
+  }
+  renderReceiver();
+  loadPoolState();
 }
 
 // Regulator: holder generates a disclosure proof; regulator verifies it.
@@ -281,11 +368,18 @@ $("proveBtn").addEventListener("click", () => {
   proveAndVerify();
 });
 $("incoming").addEventListener("click", (e) => {
-  const btn = e.target.closest(".offramp");
-  if (!btn) return;
-  offramped.add(Number(btn.dataset.id));
-  renderReceiver();
-  status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat.";
+  const off = e.target.closest(".offramp");
+  if (off) {
+    offramped.add(Number(off.dataset.id));
+    renderReceiver();
+    status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat.";
+    return;
+  }
+  const wd = e.target.closest(".withdraw");
+  if (wd) {
+    const n = notes.find((x) => x.id === Number(wd.dataset.id));
+    if (n) withdrawNote(n);
+  }
 });
 
 console.log("[tukar] app.js module executed — wiring UI");

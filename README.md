@@ -136,16 +136,18 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
     the build reuses an existing proving key rather than regenerating it (snarkjs
     setup isn't bit-reproducible). Production needs a real multi-party ceremony —
     Nethermind's `ceremony-cli` + the Hermez Powers-of-Tau is the path.
-  - **Frontend scope** — the browser demo is wired to live contracts: **"Send"
-    builds a compliance proof in-browser and submits a real signed `pool.deposit`**
-    (the on-chain commitment count goes up and a tiny testnet token moves), the
-    **disclosure proof is verified on-chain** by the deployed verifier, and the
-    pool's custody state is read live from chain. Deposits are signed by a
-    **throwaway non-admin testnet key embedded in the frontend** so anyone can try
-    it without a wallet (it holds only free testnet XLM — never do this with real
-    funds). The deposit amount is a small fixed testnet amount; the note's real
-    value is the hidden commitment. The transfer / withdraw / register_root flows
-    are still exercised via CLI, not yet wired into the UI.
+  - **Frontend scope** — the browser demo runs the **whole corridor on-chain**:
+    **"Send"** builds a compliance proof + submits a signed `pool.deposit`, then
+    builds a `merkleUpdate` proof + submits `register_root_verified` (the
+    commitment is recorded *and* registered into the on-chain tree, so it's
+    spendable); **"Withdraw"** builds a shielded `transfer` proof and submits
+    `pool.withdraw` (the note's nullifier is spent and tokens are released); the
+    regulator's **disclosure proof is verified on-chain**; and the pool's custody
+    state is read live from chain. All four circuits run client-side. Writes are
+    signed by a **throwaway non-admin testnet key embedded in the frontend** so
+    anyone can try it without a wallet (free testnet XLM only — never with real
+    funds). Token amounts moved are a small fixed testnet amount; the note's real
+    value is the hidden commitment.
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
 "Yardstick"). The verifier pattern is adapted from Nethermind's

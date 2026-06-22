@@ -147,5 +147,61 @@ export async function depositOnChain(commitmentDecimal) {
   }
 }
 
+/**
+ * Trustlessly advance the pool's Merkle root: prove (merkleUpdate) that inserting
+ * newLeaf into the known oldRoot yields newRoot, then submit register_root_verified.
+ * Makes the just-deposited commitment part of an on-chain registered tree.
+ */
+export async function registerRootOnChain(oldRootDec, newLeafDec, newRootDec, leafIndex, pathElementsDec) {
+  try {
+    const input = {
+      oldRoot: oldRootDec, newLeaf: newLeafDec, newRoot: newRootDec,
+      leafIndex: String(leafIndex), pathElements: pathElementsDec,
+    };
+    const { proof } = await snarkjs.groth16.fullProve(
+      input, "./circuit/merkleUpdate.wasm", "./circuit/merkleUpdate_final.zkey",
+    );
+    const client = await poolWriteClient();
+    const at = await client.register_root_verified({
+      proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
+      old_root: buf32(oldRootDec),
+      new_leaf: buf32(newLeafDec),
+      new_root: buf32(newRootDec),
+    });
+    const res = await at.signAndSend();
+    return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+export const WITHDRAW_STROOPS = DEPOSIT_STROOPS; // tokens released per withdraw
+export const DEMO_ADDRESS = Sdk.Keypair.fromSecret(DEMO_SECRET).publicKey();
+
+/**
+ * Submit a signed pool.withdraw given a transfer proof + its public signals.
+ * Spends the note's nullifier on-chain and releases WITHDRAW_STROOPS tokens.
+ */
+export async function withdrawSubmit(proof, publicSignals, recipientPub) {
+  try {
+    const [root, publicAmount, extDataHash, n0, n1, oc0, oc1] = publicSignals;
+    const client = await poolWriteClient();
+    const at = await client.withdraw({
+      proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
+      root: buf32(root),
+      public_amount: buf32(publicAmount),
+      ext_data_hash: buf32(extDataHash),
+      nullifiers: [buf32(n0), buf32(n1)],
+      out_commitments: [buf32(oc0), buf32(oc1)],
+      recipient: recipientPub || DEMO_ADDRESS,
+      amount: WITHDRAW_STROOPS,
+    });
+    const res = await at.signAndSend();
+    return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
 export const txExplorer = (h) => `https://stellar.expert/explorer/testnet/tx/${h}`;
 export const explorer = (id) => `https://stellar.expert/explorer/testnet/contract/${id}`;
