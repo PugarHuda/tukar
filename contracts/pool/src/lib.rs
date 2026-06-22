@@ -98,15 +98,6 @@ impl Pool {
         env.storage().persistent().set(&DataKey::Root(initial_root), &());
     }
 
-    /// Admin root registration — genesis / emergency only. The normal path is
-    /// `register_root_verified`, which is trustless.
-    pub fn register_root(env: Env, new_root: BytesN<32>) {
-        Self::admin(&env).require_auth();
-        env.storage().persistent().set(&DataKey::Root(new_root.clone()), &());
-        env.storage().instance().set(&DataKey::CurrentRoot, &new_root);
-        env.events().publish((symbol_short!("root"),), new_root);
-    }
-
     /// Trustless root advance (G6). Anyone may advance the tree, but only with a
     /// proof that inserting `new_leaf` at an empty slot of a *known* `old_root`
     /// yields exactly `new_root`. The operator therefore cannot register an
@@ -277,9 +268,6 @@ impl Pool {
     }
 
     // ---- internals ----
-    fn admin(env: &Env) -> Address {
-        env.storage().instance().get(&DataKey::Admin).unwrap()
-    }
     fn token(env: &Env) -> TokenClient {
         let addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         TokenClient::new(env, &addr)
@@ -340,8 +328,12 @@ impl Pool {
     }
 
     fn record_commitment(env: &Env, commitment: &BytesN<32>) -> u32 {
+        let key = DataKey::Commitment(commitment.clone());
         let count: u32 = env.storage().instance().get(&DataKey::Count).unwrap_or(0);
-        env.storage().persistent().set(&DataKey::Commitment(commitment.clone()), &());
+        if env.storage().persistent().has(&key) {
+            return count; // already recorded — don't double-count
+        }
+        env.storage().persistent().set(&key, &());
         env.storage().instance().set(&DataKey::Count, &(count + 1));
         count
     }

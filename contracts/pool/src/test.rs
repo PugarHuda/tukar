@@ -123,17 +123,6 @@ fn withdraw_amount_must_match_public_amount() {
 }
 
 #[test]
-fn register_root_marks_known_and_current() {
-    let env = Env::default();
-    let c = setup(&env);
-    let root1 = b32(&env, 7);
-    assert!(c.pool.is_root_known(&b32(&env, 0)));
-    c.pool.register_root(&root1);
-    assert!(c.pool.is_root_known(&root1));
-    assert_eq!(c.pool.current_root(), root1);
-}
-
-#[test]
 fn transfer_spends_nullifiers_and_records_outputs() {
     let env = Env::default();
     let c = setup(&env);
