@@ -120,13 +120,19 @@ disclosure layer that turns "private payments" into "compliant private payments.
 
 ```
 note        = { amount, pubKey, blinding }
+pubKey      = Poseidon(privKey)
 commitment  = Poseidon(amount, pubKey, blinding)          // leaf in pool Merkle tree
-nullifier   = Poseidon(commitment, pathIndex, sig)        // published on spend
-viewTag     = encrypt(amount, blinding ; regulatorViewKey) // optional, for disclosure
+nullifier   = Poseidon(commitment, leafIndex, privKey)    // published on spend
 ```
 
-Poseidon (ZK-friendly hash, native on Stellar via CAP-0075) keeps commitments and
-Merkle paths cheap both in-circuit and on-chain.
+Poseidon (a ZK-friendly hash) keeps commitments and Merkle paths cheap in-circuit.
+Soroban has **no native Poseidon host function**, but its BN254 scalar-field host
+ops (`fr_add`/`fr_mul`/`fr_pow`) are enough to compute the *same* circomlib
+Poseidon on-chain — the pool exposes `poseidon_hash(a,b)` to prove it (live,
+`poseidon_hash(1,2)` returns the exact circomlibjs value). One hash is affordable
+(~13.6M CPU), but a full depth-10 insert (~135M) exceeds the per-tx budget, so
+tree updates are verified with the `merkleUpdate` SNARK rather than hashed
+on-chain.
 
 ---
 
@@ -141,7 +147,7 @@ As deployed on testnet (see `deployments/testnet.json`):
 | **`transfer` verifier** | …for the shielded JoinSplit circuit. |
 | **`compliance` verifier** | …for the ASP membership + deny-list circuit. The allow-list root and deny-list are **pinned in the pool**, not separate contracts. |
 | **`merkleUpdate` verifier** | …for the tree-update circuit, enabling trustless `register_root_verified`. |
-| **token (SAC)** | The asset the pool custodies (the demo uses the native XLM SAC as a USDC stand-in). |
+| **token (SAC)** | The asset the pool custodies — a **real testnet USDC** asset (SAC `CAT6F6HX…FVA2`). `deposit` moves the actual typed amount in; `withdraw` releases it. |
 
 The **policy/verification split**: each verifier only checks cryptographic
 validity; the pool enforces business rules (binding, nullifier uniqueness, known
@@ -154,16 +160,20 @@ pinned in the pool rather than living in separate Merkle-tree contracts.
 ## 6. What is real vs mocked in the MVP (honesty first)
 
 - **Real:** the four ZK circuits, client-side proving, on-chain Groth16
-  verification, shielded deposit/transfer/withdraw with **real token custody**
-  (deposit pulls tokens in, withdraw releases them with the amount bound to the
-  proof), ASP membership/non-membership, selective disclosure to a regulator, and
-  **trustless tree updates** (`register_root_verified`).
+  verification, shielded deposit/transfer/withdraw with **real testnet USDC
+  custody** (deposit moves the actual amount in, **bound to the commitment**;
+  withdraw releases it with the amount bound to the proof's negative
+  `public_amount`), ASP membership/non-membership, selective disclosure to a
+  regulator, a **fully trustless tree** with no admin root backdoor
+  (`register_root_verified` only), and a real **Hermez Powers-of-Tau** phase-1
+  trusted setup. Optional **Freighter** wallet signing on top of the no-install
+  demo key.
 - **Mocked / simplified (stated clearly):** fiat anchor on/off-ramps (we assume
-  testnet tokens at the edges), ASP curation policy (allow/deny lists seeded
+  testnet USDC at the edges), ASP curation policy (allow/deny lists seeded
   manually), the Merkle witness is computed off-chain (but its correctness is
-  proven), single corridor (A→B), dev trusted setup (not a real ceremony). These
-  are integration surfaces, not the ZK core — the load-bearing cryptography is
-  real.
+  proven on-chain), single corridor (A→B), and **phase-2** of the trusted setup is
+  a single Tukar contribution. These are integration surfaces, not the ZK core —
+  the load-bearing cryptography is real.
 
 ---
 

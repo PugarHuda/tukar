@@ -6,11 +6,11 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 ## How to run the test suite
 
 ```bash
-npm run circuit:all      # compile + prove + verify all 3 circuits (Groth16/BN254)
+npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN254)
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 4/4
+cd contracts/pool && cargo test          # 12/12
 ```
 
 ## 1. Repo hygiene ✅
@@ -32,13 +32,16 @@ cd contracts/pool && cargo test          # 4/4
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **11/11 passed** (`cargo test`): deposit pulls tokens + records
+`contracts/pool` — **12/12 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
-rejected (`AmountNotBound`); `register_root` admin auth; transfer spends
-nullifiers + records outputs; **double-spend replay rejected** (`NullifierUsed`);
-**unknown root rejected** (`UnknownRoot`); disclose requires a known commitment;
-unknown-commitment disclose rejected (`UnknownCommitment`);
-`register_root_verified` advances from a known root and rejects an unknown one.
+rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
+**double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
+(`UnknownRoot`); disclose requires a known commitment; unknown-commitment disclose
+rejected (`UnknownCommitment`); `register_root_verified` advances from a known root
+and rejects an unknown one; **`poseidon_matches_circomlib`** (on-chain Poseidon ==
+circomlibjs `poseidon([1,2])`); and a `poseidon_cost_probe` diagnostic. The admin
+`register_root` backdoor was removed, so the only way to advance the root is a
+`merkleUpdate` proof.
 
 ## 4. On-chain behaviour (Stellar testnet) ✅
 
@@ -49,9 +52,10 @@ Positive — all return `true`:
 | `disclosure.verify` | `CACVDX…AOD3` | `true` |
 | `transfer.verify` | `CC3H6FT…Y6QC` | `true` |
 | `compliance.verify` | `CAWI2K7…SL4X` | `true` |
-| `pool.deposit` | `CB7UZPW…BGJA` | success — pulled 100 tokens in (balance 0→100) |
-| `pool.withdraw` | `CB7UZPW…BGJA` | success — released 50 (balance 100→50), amount bound |
-| `pool.register_root_verified` | `CB7UZPW…BGJA` | success — trustless root advance |
+| `pool.deposit` | `CB7UZPW…BGJA` | success — moved real USDC in, bound to the commitment |
+| `pool.withdraw` | `CB7UZPW…BGJA` | success — released USDC, amount bound to negative `public_amount` |
+| `pool.register_root_verified` | `CB7UZPW…BGJA` | success — trustless root advance (merkleUpdate proof) |
+| `pool.poseidon_hash(1,2)` | `CB7UZPW…BGJA` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
 | `merkleUpdate.verify` | `CDJZ6OR…LNH7` | `true` |
 
 Negative — all correctly rejected:
@@ -65,7 +69,6 @@ Negative — all correctly rejected:
 | `pool.withdraw` amount ≠ proof public_amount | `AmountNotBound` (#6) | rejected ✅ |
 | **`register_root_verified` with a FAKE new_root** | `InvalidProof` (#0) | **rejected ✅** |
 | `pool.disclose` of unknown commitment | `UnknownCommitment` (#3) | rejected ✅ (unit) |
-| `pool.register_root` without admin auth | auth failure | rejected ✅ (unit) |
 
 The **double-spend-bypass** row is the important one: because the pool builds the
 verifier's public inputs from the typed nullifiers/commitments/root itself, a
@@ -76,6 +79,9 @@ State checks after the test transfer: `pool.current_root` = registered root,
 `commitment_count` = 2, `is_root_known(root)` = true, `is_nullifier_used(spent)` = true.
 
 ## Known limitations (by design, stated honestly)
-- Merkle tree maintained off-chain by the operator (published via `register_root`).
+- Merkle witness (path) computed off-chain; on-chain integrity enforced by the
+  `merkleUpdate` proof — there is **no admin root backdoor**.
 - Fiat anchor on/off-ramps mocked; ASP lists seeded manually; single corridor A→B.
+- Phase-2 of the trusted setup is a single contribution (phase-1 is the real
+  Hermez ceremony).
 - Contracts are **not audited** — testnet only, no real assets.
