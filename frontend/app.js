@@ -9,7 +9,7 @@ import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
 import { verifyDisclosureOnChain, readPoolState, depositOnChain, registerRootOnChain, withdrawSubmit, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { makeTree } from "./tree.js";
 
-const VERIFIER_CONTRACT = "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2";
+const VERIFIER_CONTRACT = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
 const WASM = "./circuit/disclosure.wasm";
 const ZKEY = "./circuit/disclosure_final.zkey";

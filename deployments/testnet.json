@@ -11,28 +11,28 @@
   },
   "verifiers": {
     "disclosure": {
-      "contractId": "CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2",
+      "contractId": "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3",
       "circuit": "circuits/disclosure.circom",
       "publicInputs": 3,
       "verifyResult": "true",
       "tamperedResult": "rejected (InvalidProof)"
     },
     "transfer": {
-      "contractId": "CB6M6IOHCEAOGBGHOCNTV7RQFYRUFQR4FA7ZU45QCYFQK3JLUPIC6Q3B",
+      "contractId": "CC3H6FTLUELIPGF3NQM4EQ5XQ5LIU3SQVW7M4YCN6NEUSYQRUZQPY6QC",
       "circuit": "circuits/transfer.circom",
       "publicInputs": 7,
       "verifyResult": "true",
       "note": "2-in 2-out shielded JoinSplit, Merkle depth 10"
     },
     "compliance": {
-      "contractId": "CB67JH7RBEG7K2ZBE4ZQBGASAYDSZ7VZFEVBDTJQUA3GB3AWZWQDW3XO",
+      "contractId": "CAWI2K75RPFO4PMMO3ADDQN6DYG3E4R4N4FORXWHPJ4UPMIATJVUSL4X",
       "circuit": "circuits/compliance.circom",
       "publicInputs": 6,
       "verifyResult": "true",
       "note": "ASP allow-list membership + deny-list non-membership"
     },
     "merkleUpdate": {
-      "contractId": "CASMZC2ASRR5IYLUTKXNOA3TQPPC3FQ66INSLZT4G3IJJ3XHSGFBBWXF",
+      "contractId": "CDJZ6ORHLBDPCZSLRJBSVSMSHDTZOEZJJWIA2OXDVPGZDVEW3OBXLNH7",
       "circuit": "circuits/merkleUpdate.circom",
       "publicInputs": 3,
       "verifyResult": "true",
@@ -40,7 +40,7 @@
     }
   },
   "pool": {
-    "contractId": "CC5XBHHZAII6DNYGKQVA2OX3AIU3YQJ2OW33YU6AQNNXELY3HIY6X4GG",
+    "contractId": "CCYTAKHXENBGCAUH7EKKRDGGIROVFOXON6UVFSPLXLTGBDQ7FS7FJ6VS",
     "wasm": "contracts/pool/",
     "description": "Hardened corridor pool with token custody + FULLY TRUSTLESS tree updates (no admin root backdoor — the only way to advance the root is a merkleUpdate proof). Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set (idempotent, no double-count) + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw.",
     "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[4]"],
@@ -61,5 +61,11 @@
   },
   "curve": "BN254",
   "proofSystem": "Groth16",
+  "trustedSetup": {
+    "phase1": "Hermez perpetual powers-of-tau ceremony (powersOfTau28_hez_final_14.ptau) — a real multi-party ceremony, so phase-1 has no locally-known toxic waste",
+    "phase2": "per-circuit Groth16 setup + a Tukar phase-2 contribution; all four proving keys and the on-chain verifiers were regenerated together from this ptau so they stay in sync",
+    "maxConstraints": 16384,
+    "circuitConstraints": { "disclosure": 671, "compliance": 5220, "merkleUpdate": 10411, "transfer": 15386 }
+  },
   "protocol": "Stellar Protocol 25/26 (X-Ray / Yardstick) native BN254 host functions"
 }
