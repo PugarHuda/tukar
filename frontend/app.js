@@ -1,15 +1,12 @@
-// Tukar frontend — confidential corridor demo.
-// ZK proofs are generated *in this browser* (snarkjs + the disclosure circuit),
-// mirroring the on-chain BN254 Groth16 verifier deployed on Stellar testnet.
-// snarkjs + circomlibjs load from jsDelivr's `+esm` (self-contained bundles that
-// resolve their own deps, e.g. ffjavascript — a plain vendored copy does not).
-// The demo therefore needs internet for these two libraries; everything else is local.
+// Tukar — Corridor Console. Real ZK proving (snarkjs) in the browser, mirrored
+// by the live BN254 Groth16 verifiers on Stellar testnet. UI from the hifi
+// design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
 import { verifyDisclosureOnChain, readPoolState, depositOnChain, registerRootOnChain, withdrawSubmit, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { makeTree } from "./tree.js";
 
-const VERIFIER_CONTRACT = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
+const VERIFIER_CONTRACT = DISCLOSURE_VERIFIER;
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
 const WASM = "./circuit/disclosure.wasm";
 const ZKEY = "./circuit/disclosure_final.zkey";
@@ -17,14 +14,33 @@ const VKEY = "./circuit/verification_key.json";
 // BN254 scalar field modulus
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
+const MXN_RATE = 17.12;      // USDC -> MXN at the off-ramp edge (matches the design)
 
 const $ = (id) => document.getElementById(id);
 const status = $("status");
 let poseidon, F, vkey, tree;
 let notes = [];
 let leaves = []; // BigInt commitments registered on-chain, in tree order
+let seq = 0;
+let proofState = "idle";
 
 $("verifierLink").href = VERIFIER_URL;
+
+// ---- inline SVG icon set (matches the design's icon() paths) ----
+const ICON = {
+  reset: ["M20 11A8 8 0 0 0 6 6L4 8", "M4 4V8H8", "M4 13A8 8 0 0 0 18 18L20 16", "M20 20V16H16"],
+  shield: ["M12 3 19 6V11C19 16 16 19 12 21 8 19 5 16 5 11V6Z", "M9.4 11.6 12 9 14.6 11.6 12 14.2Z"],
+  lock: ["M6 11H18V20H6Z", "M8.5 11V8A3.5 3.5 0 0 1 15.5 8V11"],
+  diamond: ["M12 4 20 12 12 20 4 12Z"],
+  sealCheck: ["M12 3 20 8 18 17 12 21 6 17 4 8Z", "M8.5 12 11 14.5 15.5 9"],
+  sealX: ["M12 3 20 8 18 17 12 21 6 17 4 8Z", "M9.5 9.5 14.5 14.5", "M14.5 9.5 9.5 14.5"],
+  spark: ["M12 4 13.6 10.4 20 12 13.6 13.6 12 20 10.4 13.6 4 12 10.4 10.4Z"],
+  offramp: ["M4 20H20", "M12 4V9.5", "M9 12 12 9 15 12 12 15Z", "M12 15V19.5", "M9.6 17.6 12 20 14.4 17.6"],
+};
+function icon(name, size, stroke) {
+  const d = (ICON[name] || ICON.diamond).map((p) => `<path d="${p}"/>`).join("");
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+}
 
 function randomFieldElement() {
   const bytes = new Uint8Array(31);
@@ -55,9 +71,18 @@ function fmtUsdc(stroops) {
   return frac ? `${whole}.${frac}` : `${whole}`;
 }
 
-const short = (s) => `${s.slice(0, 10)}…${s.slice(-8)}`;
+const short = (s) => `${String(s).slice(0, 10)}…${String(s).slice(-8)}`;
+const shortHash = (s) => `0x${BigInt(s).toString(16).slice(0, 8)}…${BigInt(s).toString(16).slice(-2)}`;
 
-const BUILD = "v3-cdn";
+// Light the active panel + flow node for the current step (0..3).
+function setActiveStep(n) {
+  for (let i = 0; i < 4; i++) {
+    $("panel" + i).classList.toggle("active", i === n);
+    $("fn" + i).classList.toggle("active", i === n);
+  }
+}
+
+const BUILD = "v4-design";
 async function init() {
   try {
     console.log(`[tukar ${BUILD}] loading Poseidon (circomlibjs)…`);
@@ -69,7 +94,8 @@ async function init() {
     status.textContent = "Loading verification key…";
     vkey = await (await fetch(VKEY)).json();
     console.log(`[tukar ${BUILD}] init complete — ready`);
-    status.textContent = `Ready · zero-knowledge prover loaded.`;
+    status.textContent = "Ready · zero-knowledge prover loaded.";
+    setActiveStep(0);
     render();
     loadPoolState();
   } catch (e) {
@@ -78,20 +104,19 @@ async function init() {
   }
 }
 
-// Read the pool's live custody state from Stellar testnet and show it.
+// Read the pool's live commitment count from Stellar testnet.
 async function loadPoolState() {
-  const el = $("poolState");
-  if (!el) return;
   try {
-    const { balance, commitments } = await readPoolState();
-    const usdc = fmtUsdc(BigInt(balance));
-    el.innerHTML = `Live pool on Stellar: <b>${commitments}</b> commitments recorded ·
-      <b>${usdc} USDC</b> custodied <span class="muted">(real testnet USDC asset)</span> ·
-      <a href="${explorer(POOL)}" target="_blank" rel="noreferrer">pool ↗</a>`;
-  } catch (_) {
-    el.textContent = "Live pool state unavailable (network).";
-  }
+    const { commitments } = await readPoolState();
+    $("poolCount").textContent = commitments;
+  } catch (_) { /* network — leave as-is */ }
 }
+
+const CHIP = {
+  corridor: { label: "Deposited", color: "#ff9445" },
+  received: { label: "Shielded", color: "#ffb070" },
+  offramped: { label: "Off-ramped", color: "#37d67a" },
+};
 
 // Sender: create a confidential payment (commitment) entering the corridor.
 async function createPayment() {
@@ -104,8 +129,10 @@ async function createPayment() {
   const blinding = randomFieldElement();
   const commitment = F.toObject(poseidon([amount, pubKey, blinding]));
 
+  seq += 1;
   const note = {
     id: notes.length + 1,
+    ref: "PAY-" + String(seq).padStart(3, "0"),
     recipient,
     amount: amount.toString(),
     privKey: privKey.toString(),
@@ -114,25 +141,29 @@ async function createPayment() {
     commitment: commitment.toString(),
     leafIndex: leaves.length,
     ts: new Date().toLocaleTimeString(),
+    status: "pending",
     onchain: "pending",
   };
-  notes.push(note);
+  notes.unshift(note);
+  setActiveStep(1);
   render();
-  status.innerHTML = `<span class="spin">◠</span> Payment #${note.id} — compliance proof &amp; depositing on-chain…`;
+  status.innerHTML = `<span class="spin">◠</span> ${note.ref} — building compliance + binding proofs, depositing on-chain…`;
 
   // 1) Real on-chain deposit: compliance + amount-binding proofs -> signed pool.deposit.
   const dep = await depositOnChain(note);
   if (!dep.ok) {
+    note.status = "failed";
     note.onchain = "failed";
     status.textContent = "On-chain deposit failed (note kept locally): " + dep.error;
     render(); loadPoolState();
     return;
   }
   note.onchain = dep.hash || "ok";
+  note.status = "corridor";
   render();
 
-  // 2) Advance the on-chain Merkle root so the commitment is spendable (merkleUpdate proof).
-  status.innerHTML = `<span class="spin">◠</span> Deposited ✓ — registering it into the on-chain tree…`;
+  // 2) Advance the on-chain Merkle root so the commitment is spendable.
+  status.innerHTML = `<span class="spin">◠</span> ${note.ref} deposited ✓ — registering into the on-chain tree…`;
   const index = leaves.length;
   const oldRoot = tree.root(leaves);
   const path = tree.pathElements(leaves, index).map((x) => x.toString());
@@ -143,84 +174,91 @@ async function createPayment() {
     leaves = newLeaves;
     note.spendable = true;
     note.root = newRoot.toString();
-    status.textContent = "Deposited & registered on-chain ✓ — the note is now spendable from the corridor.";
+    note.status = "received";
+    setActiveStep(2);
+    status.textContent = `${note.ref} deposited & registered on-chain ✓ — shielded and spendable from the corridor.`;
   } else {
-    status.textContent = "Deposited ✓ (tree registration failed — withdraw disabled for this note): " + reg.error;
+    status.textContent = `${note.ref} deposited ✓ (tree registration failed — withdraw disabled): ` + reg.error;
   }
   render();
+  renderReceiver();
   loadPoolState();
 }
 
-function onchainBadge(s) {
-  if (s === "pending") return '<span class="pend">⏳ depositing…</span>';
-  if (s === "failed") return '<span class="fail">✗ local only</span>';
-  if (s === "ok" || !s) return '<span class="okc">✓ deposited</span>';
-  return `<a class="okc" href="${txExplorer(s)}" target="_blank" rel="noreferrer">✓ deposited ↗</a>`;
-}
-
+// Corridor (public view): commitments only; amounts hidden. + audit dropdown.
 function render() {
-  // Ledger (public view): only commitments, amounts hidden.
   const ledger = $("ledger");
   if (!notes.length) {
-    ledger.innerHTML = '<div class="empty">No confidential payments yet.</div>';
+    ledger.innerHTML = `<div class="empty"><div class="t">No confidential payments yet.</div><div class="s"><i></i> Reading live pool state from Stellar…</div></div>`;
   } else {
-    ledger.innerHTML = notes.map((n) => `
-      <div class="note">
-        <div class="row"><span class="label">commitment</span></div>
-        <div class="commit">${short(n.commitment)}</div>
-        <div class="row">
-          <span class="label">amount</span><span class="shield">•••• USDC (shielded)</span>
+    ledger.innerHTML = notes.map((n) => {
+      const c = CHIP[n.status] || { label: n.status === "failed" ? "Failed" : "Pending", color: "#8a847e" };
+      const hashLink = (n.onchain && n.onchain !== "pending" && n.onchain !== "failed" && n.onchain !== "ok")
+        ? `<a class="hash" style="text-decoration:none;" href="${txExplorer(n.onchain)}" target="_blank" rel="noreferrer">${shortHash(n.commitment)} ↗</a>`
+        : `<span class="hash">${shortHash(n.commitment)}</span>`;
+      return `<div class="crow">
+        <div class="top">
+          ${hashLink}
+          <span class="st" style="color:${c.color};"><i style="background:${c.color};"></i>${c.label}</span>
         </div>
-        <div class="row">
-          <span class="label">recipient</span><span class="shield">•••• (shielded)</span>
+        <div class="meta">
+          <span>${n.ref}</span>
+          <span class="hid">${icon("lock", 11, "#6b645e")} •••• USDC · hidden</span>
         </div>
-        <div class="row"><span class="label">on-chain</span>${onchainBadge(n.onchain)}</div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
   }
-  // Audit dropdown
+
+  // Audit dropdown (only registered/spendable payments are auditable).
   const sel = $("auditSelect");
   const cur = sel.value;
+  const auditable = notes.filter((n) => n.spendable);
   sel.innerHTML = '<option value="">— none —</option>' +
-    notes.map((n) => `<option value="${n.id}">#${n.id} · ${n.recipient} · ${n.ts}</option>`).join("");
+    auditable.map((n) => `<option value="${n.id}">${n.ref} · ${shortHash(n.commitment)}</option>`).join("");
   sel.value = cur;
   renderReceiver();
 }
 
 const offramped = new Set();
-const MXN_RATE = 17.05; // mock USDC->MXN rate for the off-ramp edge
 
-// Country B receiver view: payments arrive shielded; off-ramp reveals the amount.
+// Country B receiver: shielded arrivals; reveal+off-ramp to fiat, withdraw on-chain.
 function renderReceiver() {
   const el = $("incoming");
   if (!el) return;
-  if (!notes.length) {
-    el.innerHTML = '<div class="empty">Nothing received yet.</div>';
+  const arrivals = notes.filter((n) => n.spendable);
+  if (!arrivals.length) {
+    el.innerHTML = `<div class="empty"><div class="t">Nothing received yet.</div><div class="s" style="color:#6b645e;">Send a payment from Country A →</div></div>`;
     return;
   }
-  el.innerHTML = notes
-    .map((n) => {
-      const opened = offramped.has(n.id);
-      const usdc = fmtUsdc(BigInt(n.amount));
-      const mxn = (Number(usdc) * MXN_RATE).toLocaleString("en-US", { maximumFractionDigits: 2 });
-      const amountRow = opened
-        ? `<div class="row"><span class="label">off-ramped</span><span class="reveal">${usdc} USDC → ${mxn} MXN</span></div>`
-        : `<div class="row"><span class="label">amount</span><span class="shield">•••• (shielded in transit)</span></div>`;
-      let action;
-      if (n.withdrawn) {
-        action = `<div class="row"><span class="label">withdraw</span><a class="okc" href="${txExplorer(n.withdrawn)}" target="_blank" rel="noreferrer">✓ withdrawn on-chain ↗</a></div>`;
-      } else if (n.withdrawing) {
-        action = `<span class="pend">⏳ withdrawing on-chain…</span>`;
-      } else {
-        const off = opened ? "" : `<button class="offramp" data-id="${n.id}">Off-ramp to MXN →</button>`;
-        const wd = n.spendable ? `<button class="withdraw" data-id="${n.id}">Withdraw on-chain →</button>` : "";
-        action = off + wd;
-      }
-      return `<div class="note">
-        <div class="row"><span class="label">incoming · #${n.id}</span><span class="ts">${n.ts}</span></div>
-        ${amountRow}${action}
-      </div>`;
-    })
-    .join("");
+  el.innerHTML = arrivals.map((n) => {
+    const opened = offramped.has(n.id);
+    const usdc = fmtUsdc(BigInt(n.amount));
+    const mxn = Math.round(Number(usdc) * MXN_RATE).toLocaleString("en-US");
+    const chipColor = opened ? "#37d67a" : "#ffb070";
+    const chipLabel = opened ? "Off-ramped" : "Shielded";
+
+    let body;
+    if (opened) {
+      body = `<div class="mxn"><span class="amt">+ $${mxn} MXN</span><span class="lbl">$${usdc} USDC revealed</span></div>`;
+    } else {
+      body = `<button class="btn-reveal" data-reveal="${n.id}">Reveal &amp; off-ramp →</button>`;
+    }
+
+    let wd = "";
+    if (n.withdrawn) {
+      wd = `<a class="wd-done" style="text-decoration:none;" href="${txExplorer(n.withdrawn)}" target="_blank" rel="noreferrer">${icon("sealCheck", 12, "#5fe3a0")} withdrawn on-chain ↗</a>`;
+    } else if (n.withdrawing) {
+      wd = `<div class="wd-pend"><span class="spin">◠</span> withdrawing on-chain…</div>`;
+    } else if (n.spendable) {
+      wd = `<button class="btn-wd" data-withdraw="${n.id}">${icon("offramp", 12, "#cfc8c1")} Withdraw on-chain →</button>`;
+    }
+
+    return `<div class="arrival${opened ? " done" : ""}">
+      <div class="top"><span class="ref">${n.ref} · from US</span><span class="chip" style="color:${chipColor};">${chipLabel}</span></div>
+      <div class="body">${body}</div>
+      ${wd}
+    </div>`;
+  }).join("");
 }
 
 // Spend a deposited note on-chain: build a transfer proof, submit pool.withdraw.
@@ -228,7 +266,7 @@ async function withdrawNote(note) {
   if (!note.spendable || note.withdrawn || note.withdrawing) return;
   note.withdrawing = true;
   renderReceiver();
-  status.innerHTML = `<span class="spin">◠</span> Withdraw #${note.id} — building shielded transfer proof…`;
+  status.innerHTML = `<span class="spin">◠</span> ${note.ref} — building shielded transfer proof…`;
   try {
     const amt = BigInt(note.amount);
     const W = amt; // release the note's full amount
@@ -247,8 +285,7 @@ async function withdrawNote(note) {
     const root = tree.root(leaves);
     const path = tree.pathElements(leaves, note.leafIndex).map((x) => x.toString());
     // Withdraw moves value OUT of the shielded set, so publicAmount is negative
-    // (field-encoded as r - W). The JoinSplit equation sum(in)+publicAmount=sum(out)
-    // then forces the outputs to sum to V - W (the change), matching tokens leaving.
+    // (field-encoded as r - W). sum(in)+publicAmount=sum(out) -> outputs sum to V - W.
     const input = {
       root: root.toString(), publicAmount: ((R - W) % R).toString(), extDataHash: "1",
       inputNullifier: [n0.toString(), n1.toString()],
@@ -263,12 +300,12 @@ async function withdrawNote(note) {
       outBlinding: [o0Blind.toString(), o1Blind.toString()],
     };
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm", "./circuit/transfer_final.zkey");
-    status.innerHTML = `<span class="spin">◠</span> Withdraw #${note.id} — releasing tokens on-chain…`;
+    status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
     const res = await withdrawSubmit(proof, publicSignals, undefined, W);
     note.withdrawing = false;
     if (res.ok) {
       note.withdrawn = res.hash || "ok";
-      status.textContent = "Withdrawn on-chain ✓ — the note was spent and tokens released from the pool.";
+      status.textContent = `${note.ref} withdrawn on-chain ✓ — the note was spent and tokens released from the pool.`;
     } else {
       status.textContent = "Withdraw failed: " + res.error;
     }
@@ -280,110 +317,153 @@ async function withdrawNote(note) {
   loadPoolState();
 }
 
-// Regulator: holder generates a disclosure proof; regulator verifies it.
+// Render the regulator proof-view box (idle/proving/verified/rejected).
+function renderProof(state, data = {}) {
+  proofState = state;
+  const result = $("result");
+  const M = {
+    idle: { border: "rgba(255,255,255,0.07)", bg: "rgba(0,0,0,0.2)", color: "#cfc8c1", ic: icon("shield", 16, "#8a847e"), title: "Ready", body: "Zero-knowledge prover loaded." },
+    proving: { border: "rgba(255,122,26,0.4)", bg: "rgba(255,122,26,0.06)", color: "#ff9c52", ic: icon("spark", 16, "#ff9c52"), title: "Proving in browser…", body: "Generating a Groth16 proof over BN254. Secrets never leave the device." },
+    verified: { border: "rgba(55,214,122,0.4)", bg: "rgba(55,214,122,0.07)", color: "#5fe3a0", ic: icon("sealCheck", 16, "#5fe3a0"), title: "Verified on-chain", body: data.body || "" },
+    rejected: { border: "rgba(255,90,70,0.45)", bg: "rgba(255,90,70,0.07)", color: "#ff8a72", ic: icon("sealX", 16, "#ff8a72"), title: "InvalidProof", body: data.body || "" },
+  }[state];
+  result.style.border = "1px solid " + M.border;
+  result.style.background = M.bg;
+  result.innerHTML = `
+    <div class="ph">${M.ic}<span class="pt" style="color:${M.color};">${M.title}</span></div>
+    <div class="pb">${M.body}</div>
+    ${data.mono ? `<div class="pmono">${data.mono}</div>` : ""}
+    ${data.onchain ? `<div class="pmono" data-onchain>${data.onchain}</div>` : ""}
+    ${state === "proving" ? `<div class="proofbar"><i></i></div>` : ""}`;
+}
+
+// Regulator: holder generates a disclosure proof; regulator verifies on-chain.
 async function proveAndVerify() {
   const id = Number($("auditSelect").value);
   const note = notes.find((n) => n.id === id);
-  const result = $("result");
   if (!note) { status.textContent = "Select a confidential payment to audit first."; return; }
 
   const tamper = $("tamper").checked;
   const auditContextHash = contextToField($("auditCtx").value).toString();
   $("proveBtn").disabled = true;
-  result.className = "result hidden";
+  $("proveBtn").classList.add("busy");
+  $("proveBtn").textContent = "Proving…";
+  setActiveStep(3);
+  renderProof("proving");
   status.innerHTML = '<span class="spin">◠</span> Generating zero-knowledge proof in your browser…';
 
   try {
     const input = {
-      commitment: note.commitment,
-      disclosedAmount: note.amount,
-      auditContextHash,
-      amount: note.amount,
-      pubKey: note.pubKey,
-      blinding: note.blinding,
+      commitment: note.commitment, disclosedAmount: note.amount, auditContextHash,
+      amount: note.amount, pubKey: note.pubKey, blinding: note.blinding,
     };
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, WASM, ZKEY);
 
     // Tamper mode: regulator is handed a FALSE claimed amount alongside the proof.
     let claimed = publicSignals.slice();
     if (tamper) claimed[1] = (BigInt(publicSignals[1]) + 12345n).toString();
-
     const ok = await snarkjs.groth16.verify(vkey, claimed, proof);
+    const link = `<a href="${explorer(DISCLOSURE_VERIFIER)}" target="_blank" rel="noreferrer">${short(DISCLOSURE_VERIFIER)} ↗</a>`;
 
-    const onchainLine = `<div class="onchain mono">⛓ confirming on the live Stellar contract…</div>`;
     if (ok) {
-      result.className = "result ok";
-      result.innerHTML = `
-        <div class="big">✅ Disclosure proof VALID</div>
-        Regulator learns exactly one fact about payment #${note.id}:<br/>
-        <div class="big">${fmtUsdc(claimed[1])} USDC</div>
-        Nothing else about the corridor was revealed — no keys, no blinding,
-        no other payments.<br/>
-        <div class="mono">audit context: ${$("auditCtx").value} → ${short(auditContextHash)}</div>
-        <div class="mono">commitment: ${short(note.commitment)}</div>
-        ${onchainLine}`;
+      renderProof("verified", {
+        body: `Disclosed amount: <b style="color:#5fe3a0;">$${fmtUsdc(claimed[1])} USDC</b>. Nothing else is revealed — no keys, no blinding, no other payments.`,
+        mono: `commitment ${short(note.commitment)} · context ${short(auditContextHash)}`,
+        onchain: "⛓ confirming on the live Stellar verifier…",
+      });
       status.textContent = "Disclosure verified in your browser. Confirming on Stellar…";
     } else {
-      result.className = "result bad";
-      result.innerHTML = `
-        <div class="big">⛔ Disclosure REJECTED</div>
-        The claimed amount <strong>${fmtUsdc(claimed[1])} USDC</strong> does not match
-        the proof. A false claim cannot pass verification.<br/>
-        ${onchainLine}`;
+      renderProof("rejected", {
+        body: `Claimed amount <b style="color:#ff8a72;">$${fmtUsdc(claimed[1])} USDC</b> contradicts the proof. A false claim cannot pass verification.`,
+        onchain: "⛓ confirming on the live Stellar verifier…",
+      });
       status.textContent = "Tampered claim rejected in your browser. Confirming on Stellar…";
     }
-    // Live on-chain verification by the deployed Stellar verifier (read-only RPC simulation).
+
+    // Live on-chain verification by the deployed Stellar verifier (read-only RPC).
     try {
       const oc = await verifyDisclosureOnChain(proof, claimed);
-      const el = result.querySelector(".onchain");
-      const link = `<a href="${explorer(DISCLOSURE_VERIFIER)}" target="_blank" rel="noreferrer">${short(DISCLOSURE_VERIFIER)} ↗</a>`;
+      const el = $("result").querySelector("[data-onchain]");
       if (ok && oc.verified) {
-        el.innerHTML = `⛓ <b>Verified on-chain</b> too — by the live Stellar verifier ${link}`;
+        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> too — by the live Stellar verifier ${link}`;
         status.textContent = "Disclosure verified — in your browser AND on Stellar. Privacy preserved, compliance satisfied.";
       } else if (!ok && !oc.verified) {
-        el.innerHTML = `⛓ The live Stellar verifier ${link} <b>also rejected it</b> (InvalidProof).`;
+        if (el) el.innerHTML = `⛓ The live Stellar verifier ${link} <b style="color:#ff8a72;">also rejected it</b> (InvalidProof).`;
         status.textContent = "Tampered claim rejected — in your browser AND on-chain. The proof is sound.";
-      } else {
+      } else if (el) {
         el.textContent = `⛓ on-chain result: ${oc.verified ? "verified" : "rejected"}`;
       }
     } catch (_) {
-      const el = result.querySelector(".onchain");
+      const el = $("result").querySelector("[data-onchain]");
       if (el) el.textContent = "⛓ on-chain check unavailable (network).";
     }
   } catch (e) {
-    result.className = "result bad";
-    result.innerHTML = `<div class="big">⛔ Proof generation failed</div>
-      <div class="mono">${(e && e.message) || e}</div>
-      A disclosure that contradicts the committed amount cannot even be proven.`;
+    renderProof("rejected", { body: `Proof generation failed: ${(e && e.message) || e}. A disclosure that contradicts the committed amount cannot even be proven.` });
     status.textContent = "Proof rejected at generation — soundness holds.";
   } finally {
     $("proveBtn").disabled = false;
+    $("proveBtn").classList.remove("busy");
+    $("proveBtn").textContent = "Generate & verify disclosure proof";
   }
 }
 
+function resetUI() {
+  notes = [];
+  leaves = [];
+  offramped.clear();
+  seq = 0;
+  setActiveStep(0);
+  $("amount").value = "500";
+  $("recipient").value = "María · Mexico City";
+  $("auditCtx").value = "2026-Q2 · CNBV";
+  $("tamper").checked = false;
+  $("tamperLabel").classList.remove("on");
+  renderProof("idle");
+  render();
+  status.textContent = "Reset · session cleared (on-chain commitments persist).";
+  loadPoolState();
+}
+
+// ---- wiring ----
 $("sendBtn").addEventListener("click", async () => {
   if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
   $("sendBtn").disabled = true;
-  try { await createPayment(); } finally { $("sendBtn").disabled = false; }
+  $("sendBtn").classList.add("busy");
+  $("sendBtn").textContent = "Building compliance proof…";
+  try { await createPayment(); }
+  finally {
+    $("sendBtn").disabled = false;
+    $("sendBtn").classList.remove("busy");
+    $("sendBtn").textContent = "Send into corridor →";
+  }
 });
 $("proveBtn").addEventListener("click", () => {
   if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
   proveAndVerify();
 });
+$("tamperLabel").addEventListener("click", () => {
+  const cb = $("tamper");
+  cb.checked = !cb.checked;
+  $("tamperLabel").classList.toggle("on", cb.checked);
+});
+$("resetBtn").addEventListener("click", resetUI);
 $("incoming").addEventListener("click", (e) => {
-  const off = e.target.closest(".offramp");
+  const off = e.target.closest("[data-reveal]");
   if (off) {
-    offramped.add(Number(off.dataset.id));
+    offramped.add(Number(off.dataset.reveal));
     renderReceiver();
-    status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat.";
+    status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat (MXN).";
     return;
   }
-  const wd = e.target.closest(".withdraw");
+  const wd = e.target.closest("[data-withdraw]");
   if (wd) {
-    const n = notes.find((x) => x.id === Number(wd.dataset.id));
+    const n = notes.find((x) => x.id === Number(wd.dataset.withdraw));
     if (n) withdrawNote(n);
   }
 });
+
+// Freighter wallet is wired in wallet.js (optional; falls back to the demo key).
+$("walletBtn").style.display = "none";
 
 console.log("[tukar] app.js module executed — wiring UI");
 init();

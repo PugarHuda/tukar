@@ -39,7 +39,7 @@ for (let i = 0; i < 70; i++) {
   await new Promise((r) => setTimeout(r, 1000));
 }
 console.log("DEPOSIT STATUS:", JSON.stringify(depStatus));
-const badge = await page.$eval("#ledger .okc, #ledger .fail", (el) => el.textContent.trim()).catch(() => "(no badge)");
+const badge = await page.$eval("#ledger .crow .st", (el) => el.textContent.trim()).catch(() => "(no badge)");
 console.log("DEPOSIT BADGE :", JSON.stringify(badge));
 const ledger = await page.$eval("#ledger", (el) => el.textContent.replace(/\s+/g, " ").trim().slice(0, 90)).catch(() => "(err)");
 console.log("LEDGER AFTER SEND:", JSON.stringify(ledger));
@@ -47,13 +47,13 @@ console.log("LEDGER AFTER SEND:", JSON.stringify(ledger));
 // receiver (Country B) panel + off-ramp
 const incoming = await page.$eval("#incoming", (el) => el.textContent.replace(/\s+/g, " ").trim().slice(0, 70)).catch(() => "(err)");
 console.log("RECEIVER INCOMING:", JSON.stringify(incoming));
-await page.evaluate(() => document.querySelector("#incoming .offramp")?.click());
+await page.evaluate(() => document.querySelector("#incoming [data-reveal]")?.click());
 await new Promise((r) => setTimeout(r, 400));
-const reveal = await page.$eval("#incoming .reveal", (el) => el.textContent.trim()).catch(() => "(no reveal)");
+const reveal = await page.$eval("#incoming .mxn .amt", (el) => el.textContent.trim()).catch(() => "(no reveal)");
 console.log("OFF-RAMP REVEAL :", JSON.stringify(reveal));
 
 // withdraw the deposited note on-chain (spend note -> pool.withdraw)
-await page.evaluate(() => document.querySelector("#incoming .withdraw")?.click());
+await page.evaluate(() => document.querySelector("#incoming [data-withdraw]")?.click());
 let wd = "";
 for (let i = 0; i < 70; i++) {
   wd = await page.$eval("#status", (el) => el.textContent.trim()).catch(() => "");
@@ -76,25 +76,24 @@ console.log("DISCLOSURE RESULT:", JSON.stringify(resultText));
 
 // wait for the live on-chain confirmation line + pool state
 await new Promise((r) => setTimeout(r, 8000));
-const onchain = await page.$eval("#result .onchain", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(no .onchain)");
-const poolState = await page.$eval("#poolState", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(no #poolState)");
+const onchain = await page.$eval("#result [data-onchain]", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(no .onchain)");
+const poolState = await page.$eval("#poolCount", (el) => "commitments=" + el.textContent.trim()).catch(() => "(no #poolCount)");
 console.log("ON-CHAIN LINE:", JSON.stringify(onchain));
 console.log("POOL STATE   :", JSON.stringify(poolState));
 
 // tamper round: tick Tamper, re-prove, expect rejection in-browser + on-chain
 await page.evaluate(() => {
   document.querySelector("#tamper").checked = true;
-  document.querySelector("#result").innerHTML = ""; // clear stale valid result
   document.querySelector("#proveBtn").click();
 });
 let tRes = "";
 for (let i = 0; i < 30; i++) {
   tRes = await page.$eval("#result", (el) => el.textContent.replace(/\s+/g, " ").trim().slice(0, 70)).catch(() => "");
-  if (/REJECTED/.test(tRes)) break;
+  if (/InvalidProof/i.test(tRes)) break;
   await new Promise((r) => setTimeout(r, 1000));
 }
 await new Promise((r) => setTimeout(r, 7000));
-const tOnchain = await page.$eval("#result .onchain", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(none)");
+const tOnchain = await page.$eval("#result [data-onchain]", (el) => el.textContent.replace(/\s+/g, " ").trim()).catch(() => "(none)");
 console.log("TAMPER RESULT:", JSON.stringify(tRes));
 console.log("TAMPER ONCHAIN:", JSON.stringify(tOnchain));
 
