@@ -23,6 +23,9 @@ use soroban_sdk::{
     symbol_short, token::TokenClient, vec, Address, BytesN, Env, IntoVal, Symbol, Vec,
 };
 
+mod poseidon;
+mod poseidon_constants;
+
 const VERIFY: Symbol = symbol_short!("verify");
 const DENY_LEN: u32 = 4;
 
@@ -169,6 +172,16 @@ impl Pool {
         let index = Self::record_commitment(&env, &commitment);
         env.events().publish((symbol_short!("deposit"), index), (commitment, amount));
         index
+    }
+
+    /// On-chain Poseidon (circomlib-compatible, t=3) computed with the BN254 host
+    /// field ops — returns the SAME hash the circuits/frontend use, verifiable by
+    /// calling this on testnet. NOTE: one hash costs ~13.6M CPU, so a full depth-10
+    /// Merkle insert (10 hashes ≈ 135M) exceeds the ~100M per-tx budget — which is
+    /// exactly why the tree is advanced with a cheap merkleUpdate SNARK
+    /// (`register_root_verified`, one pairing) instead of hashing on-chain.
+    pub fn poseidon_hash(env: Env, a: BytesN<32>, b: BytesN<32>) -> BytesN<32> {
+        poseidon::hash2(&env, &a, &b)
     }
 
     /// Trustless private transfer (JoinSplit). Inputs are built from the typed

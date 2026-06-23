@@ -1,4 +1,5 @@
 #![cfg(test)]
+extern crate std;
 use super::*;
 use soroban_sdk::{
     contract, contractimpl,
@@ -21,6 +22,48 @@ impl MockVerifier {
 
 fn b32(env: &Env, k: u8) -> BytesN<32> {
     BytesN::from_array(env, &[k; 32])
+}
+
+// big-endian 32-byte encoding of a small integer (a valid BN254 field element).
+fn b32_dec(env: &Env, n: u8) -> BytesN<32> {
+    let mut a = [0u8; 32];
+    a[31] = n;
+    BytesN::from_array(env, &a)
+}
+
+// The on-chain Poseidon is bitwise-identical to circomlibjs poseidon([1,2]),
+// so a contract-computed Merkle root equals the circuit/frontend root.
+#[test]
+fn poseidon_matches_circomlib() {
+    let env = Env::default();
+    let got = crate::poseidon::hash2(&env, &b32_dec(&env, 1), &b32_dec(&env, 2));
+    // poseidon(1,2) = 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a
+    let want = BytesN::from_array(
+        &env,
+        &[
+            0x11, 0x5c, 0xc0, 0xf5, 0xe7, 0xd6, 0x90, 0x41, 0x3d, 0xf6, 0x4c, 0x6b, 0x96, 0x62,
+            0xe9, 0xcf, 0x2a, 0x36, 0x17, 0xf2, 0x74, 0x32, 0x45, 0x51, 0x9e, 0x19, 0x60, 0x7a,
+            0x44, 0x17, 0x18, 0x9a,
+        ],
+    );
+    assert_eq!(got, want);
+}
+
+// Diagnostic: measure the on-chain cost of Poseidon. One hash fits the per-tx
+// CPU budget; ten (a depth-10 insert) do not — hence the merkleUpdate SNARK.
+#[test]
+fn poseidon_cost_probe() {
+    let env = Env::default();
+    let a = b32_dec(&env, 1);
+    env.cost_estimate().budget().reset_unlimited();
+    let _ = crate::poseidon::hash2(&env, &a, &a);
+    std::println!("[poseidon] ONE HASH cost:\n{:?}", env.cost_estimate().budget());
+    let mut z = BytesN::from_array(&env, &[0u8; 32]);
+    env.cost_estimate().budget().reset_unlimited();
+    for _ in 0..10 {
+        z = crate::poseidon::hash2(&env, &z, &z);
+    }
+    std::println!("[poseidon] TEN HASHES (depth-10 insert) cost:\n{:?}", env.cost_estimate().budget());
 }
 
 fn amt_bytes(env: &Env, amount: i128) -> BytesN<32> {
