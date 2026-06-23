@@ -46,13 +46,13 @@ Positive — all return `true`:
 
 | Call | Contract | Result |
 |---|---|---|
-| `disclosure.verify` | `CA2HHH…K47G2` | `true` |
-| `transfer.verify` | `CB6M6IO…6Q3B` | `true` |
-| `compliance.verify` | `CB67JH7…W3XO` | `true` |
-| `pool.deposit` | `CBQYBR6B…3MHM` | success — pulled 100 tokens in (balance 0→100) |
-| `pool.withdraw` | `CBQYBR6B…3MHM` | success — released 50 (balance 100→50), amount bound |
-| `pool.register_root_verified` | `CBQYBR6B…3MHM` | success — trustless root advance |
-| `merkleUpdate.verify` | `CASMZC2A…BWXF` | `true` |
+| `disclosure.verify` | `CACVDX…AOD3` | `true` |
+| `transfer.verify` | `CC3H6FT…Y6QC` | `true` |
+| `compliance.verify` | `CAWI2K7…SL4X` | `true` |
+| `pool.deposit` | `CB7UZPW…BGJA` | success — pulled 100 tokens in (balance 0→100) |
+| `pool.withdraw` | `CB7UZPW…BGJA` | success — released 50 (balance 100→50), amount bound |
+| `pool.register_root_verified` | `CB7UZPW…BGJA` | success — trustless root advance |
+| `merkleUpdate.verify` | `CDJZ6OR…LNH7` | `true` |
 
 Negative — all correctly rejected:
 

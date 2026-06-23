@@ -89,7 +89,7 @@ without revealing any private salary/amount detail.
 ## Status — ✅ VERIFIED ON TESTNET
 
 - [x] Verifier WASM build with Tukar VK (4685 bytes, exports `verify`)
-- [x] Deployed to testnet — contract `CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2`
+- [x] Deployed to testnet — contract `CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3`
 - [x] Proof → Soroban arg converter (`scripts/gen-invoke-args.mjs`, G2 c1‖c0 swap)
 - [x] Invoke `verify` with valid proof → **`true`** ([tx](https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1))
 - [x] Negative test: tampered public input → **rejected** on-chain (`InvalidProof`)
@@ -102,7 +102,7 @@ All artifacts and tx hashes recorded in [`deployments/testnet.json`](../deployme
 npm run circuit:disclosure                       # compile + prove (off-chain)
 node scripts/gen-invoke-args.mjs                 # snarkjs proof -> CLI args
 tools/bin/stellar.exe contract invoke \
-  --id CA2HHHOMKZJM2P37VWMFZGIP3ECG6EBKWYWEO2HMKHSHXVGRZS6K47G2 \
+  --id CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3 \
   --source corredor --network testnet -- verify \
   --proof-file-path circuits/build/soroban_proof.json \
   --public_inputs-file-path circuits/build/soroban_public.json

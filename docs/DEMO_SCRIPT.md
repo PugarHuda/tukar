@@ -2,92 +2,107 @@
 
 Goal: show (1) a real-world money use case (private cross-border remittance),
 (2) ZK doing the load-bearing work, (3) it touching Stellar (proofs verified
-on-chain, live contract reads). You do **not** need to be on camera —
-screen-record the live site + voiceover.
+on-chain, live contract reads, real USDC custody). You do **not** need to be on
+camera — screen-record the live site + voiceover.
 
-**Just open https://tukar-six.vercel.app** — no install. Wait ~2s for the status
-bar to say "Ready · zero-knowledge prover loaded." (Optional: open the console
-with F12 to show the `[tukar]` logs and the on-chain calls.)
+**Just open https://tukar-six.vercel.app** — no install, no wallet. Click
+**Launch the live demo** (→ `/demo`) and wait ~2s for the status line to read
+"Ready · zero-knowledge prover loaded." (Optional: open the console with F12 to
+show the `[tukar]` logs and the on-chain calls.)
 
-Tip: pre-load the page once before recording so the prover is warm.
+Tip: pre-load `/demo` once before recording so the prover (a ~1.8 MB wasm) is warm.
 
 ---
 
 ## Scene 0 — Hook / the landing (0:00–0:25)
-**Screen:** the top of the page — the hero: *"Private cross-border payments,
-verified on Stellar"*, the chips (4 ZK circuits · 5 contracts live · proofs
-verified on-chain · open source), and the **Sender → Shielded corridor →
-Receiver** flow strip.
+**Screen:** the landing hero — the speeding orange light-streaks and the headline
+**"CROSS-BORDER MONEY. PRIVATE IN THE MIDDLE, ACCOUNTABLE AT THE EDGES."** Scroll
+once past the "Confidential by design / Compliant by proof" cards and the
+cross-border globe, then click **Launch the live demo**.
 **Say:**
 > "Stellar exists to move real money across borders. Tukar makes that money
 > private — and keeps it compliant. USDC enters a corridor, crosses with its
 > amount and counterparties hidden on-chain, and exits as local fiat — with
 > zero-knowledge proofs verified inside Stellar smart contracts. Four circuits,
-> five live contracts. Let's try it."
+> five live contracts, real testnet USDC. Let's run it."
 
-## Scene 1 — Country A · Sender (0:25–0:45)
-**Screen:** the **Country A · Sender** panel. Amount = 500 USDC, recipient
-"María, Mexico City". Click **Send into corridor →**.
+## Scene 1 — The console + Country A · Sender (0:25–0:50)
+**Screen:** the **Corridor Console** — headline *"USDC in. Private crossing. Local
+fiat out."*, the **SENDER → CORRIDOR → RECEIVER → REGULATOR** flow strip, and four
+sequence-badged panels. The **01 · Sender** panel glows (the active-step ring).
+Amount = 500 USDC, recipient "María · Mexico City". Click **Send into corridor →**
+(the button shows "Building compliance proof…").
 **Say:**
-> "A sender pays 500 USDC into the corridor. Watch the middle panel — on the
-> public Stellar ledger you see only a commitment. The amount and the recipient
-> are shielded."
+> "A sender pays 500 real USDC into the corridor. In the browser, Tukar builds a
+> compliance proof *and* an amount-binding proof, then submits a signed deposit to
+> the pool contract. Watch the corridor panel."
 
-## Scene 2 — Corridor on Stellar, live (0:45–1:05)
-**Screen:** the **Corridor · on Stellar** panel: the commitment appears, amount &
-recipient show "shielded". Point at the bottom line: **"Live on Stellar: … 
-custodied · N commitments · pool ↗"**.
+## Scene 2 — Corridor on Stellar, live (0:50–1:15)
+**Screen:** the active ring moves to **02 · Corridor**. A commitment row appears
+(`PAY-001`, a `0x…` hash, a **Shielded** chip, "•••• USDC · hidden"); the
+**COMMITMENTS** counter — read **live from chain** — ticks up.
 **Say:**
-> "Every payment looks like this publicly — just a commitment. And this isn't a
-> mock: that bottom line is read live from the pool contract on Stellar testnet —
-> its real custody balance and commitment count, straight from chain."
+> "On the public Stellar ledger you see only a commitment — the amount and the
+> recipient are shielded. And this isn't a mock: that commitment count is read
+> live from the pool contract, and real USDC just moved into custody. The deposit
+> even advances the Merkle tree trustlessly, with a proof — no admin can forge a
+> root."
 
-## Scene 3 — Country B · Receiver + off-ramp (1:05–1:30)
-**Screen:** the **Country B · Receiver** panel — the payment is "shielded in
-transit". Click **Off-ramp to MXN →**. It reveals **"500 USDC → 8,525 MXN"**.
+## Scene 3 — Country B · Receiver + off-ramp (1:15–1:40)
+**Screen:** the active ring moves to **03 · Receiver**; `PAY-001 · from US` arrives
+**Shielded**. Click **Reveal & off-ramp →** → it shows green **"+ $8,560 MXN"**.
 **Say:**
 > "On the receiving side the payment arrives still shielded. Only at the off-ramp
 > edge — where it converts to local fiat — is the amount revealed: 500 USDC
-> becomes about 8,500 pesos. Private through the middle, visible exactly where
-> compliance needs it."
+> becomes about 8,560 pesos. Private through the middle, visible exactly where
+> compliance needs it." *(Optional: click **Withdraw on-chain →** to spend the
+> note's nullifier and release the tokens from the pool.)*
 
-## Scene 4 — Regulator: ZK disclosure, verified on-chain (1:30–2:10) ← the wedge
-**Screen:** the **Regulator** panel. Audit context "2026-Q2 · CNBV". Click
-**Generate & verify disclosure proof**. Watch the status: a proof is generated in
-the browser → green **✅ Disclosure proof VALID — 500 USDC**, then the line
-**"⛓ Verified on-chain too — by the live Stellar verifier ↗"** appears.
+## Scene 4 — Regulator: ZK disclosure, verified on-chain (1:40–2:15) ← the wedge
+**Screen:** the **04 · Regulator** panel. Pick `PAY-001` in the dropdown, audit
+context "2026-Q2 · CNBV". Click **Generate & verify disclosure proof** — the proof
+box shows **Proving in browser…** (progress bar), then turns green **"Verified
+on-chain — Disclosed amount: $500 USDC. Nothing else is revealed."** with the line
+**"⛓ Verified on-chain too — by the live Stellar verifier ↗"**.
 **Say:**
 > "Now an audit. The holder generates a zero-knowledge proof — right here in the
 > browser — that discloses one fact: the amount. The regulator learns it's 500
-> USDC and nothing else: no keys, no other payments. And it isn't just checked
-> locally — the same proof is verified by the live Stellar verifier contract.
-> That's compliant privacy."
+> USDC and nothing else: no keys, no blinding, no other payments. And it isn't
+> just checked locally — the same proof is verified by the live Stellar verifier
+> contract. That's compliant privacy."
 
-## Scene 5 — You can't cheat (2:10–2:35)
-**Screen:** tick **Tamper: claim a false amount**, click **Generate & verify**
-again → red **⛔ Disclosure REJECTED**, and **"⛓ The live Stellar verifier also
-rejected it (InvalidProof)."**
+## Scene 5 — You can't cheat (2:15–2:35)
+**Screen:** tick **Tamper: claim a false amount**, click the button again → red
+**"InvalidProof — Claimed amount … contradicts the proof."** and **"⛓ The live
+Stellar verifier also rejected it (InvalidProof)."**
 **Say:**
 > "And a false claim can't pass. Tamper with the amount, and it's rejected — in
 > the browser and by the on-chain contract. The proof is sound."
 
 ## Scene 6 — Close (2:35–2:55)
-**Screen:** scroll to the footer (GitHub + pool-contract links), or open the pool
-on stellar.expert.
+**Screen:** the footer chips (GitHub · disclosure verifier · pool contract), or
+open the pool on stellar.expert.
 **Say:**
-> "Under the hood: a hardened custody pool with real token movement, double-spend
-> protection, and trustless tree updates — all tested on-chain. Open source.
-> Tukar: real-world money, made private, kept compliant — on Stellar."
+> "Under the hood: a hardened custody pool with real USDC, amount-bound deposits
+> and withdrawals, double-spend protection, a fully trustless tree, and a real
+> Powers-of-Tau trusted setup — all tested on-chain. Open source. Tukar:
+> real-world money, made private, kept compliant — on Stellar."
 
 ---
 
-### Optional B-roll (deeper on-chain proof, for a longer cut)
-A terminal showing the CLI flows from `docs/ONCHAIN.md`: `pool.deposit` (tokens
-in), `pool.withdraw` (tokens out, amount bound), a **double-spend bypass rejected**
-(`InvalidProof`), and `register_root_verified` rejecting a **fake root**. These
-prove the full custody + security layer that the UI summarizes.
+### Optional B-roll (deeper, for a longer cut)
+- **On-chain Poseidon:** in a terminal, `stellar contract invoke … -- poseidon_hash
+  --a 0x…01 --b 0x…02` returns `0x115cc0f5…4417189a` — the pool computing the
+  *circuit's* Poseidon on-chain, byte-for-byte. (We measured why a full tree insert
+  stays a SNARK, not on-chain hashing — see the README.)
+- **Connect Freighter:** click **Connect wallet** to sign a deposit with your own
+  wallet instead of the embedded demo key (one-click testnet faucet sets it up).
+- **CLI security proofs** from `docs/ONCHAIN.md`: `pool.deposit` (USDC in),
+  `pool.withdraw` (amount bound), a **double-spend bypass rejected** (`InvalidProof`),
+  and `register_root_verified` rejecting a **fake root**.
 
 ### Recording tips
-- Pre-warm the page; the first proof loads a 1.8 MB wasm.
-- Keep the browser zoom up so panels are readable; trim dead air during proving.
-- The on-chain line takes ~2–3s after the in-browser result — don't cut early.
+- Pre-warm `/demo`; the first proof loads a ~1.8 MB wasm.
+- Keep browser zoom up so the four panels are readable; trim dead air during proving.
+- The on-chain confirmation line appears ~2–3s after the in-browser result — don't cut early.
+- The active-step ring (orange glow) follows the flow Sender→Corridor→Receiver→Regulator — let it land on each panel before narrating it.
