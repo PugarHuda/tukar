@@ -94,22 +94,91 @@ async function aspWitness() {
   return _asp;
 }
 
+// Optional external wallet (Freighter). When set, deposits/withdraws are signed
+// by the user's own wallet instead of the embedded demo key. Falls back to the
+// demo key when null, so the no-install demo always works.
+let _wallet = null; // { address, signTransaction, signAuthEntry }
+export function setWalletSigner(w) { _wallet = w; _poolWrite = null; }
+export function activeAddress() { return _wallet ? _wallet.address : DEMO_ADDRESS; }
+export function usingWallet() { return !!_wallet; }
+
 let _poolWrite;
 async function poolWriteClient() {
   if (!_poolWrite) {
-    const kp = Sdk.Keypair.fromSecret(DEMO_SECRET);
-    const signer = Sdk.contract.basicNodeSigner(kp, PASSPHRASE);
-    _poolWrite = await Sdk.contract.Client.from({
-      contractId: POOL,
-      networkPassphrase: PASSPHRASE,
-      rpcUrl: RPC,
-      publicKey: kp.publicKey(),
-      signTransaction: signer.signTransaction,
-      signAuthEntry: signer.signAuthEntry,
-    });
-    _poolWrite._from = kp.publicKey();
+    if (_wallet) {
+      _poolWrite = await Sdk.contract.Client.from({
+        contractId: POOL,
+        networkPassphrase: PASSPHRASE,
+        rpcUrl: RPC,
+        publicKey: _wallet.address,
+        signTransaction: _wallet.signTransaction,
+        signAuthEntry: _wallet.signAuthEntry,
+      });
+      _poolWrite._from = _wallet.address;
+    } else {
+      const kp = Sdk.Keypair.fromSecret(DEMO_SECRET);
+      const signer = Sdk.contract.basicNodeSigner(kp, PASSPHRASE);
+      _poolWrite = await Sdk.contract.Client.from({
+        contractId: POOL,
+        networkPassphrase: PASSPHRASE,
+        rpcUrl: RPC,
+        publicKey: kp.publicKey(),
+        signTransaction: signer.signTransaction,
+        signAuthEntry: signer.signAuthEntry,
+      });
+      _poolWrite._from = kp.publicKey();
+    }
   }
   return _poolWrite;
+}
+
+// ---- testnet wallet setup helpers (for the optional Freighter path) ----
+const USDC = new Sdk.Asset("USDC", "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B");
+
+async function submitClassic(tx) {
+  const sent = await server.sendTransaction(tx);
+  let status = sent.status, hash = sent.hash;
+  for (let i = 0; i < 15 && (status === "PENDING" || status === "NOT_FOUND" || status === "TRY_AGAIN_LATER"); i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    try { const g = await server.getTransaction(hash); status = g.status; } catch (_) {}
+  }
+  if (status !== "SUCCESS") throw new Error("tx " + status);
+  return hash;
+}
+
+/** Fund a testnet account with XLM via friendbot (no-op if already funded). */
+export async function friendbotFund(address) {
+  try {
+    await server.getAccount(address);
+    return { ok: true, already: true };
+  } catch (_) {
+    const r = await fetch(`https://friendbot.stellar.org/?addr=${encodeURIComponent(address)}`);
+    return { ok: r.ok };
+  }
+}
+
+/** Add a USDC trustline to `address`, signed by the connected wallet. */
+export async function addUsdcTrustline(address, signTransaction) {
+  const acct = await server.getAccount(address);
+  const tx = new Sdk.TransactionBuilder(acct, { fee: Sdk.BASE_FEE, networkPassphrase: PASSPHRASE })
+    .addOperation(Sdk.Operation.changeTrust({ asset: USDC }))
+    .setTimeout(120)
+    .build();
+  const { signedTxXdr } = await signTransaction(tx.toXDR(), { networkPassphrase: PASSPHRASE, address });
+  const signed = Sdk.TransactionBuilder.fromXDR(signedTxXdr, PASSPHRASE);
+  return submitClassic(signed);
+}
+
+/** Faucet: the demo key sends `amount` USDC to `address` (needs a trustline). */
+export async function faucetUsdc(address, amount = "5000") {
+  const kp = Sdk.Keypair.fromSecret(DEMO_SECRET);
+  const acct = await server.getAccount(kp.publicKey());
+  const tx = new Sdk.TransactionBuilder(acct, { fee: Sdk.BASE_FEE, networkPassphrase: PASSPHRASE })
+    .addOperation(Sdk.Operation.payment({ destination: address, asset: USDC, amount }))
+    .setTimeout(120)
+    .build();
+  tx.sign(kp);
+  return submitClassic(tx);
 }
 
 /**

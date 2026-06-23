@@ -4,6 +4,7 @@
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
 import { verifyDisclosureOnChain, readPoolState, depositOnChain, registerRootOnChain, withdrawSubmit, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
 const VERIFIER_CONTRACT = DISCLOSURE_VERIFIER;
@@ -462,8 +463,42 @@ $("incoming").addEventListener("click", (e) => {
   }
 });
 
-// Freighter wallet is wired in wallet.js (optional; falls back to the demo key).
-$("walletBtn").style.display = "none";
+// Optional Freighter wallet: when connected, deposits are signed by the user's
+// own wallet (with a one-click testnet faucet); otherwise the embedded demo key
+// is used, so the no-install demo always works.
+let walletConn = null;
+const shortAddr = (a) => `${a.slice(0, 4)}…${a.slice(-4)}`;
+async function onWalletClick() {
+  if (walletConn) {
+    walletDisconnect();
+    walletConn = null;
+    $("walletTag").textContent = "";
+    $("walletBtn").textContent = "Connect wallet";
+    status.textContent = "Wallet disconnected — using the testnet demo key.";
+    return;
+  }
+  $("walletBtn").disabled = true;
+  status.innerHTML = '<span class="spin">◠</span> Connecting Freighter… (approve in the extension)';
+  try {
+    const { address, signTransaction } = await walletConnect();
+    walletConn = { address };
+    $("walletTag").innerHTML = `<b>${shortAddr(address)}</b>`;
+    $("walletBtn").textContent = "Disconnect";
+    await setupTestnetFunds(address, signTransaction, (m) => {
+      status.innerHTML = `<span class="spin">◠</span> Wallet setup — ${m}`;
+    });
+    status.textContent = `Wallet connected (${shortAddr(address)}) — deposits will be signed by Freighter.`;
+  } catch (e) {
+    walletDisconnect();
+    walletConn = null;
+    $("walletTag").textContent = "";
+    $("walletBtn").textContent = "Connect wallet";
+    status.textContent = "Freighter unavailable (" + ((e && e.message) || e) + "). Continuing with the demo key.";
+  } finally {
+    $("walletBtn").disabled = false;
+  }
+}
+$("walletBtn").addEventListener("click", onWalletClick);
 
 console.log("[tukar] app.js module executed — wiring UI");
 init();

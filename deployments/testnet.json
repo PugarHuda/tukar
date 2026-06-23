@@ -60,6 +60,11 @@
       "unitTests": "12/12 pass (incl. poseidon_matches_circomlib + cost probe)"
     }
   },
+  "wallet": {
+    "default": "embedded throwaway testnet demo key (non-admin, holds free testnet XLM + minted USDC) so the corridor is usable with NO install — the pragmatic choice for a public demo",
+    "optionalFreighter": "frontend/wallet.js adds an OPTIONAL Freighter connection: when connected, deposits/withdraws are signed by the user's own wallet (setWalletSigner), with a one-click testnet setup (friendbot XLM + USDC trustline (Freighter-signed) + USDC faucet from the demo key). Lazy-loaded and fully fallback-guarded, so the demo-key path always works.",
+    "verification": "demo-key default path verified live end-to-end in headless Chrome; the Freighter-connected path is code-reviewed and degrades gracefully when the extension is absent, but exercising the real signing needs a human with Freighter installed (headless Chrome has no extension)."
+  },
   "onChainPoseidonFinding": {
     "claimRevised": "Earlier I said on-chain Poseidon was impossible because env.crypto() has no Poseidon host fn. That was wrong: BN254 Fr add/mul/pow host ops are enough to compose circomlib-exact Poseidon on-chain (see pool.poseidon_hash, verified live).",
     "whyTreeStaysProofBased": "Measured cost: ONE Poseidon hash = ~13.6M CPU instructions; a depth-10 Merkle insert = 10 hashes ≈ 135M CPU, which EXCEEDS Soroban's ~100M per-transaction budget (and a deposit already spends two Groth16 verifications). So recomputing the tree on-chain per deposit is infeasible — the correct, affordable design is to verify each insert with a merkleUpdate Groth16 proof (one pairing), which register_root_verified already does.",
