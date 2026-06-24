@@ -10,7 +10,7 @@ npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN25
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 12/12
+cd contracts/pool && cargo test          # 14/14
 ```
 
 ## 1. Repo hygiene ✅
@@ -32,15 +32,17 @@ cd contracts/pool && cargo test          # 12/12
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **12/12 passed** (`cargo test`): deposit pulls USDC + records
+`contracts/pool` — **14/14 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
 (`UnknownRoot`); disclose requires a known commitment; unknown-commitment disclose
-rejected (`UnknownCommitment`); `register_root_verified` advances from a known root
-and rejects an unknown one; **`poseidon_matches_circomlib`** (on-chain Poseidon ==
-circomlibjs `poseidon([1,2])`); and a `poseidon_cost_probe` diagnostic. The admin
-`register_root` backdoor was removed, so the only way to advance the root is a
+rejected (`UnknownCommitment`); `register_root_verified` advances from the current
+root and rejects an unknown or **stale** one (accumulator semantics); leaves are
+**stored on-chain in order** (`leaves()`/`leaf_count`); **`poseidon_matches_circomlib`**
+(on-chain Poseidon == circomlibjs `poseidon([1,2])`); and a `poseidon_cost_probe`
+diagnostic. The admin `register_root` backdoor was removed, so the only way to
+advance the root is a
 `merkleUpdate` proof.
 
 ## 4. On-chain behaviour (Stellar testnet) ✅

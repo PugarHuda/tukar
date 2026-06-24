@@ -62,6 +62,8 @@ enum DataKey {
     DenyList,
     CurrentRoot,
     Count,
+    LeafCount,        // number of leaves inserted into the Merkle tree
+    Leaf(u32),        // the commitment at tree leaf index i (durable, ordered)
     Root(BytesN<32>),
     Nullifier(BytesN<32>),
     Commitment(BytesN<32>),
@@ -102,9 +104,13 @@ impl Pool {
     }
 
     /// Trustless root advance (G6). Anyone may advance the tree, but only with a
-    /// proof that inserting `new_leaf` at an empty slot of a *known* `old_root`
-    /// yields exactly `new_root`. The operator therefore cannot register an
-    /// arbitrary root — tree integrity no longer depends on trusting them.
+    /// proof that inserting `new_leaf` at an empty slot of the **current** root
+    /// yields exactly `new_root`. Requiring `old_root == current_root` makes the
+    /// tree a single append-only **global accumulator**: every insert builds on
+    /// the latest on-chain state. The ordered leaves are stored durably on-chain
+    /// (read them back with `leaves()`), so any client can reconstruct the exact
+    /// tree from contract STATE — no reliance on event retention. The operator
+    /// still cannot register an arbitrary root — the proof enforces it.
     pub fn register_root_verified(
         env: Env,
         proof: Groth16Proof,
@@ -112,7 +118,10 @@ impl Pool {
         new_leaf: BytesN<32>,
         new_root: BytesN<32>,
     ) {
-        Self::require_known_root(&env, &old_root);
+        let cur: BytesN<32> = env.storage().instance().get(&DataKey::CurrentRoot).unwrap();
+        if old_root != cur {
+            soroban_sdk::panic_with_error!(&env, PoolError::UnknownRoot);
+        }
         let pi = vec![
             &env,
             Self::fr(&env, &old_root),
@@ -121,6 +130,12 @@ impl Pool {
         ];
         Self::verify(&env, DataKey::UpdateVerifier, &proof, &pi);
         Self::record_commitment(&env, &new_leaf);
+        // Store the leaf at its tree index durably, so the ordered leaf list is
+        // reconstructable from contract state (via `leaves()`) — reliably, with no
+        // dependency on RPC event retention.
+        let n: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
+        env.storage().persistent().set(&DataKey::Leaf(n), &new_leaf);
+        env.storage().instance().set(&DataKey::LeafCount, &(n + 1));
         env.storage().persistent().set(&DataKey::Root(new_root.clone()), &());
         env.storage().instance().set(&DataKey::CurrentRoot, &new_root);
         env.events().publish((symbol_short!("root"), new_leaf), new_root);
@@ -277,6 +292,24 @@ impl Pool {
     }
     pub fn commitment_count(env: Env) -> u32 {
         env.storage().instance().get(&DataKey::Count).unwrap_or(0)
+    }
+    /// Number of leaves in the Merkle tree (i.e. registered deposits).
+    pub fn leaf_count(env: Env) -> u32 {
+        env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0)
+    }
+    /// The ordered Merkle-tree leaves (deposited commitments) from durable state.
+    /// Lets any client reconstruct the exact tree without relying on event
+    /// retention. Bounded by the tree capacity (2^depth).
+    pub fn leaves(env: Env) -> Vec<BytesN<32>> {
+        let n: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
+        let mut out = vec![&env];
+        let mut i = 0u32;
+        while i < n {
+            let leaf: BytesN<32> = env.storage().persistent().get(&DataKey::Leaf(i)).unwrap();
+            out.push_back(leaf);
+            i += 1;
+        }
+        out
     }
     pub fn balance(env: Env) -> i128 {
         Self::token(&env).balance(&env.current_contract_address())

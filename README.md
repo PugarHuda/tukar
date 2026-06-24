@@ -33,7 +33,7 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CB7UZPWYSP7MDGMBV2E6B6CDMD4RTPXABNY6UFBPE7GTJGV4N2PEBGJA) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CDNDHIR7SWNGOUVB2PC5XD3QBNAHNVRVOIOPPYJWEHVVAN4O3KV3OILJ) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CC3H6FTLUELIPGF3NQM4EQ5XQ5LIU3SQVW7M4YCN6NEUSYQRUZQPY6QC) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAWI2K75RPFO4PMMO3ADDQN6DYG3E4R4N4FORXWHPJ4UPMIATJVUSL4X) | ASP allow/deny | `verify` → `true` |
@@ -96,6 +96,13 @@ This started as a demo and was hardened, increment by increment, into a
   `register_root_verified` with a `merkleUpdate` proof (registering a fake root
   with a real proof → `InvalidProof`). The admin root-override was removed; the
   commitment count is idempotent (no double-count).
+- **Reliable global Merkle accumulator.** `register_root_verified` requires
+  `old_root == current_root`, so the tree is a single append-only accumulator (not
+  a per-session view) — inserting from a stale root is rejected. The ordered leaves
+  live in **durable contract state** (`leaves()`/`leaf_count`), so any client
+  reconstructs the exact tree from on-chain **state** — reload-safe and
+  multi-user-correct, with no dependency on RPC event retention (verified live
+  across independent sessions: leaves accumulate 0→1→2→…).
 - **Real trusted setup.** All four proving keys are derived from the **Hermez
   perpetual Powers-of-Tau ceremony** (`powersOfTau28_hez_final_14.ptau`) — phase-1
   has no locally-known toxic waste. Verifiers + pool were regenerated together so
@@ -112,7 +119,7 @@ This started as a demo and was hardened, increment by increment, into a
   one-click testnet faucet); the embedded throwaway key stays the no-install
   default.
 
-**12/12 pool unit tests.** Full live verification (deposit → register → withdraw →
+**14/14 pool unit tests.** Full live verification (deposit → register → withdraw →
 disclosure → tamper-rejected) runs in headless Chrome on every change
 (`scripts/browser-test.mjs`).
 

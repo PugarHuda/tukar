@@ -14,7 +14,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CB7UZPWYSP7MDGMBV2E6B6CDMD4RTPXABNY6UFBPE7GTJGV4N2PEBGJA";
+export const POOL = "CDNDHIR7SWNGOUVB2PC5XD3QBNAHNVRVOIOPPYJWEHVVAN4O3KV3OILJ";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -44,6 +44,27 @@ export async function readPoolState() {
     balance: bal.ok ? bal.value.toString() : "?",
     commitments: count.ok ? count.value.toString() : "?",
   };
+}
+
+const bytesToBig = (u8) => { let x = 0n; for (const b of u8) x = (x << 8n) | BigInt(b); return x; };
+
+/** The pool's current Merkle root, as a BigInt (or null on error). */
+export async function readCurrentRoot() {
+  const r = await simulate(POOL, "current_root");
+  if (!r.ok || !r.value) return null;
+  try { return bytesToBig(r.value); } catch (_) { return null; }
+}
+/**
+ * The ordered Merkle-tree leaves (deposited commitments), read from the pool's
+ * DURABLE on-chain state via `leaves()`. Unlike event reconstruction this does
+ * NOT depend on RPC event retention, so the browser tree always mirrors the real
+ * on-chain tree — reload-safe and correct even when other users have deposited.
+ * Returns BigInt[] in tree order (or [] on error).
+ */
+export async function loadLeavesFromChain() {
+  const r = await simulate(POOL, "leaves");
+  if (!r.ok || !Array.isArray(r.value)) return [];
+  try { return r.value.map((b) => bytesToBig(b)); } catch (_) { return []; }
 }
 
 // snarkjs proof -> contract args (G2 uses Soroban c1||c0 ordering).

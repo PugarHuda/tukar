@@ -98,7 +98,7 @@ async function syncedLeaves() {
   return null;
 }
 
-const BUILD = "v5-treesync";
+const BUILD = "v6-accumulator";
 async function init() {
   try {
     console.log(`[tukar ${BUILD}] loading Poseidon (circomlibjs)…`);

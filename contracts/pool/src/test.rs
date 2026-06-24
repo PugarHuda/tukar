@@ -262,3 +262,37 @@ fn register_root_verified_rejects_unknown_old_root() {
     let c = setup(&env);
     c.pool.register_root_verified(&dummy_proof(&env), &b32(&env, 250), &b32(&env, 42), &b32(&env, 77));
 }
+
+// Accumulator semantics: an insert must build on the CURRENT root. Inserting from
+// a now-stale (formerly-current) root is rejected, so the tree is a single global
+// accumulator and its reconstructed root always equals current_root.
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")] // UnknownRoot
+fn register_root_verified_rejects_stale_root() {
+    let env = Env::default();
+    let c = setup(&env);
+    let genesis = c.pool.current_root();
+    c.pool.register_root_verified(&dummy_proof(&env), &genesis, &b32(&env, 42), &b32(&env, 77));
+    // current_root is now 77; inserting again from the stale genesis must fail.
+    c.pool.register_root_verified(&dummy_proof(&env), &genesis, &b32(&env, 43), &b32(&env, 88));
+}
+
+// Leaves are stored on-chain in order, so a client can reconstruct the exact tree
+// from contract state (leaves()) without relying on event retention.
+#[test]
+fn register_root_verified_stores_ordered_leaves() {
+    let env = Env::default();
+    let c = setup(&env);
+    assert_eq!(c.pool.leaf_count(), 0);
+    let g = c.pool.current_root();
+    let l0 = b32(&env, 42);
+    c.pool.register_root_verified(&dummy_proof(&env), &g, &l0, &b32(&env, 77));
+    let r1 = c.pool.current_root(); // accumulator: next insert builds on this
+    let l1 = b32(&env, 43);
+    c.pool.register_root_verified(&dummy_proof(&env), &r1, &l1, &b32(&env, 88));
+    assert_eq!(c.pool.leaf_count(), 2);
+    let ls = c.pool.leaves();
+    assert_eq!(ls.len(), 2);
+    assert_eq!(ls.get(0).unwrap(), l0);
+    assert_eq!(ls.get(1).unwrap(), l1);
+}
