@@ -38,7 +38,7 @@ and the proof fails. Every defense below rests on this.
 | T7 | **Spend into an unknown root** | `transfer`/`withdraw` require a *known* root | `UnknownRoot` (#1) — unit |
 | T8 | **Disclose an unknown commitment** to a regulator | `disclose` requires the commitment to be in the pool's set | `UnknownCommitment` (#3) — unit |
 | T9 | **Lie in a disclosure** (claim a false amount) | Groth16 soundness — a false witness can't be proven; a tampered public input fails verification | rejected off-chain **and** on-chain (`InvalidProof`) — live |
-| T10 | **Deposit from a non-allow-listed / sanctioned source** | Compliance proof: source ∈ ASP allow-list **and** ∉ deny-list, bound to the commitment | compliance soundness 6/6 (`test:negative`) |
+| T10 | **Deposit from a non-allow-listed / sanctioned source** | Compliance proof: source ∈ ASP allow-list **and** ∉ deny-list, bound to the commitment | compliance soundness 6/6 (`test:negative`) — but see the audit note: the demo's membership witnesses are public, so this proves membership exists, not that *this depositor* is approved |
 | T11 | **Forge value** (mint shielded value via field wrap) | Output amounts are range-checked to 248 bits; value conservation `sum(in)+publicAmount = sum(out)` | circuit constraints + `test:negative` |
 | T12 | **Trusted-setup toxic waste** (forge any proof) | Phase-1 from the real **Hermez** perpetual Powers-of-Tau ceremony (no locally-known waste) | `deployments/testnet.json` → `trustedSetup` |
 
@@ -56,6 +56,31 @@ and the proof fails. Every defense below rests on this.
   testnet XLM only). Optional **Freighter** lets a user sign with their own wallet.
   Never reuse the embedded-key pattern for real funds.
 
+## Adversarial self-audit (findings + status)
+
+A read-only adversarial audit of the contract, frontend, and circuits surfaced
+the following. **Fixed** items are in the deployed contract; **Known** items are
+honest limitations of this testnet build (not yet fixed) with the production fix
+noted.
+
+| Finding | Severity | Status |
+|---|---|---|
+| **Verifier return value was discarded** — `verify()` relied on the verifier *trapping* on a bad proof and ignored its `bool`. | high | **Fixed** — `verify()` now asserts the result (`ProofRejected`), so a verifier that returns `false` can't make a check a no-op. |
+| **Deposit amount range** — `amount` is `i128` but the disclosure binding circuit range-checks to 64 bits, so `amount ≥ 2⁶⁴` failed as a confusing proof trap. | medium | **Fixed** — `deposit` rejects `amount ≥ 2⁶⁴` cleanly (`InvalidAmount`). |
+| **Tree capacity** — `register_root_verified` didn't bound `LeafCount` against the depth-10 capacity (the circuit gated it, but the contract shouldn't rely on that for its own storage invariant). | medium | **Fixed** — rejects insert past `2¹⁰` leaves (`TreeFull`). |
+| **Stale local leaf index on withdraw** — the client trusted a locally-tracked `leafIndex`. | medium | **Fixed (client)** — withdraw locates the note's real index by its commitment in the freshly-synced tree. |
+| **Compliance proof authenticates nobody** — the ASP membership witnesses are shipped publicly (`asp-witness.json`), so the proof shows "*some* allow-listed source exists" (always true), not that *this depositor* is approved. | **Known** | A real ASP issues each user a *private* membership secret and binds it to the transacting key (`require_auth`). Here it's a **demo stub** — membership is proven, but the witness isn't secret, so it doesn't authenticate the depositor. Stated plainly, not hidden. |
+| **Withdraw recipient not bound by the proof** — `ext_data_hash` is a free public input (the circuit's `extDataHash²` constraint is a no-op) and the contract takes it as an argument, so the proof doesn't commit to `recipient`. | **Known** | Standard fix (Tornado-Nova): bind `recipient`+`amount` into `extDataHash` in-circuit and have the contract recompute it. Lower practical risk on Stellar (no public mempool of pending Soroban invokes), but a real API flaw — flagged for the next contract rev. |
+| **Historical roots are never pruned / no revocation** — spends accept any *known* root (standard Tornado design). | **Known/accepted** | Double-spend is still blocked by the nullifier set; a production system would add a root/leaf revocation path for compliance. |
+| **Dummy zero-value output commitments are recorded + disclosable** — a full withdraw creates throwaway 0-value outputs that inflate `commitment_count` and are `disclose`-able as "amount 0". | low | Cosmetic; would skip recording zero-value outputs in a production rev. |
+
+Items the audit checked and found **sound**: the binding property (public inputs
+rebuilt from typed signals), the amount↔field-negative withdraw binding, nullifier
+double-spend protection, `record_commitment` idempotency, the accumulator
+`old_root == current_root` invariant, output range-checks, value conservation,
+`leaf_range` clamping, the `syncedLeaves` verify-before-trust gate, and
+no reentrancy via `token.transfer` (state finalized before the outbound transfer).
+
 ## Out of scope (this testnet build)
 
 - Not audited; no formal verification of the circuits.
@@ -67,7 +92,7 @@ and the proof fails. Every defense below rests on this.
 
 ## How to reproduce the checks
 
-- **Contract unit tests** (15/15): `cd contracts/pool && cargo test` — covers
+- **Contract unit tests** (16/16): `cd contracts/pool && cargo test` — covers
   T1, T3, T4, T6, T7, T8, plus accumulator + leaf-storage + on-chain Poseidon.
 - **Circuit soundness** (6/6): `npm run test:negative` — covers T9, T10, T11.
 - **In-browser proving** (valid/tampered/false-witness): `npm run test:proving`.

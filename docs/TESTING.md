@@ -10,7 +10,7 @@ npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN25
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 15/15
+cd contracts/pool && cargo test          # 16/16
 ```
 
 ## 1. Repo hygiene ✅
@@ -32,7 +32,7 @@ cd contracts/pool && cargo test          # 15/15
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **15/15 passed** (`cargo test`): deposit pulls USDC + records
+`contracts/pool` — **16/16 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
@@ -54,10 +54,10 @@ Positive — all return `true`:
 | `disclosure.verify` | `CACVDX…AOD3` | `true` |
 | `transfer.verify` | `CC3H6FT…Y6QC` | `true` |
 | `compliance.verify` | `CAWI2K7…SL4X` | `true` |
-| `pool.deposit` | `CB7UZPW…BGJA` | success — moved real USDC in, bound to the commitment |
-| `pool.withdraw` | `CB7UZPW…BGJA` | success — released USDC, amount bound to negative `public_amount` |
-| `pool.register_root_verified` | `CB7UZPW…BGJA` | success — trustless root advance (merkleUpdate proof) |
-| `pool.poseidon_hash(1,2)` | `CB7UZPW…BGJA` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
+| `pool.deposit` | `CAWE6J…TOLV` | success — moved real USDC in, bound to the commitment |
+| `pool.withdraw` | `CAWE6J…TOLV` | success — released USDC, amount bound to negative `public_amount` |
+| `pool.register_root_verified` | `CAWE6J…TOLV` | success — trustless root advance (merkleUpdate proof) |
+| `pool.poseidon_hash(1,2)` | `CAWE6J…TOLV` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
 | `merkleUpdate.verify` | `CDJZ6OR…LNH7` | `true` |
 
 Negative — all correctly rejected:

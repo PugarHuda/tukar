@@ -25,6 +25,30 @@ let leaves = []; // BigInt commitments registered on-chain, in tree order
 let seq = 0;
 let proofState = "idle";
 
+// Persist this browser's notes (secrets) so a reload can still withdraw: the tree
+// is reconstructed from on-chain state, and the note keys restore from here.
+// Keyed by pool so notes from a previous pool deployment don't leak in. (Demo
+// throwaway keys only — never persist real spending keys to localStorage.)
+const STORE_KEY = `tukar:notes:${POOL}`;
+function saveSession() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      seq,
+      offramped: [...offramped],
+      notes: notes.map((n) => ({ ...n, withdrawing: false })),
+    }));
+  } catch (_) { /* storage unavailable — session stays in-memory */ }
+}
+function loadSession() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (!d) return;
+    if (Array.isArray(d.notes)) notes = d.notes.map((n) => ({ ...n, withdrawing: false }));
+    if (Array.isArray(d.offramped)) d.offramped.forEach((id) => offramped.add(id));
+    if (typeof d.seq === "number") seq = d.seq;
+  } catch (_) { /* corrupt store — ignore */ }
+}
+
 $("verifierLink").href = VERIFIER_URL;
 
 // ---- inline SVG icon set (matches the design's icon() paths) ----
@@ -114,8 +138,11 @@ async function init() {
     status.textContent = "Syncing the on-chain tree…";
     const synced = await syncedLeaves();
     if (synced) leaves = synced;
-    console.log(`[tukar ${BUILD}] init complete — ${synced ? synced.length + " on-chain leaves synced" : "session-local tree"}`);
-    status.textContent = "Ready · zero-knowledge prover loaded.";
+    loadSession(); // restore this browser's notes so withdraw survives a reload
+    console.log(`[tukar ${BUILD}] init complete — ${synced ? synced.length + " on-chain leaves synced" : "session-local tree"}, ${notes.length} saved note(s)`);
+    status.textContent = notes.length
+      ? `Ready · ${notes.length} saved payment(s) restored.`
+      : "Ready · zero-knowledge prover loaded.";
     setActiveStep(0);
     render();
     loadPoolState();
@@ -176,7 +203,7 @@ async function createPayment() {
     note.status = "failed";
     note.onchain = "failed";
     status.textContent = "On-chain deposit failed (note kept locally): " + dep.error;
-    render(); loadPoolState();
+    render(); saveSession(); loadPoolState();
     return;
   }
   note.onchain = dep.hash || "ok";
@@ -217,6 +244,7 @@ async function createPayment() {
   }
   render();
   renderReceiver();
+  saveSession();
   loadPoolState();
 }
 
@@ -315,13 +343,23 @@ async function withdrawNote(note) {
     const o1Priv = randomFieldElement(), o1Blind = randomFieldElement();
     const o1Pub = F.toObject(poseidon([o1Priv]));
     const o1Commit = F.toObject(poseidon([0n, o1Pub, o1Blind]));
-    const n0 = F.toObject(poseidon([BigInt(note.commitment), BigInt(note.leafIndex), BigInt(note.privKey)]));
-    const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
-    // Re-sync the tree from chain so we prove against the real current root + path.
+    // Re-sync the tree from chain, then locate this note's REAL on-chain index by
+    // its commitment (don't trust a possibly-stale local leafIndex). The nullifier
+    // and the Merkle path must both use the actual index, or the proof won't verify.
     const syncedWd = await syncedLeaves();
     if (syncedWd) leaves = syncedWd;
+    const realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
+    if (realIndex < 0) {
+      note.withdrawing = false;
+      status.textContent = `${note.ref} isn't registered in the on-chain tree yet — can't withdraw.`;
+      renderReceiver();
+      return;
+    }
+    note.leafIndex = realIndex;
+    const n0 = F.toObject(poseidon([BigInt(note.commitment), BigInt(realIndex), BigInt(note.privKey)]));
+    const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
     const root = tree.root(leaves);
-    const path = tree.pathElements(leaves, note.leafIndex).map((x) => x.toString());
+    const path = tree.pathElements(leaves, realIndex).map((x) => x.toString());
     // Withdraw moves value OUT of the shielded set, so publicAmount is negative
     // (field-encoded as r - W). sum(in)+publicAmount=sum(out) -> outputs sum to V - W.
     const input = {
@@ -331,7 +369,7 @@ async function withdrawNote(note) {
       inAmount: [note.amount, "0"],
       inPrivKey: [note.privKey, dPriv.toString()],
       inBlinding: [note.blinding, dBlind.toString()],
-      inLeafIndex: [String(note.leafIndex), "0"],
+      inLeafIndex: [String(realIndex), "0"],
       inPathElements: [path, new Array(10).fill("0")],
       outAmount: [o0Amt.toString(), "0"],
       outPubkey: [o0Pub.toString(), o1Pub.toString()],
@@ -352,6 +390,7 @@ async function withdrawNote(note) {
     status.textContent = "Withdraw failed: " + ((e && e.message) || e);
   }
   renderReceiver();
+  saveSession();
   loadPoolState();
 }
 
@@ -450,6 +489,7 @@ function resetUI() {
   leaves = [];
   offramped.clear();
   seq = 0;
+  try { localStorage.removeItem(STORE_KEY); } catch (_) {}
   setActiveStep(0);
   $("amount").value = "500";
   $("recipient").value = "María · Mexico City";
@@ -495,6 +535,7 @@ $("incoming").addEventListener("click", (e) => {
   if (off) {
     offramped.add(Number(off.dataset.reveal));
     renderReceiver();
+    saveSession();
     status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat (MXN).";
     return;
   }

@@ -40,7 +40,7 @@
     }
   },
   "pool": {
-    "contractId": "CDLKU6A74HMET67Z7AMJ3IMGZBBHWNLTTHKFTTFHLDQRSUAL53BN3Y7F",
+    "contractId": "CAWE6JDTLINSNXVYDHLCIRIDNW4QLAGBH6Q6YAGEBJGIDNRG5F3STOLV",
     "wasm": "contracts/pool/",
     "description": "Hardened corridor pool with token custody + FULLY TRUSTLESS tree updates (no admin root backdoor — the only way to advance the root is a merkleUpdate proof). Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set (idempotent, no double-count) + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw.",
     "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[4]"],
@@ -59,7 +59,9 @@
       "globalAccumulator": "register_root_verified requires old_root == current_root, so the tree is a single append-only GLOBAL accumulator (not a per-session view); inserting from a stale root is rejected (UnknownRoot). Ordered leaves are stored in DURABLE contract state and read via leaves()/leaf_range(start,count)/leaf_count — any client reconstructs the exact tree from on-chain STATE (paginated, so it scales), reload-safe + multi-user-correct, with NO dependency on RPC event retention. Leaf/root entries get their TTL extended (~31d) on each insert so a long-lived pool stays readable. The frontend re-syncs + auto-retries (3x) on the concurrent-deposit race. Verified live across independent sessions: leaves accumulate 0 -> 1 -> 2 -> 3 -> 4, each building on the real current root.",
       "aspPerUser": "the ASP allow-list is a Poseidon Merkle tree of 16 distinct approved sources (aspRoot 2e0753a0...); each deposit proves a RANDOMLY chosen source is allow-listed + not deny-listed, bound to the commitment, WITHOUT revealing which — i.e. genuine per-user compliance, not a single fixed witness.",
       "onChainPoseidon": "the pool exposes poseidon_hash(a,b) — a circomlib-compatible Poseidon (t=3) computed ON-CHAIN with BN254 host field ops. Live call poseidon_hash(1,2) returns 0x115cc0f5...4417189a, exactly circomlibjs poseidon([1,2]). Proves Soroban CAN compute the circuit's Poseidon on-chain.",
-      "unitTests": "15/15 pass (incl. poseidon_matches_circomlib, accumulator stale-root rejection, ordered-leaf storage, leaf_range pagination)"
+      "securityHardening": "adversarial self-audit (docs/SECURITY.md) -> FIXED: verify() now ASSERTS the verifier's bool (ProofRejected #7 — no fail-open if a verifier returns false instead of trapping); deposit rejects amount >= 2^64 (matches the disclosure 64-bit range, #5); register_root_verified rejects inserts past 2^10 leaves (TreeFull #8); the client withdraw resolves the note's real leaf index from the synced tree, not a stale local index. DOCUMENTED-not-fixed (honest): compliance witnesses are public so the proof authenticates membership-exists not the depositor (demo ASP stub); withdraw recipient is not bound by the proof (extData no-op) — flagged for next rev.",
+      "notePersistence": "the browser persists its notes (throwaway demo secrets) in localStorage keyed by pool, so a RELOAD restores them; combined with the durable on-chain tree, a deposited note stays withdrawable after closing the tab. Verified live: deposit -> reload -> 'saved payment restored' -> withdraw succeeds.",
+      "unitTests": "16/16 pass (incl. poseidon_matches_circomlib, accumulator stale-root rejection, ordered-leaf storage, leaf_range pagination, deposit amount-range guard)"
     }
   },
   "wallet": {

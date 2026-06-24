@@ -33,7 +33,7 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CDLKU6A74HMET67Z7AMJ3IMGZBBHWNLTTHKFTTFHLDQRSUAL53BN3Y7F) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CAWE6JDTLINSNXVYDHLCIRIDNW4QLAGBH6Q6YAGEBJGIDNRG5F3STOLV) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CC3H6FTLUELIPGF3NQM4EQ5XQ5LIU3SQVW7M4YCN6NEUSYQRUZQPY6QC) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAWI2K75RPFO4PMMO3ADDQN6DYG3E4R4N4FORXWHPJ4UPMIATJVUSL4X) | ASP allow/deny | `verify` → `true` |
@@ -125,10 +125,20 @@ This started as a demo and was hardened, increment by increment, into a
   optional **Freighter** connection (sign deposits with your own wallet, with a
   one-click testnet faucet); the embedded throwaway key stays the no-install
   default.
+- **Reload-survivable notes.** Your notes persist in `localStorage` (keyed by
+  pool), so a page reload restores them — and because the tree reconstructs from
+  durable on-chain state, a deposited note stays **withdrawable after you close the
+  tab** (verified live: deposit → reload → withdraw the restored note).
+- **Adversarially self-audited.** A read-only audit (see
+  [`docs/SECURITY.md`](docs/SECURITY.md)) hardened the contract — the verifier's
+  return is now asserted (no fail-open), the deposit amount range and the tree
+  capacity are bounded, and withdraw resolves the note's real on-chain index — and
+  honestly documents the remaining known limits (the demo's ASP witnesses are
+  public; the withdraw recipient isn't yet proof-bound).
 
-**15/15 pool unit tests.** Full live verification (deposit → register → withdraw →
-disclosure → tamper-rejected) runs in headless Chrome on every change
-(`scripts/browser-test.mjs`).
+**16/16 pool unit tests** + a 12-point [threat model](docs/SECURITY.md). Full live
+verification (deposit → register → withdraw → disclosure → tamper-rejected) runs in
+headless Chrome on every change (`scripts/browser-test.mjs`).
 
 ---
 

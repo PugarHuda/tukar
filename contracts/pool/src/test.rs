@@ -159,6 +159,15 @@ fn deposit_pulls_tokens_and_records_commitment() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #5)")] // InvalidAmount
+fn deposit_rejects_amount_over_64_bits() {
+    let env = Env::default();
+    let c = setup(&env);
+    // 2^64 stroops can't fit the disclosure circuit's 64-bit range — rejected early.
+    c.pool.deposit(&c.user, &(1i128 << 64), &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+}
+
+#[test]
 fn withdraw_releases_bound_amount() {
     let env = Env::default();
     let c = setup(&env);

@@ -53,6 +53,8 @@ pub enum PoolError {
     BadDenyList = 4,
     InvalidAmount = 5,
     AmountNotBound = 6,
+    ProofRejected = 7,
+    TreeFull = 8,
 }
 
 #[contracttype]
@@ -139,6 +141,11 @@ impl Pool {
         // reconstructable from contract state (via `leaves()`) — reliably, with no
         // dependency on RPC event retention.
         let n: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
+        // Don't rely on the circuit alone for our storage invariant: the depth-10
+        // tree holds at most 2^10 leaves.
+        if n >= 1u32 << 10 {
+            soroban_sdk::panic_with_error!(&env, PoolError::TreeFull);
+        }
         env.storage().persistent().set(&DataKey::Leaf(n), &new_leaf);
         env.storage().instance().set(&DataKey::LeafCount, &(n + 1));
         env.storage().persistent().set(&DataKey::Root(new_root.clone()), &());
@@ -160,7 +167,9 @@ impl Pool {
         proof: Groth16Proof,
         binding_proof: Groth16Proof,
     ) -> u32 {
-        if amount <= 0 {
+        // amount must be positive and fit the disclosure circuit's 64-bit range
+        // (the amount-binding proof can't be generated otherwise).
+        if amount <= 0 || amount >= (1i128 << 64) {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
         }
         from.require_auth();
@@ -436,11 +445,17 @@ impl Pool {
 
     fn verify(env: &Env, which: DataKey, proof: &Groth16Proof, public_inputs: &Vec<Bn254Fr>) {
         let verifier: Address = env.storage().instance().get(&which).unwrap();
-        let _ok: bool = env.invoke_contract(
+        // The Nethermind verifier TRAPS on an invalid proof, but we don't rely on
+        // that: assert the returned bool too, so a verifier that returns `false`
+        // (a common Groth16 convention) can never make a proof check a no-op.
+        let ok: bool = env.invoke_contract(
             &verifier,
             &VERIFY,
             vec![env, proof.into_val(env), public_inputs.into_val(env)],
         );
+        if !ok {
+            soroban_sdk::panic_with_error!(env, PoolError::ProofRejected);
+        }
     }
 }
 
