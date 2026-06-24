@@ -28,6 +28,11 @@ mod poseidon_constants;
 
 const VERIFY: Symbol = symbol_short!("verify");
 const DENY_LEN: u32 = 4;
+// Persistent-state TTL bounds: when a tree leaf / root entry's remaining TTL falls
+// below the threshold (~1 day), extend it to ~31 days, so a long-lived accumulator
+// keeps its leaves/roots readable without per-entry maintenance from the caller.
+const TTL_THRESHOLD: u32 = 17_280;
+const TTL_EXTEND: u32 = 535_680;
 
 /// Groth16 proof — identical layout to the verifier's `Groth16Proof`.
 #[contracttype]
@@ -138,6 +143,9 @@ impl Pool {
         env.storage().instance().set(&DataKey::LeafCount, &(n + 1));
         env.storage().persistent().set(&DataKey::Root(new_root.clone()), &());
         env.storage().instance().set(&DataKey::CurrentRoot, &new_root);
+        // Keep this leaf + root readable on a long-lived pool (TTL maintenance).
+        env.storage().persistent().extend_ttl(&DataKey::Leaf(n), TTL_THRESHOLD, TTL_EXTEND);
+        env.storage().persistent().extend_ttl(&DataKey::Root(new_root.clone()), TTL_THRESHOLD, TTL_EXTEND);
         env.events().publish((symbol_short!("root"), new_leaf), new_root);
     }
 
@@ -302,9 +310,17 @@ impl Pool {
     /// retention. Bounded by the tree capacity (2^depth).
     pub fn leaves(env: Env) -> Vec<BytesN<32>> {
         let n: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
+        Self::leaf_range(env, 0, n)
+    }
+    /// Paginated leaves [start, start+count) — lets clients reconstruct large trees
+    /// in bounded chunks (a single full `leaves()` would exceed the read budget at
+    /// scale; the tree caps at 2^depth leaves).
+    pub fn leaf_range(env: Env, start: u32, count: u32) -> Vec<BytesN<32>> {
+        let n: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
+        let end = core::cmp::min(start.saturating_add(count), n);
         let mut out = vec![&env];
-        let mut i = 0u32;
-        while i < n {
+        let mut i = start;
+        while i < end {
             let leaf: BytesN<32> = env.storage().persistent().get(&DataKey::Leaf(i)).unwrap();
             out.push_back(leaf);
             i += 1;

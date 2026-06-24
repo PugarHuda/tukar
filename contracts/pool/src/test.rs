@@ -296,3 +296,26 @@ fn register_root_verified_stores_ordered_leaves() {
     assert_eq!(ls.get(0).unwrap(), l0);
     assert_eq!(ls.get(1).unwrap(), l1);
 }
+
+// leaf_range returns bounded chunks (for reconstructing large trees) and clamps.
+#[test]
+fn leaf_range_paginates_and_clamps() {
+    let env = Env::default();
+    let c = setup(&env);
+    let mut cur = c.pool.current_root();
+    let mut k = 0u8;
+    while k < 3 {
+        let leaf = b32(&env, 50 + k);
+        let nr = b32(&env, 70 + k);
+        c.pool.register_root_verified(&dummy_proof(&env), &cur, &leaf, &nr);
+        cur = nr;
+        k += 1;
+    }
+    assert_eq!(c.pool.leaf_count(), 3);
+    let mid = c.pool.leaf_range(&1, &1);
+    assert_eq!(mid.len(), 1);
+    assert_eq!(mid.get(0).unwrap(), b32(&env, 51));
+    let tail = c.pool.leaf_range(&2, &99); // count past the end is clamped
+    assert_eq!(tail.len(), 1);
+    assert_eq!(tail.get(0).unwrap(), b32(&env, 52));
+}

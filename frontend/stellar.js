@@ -14,7 +14,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CDNDHIR7SWNGOUVB2PC5XD3QBNAHNVRVOIOPPYJWEHVVAN4O3KV3OILJ";
+export const POOL = "CDLKU6A74HMET67Z7AMJ3IMGZBBHWNLTTHKFTTFHLDQRSUAL53BN3Y7F";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -62,9 +62,18 @@ export async function readCurrentRoot() {
  * Returns BigInt[] in tree order (or [] on error).
  */
 export async function loadLeavesFromChain() {
-  const r = await simulate(POOL, "leaves");
-  if (!r.ok || !Array.isArray(r.value)) return [];
-  try { return r.value.map((b) => bytesToBig(b)); } catch (_) { return []; }
+  const cnt = await simulate(POOL, "leaf_count");
+  if (!cnt.ok) return [];
+  const n = Number(cnt.value);
+  const out = [];
+  const CHUNK = 64; // paginate so this scales past a single read budget
+  const u32 = (x) => Sdk.nativeToScVal(x, { type: "u32" });
+  for (let start = 0; start < n; start += CHUNK) {
+    const r = await simulate(POOL, "leaf_range", u32(start), u32(CHUNK));
+    if (!r.ok || !Array.isArray(r.value)) return [];
+    for (const b of r.value) out.push(bytesToBig(b));
+  }
+  return out;
 }
 
 // snarkjs proof -> contract args (G2 uses Soroban c1||c0 ordering).
@@ -213,10 +222,13 @@ const scProof = (p) => ({ a: buf(g1(p.pi_a)), b: buf(g2(p.pi_b)), c: buf(g1(p.pi
 export async function depositOnChain(note) {
   try {
     const asp = await aspWitness();
-    // 1. compliance proof (source allow-listed, bound to commitment)
+    // 1. compliance proof: prove a (per-deposit, randomly chosen) approved source
+    // is in the ASP allow-list, bound to this commitment — without revealing which.
+    const members = asp.members && asp.members.length ? asp.members : [asp];
+    const m = members[Math.floor(Math.random() * members.length)];
     const compInput = {
       aspRoot: asp.aspRoot, denyList: asp.denyList, bindHash: note.commitment,
-      sourceKey: asp.sourceKey, pathElements: asp.pathElements, leafIndex: asp.leafIndex,
+      sourceKey: m.sourceKey, pathElements: m.pathElements, leafIndex: m.leafIndex,
     };
     const { proof: compProof } = await snarkjs.groth16.fullProve(
       compInput, "./circuit/compliance.wasm", "./circuit/compliance_final.zkey",
