@@ -133,6 +133,13 @@ disclosure → tamper-rejected) runs in headless Chrome on every change
   real Hermez ceremony). Production wants a multi-party phase-2 too.
 - The off-chain Merkle **witness** (path) is computed in the browser; on-chain
   *integrity* is enforced by the `merkleUpdate` proof.
+- **Tree scale (precise bounds):** the global accumulator is reliable at demo
+  scale. For production it needs: (a) **pagination** of `leaves()` past a few
+  hundred leaves (a single call would exceed the read budget) — the tree caps at
+  2¹⁰ = 1024; (b) **TTL bumping / restore** of the persistent leaf entries on a
+  long-lived pool (Soroban archives un-bumped persistent state); (c) concurrent
+  deposits serialize (the loser re-syncs and retries, which the UI does
+  automatically up to 3×). None of these bite at demo scale.
 - **Not audited — do not use with real assets.**
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26

@@ -185,21 +185,30 @@ async function createPayment() {
 
   // 2) Advance the on-chain Merkle root so the commitment is spendable. Re-sync
   // the tree from chain first, so we insert at the real next index and prove
-  // against the real current root (correct even if others deposited meanwhile).
+  // against the real current root. If another deposit lands between our sync and
+  // our submit, the accumulator rejects our stale old_root (UnknownRoot) — so we
+  // re-sync and retry, which makes concurrent multi-user deposits self-heal.
   status.innerHTML = `<span class="spin">◠</span> ${note.ref} deposited ✓ — registering into the on-chain tree…`;
-  const syncedDep = await syncedLeaves();
-  if (syncedDep) leaves = syncedDep;
-  const index = leaves.length;
-  note.leafIndex = index;
-  const oldRoot = tree.root(leaves);
-  const path = tree.pathElements(leaves, index).map((x) => x.toString());
-  const newLeaves = [...leaves, commitment];
-  const newRoot = tree.root(newLeaves);
-  const reg = await registerRootOnChain(oldRoot.toString(), commitment.toString(), newRoot.toString(), index, path);
+  let reg;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const syncedDep = await syncedLeaves();
+    if (syncedDep) leaves = syncedDep;
+    const index = leaves.length;
+    note.leafIndex = index;
+    const oldRoot = tree.root(leaves);
+    const path = tree.pathElements(leaves, index).map((x) => x.toString());
+    const newLeaves = [...leaves, commitment];
+    const newRoot = tree.root(newLeaves);
+    reg = await registerRootOnChain(oldRoot.toString(), commitment.toString(), newRoot.toString(), index, path);
+    if (reg.ok) { leaves = newLeaves; note.root = newRoot.toString(); break; }
+    if (attempt < 3 && /UnknownRoot|Error\(Contract, #1\)/.test(reg.error || "")) {
+      status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree advanced by another deposit, re-syncing… (try ${attempt + 1})`;
+      continue;
+    }
+    break;
+  }
   if (reg.ok) {
-    leaves = newLeaves;
     note.spendable = true;
-    note.root = newRoot.toString();
     note.status = "received";
     setActiveStep(2);
     status.textContent = `${note.ref} deposited & registered on-chain ✓ — shielded and spendable from the corridor.`;
