@@ -15,7 +15,7 @@
       "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     },
     {
-      "source": "/(demo.html|landing.js|landing.css|tree.js)",
+      "source": "/(demo.html|landing.js|landing.css|styles.css|tree.js|wallet.js)",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     },
     {
