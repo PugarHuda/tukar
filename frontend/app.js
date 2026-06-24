@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, depositOnChain, registerRootOnChain, withdrawSubmit, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -83,7 +83,22 @@ function setActiveStep(n) {
   }
 }
 
-const BUILD = "v4-design";
+// Rebuild the Merkle tree from on-chain events, but ONLY trust it if its root
+// matches the pool's live current_root. If the RPC event window doesn't reach far
+// enough back (incomplete reconstruction), return null and the caller keeps the
+// session-local tree — so this is a strict improvement with no regression.
+async function syncedLeaves() {
+  try {
+    const ls = await loadLeavesFromChain();         // BigInt[] in tree order
+    const recon = tree.root(ls);                    // == genesis when empty
+    const onchain = await readCurrentRoot();
+    if (onchain != null && recon === onchain) return ls; // verified (incl. empty==genesis)
+    console.warn(`[tukar] tree reconstruction unverified (${ls.length} leaves) — session-local`);
+  } catch (e) { console.warn("[tukar] tree sync failed:", e && e.message); }
+  return null;
+}
+
+const BUILD = "v5-treesync";
 async function init() {
   try {
     console.log(`[tukar ${BUILD}] loading Poseidon (circomlibjs)…`);
@@ -94,7 +109,12 @@ async function init() {
     console.log(`[tukar ${BUILD}] Poseidon ready; loading verification key…`);
     status.textContent = "Loading verification key…";
     vkey = await (await fetch(VKEY)).json();
-    console.log(`[tukar ${BUILD}] init complete — ready`);
+    // Mirror the REAL on-chain Merkle tree so deposits/withdraws are correct even
+    // across reloads and other users' deposits (not just this browser session).
+    status.textContent = "Syncing the on-chain tree…";
+    const synced = await syncedLeaves();
+    if (synced) leaves = synced;
+    console.log(`[tukar ${BUILD}] init complete — ${synced ? synced.length + " on-chain leaves synced" : "session-local tree"}`);
     status.textContent = "Ready · zero-knowledge prover loaded.";
     setActiveStep(0);
     render();
@@ -163,9 +183,14 @@ async function createPayment() {
   note.status = "corridor";
   render();
 
-  // 2) Advance the on-chain Merkle root so the commitment is spendable.
+  // 2) Advance the on-chain Merkle root so the commitment is spendable. Re-sync
+  // the tree from chain first, so we insert at the real next index and prove
+  // against the real current root (correct even if others deposited meanwhile).
   status.innerHTML = `<span class="spin">◠</span> ${note.ref} deposited ✓ — registering into the on-chain tree…`;
+  const syncedDep = await syncedLeaves();
+  if (syncedDep) leaves = syncedDep;
   const index = leaves.length;
+  note.leafIndex = index;
   const oldRoot = tree.root(leaves);
   const path = tree.pathElements(leaves, index).map((x) => x.toString());
   const newLeaves = [...leaves, commitment];
@@ -283,6 +308,9 @@ async function withdrawNote(note) {
     const o1Commit = F.toObject(poseidon([0n, o1Pub, o1Blind]));
     const n0 = F.toObject(poseidon([BigInt(note.commitment), BigInt(note.leafIndex), BigInt(note.privKey)]));
     const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
+    // Re-sync the tree from chain so we prove against the real current root + path.
+    const syncedWd = await syncedLeaves();
+    if (syncedWd) leaves = syncedWd;
     const root = tree.root(leaves);
     const path = tree.pathElements(leaves, note.leafIndex).map((x) => x.toString());
     // Withdraw moves value OUT of the shielded set, so publicAmount is negative
@@ -472,7 +500,7 @@ async function onWalletClick() {
   if (walletConn) {
     walletDisconnect();
     walletConn = null;
-    $("walletTag").textContent = "";
+    $("walletTag").innerHTML = '<span style="opacity:.6;font-size:11px">testnet demo key</span>';
     $("walletBtn").textContent = "Connect wallet";
     status.textContent = "Wallet disconnected — using the testnet demo key.";
     return;
@@ -491,14 +519,25 @@ async function onWalletClick() {
   } catch (e) {
     walletDisconnect();
     walletConn = null;
-    $("walletTag").textContent = "";
+    $("walletTag").innerHTML = '<span style="opacity:.6;font-size:11px">testnet demo key</span>';
     $("walletBtn").textContent = "Connect wallet";
-    status.textContent = "Freighter unavailable (" + ((e && e.message) || e) + "). Continuing with the demo key.";
+    const msg = (e && e.message) || String(e);
+    if (/not detected|not available|failed to load/i.test(msg)) {
+      // Make the "no wallet" case obvious + actionable instead of a silent fallback.
+      status.innerHTML =
+        'No Freighter wallet detected. <a href="https://www.freighter.app/" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline;font-weight:600">Install Freighter →</a> ' +
+        'then click Connect again — or try the corridor right now with the built-in testnet demo key.';
+    } else {
+      status.textContent = "Wallet error: " + msg + " — continuing with the testnet demo key.";
+    }
   } finally {
     $("walletBtn").disabled = false;
   }
 }
 $("walletBtn").addEventListener("click", onWalletClick);
+// Show the default state up front: no wallet needed — the corridor runs on a
+// built-in testnet demo key until you connect Freighter.
+$("walletTag").innerHTML = '<span style="opacity:.6;font-size:11px">testnet demo key</span>';
 
 console.log("[tukar] app.js module executed — wiring UI");
 init();
