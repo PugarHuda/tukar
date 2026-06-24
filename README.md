@@ -164,7 +164,7 @@ deployments/     testnet.json — live contract ids + findings
 frontend/        Corridor Console demo + landing page; in-browser ZK proving;
                  stellar.js (chain), wallet.js (optional Freighter), tree.js
 scripts/         build / prove / convert / deploy / browser-test helpers
-docs/            ARCHITECTURE.md, ONCHAIN.md, TESTING.md, DEMO_SCRIPT.md
+docs/            ARCHITECTURE.md, SECURITY.md (threat model), ONCHAIN.md, TESTING.md, DEMO_SCRIPT.md
 _reference/      Nethermind stellar-private-payments (study only, gitignored)
 ```
 

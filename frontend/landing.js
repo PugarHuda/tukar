@@ -20,6 +20,11 @@
     return "rgba(" + r + "," + g + "," + b + "," + a + ")";
   }
 
+  // Respect the OS "reduce motion" accessibility setting: we still draw each
+  // canvas's first (static) frame, but never run the animation loops.
+  var reducedMotion =
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   // Each animation registers a {start, stop} so we can pause on tab-hide.
   var loops = [];
   function register(loop) {
@@ -27,7 +32,7 @@
   }
   document.addEventListener("visibilitychange", function () {
     for (var i = 0; i < loops.length; i++) {
-      if (document.hidden) loops[i].stop();
+      if (document.hidden || reducedMotion) loops[i].stop();
       else loops[i].start();
     }
   });
@@ -510,6 +515,10 @@
     initHero();
     initGrid();
     initGlobe();
+    // Reduced motion: keep the static first frames, stop the rAF loops.
+    if (reducedMotion) {
+      for (var i = 0; i < loops.length; i++) loops[i].stop();
+    }
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

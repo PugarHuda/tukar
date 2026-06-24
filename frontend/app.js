@@ -479,10 +479,15 @@ $("proveBtn").addEventListener("click", () => {
   if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
   proveAndVerify();
 });
-$("tamperLabel").addEventListener("click", () => {
+function toggleTamper() {
   const cb = $("tamper");
   cb.checked = !cb.checked;
   $("tamperLabel").classList.toggle("on", cb.checked);
+  $("tamperLabel").setAttribute("aria-checked", cb.checked ? "true" : "false");
+}
+$("tamperLabel").addEventListener("click", toggleTamper);
+$("tamperLabel").addEventListener("keydown", (e) => {
+  if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleTamper(); }
 });
 $("resetBtn").addEventListener("click", resetUI);
 $("incoming").addEventListener("click", (e) => {
