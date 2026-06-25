@@ -102,6 +102,12 @@
         <label class="fld mt">RECIPIENT (COUNTRY B)</label>
         <input id="recipient" class="tk-input" type="text" value="María · Mexico City" />
 
+        <label id="compTamperLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false">
+          <span class="box" aria-hidden="true"></span>
+          <span class="txt">Forge compliance: claim a source you don't control <span>(watch the ASP reject it on-chain)</span></span>
+        </label>
+        <input id="compTamper" type="checkbox" style="display:none;" />
+
         <div class="spacer"></div>
         <button id="sendBtn" class="btn-primary" style="margin-top:18px;">Send into corridor →</button>
         <div class="foot-note">
@@ -206,6 +212,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=25"></script>
+  <script type="module" src="./app.js?v=26"></script>
 </body>
 </html>

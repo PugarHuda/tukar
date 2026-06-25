@@ -224,15 +224,21 @@ export async function faucetUsdc(address, amount = "5000") {
  */
 const scProof = (p) => ({ a: buf(g1(p.pi_a)), b: buf(g2(p.pi_b)), c: buf(g1(p.pi_c)) });
 
-export async function depositOnChain(note) {
+export async function depositOnChain(note, opts = {}) {
   try {
     const asp = await aspWitness();
     // 1. compliance proof: prove the AUTHENTICATED depositor (field(from)) is an
     // allow-listed source, bound to this commitment. sourceKey is now a PUBLIC input
     // the contract pins to field(from), so the proof authenticates this depositor.
     const src = addrField(activeAddress());
-    const m = (asp.members || []).find((x) => x.sourceKey === src);
-    if (!m) {
+    const members = asp.members || [];
+    let m = members.find((x) => x.sourceKey === src);
+    if (opts.forgeSource) {
+      // Demonstrate the auth: build a VALID proof for a DIFFERENT approved source
+      // than field(from). The contract pins sourceKey = field(from), so the public
+      // input won't match the proof -> the ASP rejects it ON-CHAIN (InvalidProof).
+      m = members.find((x) => x.sourceKey !== src) || members[1] || members[0];
+    } else if (!m) {
       return { ok: false, error: "this account is not an approved ASP source (only allow-listed keys can deposit)" };
     }
     const compInput = {

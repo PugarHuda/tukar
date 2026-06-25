@@ -90,6 +90,15 @@ open the pool on stellar.expert.
 
 ---
 
+### Optional beat — compliance is enforced on-chain (great right after Scene 1)
+In the **Sender** panel, tick **"Forge compliance: claim a source you don't
+control"** and hit **Send**. The deposit is **rejected on the ledger**:
+*"🛡 Deposit REJECTED by the ASP on-chain — the proof claimed a source you don't
+control."* Say: *"Compliance isn't cosmetic — the pool pins the proof's source to
+your authenticated key, so you can't deposit pretending to be a different approved
+account. Only an allow-listed key you can actually sign with gets in."* (Mirror of
+the regulator's tamper toggle, but for the ASP edge.)
+
 ### Optional B-roll (deeper, for a longer cut)
 - **On-chain Poseidon:** in a terminal, `stellar contract invoke … -- poseidon_hash
   --a 0x…01 --b 0x…02` returns `0x115cc0f5…4417189a` — the pool computing the

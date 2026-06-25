@@ -198,8 +198,17 @@ async function createPayment() {
   status.innerHTML = `<span class="spin">◠</span> ${note.ref} — building compliance + binding proofs, depositing on-chain…`;
 
   // 1) Real on-chain deposit: compliance + amount-binding proofs -> signed pool.deposit.
-  const dep = await depositOnChain(note);
+  const forge = !!($("compTamper") && $("compTamper").checked);
+  const dep = await depositOnChain(note, { forgeSource: forge });
   if (!dep.ok) {
+    if (forge) {
+      // Expected: the ASP rejected a forged-source deposit on-chain.
+      notes.shift(); // drop the rejected attempt from the ledger
+      setActiveStep(0);
+      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit REJECTED by the ASP on-chain</b> — the compliance proof claimed a source you don't control. The pool pins the source to <i>your authenticated key</i>, so only an approved key you can sign with may deposit.`;
+      render(); loadPoolState();
+      return;
+    }
     note.status = "failed";
     note.onchain = "failed";
     status.textContent = "On-chain deposit failed (note kept locally): " + dep.error;
@@ -500,6 +509,9 @@ function resetUI() {
   $("auditCtx").value = "2026-Q2 · CNBV";
   $("tamper").checked = false;
   $("tamperLabel").classList.remove("on");
+  $("compTamper").checked = false;
+  $("compTamperLabel").classList.remove("on");
+  $("compTamperLabel").setAttribute("aria-checked", "false");
   renderProof("idle");
   render();
   status.textContent = "Reset · session cleared (on-chain commitments persist).";
@@ -532,6 +544,17 @@ function toggleTamper() {
 $("tamperLabel").addEventListener("click", toggleTamper);
 $("tamperLabel").addEventListener("keydown", (e) => {
   if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleTamper(); }
+});
+// Compliance "forge source" toggle (Sender panel) — a custom keyboard checkbox.
+function toggleCompTamper() {
+  const cb = $("compTamper");
+  cb.checked = !cb.checked;
+  $("compTamperLabel").classList.toggle("on", cb.checked);
+  $("compTamperLabel").setAttribute("aria-checked", cb.checked ? "true" : "false");
+}
+$("compTamperLabel").addEventListener("click", toggleCompTamper);
+$("compTamperLabel").addEventListener("keydown", (e) => {
+  if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleCompTamper(); }
 });
 $("resetBtn").addEventListener("click", resetUI);
 $("incoming").addEventListener("click", (e) => {
