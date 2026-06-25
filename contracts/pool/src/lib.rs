@@ -55,6 +55,7 @@ pub enum PoolError {
     AmountNotBound = 6,
     ProofRejected = 7,
     TreeFull = 8,
+    LeafAlreadyInserted = 9,
 }
 
 #[contracttype]
@@ -71,6 +72,7 @@ enum DataKey {
     Count,
     LeafCount,        // number of leaves inserted into the Merkle tree
     Leaf(u32),        // the commitment at tree leaf index i (durable, ordered)
+    Inserted(BytesN<32>), // commitments already inserted as a leaf (insert-once guard)
     Root(BytesN<32>),
     Nullifier(BytesN<32>),
     Commitment(BytesN<32>),
@@ -116,8 +118,15 @@ impl Pool {
     /// tree a single append-only **global accumulator**: every insert builds on
     /// the latest on-chain state. The ordered leaves are stored durably on-chain
     /// (read them back with `leaves()`), so any client can reconstruct the exact
-    /// tree from contract STATE — no reliance on event retention. The operator
-    /// still cannot register an arbitrary root — the proof enforces it.
+    /// tree from contract STATE — no reliance on event retention.
+    ///
+    /// **Backing (critical).** The leaf must be a commitment the pool already
+    /// recorded via a `deposit` (tokens moved in) or a `transfer`/`withdraw`
+    /// change-note output (value conserved by its own proof), and it may be
+    /// inserted at most once. Without these gates this entrypoint is permissionless
+    /// and would accept ANY leaf — an attacker could insert a commitment they never
+    /// deposited, then `withdraw` against it and drain the pool, because the
+    /// merkleUpdate proof only attests the root math, not that the leaf is backed.
     pub fn register_root_verified(
         env: Env,
         proof: Groth16Proof,
@@ -129,6 +138,18 @@ impl Pool {
         if old_root != cur {
             soroban_sdk::panic_with_error!(&env, PoolError::UnknownRoot);
         }
+        // The leaf must be a real, backed commitment (see the "Backing" note above).
+        if !env.storage().persistent().has(&DataKey::Commitment(new_leaf.clone())) {
+            soroban_sdk::panic_with_error!(&env, PoolError::UnknownCommitment);
+        }
+        // Insert-once: a second insertion of the same commitment at a different
+        // index would mint a second spendable leaf (a different nullifier) from one
+        // deposit — also a drain. Mark it consumed for insertion.
+        let ins_key = DataKey::Inserted(new_leaf.clone());
+        if env.storage().persistent().has(&ins_key) {
+            soroban_sdk::panic_with_error!(&env, PoolError::LeafAlreadyInserted);
+        }
+        env.storage().persistent().set(&ins_key, &());
         let pi = vec![
             &env,
             Self::fr(&env, &old_root),
@@ -152,6 +173,7 @@ impl Pool {
         env.storage().instance().set(&DataKey::CurrentRoot, &new_root);
         // Keep this leaf + root readable on a long-lived pool (TTL maintenance).
         env.storage().persistent().extend_ttl(&DataKey::Leaf(n), TTL_THRESHOLD, TTL_EXTEND);
+        env.storage().persistent().extend_ttl(&ins_key, TTL_THRESHOLD, TTL_EXTEND);
         env.storage().persistent().extend_ttl(&DataKey::Root(new_root.clone()), TTL_THRESHOLD, TTL_EXTEND);
         env.events().publish((symbol_short!("root"), new_leaf), new_root);
     }

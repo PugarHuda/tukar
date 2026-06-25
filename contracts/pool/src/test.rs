@@ -258,10 +258,41 @@ fn register_root_verified_advances_from_known_root() {
     let leaf = b32(&env, 42);
     let newr = b32(&env, 77);
     assert!(!c.pool.is_root_known(&newr));
+    // The leaf must be a backed commitment first (a real deposit moved tokens in).
+    c.pool.deposit(&c.user, &10, &leaf, &dummy_proof(&env), &dummy_proof(&env));
     c.pool.register_root_verified(&dummy_proof(&env), &old, &leaf, &newr);
     assert!(c.pool.is_root_known(&newr));
     assert_eq!(c.pool.current_root(), newr);
     assert!(c.pool.is_commitment_known(&leaf));
+}
+
+// THE DRAIN DEFENSE: a leaf that was never deposited cannot be inserted into the
+// spendable tree — so an attacker can't mint a note out of thin air and withdraw
+// against it. Without this gate `register_root_verified` would accept any leaf.
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn register_root_verified_rejects_undeposited_leaf() {
+    let env = Env::default();
+    let c = setup(&env);
+    let old = b32(&env, 0);
+    // leaf 200 was never deposited (no tokens backing it) -> rejected.
+    c.pool.register_root_verified(&dummy_proof(&env), &old, &b32(&env, 200), &b32(&env, 77));
+}
+
+// Insert-once: the SAME backed commitment cannot be inserted twice (a second
+// spendable leaf with a different nullifier would double the deposit's value).
+#[test]
+#[should_panic(expected = "Error(Contract, #9)")] // LeafAlreadyInserted
+fn register_root_verified_rejects_double_insert() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaf = b32(&env, 42);
+    c.pool.deposit(&c.user, &10, &leaf, &dummy_proof(&env), &dummy_proof(&env));
+    let g = c.pool.current_root();
+    c.pool.register_root_verified(&dummy_proof(&env), &g, &leaf, &b32(&env, 77));
+    // try to insert the very same commitment again from the new current root
+    let r1 = c.pool.current_root();
+    c.pool.register_root_verified(&dummy_proof(&env), &r1, &leaf, &b32(&env, 88));
 }
 
 #[test]
@@ -281,8 +312,10 @@ fn register_root_verified_rejects_stale_root() {
     let env = Env::default();
     let c = setup(&env);
     let genesis = c.pool.current_root();
+    c.pool.deposit(&c.user, &10, &b32(&env, 42), &dummy_proof(&env), &dummy_proof(&env));
     c.pool.register_root_verified(&dummy_proof(&env), &genesis, &b32(&env, 42), &b32(&env, 77));
-    // current_root is now 77; inserting again from the stale genesis must fail.
+    // current_root is now 77; inserting again from the stale genesis must fail
+    // (this fails on the stale root before the leaf-backing check is reached).
     c.pool.register_root_verified(&dummy_proof(&env), &genesis, &b32(&env, 43), &b32(&env, 88));
 }
 
@@ -295,9 +328,11 @@ fn register_root_verified_stores_ordered_leaves() {
     assert_eq!(c.pool.leaf_count(), 0);
     let g = c.pool.current_root();
     let l0 = b32(&env, 42);
+    let l1 = b32(&env, 43);
+    c.pool.deposit(&c.user, &10, &l0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &10, &l1, &dummy_proof(&env), &dummy_proof(&env));
     c.pool.register_root_verified(&dummy_proof(&env), &g, &l0, &b32(&env, 77));
     let r1 = c.pool.current_root(); // accumulator: next insert builds on this
-    let l1 = b32(&env, 43);
     c.pool.register_root_verified(&dummy_proof(&env), &r1, &l1, &b32(&env, 88));
     assert_eq!(c.pool.leaf_count(), 2);
     let ls = c.pool.leaves();
@@ -316,6 +351,7 @@ fn leaf_range_paginates_and_clamps() {
     while k < 3 {
         let leaf = b32(&env, 50 + k);
         let nr = b32(&env, 70 + k);
+        c.pool.deposit(&c.user, &10, &leaf, &dummy_proof(&env), &dummy_proof(&env));
         c.pool.register_root_verified(&dummy_proof(&env), &cur, &leaf, &nr);
         cur = nr;
         k += 1;

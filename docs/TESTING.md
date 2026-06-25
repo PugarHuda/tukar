@@ -10,7 +10,7 @@ npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN25
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 16/16
+cd contracts/pool && cargo test          # 18/18
 ```
 
 ## 1. Repo hygiene ✅
@@ -32,7 +32,7 @@ cd contracts/pool && cargo test          # 16/16
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **16/16 passed** (`cargo test`): deposit pulls USDC + records
+`contracts/pool` — **18/18 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
@@ -43,7 +43,11 @@ root and rejects an unknown or **stale** one (accumulator semantics); leaves are
 (on-chain Poseidon == circomlibjs `poseidon([1,2])`); and a `poseidon_cost_probe`
 diagnostic. The admin `register_root` backdoor was removed, so the only way to
 advance the root is a
-`merkleUpdate` proof.
+`merkleUpdate` proof. The leaf inserted by `register_root_verified` must be a
+commitment already recorded by a real `deposit` (or change-note output) and may be
+inserted at most once — `register_root_verified_rejects_undeposited_leaf`
+(`UnknownCommitment`) and `register_root_verified_rejects_double_insert`
+(`LeafAlreadyInserted`) cover the **unbacked-leaf drain** defense.
 
 ## 4. On-chain behaviour (Stellar testnet) ✅
 

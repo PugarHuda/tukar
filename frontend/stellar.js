@@ -19,7 +19,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CCZ7CCGALYS3NWEYZ4NONTTUZVFMBF3IK5WKKYXKJZY4KZVIXHAQBDYX";
+export const POOL = "CBK5V32ZGDLSR5CGRV237RGMY4WBQFQQ3RCBDI47B6COWZYVVECMSTX4";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -347,6 +347,7 @@ const POOL_ERRORS = {
   6: "the amount isn't bound to the commitment (binding proof missing)",
   7: "the zero-knowledge proof was rejected by the on-chain verifier",
   8: "the corridor tree is full",
+  9: "this leaf isn't a backed deposit, or was already inserted (unbacked-leaf insert rejected)",
 };
 function friendlyPoolError(e) {
   const msg = (e && e.message) || String(e);
