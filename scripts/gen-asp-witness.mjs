@@ -31,9 +31,21 @@ const members = sources.map((sk, i) => {
   };
 });
 
+// Deny-list = field(sanctioned account) using the SAME keccak256(addr XDR) mod r
+// derivation as sourceKey, so the non-membership check is semantically real (a
+// deposit proves field(from) is none of these specific sanctioned accounts). These
+// are 4 deterministic "sanctioned" testnet accounts (fixed ed25519 seeds 0x91..0x94):
+//   GCGKMMKF..., GDDNBR4W..., GAI72RLR..., GAHDJQCF...
+const DENY_SANCTIONED = [
+  "3082132687368863516150381708866164029952132851772459186640452982606694939745",
+  "12744456281845219501046754656790092100606383966049268766255332742813719532583",
+  "6228627607882016519908452747090894579594818906802039072243571290666355853281",
+  "17052486854034810142609536060076645562758373809480125614291672959189632001501",
+];
+
 const witness = {
   aspRoot: tree.root.toString(),
-  denyList: [h1(9001n), h1(9002n), h1(9003n), h1(9004n)].map((d) => d.toString()),
+  denyList: DENY_SANCTIONED,
   members, // member 0 == field(demo key); the frontend matches by field(from)
   sourceKey: members[0].sourceKey,
   leafIndex: members[0].leafIndex,

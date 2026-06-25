@@ -81,6 +81,31 @@ double-spend protection, `record_commitment` idempotency, the accumulator
 `leaf_range` clamping, the `syncedLeaves` verify-before-trust gate, and
 no reentrancy via `token.transfer` (state finalized before the outbound transfer).
 
+### Second audit round (on the recipient-binding + key-on-`from` fixes)
+
+A follow-up audit of the two new fixes confirmed **both are cryptographically
+sound** — no critical/high break:
+- *Recipient binding:* `extDataHash` is a declared public signal, so Groth16 binds
+  the proof to it even though the circuit only squares it; recomputing it from
+  `recipient` makes a redirected replay fail. Recipient **and** amount are bound.
+- *Depositor auth:* `require_auth(from)` genuinely prevents borrowing an approved
+  identity; pinning `sourceKey = field(from)` + the private membership path means a
+  forged proof with someone else's witness can't pass. Public-input orders match.
+- *Mod-r agreement:* the browser's `keccak % r` equals the contract's
+  `Bn254Fr::from_bytes` because the SDK reduces mod r — true on soroban-sdk
+  **≥ 25.3.0** (CVE-2026-32322); we pin `26` (see `Cargo.toml` note).
+
+Acted on:
+- **Deny-list now holds `field(sanctioned account)`** (same derivation as
+  `sourceKey`), so non-membership is meaningful — fixed (was placeholder values).
+- **Re-broadcast race** (low): an observer can copy a pending withdraw and submit it
+  with the *same* recipient; the loser just gets `NullifierUsed` — **no fund loss**
+  (the recipient is bound, so funds still reach the intended party). A per-tx
+  ext-data nonce would remove the nuisance; out of scope for the demo.
+- **localStorage note secrets** (low): bounded by the throwaway-demo-key model; for
+  real funds, secrets must not touch `localStorage` and the `esm.sh` scripts should
+  be SRI-pinned/self-hosted.
+
 ## Out of scope (this testnet build)
 
 - Not audited; no formal verification of the circuits.
