@@ -33,11 +33,11 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CBK5V32ZGDLSR5CGRV237RGMY4WBQFQQ3RCBDI47B6COWZYVVECMSTX4) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CBR56NAUCPRAF2PNXPGX7TTIWAFIKGTLSO4INUJVUI5UEMOA7XQBDY6Z) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CC3H6FTLUELIPGF3NQM4EQ5XQ5LIU3SQVW7M4YCN6NEUSYQRUZQPY6QC) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
-  | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CDJZ6ORHLBDPCZSLRJBSVSMSHDTZOEZJJWIA2OXDVPGZDVEW3OBXLNH7) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
+  | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CBQB4AJ4HU3YVFE2DCNUSBXH3WJD5IFR6NMOH42RQM3HZDO5TBM7EP5Z) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
 
 - **🌐 Live site:** **https://tukar-six.vercel.app** — a landing page; hit
   **Launch the live demo** (or go straight to
@@ -155,7 +155,7 @@ This started as a demo and was hardened, increment by increment, into a
   remaining caveat is that the *shared demo key's* secret is public — so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**18/18 pool unit tests** + a 13-point [threat model](docs/SECURITY.md). Full live
+**19/19 pool unit tests** + a 14-point [threat model](docs/SECURITY.md). Full live
 verification (deposit → register → withdraw → disclosure → tamper-rejected) runs in
 headless Chrome on every change (`scripts/browser-test.mjs`).
 
@@ -223,7 +223,7 @@ npm run serve                       # -> http://localhost:8000
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
-- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 18/18)
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 19/19)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

@@ -8,8 +8,13 @@ pragma circom 2.1.6;
 // correct single-leaf insertion onto the current root. This removes the trust in
 // the operator for tree *integrity* (G6).
 //
-// Public  : oldRoot, newLeaf, newRoot
-// Private : leafIndex, pathElements[levels]
+// Public  : oldRoot, newLeaf, newRoot, leafIndex
+// Private : pathElements[levels]
+//
+// leafIndex is PUBLIC so the pool can pin it to its own LeafCount: without that
+// binding, a prover could attest insertion at any empty slot while the contract
+// stores the leaf at LeafCount — desyncing the durable leaf list from the root and
+// bricking the shared accumulator (a cheap griefing DoS). Binding it closes that.
 // -----------------------------------------------------------------------------
 
 include "circomlib/circuits/bitify.circom";
@@ -44,4 +49,4 @@ template MerkleUpdate(levels) {
     newRoot === newT.root;
 }
 
-component main { public [ oldRoot, newLeaf, newRoot ] } = MerkleUpdate(10);
+component main { public [ oldRoot, newLeaf, newRoot, leafIndex ] } = MerkleUpdate(10);

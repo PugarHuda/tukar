@@ -19,7 +19,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CBK5V32ZGDLSR5CGRV237RGMY4WBQFQQ3RCBDI47B6COWZYVVECMSTX4";
+export const POOL = "CBR56NAUCPRAF2PNXPGX7TTIWAFIKGTLSO4INUJVUI5UEMOA7XQBDY6Z";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -285,7 +285,9 @@ export async function registerRootOnChain(oldRootDec, newLeafDec, newRootDec, le
       leafIndex: String(leafIndex), pathElements: pathElementsDec,
     };
     const { proof } = await snarkjs.groth16.fullProve(
-      input, "./circuit/merkleUpdate.wasm", "./circuit/merkleUpdate_final.zkey",
+      // ?v bumped when the circuit changes (leafIndex is now a public input) so a
+      // returning visitor never proves with a stale circuit the verifier rejects.
+      input, "./circuit/merkleUpdate.wasm?v=2", "./circuit/merkleUpdate_final.zkey?v=2",
     );
     const client = await poolWriteClient();
     const at = await client.register_root_verified({
@@ -348,6 +350,7 @@ const POOL_ERRORS = {
   7: "the zero-knowledge proof was rejected by the on-chain verifier",
   8: "the corridor tree is full",
   9: "this leaf isn't a backed deposit, or was already inserted (unbacked-leaf insert rejected)",
+  10: "this commitment was already deposited (duplicate deposit rejected — it would lock funds)",
 };
 function friendlyPoolError(e) {
   const msg = (e && e.message) || String(e);

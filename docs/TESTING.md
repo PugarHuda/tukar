@@ -10,7 +10,7 @@ npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN25
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 18/18
+cd contracts/pool && cargo test          # 19/19
 ```
 
 ## 1. Repo hygiene ✅
@@ -32,7 +32,7 @@ cd contracts/pool && cargo test          # 18/18
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **18/18 passed** (`cargo test`): deposit pulls USDC + records
+`contracts/pool` — **19/19 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
@@ -47,7 +47,11 @@ advance the root is a
 commitment already recorded by a real `deposit` (or change-note output) and may be
 inserted at most once — `register_root_verified_rejects_undeposited_leaf`
 (`UnknownCommitment`) and `register_root_verified_rejects_double_insert`
-(`LeafAlreadyInserted`) cover the **unbacked-leaf drain** defense.
+(`LeafAlreadyInserted`) cover the **unbacked-leaf drain** defense. The merkleUpdate
+`leafIndex` is now a **public** input the pool pins to its own `LeafCount`, so a
+proof can't attest insertion at a different slot than the one stored (closes the
+accumulator-griefing DoS). And `deposit_rejects_duplicate_commitment`
+(`DuplicateCommitment`) covers the duplicate-deposit fund-lock fix.
 
 ## 4. On-chain behaviour (Stellar testnet) ✅
 

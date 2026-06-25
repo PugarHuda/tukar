@@ -56,6 +56,7 @@ pub enum PoolError {
     ProofRejected = 7,
     TreeFull = 8,
     LeafAlreadyInserted = 9,
+    DuplicateCommitment = 10,
 }
 
 #[contracttype]
@@ -150,23 +151,30 @@ impl Pool {
             soroban_sdk::panic_with_error!(&env, PoolError::LeafAlreadyInserted);
         }
         env.storage().persistent().set(&ins_key, &());
+        // The depth-10 tree holds at most 2^10 leaves; `n` is also the slot we store
+        // the leaf at AND the index we pin the proof to (below).
+        let n: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
+        if n >= 1u32 << 10 {
+            soroban_sdk::panic_with_error!(&env, PoolError::TreeFull);
+        }
+        // Bind the proof's insertion index to OUR `LeafCount`. The merkleUpdate
+        // circuit exposes `leafIndex` as a PUBLIC input; by feeding our own `n` here
+        // we force the proof to attest insertion at exactly the slot we store the
+        // leaf in. Without this, a prover could attest insertion at a different empty
+        // index than `LeafCount`, desyncing the durable `leaves()` list from
+        // `current_root` and permanently bricking the shared accumulator.
         let pi = vec![
             &env,
             Self::fr(&env, &old_root),
             Self::fr(&env, &new_leaf),
             Self::fr(&env, &new_root),
+            Self::fr(&env, &Self::amount_bytes(&env, n as i128)),
         ];
         Self::verify(&env, DataKey::UpdateVerifier, &proof, &pi);
         Self::record_commitment(&env, &new_leaf);
         // Store the leaf at its tree index durably, so the ordered leaf list is
         // reconstructable from contract state (via `leaves()`) — reliably, with no
         // dependency on RPC event retention.
-        let n: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
-        // Don't rely on the circuit alone for our storage invariant: the depth-10
-        // tree holds at most 2^10 leaves.
-        if n >= 1u32 << 10 {
-            soroban_sdk::panic_with_error!(&env, PoolError::TreeFull);
-        }
         env.storage().persistent().set(&DataKey::Leaf(n), &new_leaf);
         env.storage().instance().set(&DataKey::LeafCount, &(n + 1));
         env.storage().persistent().set(&DataKey::Root(new_root.clone()), &());
@@ -193,6 +201,14 @@ impl Pool {
         // (the amount-binding proof can't be generated otherwise).
         if amount <= 0 || amount >= (1i128 << 64) {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
+        }
+        // Reject a duplicate commitment up front: a second deposit to the same
+        // commitment would move tokens in but could never become a second spendable
+        // leaf (insert-once), permanently locking those tokens. Fail before any
+        // token moves. (`transfer`/`withdraw` legitimately re-record outputs and
+        // rely on `record_commitment` idempotence, so this guard is deposit-only.)
+        if env.storage().persistent().has(&DataKey::Commitment(commitment.clone())) {
+            soroban_sdk::panic_with_error!(&env, PoolError::DuplicateCommitment);
         }
         from.require_auth();
 
@@ -490,6 +506,10 @@ impl Pool {
             return count; // already recorded — don't double-count
         }
         env.storage().persistent().set(&key, &());
+        // Keep the commitment readable on a long-lived pool, so a deposit that hasn't
+        // been registered into the tree yet can't have its backing record archived
+        // out from under a later `register_root_verified`.
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
         env.storage().instance().set(&DataKey::Count, &(count + 1));
         count
     }

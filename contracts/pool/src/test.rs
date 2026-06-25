@@ -158,6 +158,18 @@ fn deposit_pulls_tokens_and_records_commitment() {
     assert!(c.pool.is_commitment_known(&commit));
 }
 
+// A second deposit to the SAME commitment would lock tokens (it can never become a
+// second spendable leaf), so it's rejected before any tokens move.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")] // DuplicateCommitment
+fn deposit_rejects_duplicate_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commit = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &commit, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &commit, &dummy_proof(&env), &dummy_proof(&env)); // dup -> #10
+}
+
 #[test]
 #[should_panic(expected = "Error(Contract, #5)")] // InvalidAmount
 fn deposit_rejects_amount_over_64_bits() {
