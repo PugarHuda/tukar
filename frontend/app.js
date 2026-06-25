@@ -413,7 +413,7 @@ async function withdrawNote(note) {
 // DIFFERENT person (the receiver) can import it elsewhere and withdraw — the
 // corridor becomes truly peer-to-peer (the on-chain tree reconstructs anywhere,
 // the recipient binding sends funds to whoever withdraws). Demo secrets only.
-function exportNote(note) {
+async function exportNote(note) {
   const payload = {
     v: 1, ref: note.ref, amount: note.amount, privKey: note.privKey,
     pubKey: note.pubKey, blinding: note.blinding, commitment: note.commitment,
@@ -424,8 +424,17 @@ function exportNote(note) {
   box.style.display = "";
   box.innerHTML = `<div class="eh">BEARER NOTE · ${note.ref} (copied to clipboard)</div>
     <div class="es">${str}</div>
-    <div class="ec">Whoever holds this string can withdraw the note. Paste it into "Import" on another device to receive it.</div>`;
-  status.textContent = `${note.ref} exported as a bearer note — hand the string to the receiver.`;
+    <div class="qr" id="exportQr"></div>
+    <div class="ec">Whoever holds this string can withdraw the note. Scan the code, or paste the string into "Import" on another device to receive it.</div>`;
+  status.textContent = `${note.ref} exported as a bearer note — hand the string (or QR) to the receiver.`;
+  // Render a scannable QR so the handoff can be phone-to-phone. Lazy-loaded so a
+  // CDN hiccup degrades gracefully — the string above still works either way.
+  try {
+    const { default: QRCode } = await import("https://esm.sh/qrcode@1.5.3");
+    const url = await QRCode.toDataURL(str, { margin: 1, width: 168, errorCorrectionLevel: "L", color: { dark: "#0a0705", light: "#f3ad79" } });
+    const slot = $("exportQr");
+    if (slot) slot.innerHTML = `<img alt="bearer note QR for ${note.ref}" src="${url}" width="168" height="168" />`;
+  } catch (_) { /* QR optional; the copyable string is the source of truth */ }
 }
 
 function importNote() {
