@@ -269,7 +269,7 @@ export async function depositOnChain(note, opts = {}) {
     const hash = res?.sendTransactionResponse?.hash || res?.getTransactionResponse?.txHash || "";
     return { ok: true, hash };
   } catch (e) {
-    return { ok: false, error: (e && e.message) || String(e) };
+    return { ok: false, error: friendlyPoolError(e) };
   }
 }
 
@@ -297,7 +297,7 @@ export async function registerRootOnChain(oldRootDec, newLeafDec, newRootDec, le
     const res = await at.signAndSend();
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
   } catch (e) {
-    return { ok: false, error: (e && e.message) || String(e) };
+    return { ok: false, error: friendlyPoolError(e) };
   }
 }
 
@@ -336,6 +336,25 @@ export function addrField(address) {
  * Spends the note's nullifier on-chain and releases `releaseAmount` tokens. The
  * proof's public_amount is the field-negative (r - releaseAmount): value leaving.
  */
+// Map the pool contract's PoolError codes (lib.rs) to human messages. A raw
+// SDK error reads like "...Error(Contract, #2)"; we surface what actually failed.
+const POOL_ERRORS = {
+  1: "this root isn't recognized on-chain (the tree moved on — re-sync and retry)",
+  2: "this note was already spent — its nullifier is used (double-spend rejected on-chain)",
+  3: "unknown commitment — this note isn't in the pool",
+  4: "the deny-list check failed on-chain",
+  5: "invalid amount",
+  6: "the amount isn't bound to the commitment (binding proof missing)",
+  7: "the zero-knowledge proof was rejected by the on-chain verifier",
+  8: "the corridor tree is full",
+};
+function friendlyPoolError(e) {
+  const msg = (e && e.message) || String(e);
+  const m = msg.match(/Error\(Contract,\s*#(\d+)\)/);
+  if (m && POOL_ERRORS[Number(m[1])]) return POOL_ERRORS[Number(m[1])];
+  return msg;
+}
+
 export async function withdrawSubmit(proof, publicSignals, recipientPub, releaseAmount) {
   try {
     const [root, publicAmount, , n0, n1, oc0, oc1] = publicSignals;
@@ -354,7 +373,7 @@ export async function withdrawSubmit(proof, publicSignals, recipientPub, release
     const res = await at.signAndSend();
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
   } catch (e) {
-    return { ok: false, error: (e && e.message) || String(e) };
+    return { ok: false, error: friendlyPoolError(e) };
   }
 }
 
