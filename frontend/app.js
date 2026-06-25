@@ -19,6 +19,11 @@ const MXN_RATE = 17.12;      // USDC -> MXN at the off-ramp edge (matches the de
 
 const $ = (id) => document.getElementById(id);
 const status = $("status");
+// Escape user-controlled strings before they go into innerHTML. Imported bearer
+// notes / payment requests carry attacker-chosen fields (ref, memo); without this
+// a crafted note could inject script and exfiltrate the localStorage keys.
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const isFieldStr = (s) => typeof s === "string" && /^\d{1,78}$/.test(s);
 let poseidon, F, vkey, tree;
 let notes = [];
 let leaves = []; // BigInt commitments registered on-chain, in tree order
@@ -61,6 +66,7 @@ const ICON = {
   sealX: ["M12 3 20 8 18 17 12 21 6 17 4 8Z", "M9.5 9.5 14.5 14.5", "M14.5 9.5 9.5 14.5"],
   spark: ["M12 4 13.6 10.4 20 12 13.6 13.6 12 20 10.4 13.6 4 12 10.4 10.4Z"],
   offramp: ["M4 20H20", "M12 4V9.5", "M9 12 12 9 15 12 12 15Z", "M12 15V19.5", "M9.6 17.6 12 20 14.4 17.6"],
+  link: ["M9.5 14.5 14.5 9.5", "M11 7.5 12.5 6A3.5 3.5 0 0 1 18 11L16.5 12.5", "M13 16.5 11.5 18A3.5 3.5 0 0 1 6 13L7.5 11.5"],
 };
 function icon(name, size, stroke) {
   const d = (ICON[name] || ICON.diamond).map((p) => `<path d="${p}"/>`).join("");
@@ -179,7 +185,7 @@ async function createPayment() {
 
   seq += 1;
   const note = {
-    id: notes.length + 1,
+    id: seq, // monotonic — notes.length is unstable across shift/unshift
     ref: "PAY-" + String(seq).padStart(3, "0"),
     recipient,
     amount: amount.toString(),
@@ -274,7 +280,7 @@ function render() {
           <span class="st" style="color:${c.color};"><i style="background:${c.color};"></i>${c.label}</span>
         </div>
         <div class="meta">
-          <span>${n.ref}</span>
+          <span>${esc(n.ref)}</span>
           <span class="hid">${icon("lock", 11, "#6b645e")} •••• USDC · hidden</span>
         </div>
       </div>`;
@@ -286,7 +292,7 @@ function render() {
   const cur = sel.value;
   const auditable = notes.filter((n) => n.spendable);
   sel.innerHTML = '<option value="">— none —</option>' +
-    auditable.map((n) => `<option value="${n.id}">${n.ref} · ${shortHash(n.commitment)}</option>`).join("");
+    auditable.map((n) => `<option value="${n.id}">${esc(n.ref)} · ${shortHash(n.commitment)}</option>`).join("");
   sel.value = cur;
   renderReceiver();
 }
@@ -328,7 +334,7 @@ function renderReceiver() {
       ? `<button class="btn-export" data-export="${n.id}">${icon("link", 11, "#8a847e")} Export bearer note</button>` : "";
 
     return `<div class="arrival${opened ? " done" : ""}">
-      <div class="top"><span class="ref">${n.ref}${n.imported ? " · imported" : " · from US"}</span><span class="chip" style="color:${chipColor};">${chipLabel}</span></div>
+      <div class="top"><span class="ref">${esc(n.ref)}${n.imported ? " · imported" : " · from US"}</span><span class="chip" style="color:${chipColor};">${chipLabel}</span></div>
       <div class="body">${body}</div>
       ${wd}${exp}
     </div>`;
@@ -419,15 +425,15 @@ async function exportNote(note) {
     pubKey: note.pubKey, blinding: note.blinding, commitment: note.commitment,
   };
   const str = "tukar1:" + btoa(JSON.stringify(payload));
-  if (navigator.clipboard) navigator.clipboard.writeText(str).catch(() => {});
   const box = $("exportBox");
   box.style.display = "";
-  box.innerHTML = `<div class="eh">BEARER NOTE · ${note.ref} (copied to clipboard)</div>
-    <div class="es">${str}</div>
+  box.innerHTML = `<div class="eh">BEARER NOTE · ${esc(note.ref)} <button class="btn-copy" data-copysrc="exportEsTxt">Copy</button></div>
+    <div class="es" id="exportEsTxt">${esc(str)}</div>
     <div class="qr" id="exportQr"></div>
     <div class="ec">Whoever holds this string can withdraw the note. Scan the code, or paste the string into "Import" on another device to receive it.</div>`;
+  copyToClipboard(str);
   status.textContent = `${note.ref} exported as a bearer note — hand the string (or QR) to the receiver.`;
-  qrInto("exportQr", str, `bearer note QR for ${note.ref}`);
+  qrInto("exportQr", str, "bearer note QR");
 }
 
 // Render a scannable QR into a slot. Lazy-loaded so a CDN hiccup degrades
@@ -438,7 +444,10 @@ async function qrInto(slotId, str, alt) {
     const url = await QRCode.toDataURL(str, { margin: 1, width: 168, errorCorrectionLevel: "L", color: { dark: "#0a0705", light: "#f3ad79" } });
     const slot = $(slotId);
     if (slot) slot.innerHTML = `<img alt="${alt}" src="${url}" width="168" height="168" />`;
-  } catch (_) { /* QR optional */ }
+  } catch (_) {
+    const slot = $(slotId);
+    if (slot) slot.innerHTML = `<span class="qr-fallback">QR unavailable — copy the string instead.</span>`;
+  }
 }
 
 // Payment request (reverse direction): the receiver asks for an amount; the sender
@@ -450,15 +459,20 @@ function createRequest() {
   const addr = activeAddress();
   const memo = `to ${addr.slice(0, 4)}..${addr.slice(-4)}`; // ASCII only (btoa is Latin1)
   const str = "tukreq1:" + btoa(JSON.stringify({ v: 1, kind: "req", amount: String(amt), memo, addr }));
-  if (navigator.clipboard) navigator.clipboard.writeText(str).catch(() => {});
   const box = $("reqBox");
   box.style.display = "";
-  box.innerHTML = `<div class="eh">PAYMENT REQUEST · ${amt} USDC (copied to clipboard)</div>
-    <div class="es">${str}</div>
+  box.innerHTML = `<div class="eh">PAYMENT REQUEST · ${amt} USDC <button class="btn-copy" data-copysrc="reqEsTxt">Copy</button></div>
+    <div class="es" id="reqEsTxt">${esc(str)}</div>
     <div class="qr" id="reqQr"></div>
-    <div class="ec">Send this to the payer. They paste it into "Load" on the Sender side (or scan the QR) and it fills in the amount and recipient.</div>`;
+    <div class="ec">→ paste this into "Load" at the top of the Sender panel (or scan the QR) to fill in the amount and recipient.</div>`;
+  copyToClipboard(str);
   status.textContent = `Requested ${amt} USDC — hand the string (or QR) to the sender.`;
-  qrInto("reqQr", str, `payment request QR for ${amt} USDC`);
+  qrInto("reqQr", str, "payment request QR");
+}
+
+// Best-effort clipboard write; the Copy button gives honest per-action feedback.
+function copyToClipboard(str) {
+  if (navigator.clipboard) navigator.clipboard.writeText(str).catch(() => {});
 }
 
 function loadRequest() {
@@ -466,9 +480,13 @@ function loadRequest() {
   if (!raw) return;
   try {
     const json = JSON.parse(atob(raw.replace(/^tukreq1:/, "")));
-    if (json.kind !== "req" || !json.amount) throw new Error("not a Tukar payment request");
+    if (json.kind !== "req") throw new Error("not a Tukar payment request");
+    if (!/^\d+(\.\d{1,7})?$/.test(String(json.amount))) throw new Error("invalid request amount");
+    const label = (typeof json.addr === "string" && /^G[A-Z2-7]{55}$/.test(json.addr))
+      ? `Requested payee · ${json.addr.slice(0, 6)}…${json.addr.slice(-4)}`
+      : "requested payee";
     $("amount").value = json.amount;
-    $("recipient").value = json.memo || (json.addr ? `${json.addr.slice(0, 6)}…${json.addr.slice(-4)}` : "requested payee");
+    $("recipient").value = label;
     $("reqLoadInput").value = "";
     setActiveStep(0);
     status.textContent = `Loaded a request for ${json.amount} USDC — review and hit "Send into corridor".`;
@@ -482,14 +500,20 @@ function importNote() {
   if (!raw) return;
   try {
     const json = JSON.parse(atob(raw.replace(/^tukar1:/, "")));
-    if (!json.commitment || !json.privKey || !json.amount) throw new Error("not a Tukar bearer note");
+    // Validate every secret/field is a bare decimal field element — a malformed
+    // value would otherwise crash BigInt()/render and break the whole panel.
+    for (const k of ["amount", "privKey", "pubKey", "blinding", "commitment"]) {
+      if (!isFieldStr(json[k])) throw new Error("malformed or missing field: " + k);
+    }
     if (notes.some((n) => n.commitment === json.commitment)) {
       status.textContent = "That note is already in this wallet.";
       return;
     }
     seq += 1;
+    const safeRef = (typeof json.ref === "string" && /^[\w .·#-]{1,24}$/.test(json.ref))
+      ? json.ref : ("PAY-" + String(seq).padStart(3, "0"));
     const note = {
-      id: notes.length + 1, ref: json.ref || ("PAY-" + String(seq).padStart(3, "0")),
+      id: seq, ref: safeRef,
       recipient: "you", amount: json.amount, privKey: json.privKey, pubKey: json.pubKey,
       blinding: json.blinding, commitment: json.commitment, leafIndex: 0,
       ts: new Date().toLocaleTimeString(), status: "received", spendable: true,
@@ -513,7 +537,7 @@ function renderProof(state, data = {}) {
   const M = {
     idle: { border: "rgba(255,255,255,0.07)", bg: "rgba(0,0,0,0.2)", color: "#cfc8c1", ic: icon("shield", 16, "#8a847e"), title: "Ready", body: "Zero-knowledge prover loaded." },
     proving: { border: "rgba(255,122,26,0.4)", bg: "rgba(255,122,26,0.06)", color: "#ff9c52", ic: icon("spark", 16, "#ff9c52"), title: "Proving in browser…", body: "Generating a Groth16 proof over BN254. Secrets never leave the device." },
-    verified: { border: "rgba(55,214,122,0.4)", bg: "rgba(55,214,122,0.07)", color: "#5fe3a0", ic: icon("sealCheck", 16, "#5fe3a0"), title: "Verified on-chain", body: data.body || "" },
+    verified: { border: "rgba(55,214,122,0.4)", bg: "rgba(55,214,122,0.07)", color: "#5fe3a0", ic: icon("sealCheck", 16, "#5fe3a0"), title: "Proof verified", body: data.body || "" },
     rejected: { border: "rgba(255,90,70,0.45)", bg: "rgba(255,90,70,0.07)", color: "#ff8a72", ic: icon("sealX", 16, "#ff8a72"), title: "InvalidProof", body: data.body || "" },
   }[state];
   result.style.border = "1px solid " + M.border;
@@ -575,6 +599,9 @@ async function proveAndVerify() {
       const el = $("result").querySelector("[data-onchain]");
       if (ok && oc.verified) {
         if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> too — by the live Stellar verifier ${link}`;
+        // Only now upgrade the headline from "Proof verified" to the on-chain claim.
+        const pt = $("result").querySelector(".pt");
+        if (pt) pt.textContent = "Verified on-chain";
         status.textContent = "Disclosure verified — in your browser AND on Stellar. Privacy preserved, compliance satisfied.";
       } else if (!ok && !oc.verified) {
         if (el) el.innerHTML = `⛓ The live Stellar verifier ${link} <b style="color:#ff8a72;">also rejected it</b> (InvalidProof).`;
@@ -665,6 +692,18 @@ $("importInput").addEventListener("keydown", (e) => { if (e.key === "Enter") imp
 $("reqBtn").addEventListener("click", createRequest);
 $("reqLoadBtn").addEventListener("click", loadRequest);
 $("reqLoadInput").addEventListener("keydown", (e) => { if (e.key === "Enter") loadRequest(); });
+// Copy buttons on exported bearer notes / requests — honest per-click feedback.
+document.addEventListener("click", (e) => {
+  const cb = e.target.closest(".btn-copy");
+  if (!cb) return;
+  const src = $(cb.dataset.copysrc);
+  if (!src) return;
+  const reset = () => setTimeout(() => { cb.textContent = "Copy"; }, 1600);
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(src.textContent).then(() => { cb.textContent = "Copied ✓"; reset(); })
+      .catch(() => { cb.textContent = "Select & copy"; reset(); });
+  } else { cb.textContent = "Select & copy"; reset(); }
+});
 $("incoming").addEventListener("click", (e) => {
   const off = e.target.closest("[data-reveal]");
   if (off) {

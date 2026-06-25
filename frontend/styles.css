@@ -228,8 +228,12 @@ label.fld.mt { margin-top: 16px; }
 .export-box { border: 1px solid rgba(255,122,26,0.35); border-radius: 10px; background: rgba(255,122,26,0.05); padding: 10px 12px; margin-bottom: 10px; animation: tk-pop 0.3s ease; }
 .export-box .eh { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--orange-l3); margin-bottom: 6px; }
 .export-box .es { font-family: var(--mono); font-size: 10px; color: var(--ts); word-break: break-all; line-height: 1.4; max-height: 56px; overflow-y: auto; }
+.export-box .eh { display: flex; align-items: center; gap: 8px; }
+.btn-copy { margin-left: auto; flex: none; background: rgba(255,122,26,0.14); border: 1px solid rgba(255,122,26,0.4); color: var(--orange-l3); font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 7px; cursor: pointer; }
+.btn-copy:hover { background: rgba(255,122,26,0.22); }
 .export-box .qr { margin-top: 8px; }
 .export-box .qr img { border-radius: 8px; image-rendering: pixelated; display: block; }
+.qr-fallback { font-family: var(--mono); font-size: 10px; color: var(--tf); }
 .export-box .ec { font-family: var(--mono); font-size: 10px; color: var(--tf); margin-top: 6px; }
 .btn-export { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--border-input); color: var(--tm); font-weight: 600; font-size: 11.5px; padding: 8px; border-radius: 9px; cursor: pointer; }
 .btn-export:hover { border-color: rgba(255,122,26,0.5); color: var(--ts); }
