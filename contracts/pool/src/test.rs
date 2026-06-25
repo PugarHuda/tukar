@@ -178,7 +178,7 @@ fn withdraw_releases_bound_amount() {
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
     // public_amount must equal the field-negative of the released amount (binding)
     c.pool.withdraw(
-        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120), &b32(&env, 5),
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
         &nulls, &outs, &recipient, &120,
     );
     assert_eq!(c.token.balance(&recipient), 120);
@@ -196,7 +196,7 @@ fn withdraw_amount_must_match_public_amount() {
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
     // public_amount binds to 50 but caller tries to release 120 -> rejected
     c.pool.withdraw(
-        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 50), &b32(&env, 5),
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 50),
         &nulls, &outs, &recipient, &120,
     );
 }

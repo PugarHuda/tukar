@@ -246,7 +246,6 @@ impl Pool {
         proof: Groth16Proof,
         root: BytesN<32>,
         public_amount: BytesN<32>,
-        ext_data_hash: BytesN<32>,
         nullifiers: Vec<BytesN<32>>,
         out_commitments: Vec<BytesN<32>>,
         recipient: Address,
@@ -262,6 +261,12 @@ impl Pool {
             soroban_sdk::panic_with_error!(&env, PoolError::AmountNotBound);
         }
         Self::require_known_root(&env, &root);
+        // Bind the RECIPIENT into the proof: the contract recomputes ext_data_hash
+        // from (recipient, public_amount) instead of trusting a caller argument.
+        // The withdraw proof was generated with exactly this hash, so an observer
+        // cannot replay the same proof+nullifiers to a different recipient (the
+        // recomputed hash would differ and the proof would fail to verify).
+        let ext_data_hash = Self::ext_data_hash(&env, &recipient, &public_amount);
         let pi = Self::transfer_inputs(&env, &root, &public_amount, &ext_data_hash, &nullifiers, &out_commitments);
         Self::verify(&env, DataKey::TransferVerifier, &proof, &pi);
         Self::spend_nullifiers(&env, &nullifiers);
@@ -391,6 +396,16 @@ impl Pool {
             i -= 1;
         }
         BytesN::from_array(env, &out)
+    }
+
+    /// keccak256(recipient XDR || public_amount) — the ext-data binding used by
+    /// `withdraw`. The browser builds the withdraw proof with this exact value, so
+    /// the proof commits to the recipient and can't be replayed to another one.
+    fn ext_data_hash(env: &Env, recipient: &Address, public_amount: &BytesN<32>) -> BytesN<32> {
+        use soroban_sdk::xdr::ToXdr;
+        let mut data = recipient.clone().to_xdr(env);
+        data.extend_from_array(&public_amount.to_array());
+        env.crypto().keccak256(&data).to_bytes()
     }
 
     fn transfer_inputs(

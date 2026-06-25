@@ -6,6 +6,11 @@
 const mod = await import("https://esm.sh/@stellar/stellar-sdk@14");
 const Sdk = mod.default ?? mod;
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
+import sha3 from "https://esm.sh/js-sha3@0.9.3";
+const keccak256 = sha3.keccak256 ?? sha3.default?.keccak256;
+
+// BN254 scalar field modulus (for reducing the ext-data keccak into a field element)
+const FIELD_R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
 // Throwaway testnet demo key (non-admin). Used only to sign deposit txs so the
 // browser demo can write on-chain. Public on purpose; holds only free testnet XLM.
@@ -14,7 +19,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CAWE6JDTLINSNXVYDHLCIRIDNW4QLAGBH6Q6YAGEBJGIDNRG5F3STOLV";
+export const POOL = "CAMJLBSDJMNBUNRQFK6UF7ARJN3UIOBNAJHZNRIIWKXQOOGHN47YISG4";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -290,19 +295,37 @@ export const WITHDRAW_STROOPS = DEPOSIT_STROOPS; // tokens released per withdraw
 export const DEMO_ADDRESS = Sdk.Keypair.fromSecret(DEMO_SECRET).publicKey();
 
 /**
+ * The withdraw ext-data hash binding the recipient: keccak256(recipient XDR ||
+ * public_amount) reduced mod r. Must match the contract's `ext_data_hash` recompute
+ * exactly — the transfer proof is generated with this value, so it commits to the
+ * recipient and can't be replayed elsewhere. `publicAmountDec` is the field-negative
+ * (r - amount) decimal string.
+ */
+export function extDataHashFor(recipient, publicAmountDec) {
+  const xdr = Sdk.nativeToScVal(recipient, { type: "address" }).toXDR(); // Uint8Array (ScVal::Address)
+  const amt = buf32(publicAmountDec); // 32 bytes, big-endian
+  const data = new Uint8Array(xdr.length + amt.length);
+  data.set(xdr, 0);
+  data.set(amt, xdr.length);
+  const hex = keccak256(data); // 64-char hex (no 0x)
+  return (BigInt("0x" + hex) % FIELD_R).toString();
+}
+
+/**
  * Submit a signed pool.withdraw given a transfer proof + its public signals.
  * Spends the note's nullifier on-chain and releases `releaseAmount` tokens. The
  * proof's public_amount is the field-negative (r - releaseAmount): value leaving.
  */
 export async function withdrawSubmit(proof, publicSignals, recipientPub, releaseAmount) {
   try {
-    const [root, publicAmount, extDataHash, n0, n1, oc0, oc1] = publicSignals;
+    const [root, publicAmount, , n0, n1, oc0, oc1] = publicSignals;
     const client = await poolWriteClient();
+    // No ext_data_hash arg: the contract recomputes it from (recipient, public_amount)
+    // and binds the proof to the recipient — so a replayed proof can't be redirected.
     const at = await client.withdraw({
       proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
       root: buf32(root),
       public_amount: buf32(publicAmount), // field-negative (r - amount): value leaving
-      ext_data_hash: buf32(extDataHash),
       nullifiers: [buf32(n0), buf32(n1)],
       out_commitments: [buf32(oc0), buf32(oc1)],
       recipient: recipientPub || DEMO_ADDRESS,

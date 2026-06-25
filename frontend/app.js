@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -362,8 +362,12 @@ async function withdrawNote(note) {
     const path = tree.pathElements(leaves, realIndex).map((x) => x.toString());
     // Withdraw moves value OUT of the shielded set, so publicAmount is negative
     // (field-encoded as r - W). sum(in)+publicAmount=sum(out) -> outputs sum to V - W.
+    // Bind the recipient into the proof via extDataHash (the contract recomputes it).
+    const recipient = activeAddress();
+    const pubAmount = ((R - W) % R).toString();
+    const extDataHash = extDataHashFor(recipient, pubAmount);
     const input = {
-      root: root.toString(), publicAmount: ((R - W) % R).toString(), extDataHash: "1",
+      root: root.toString(), publicAmount: pubAmount, extDataHash,
       inputNullifier: [n0.toString(), n1.toString()],
       outputCommitment: [o0Commit.toString(), o1Commit.toString()],
       inAmount: [note.amount, "0"],
@@ -377,7 +381,7 @@ async function withdrawNote(note) {
     };
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm", "./circuit/transfer_final.zkey");
     status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
-    const res = await withdrawSubmit(proof, publicSignals, undefined, W);
+    const res = await withdrawSubmit(proof, publicSignals, recipient, W);
     note.withdrawing = false;
     if (res.ok) {
       note.withdrawn = res.hash || "ok";
