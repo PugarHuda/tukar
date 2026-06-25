@@ -19,7 +19,7 @@ const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (test
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CAMJLBSDJMNBUNRQFK6UF7ARJN3UIOBNAJHZNRIIWKXQOOGHN47YISG4";
+export const POOL = "CAMTBJBMGT3DQXXDQKXD3Z4625UER7RSJTM25UE7GZ224RSCYKABWWP3";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
@@ -227,10 +227,14 @@ const scProof = (p) => ({ a: buf(g1(p.pi_a)), b: buf(g2(p.pi_b)), c: buf(g1(p.pi
 export async function depositOnChain(note) {
   try {
     const asp = await aspWitness();
-    // 1. compliance proof: prove a (per-deposit, randomly chosen) approved source
-    // is in the ASP allow-list, bound to this commitment — without revealing which.
-    const members = asp.members && asp.members.length ? asp.members : [asp];
-    const m = members[Math.floor(Math.random() * members.length)];
+    // 1. compliance proof: prove the AUTHENTICATED depositor (field(from)) is an
+    // allow-listed source, bound to this commitment. sourceKey is now a PUBLIC input
+    // the contract pins to field(from), so the proof authenticates this depositor.
+    const src = addrField(activeAddress());
+    const m = (asp.members || []).find((x) => x.sourceKey === src);
+    if (!m) {
+      return { ok: false, error: "this account is not an approved ASP source (only allow-listed keys can deposit)" };
+    }
     const compInput = {
       aspRoot: asp.aspRoot, denyList: asp.denyList, bindHash: note.commitment,
       sourceKey: m.sourceKey, pathElements: m.pathElements, leafIndex: m.leafIndex,
@@ -309,6 +313,16 @@ export function extDataHashFor(recipient, publicAmountDec) {
   data.set(amt, xdr.length);
   const hex = keccak256(data); // 64-char hex (no 0x)
   return (BigInt("0x" + hex) % FIELD_R).toString();
+}
+
+/**
+ * field(addr) = keccak256(addr ScVal XDR) mod r — the ASP allow-list key for an
+ * account. Must match the contract's `addr_field(from)` exactly, so the compliance
+ * proof's public sourceKey is pinned to the authenticated depositor.
+ */
+export function addrField(address) {
+  const xdr = Sdk.nativeToScVal(address, { type: "address" }).toXDR();
+  return (BigInt("0x" + keccak256(xdr)) % FIELD_R).toString();
 }
 
 /**

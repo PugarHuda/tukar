@@ -33,10 +33,10 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CAMJLBSDJMNBUNRQFK6UF7ARJN3UIOBNAJHZNRIIWKXQOOGHN47YISG4) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CAMTBJBMGT3DQXXDQKXD3Z4625UER7RSJTM25UE7GZ224RSCYKABWWP3) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CC3H6FTLUELIPGF3NQM4EQ5XQ5LIU3SQVW7M4YCN6NEUSYQRUZQPY6QC) | shielded JoinSplit | `verify` → `true` |
-  | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAWI2K75RPFO4PMMO3ADDQN6DYG3E4R4N4FORXWHPJ4UPMIATJVUSL4X) | ASP allow/deny | `verify` → `true` |
+  | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
   | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CDJZ6ORHLBDPCZSLRJBSVSMSHDTZOEZJJWIA2OXDVPGZDVEW3OBXLNH7) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
 
 - **🌐 Live site:** **https://tukar-six.vercel.app** — a landing page; hit
@@ -106,10 +106,13 @@ This started as a demo and was hardened, increment by increment, into a
   each insert (long-lived pools stay readable), and the client auto-retries the
   concurrent-deposit race. Verified live: leaves accumulate 0→1→2→3→4 across
   independent sessions/clients.
-- **Per-user compliance.** The ASP allow-list is a Merkle tree of **16 distinct
-  approved sources**; each deposit proves a *randomly chosen* source is
-  allow-listed (and not deny-listed), bound to the commitment, **without revealing
-  which** — real per-user ASP membership, not one fixed witness.
+- **Compliance that authenticates the depositor (key-on-`from`).** The compliance
+  circuit's `sourceKey` is a public input the pool pins to
+  `field(from) = keccak256(from XDR) mod r`, and `deposit` `require_auth(from)`s. So
+  the proof shows **this authenticated depositor** is in the ASP allow-list (and not
+  deny-listed) — not merely that *some* approved source exists. An unapproved key
+  can't deposit. (The shared demo key is allow-listed so the no-install demo works;
+  the design is correct for real-wallet users.)
 - **Real trusted setup.** All four proving keys are derived from the **Hermez
   perpetual Powers-of-Tau ceremony** (`powersOfTau28_hez_final_14.ptau`) — phase-1
   has no locally-known toxic waste. Verifiers + pool were regenerated together so
@@ -134,10 +137,10 @@ This started as a demo and was hardened, increment by increment, into a
   return is now asserted (no fail-open), the deposit amount range and tree capacity
   are bounded, withdraw resolves the note's real on-chain index, and the **withdraw
   recipient is bound into the proof** (the contract recomputes `keccak256(recipient ‖
-  amount)`, so a withdraw proof can't be replayed to a different recipient). The one
-  remaining documented limitation is the demo's *public* ASP witnesses (compliance
-  proves membership exists, not that this depositor is approved — a real ASP issues
-  per-user secrets).
+  amount)`, so a withdraw proof can't be replayed to a different recipient), and
+  **compliance now authenticates the depositor** (key-on-`from`, above). The only
+  remaining caveat is that the *shared demo key's* secret is public — so the public
+  demo itself isn't access-controlled, though the design is correct for real wallets.
 
 **16/16 pool unit tests** + a 12-point [threat model](docs/SECURITY.md). Full live
 verification (deposit → register → withdraw → disclosure → tamper-rejected) runs in

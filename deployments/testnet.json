@@ -25,11 +25,11 @@
       "note": "2-in 2-out shielded JoinSplit, Merkle depth 10"
     },
     "compliance": {
-      "contractId": "CAWI2K75RPFO4PMMO3ADDQN6DYG3E4R4N4FORXWHPJ4UPMIATJVUSL4X",
+      "contractId": "CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO",
       "circuit": "circuits/compliance.circom",
-      "publicInputs": 6,
+      "publicInputs": 7,
       "verifyResult": "true",
-      "note": "ASP allow-list membership + deny-list non-membership"
+      "note": "ASP allow-list membership + deny-list non-membership; sourceKey is now PUBLIC and the pool pins it to field(from), so the proof authenticates the depositor"
     },
     "merkleUpdate": {
       "contractId": "CDJZ6ORHLBDPCZSLRJBSVSMSHDTZOEZJJWIA2OXDVPGZDVEW3OBXLNH7",
@@ -40,7 +40,7 @@
     }
   },
   "pool": {
-    "contractId": "CAMJLBSDJMNBUNRQFK6UF7ARJN3UIOBNAJHZNRIIWKXQOOGHN47YISG4",
+    "contractId": "CAMTBJBMGT3DQXXDQKXD3Z4625UER7RSJTM25UE7GZ224RSCYKABWWP3",
     "wasm": "contracts/pool/",
     "description": "Hardened corridor pool with token custody + FULLY TRUSTLESS tree updates (no admin root backdoor — the only way to advance the root is a merkleUpdate proof). Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set (idempotent, no double-count) + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw.",
     "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[4]"],
@@ -57,9 +57,9 @@
       "noAdminBackdoor": "register_root (admin override) removed — root advances ONLY via register_root_verified with a merkleUpdate proof",
       "idempotentCommitment": "deposit then register_root_verified of the same leaf records it once (commitment_count is not double-counted)",
       "globalAccumulator": "register_root_verified requires old_root == current_root, so the tree is a single append-only GLOBAL accumulator (not a per-session view); inserting from a stale root is rejected (UnknownRoot). Ordered leaves are stored in DURABLE contract state and read via leaves()/leaf_range(start,count)/leaf_count — any client reconstructs the exact tree from on-chain STATE (paginated, so it scales), reload-safe + multi-user-correct, with NO dependency on RPC event retention. Leaf/root entries get their TTL extended (~31d) on each insert so a long-lived pool stays readable. The frontend re-syncs + auto-retries (3x) on the concurrent-deposit race. Verified live across independent sessions: leaves accumulate 0 -> 1 -> 2 -> 3 -> 4, each building on the real current root.",
-      "aspPerUser": "the ASP allow-list is a Poseidon Merkle tree of 16 distinct approved sources (aspRoot 2e0753a0...); each deposit proves a RANDOMLY chosen source is allow-listed + not deny-listed, bound to the commitment, WITHOUT revealing which — i.e. genuine per-user compliance, not a single fixed witness.",
+      "complianceAuthFix": "KEY-ON-FROM compliance (audit finding #1 fixed): the compliance circuit's sourceKey is now a PUBLIC input that the pool pins to field(from)=keccak256(from XDR) mod r, and deposit require_auth(from)s. So the proof shows THIS AUTHENTICATED depositor is allow-listed — it can't be forged with someone else's public witness. The allow-list (aspRoot 1df51333...) holds field(approvedKeys); the demo key is approved (index 0) so the no-install demo works; a non-approved key can't deposit (honest ASP behavior). Verified live: deposit only succeeds because the browser's addrField(from) matches the contract's addr_field(from) AND equals the allow-list member. (Caveat: the shared demo key's secret is public, so the DEMO itself isn't access-controlled — but the architecture is now correct for real-wallet users.)",
       "onChainPoseidon": "the pool exposes poseidon_hash(a,b) — a circomlib-compatible Poseidon (t=3) computed ON-CHAIN with BN254 host field ops. Live call poseidon_hash(1,2) returns 0x115cc0f5...4417189a, exactly circomlibjs poseidon([1,2]). Proves Soroban CAN compute the circuit's Poseidon on-chain.",
-      "securityHardening": "adversarial self-audit (docs/SECURITY.md) -> FIXED: verify() now ASSERTS the verifier's bool (ProofRejected #7 — no fail-open if a verifier returns false instead of trapping); deposit rejects amount >= 2^64 (matches the disclosure 64-bit range, #5); register_root_verified rejects inserts past 2^10 leaves (TreeFull #8); the client withdraw resolves the note's real leaf index from the synced tree, not a stale local index; WITHDRAW RECIPIENT is now BOUND into the proof — withdraw drops the ext_data_hash arg and recomputes keccak256(recipient XDR || public_amount) on-chain, so a withdraw proof+nullifiers can't be replayed to a different recipient (verified live: the withdraw only succeeds because the browser keccak/XDR matches the contract recompute). DOCUMENTED-not-fixed (honest): compliance witnesses are public so the proof authenticates membership-exists not THIS depositor (demo ASP stub — real fix needs per-user secret issuance + require_auth).",
+      "securityHardening": "adversarial self-audit (docs/SECURITY.md) -> FIXED: verify() now ASSERTS the verifier's bool (ProofRejected #7 — no fail-open if a verifier returns false instead of trapping); deposit rejects amount >= 2^64 (matches the disclosure 64-bit range, #5); register_root_verified rejects inserts past 2^10 leaves (TreeFull #8); the client withdraw resolves the note's real leaf index from the synced tree, not a stale local index; WITHDRAW RECIPIENT is now BOUND into the proof — withdraw drops the ext_data_hash arg and recomputes keccak256(recipient XDR || public_amount) on-chain, so a withdraw proof+nullifiers can't be replayed to a different recipient (verified live: the withdraw only succeeds because the browser keccak/XDR matches the contract recompute); COMPLIANCE now authenticates the depositor (key-on-from, see complianceAuthFix). The only remaining honest caveat is that the shared demo key's secret is public, so the public demo itself isn't access-controlled — but the design is correct for real-wallet (Freighter) users.",
       "notePersistence": "the browser persists its notes (throwaway demo secrets) in localStorage keyed by pool, so a RELOAD restores them; combined with the durable on-chain tree, a deposited note stays withdrawable after closing the tab. Verified live: deposit -> reload -> 'saved payment restored' -> withdraw succeeds.",
       "unitTests": "16/16 pass (incl. poseidon_matches_circomlib, accumulator stale-root rejection, ordered-leaf storage, leaf_range pagination, deposit amount-range guard)"
     }

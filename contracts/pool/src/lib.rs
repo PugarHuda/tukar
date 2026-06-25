@@ -174,14 +174,19 @@ impl Pool {
         }
         from.require_auth();
 
-        // 1. Compliance: source is allow-listed, bound to this commitment.
-        // public inputs: [aspRoot, deny0..3, bindHash=commitment]
+        // 1. Compliance: the AUTHENTICATED depositor `from` is an allow-listed
+        // source, bound to this commitment. The contract derives the source key
+        // itself as field(from) = keccak256(from XDR) mod r and sets it as the
+        // compliance public input — so the proof shows *this* depositor is approved
+        // (it can't be forged with someone else's public membership witness).
+        // public inputs: [aspRoot, deny0..3, sourceKey=field(from), bindHash=commitment]
         let asp_root: BytesN<32> = env.storage().instance().get(&DataKey::AspRoot).unwrap();
         let deny: Vec<BytesN<32>> = env.storage().instance().get(&DataKey::DenyList).unwrap();
         let mut pi = vec![&env, Self::fr(&env, &asp_root)];
         for d in deny.iter() {
             pi.push_back(Self::fr(&env, &d));
         }
+        pi.push_back(Self::addr_field(&env, &from));
         pi.push_back(Self::fr(&env, &commitment));
         Self::verify(&env, DataKey::ComplianceVerifier, &proof, &pi);
 
@@ -406,6 +411,15 @@ impl Pool {
         let mut data = recipient.clone().to_xdr(env);
         data.extend_from_array(&public_amount.to_array());
         env.crypto().keccak256(&data).to_bytes()
+    }
+
+    /// field(addr) = keccak256(addr ScVal XDR) reduced mod r — the allow-list key
+    /// for an account. The browser derives it identically, so the compliance
+    /// proof's public sourceKey is pinned to the authenticated depositor.
+    fn addr_field(env: &Env, addr: &Address) -> Bn254Fr {
+        use soroban_sdk::xdr::ToXdr;
+        let h = env.crypto().keccak256(&addr.clone().to_xdr(env));
+        Bn254Fr::from_bytes(h.to_bytes())
     }
 
     fn transfer_inputs(
