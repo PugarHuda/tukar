@@ -108,8 +108,8 @@ functions (Protocol 25/26). Secrets never leave the device.
 
 | Circuit | Proves | Public inputs | Used at |
 |---|---|---|---|
-| **`transfer`** | Ownership of input notes, correct nullifiers (no double-spend), valid Merkle inclusion, balance conservation (in = out + public) | merkle root, public amount, ext-data hash | Steps 2–4 |
-| **`compliance`** | Deposit source ∈ ASP allow-list **and** ∉ deny-list, bound to the transfer | ASP roots, transfer binding | Steps 2 & 4 |
+| **`transfer`** | Ownership of input notes, correct nullifiers (no double-spend), valid Merkle inclusion, balance conservation (in = out + public) | merkle root, public amount, **ext-data hash (the pool recomputes it from the recipient, so a withdraw proof can't be replayed to another recipient)** | Steps 2–4 |
+| **`compliance`** | The **authenticated depositor** (`sourceKey = field(from)`, a public input the pool pins) ∈ ASP allow-list **and** ∉ deny-list, bound to the commitment | asp root, deny list, **sourceKey**, bind hash | Steps 2 & 4 |
 | **`disclosure`** | A confidential commitment opens to a disclosed amount, bound to an audit context | commitment, disclosed value, audit-context hash | Step 6 |
 | **`merkleUpdate`** | Inserting `newLeaf` into a known `oldRoot` yields exactly `newRoot` (trustless root registration) | old root, new leaf, new root | root advance |
 
@@ -163,11 +163,13 @@ pinned in the pool rather than living in separate Merkle-tree contracts.
   verification, shielded deposit/transfer/withdraw with **real testnet USDC
   custody** (deposit moves the actual amount in, **bound to the commitment**;
   withdraw releases it with the amount bound to the proof's negative
-  `public_amount`), ASP membership/non-membership, selective disclosure to a
-  regulator, a **fully trustless tree** with no admin root backdoor
-  (`register_root_verified` only), and a real **Hermez Powers-of-Tau** phase-1
-  trusted setup. Optional **Freighter** wallet signing on top of the no-install
-  demo key.
+  `public_amount` **and the recipient bound into the proof** (the pool recomputes
+  `keccak256(recipient ‖ amount)`, so a withdraw can't be redirected),
+  **depositor-authenticating compliance** (`sourceKey = field(from)` + `require_auth`,
+  so only an allow-listed signing key can deposit), selective disclosure to a
+  regulator, a **reliable global Merkle accumulator** with durable on-chain leaves
+  and no admin root backdoor, and a real **Hermez Powers-of-Tau** phase-1 trusted
+  setup. Optional **Freighter** wallet signing on top of the no-install demo key.
 - **Mocked / simplified (stated clearly):** fiat anchor on/off-ramps (we assume
   testnet USDC at the edges), ASP curation policy (allow/deny lists seeded
   manually), the Merkle witness is computed off-chain (but its correctness is
