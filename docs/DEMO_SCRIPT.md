@@ -99,6 +99,19 @@ your authenticated key, so you can't deposit pretending to be a different approv
 account. Only an allow-listed key you can actually sign with gets in."* (Mirror of
 the regulator's tamper toggle, but for the ASP edge.)
 
+### Optional beat — bearer notes: receive money on another phone (after Scene 3)
+In the **Receiver** panel, under an arrived payment, click **Export bearer note**.
+A string **and a QR code** appear (the string is copied to your clipboard). Say:
+*"The shielded note itself is the money — so the receiver can hand it to anyone.
+Here's the whole note as a string and a QR."* Then click **Reset**, paste the
+string into the **Import** box (or scan the QR on a second phone) and hit
+**Import →** — the payment reappears, now tagged *imported*. Click **Withdraw
+on-chain →**: it releases real tokens. Say: *"A completely different device, no
+shared account, no server — it just imports the note and withdraws. The tree
+reconstructs from chain anywhere, and the contract binds the payout to whoever
+withdraws."* (Bonus: try to withdraw the **same** note twice — the second is
+rejected on-chain: *"this note was already spent — its nullifier is used."*)
+
 ### Optional B-roll (deeper, for a longer cut)
 - **On-chain Poseidon:** in a terminal, `stellar contract invoke … -- poseidon_hash
   --a 0x…01 --b 0x…02` returns `0x115cc0f5…4417189a` — the pool computing the
