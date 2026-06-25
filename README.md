@@ -132,6 +132,13 @@ This started as a demo and was hardened, increment by increment, into a
   pool), so a page reload restores them — and because the tree reconstructs from
   durable on-chain state, a deposited note stays **withdrawable after you close the
   tab** (verified live: deposit → reload → withdraw the restored note).
+- **Bearer notes (true P2P).** A shielded note *is* the spendable asset, so the
+  receiver can **export it as a portable string** and hand it to anyone, who
+  **imports it on a different device and withdraws** — no shared account, no
+  server. The tree reconstructs from chain anywhere, and the imported note's leaf
+  index is resolved on-chain by commitment at withdraw time (verified live:
+  export → fresh wallet → import → on-chain withdraw). Demo keys only — the string
+  carries the note's secret, so treat it like cash.
 - **Adversarially self-audited.** A read-only audit (see
   [`docs/SECURITY.md`](docs/SECURITY.md)) hardened the contract — the verifier's
   return is now asserted (no fail-open), the deposit amount range and tree capacity

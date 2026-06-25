@@ -324,11 +324,13 @@ function renderReceiver() {
     } else if (n.spendable) {
       wd = `<button class="btn-wd" data-withdraw="${n.id}">${icon("offramp", 12, "#cfc8c1")} Withdraw on-chain →</button>`;
     }
+    const exp = (n.spendable && !n.withdrawn)
+      ? `<button class="btn-export" data-export="${n.id}">${icon("link", 11, "#8a847e")} Export bearer note</button>` : "";
 
     return `<div class="arrival${opened ? " done" : ""}">
-      <div class="top"><span class="ref">${n.ref} · from US</span><span class="chip" style="color:${chipColor};">${chipLabel}</span></div>
+      <div class="top"><span class="ref">${n.ref}${n.imported ? " · imported" : " · from US"}</span><span class="chip" style="color:${chipColor};">${chipLabel}</span></div>
       <div class="body">${body}</div>
-      ${wd}
+      ${wd}${exp}
     </div>`;
   }).join("");
 }
@@ -405,6 +407,54 @@ async function withdrawNote(note) {
   renderReceiver();
   saveSession();
   loadPoolState();
+}
+
+// Bearer note: a note IS the spendable asset. Export it as a portable string so a
+// DIFFERENT person (the receiver) can import it elsewhere and withdraw — the
+// corridor becomes truly peer-to-peer (the on-chain tree reconstructs anywhere,
+// the recipient binding sends funds to whoever withdraws). Demo secrets only.
+function exportNote(note) {
+  const payload = {
+    v: 1, ref: note.ref, amount: note.amount, privKey: note.privKey,
+    pubKey: note.pubKey, blinding: note.blinding, commitment: note.commitment,
+  };
+  const str = "tukar1:" + btoa(JSON.stringify(payload));
+  if (navigator.clipboard) navigator.clipboard.writeText(str).catch(() => {});
+  const box = $("exportBox");
+  box.style.display = "";
+  box.innerHTML = `<div class="eh">BEARER NOTE · ${note.ref} (copied to clipboard)</div>
+    <div class="es">${str}</div>
+    <div class="ec">Whoever holds this string can withdraw the note. Paste it into "Import" on another device to receive it.</div>`;
+  status.textContent = `${note.ref} exported as a bearer note — hand the string to the receiver.`;
+}
+
+function importNote() {
+  const raw = $("importInput").value.trim();
+  if (!raw) return;
+  try {
+    const json = JSON.parse(atob(raw.replace(/^tukar1:/, "")));
+    if (!json.commitment || !json.privKey || !json.amount) throw new Error("not a Tukar bearer note");
+    if (notes.some((n) => n.commitment === json.commitment)) {
+      status.textContent = "That note is already in this wallet.";
+      return;
+    }
+    seq += 1;
+    const note = {
+      id: notes.length + 1, ref: json.ref || ("PAY-" + String(seq).padStart(3, "0")),
+      recipient: "you", amount: json.amount, privKey: json.privKey, pubKey: json.pubKey,
+      blinding: json.blinding, commitment: json.commitment, leafIndex: 0,
+      ts: new Date().toLocaleTimeString(), status: "received", spendable: true,
+      imported: true, onchain: "ok",
+    };
+    notes.unshift(note);
+    $("importInput").value = "";
+    $("exportBox").style.display = "none";
+    setActiveStep(2);
+    render(); renderReceiver(); saveSession();
+    status.textContent = `Imported ${note.ref} — it's now withdrawable here (the tree is verified from chain on withdraw).`;
+  } catch (e) {
+    status.textContent = "Couldn't import that note: " + ((e && e.message) || "invalid string");
+  }
 }
 
 // Render the regulator proof-view box (idle/proving/verified/rejected).
@@ -512,6 +562,8 @@ function resetUI() {
   $("compTamper").checked = false;
   $("compTamperLabel").classList.remove("on");
   $("compTamperLabel").setAttribute("aria-checked", "false");
+  $("importInput").value = "";
+  $("exportBox").style.display = "none";
   renderProof("idle");
   render();
   status.textContent = "Reset · session cleared (on-chain commitments persist).";
@@ -557,6 +609,8 @@ $("compTamperLabel").addEventListener("keydown", (e) => {
   if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleCompTamper(); }
 });
 $("resetBtn").addEventListener("click", resetUI);
+$("importBtn").addEventListener("click", importNote);
+$("importInput").addEventListener("keydown", (e) => { if (e.key === "Enter") importNote(); });
 $("incoming").addEventListener("click", (e) => {
   const off = e.target.closest("[data-reveal]");
   if (off) {
@@ -564,6 +618,12 @@ $("incoming").addEventListener("click", (e) => {
     renderReceiver();
     saveSession();
     status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat (MXN).";
+    return;
+  }
+  const ex = e.target.closest("[data-export]");
+  if (ex) {
+    const n = notes.find((x) => x.id === Number(ex.dataset.export));
+    if (n) exportNote(n);
     return;
   }
   const wd = e.target.closest("[data-withdraw]");

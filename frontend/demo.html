@@ -147,6 +147,11 @@
         <p class="phint">Payments arrive shielded. At the off-ramp the receiver reveals the amount to convert to local fiat (MXN) — compliance by design.</p>
 
         <div class="list-label">SHIELDED ARRIVALS</div>
+        <div class="import-row">
+          <input id="importInput" class="tk-input" type="text" placeholder="paste a bearer note to receive it…" aria-label="Paste a bearer note" />
+          <button id="importBtn" class="btn-import">Import →</button>
+        </div>
+        <div id="exportBox" class="export-box" style="display:none;"></div>
         <div id="incoming" class="list">
           <div class="empty"><div class="t">Nothing received yet.</div><div class="s" style="color:#6b645e;">Send a payment from Country A →</div></div>
         </div>
@@ -212,6 +217,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=26"></script>
+  <script type="module" src="./app.js?v=27"></script>
 </body>
 </html>
