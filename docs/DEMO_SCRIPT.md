@@ -112,6 +112,17 @@ reconstructs from chain anywhere, and the contract binds the payout to whoever
 withdraws."* (Bonus: try to withdraw the **same** note twice — the second is
 rejected on-chain: *"this note was already spent — its nullifier is used."*)
 
+### Optional beat — payment requests (the reverse direction, before Scene 1)
+In the **Receiver** panel, under **Request a payment**, type an amount and click
+**Request →** — a string and a QR appear (copied to your clipboard). Say: *"The
+receiver can also ask for money — here's a request for 750 USDC as a string and a
+QR, carrying just the amount and the payee address, no secrets."* Paste it into
+the **Load** box at the top of the **Sender** panel (or scan the QR) and hit
+**Load →**: the amount and recipient fill in. Click **Send into corridor →** to
+fulfill it. Say: *"The sender loads the request and pays it — a normal shielded
+deposit. Bearer notes hand value one way; requests pull it the other. That's the
+full peer-to-peer loop."*
+
 ### Optional B-roll (deeper, for a longer cut)
 - **On-chain Poseidon:** in a terminal, `stellar contract invoke … -- poseidon_hash
   --a 0x…01 --b 0x…02` returns `0x115cc0f5…4417189a` — the pool computing the

@@ -92,6 +92,11 @@
         </div>
         <p class="phint">Fiat on-ramp → USDC enters the corridor. Only a commitment goes on-chain — amount and recipient stay hidden.</p>
 
+        <div class="import-row" style="margin-bottom:14px;">
+          <input id="reqLoadInput" class="tk-input" type="text" placeholder="paste a payment request to fulfill…" aria-label="Paste a payment request" />
+          <button id="reqLoadBtn" class="btn-import">Load →</button>
+        </div>
+
         <label class="fld">AMOUNT (USDC)</label>
         <div class="amount-box">
           <span class="cur">$</span>
@@ -145,6 +150,13 @@
           <div class="cc-label">COUNTRY B · RECEIVER</div>
         </div>
         <p class="phint">Payments arrive shielded. At the off-ramp the receiver reveals the amount to convert to local fiat (MXN) — compliance by design.</p>
+
+        <div class="list-label">REQUEST A PAYMENT</div>
+        <div class="import-row">
+          <input id="reqAmount" class="tk-input" type="number" min="1" step="0.01" value="500" placeholder="amount" aria-label="Request amount (USDC)" />
+          <button id="reqBtn" class="btn-import">Request →</button>
+        </div>
+        <div id="reqBox" class="export-box" style="display:none;"></div>
 
         <div class="list-label">SHIELDED ARRIVALS</div>
         <div class="import-row">
@@ -217,6 +229,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=28"></script>
+  <script type="module" src="./app.js?v=29"></script>
 </body>
 </html>

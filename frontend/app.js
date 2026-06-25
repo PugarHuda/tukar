@@ -427,14 +427,54 @@ async function exportNote(note) {
     <div class="qr" id="exportQr"></div>
     <div class="ec">Whoever holds this string can withdraw the note. Scan the code, or paste the string into "Import" on another device to receive it.</div>`;
   status.textContent = `${note.ref} exported as a bearer note — hand the string (or QR) to the receiver.`;
-  // Render a scannable QR so the handoff can be phone-to-phone. Lazy-loaded so a
-  // CDN hiccup degrades gracefully — the string above still works either way.
+  qrInto("exportQr", str, `bearer note QR for ${note.ref}`);
+}
+
+// Render a scannable QR into a slot. Lazy-loaded so a CDN hiccup degrades
+// gracefully — the copyable string alongside it stays the source of truth.
+async function qrInto(slotId, str, alt) {
   try {
     const { default: QRCode } = await import("https://esm.sh/qrcode@1.5.3");
     const url = await QRCode.toDataURL(str, { margin: 1, width: 168, errorCorrectionLevel: "L", color: { dark: "#0a0705", light: "#f3ad79" } });
-    const slot = $("exportQr");
-    if (slot) slot.innerHTML = `<img alt="bearer note QR for ${note.ref}" src="${url}" width="168" height="168" />`;
-  } catch (_) { /* QR optional; the copyable string is the source of truth */ }
+    const slot = $(slotId);
+    if (slot) slot.innerHTML = `<img alt="${alt}" src="${url}" width="168" height="168" />`;
+  } catch (_) { /* QR optional */ }
+}
+
+// Payment request (reverse direction): the receiver asks for an amount; the sender
+// loads it to pre-fill the corridor send form. A request is public (no secrets) —
+// it just carries an amount, a memo, and the receiver's address as the label.
+function createRequest() {
+  const amt = parseFloat($("reqAmount").value);
+  if (!(amt > 0)) { status.textContent = "Enter an amount to request."; return; }
+  const addr = activeAddress();
+  const memo = `to ${addr.slice(0, 4)}..${addr.slice(-4)}`; // ASCII only (btoa is Latin1)
+  const str = "tukreq1:" + btoa(JSON.stringify({ v: 1, kind: "req", amount: String(amt), memo, addr }));
+  if (navigator.clipboard) navigator.clipboard.writeText(str).catch(() => {});
+  const box = $("reqBox");
+  box.style.display = "";
+  box.innerHTML = `<div class="eh">PAYMENT REQUEST · ${amt} USDC (copied to clipboard)</div>
+    <div class="es">${str}</div>
+    <div class="qr" id="reqQr"></div>
+    <div class="ec">Send this to the payer. They paste it into "Load" on the Sender side (or scan the QR) and it fills in the amount and recipient.</div>`;
+  status.textContent = `Requested ${amt} USDC — hand the string (or QR) to the sender.`;
+  qrInto("reqQr", str, `payment request QR for ${amt} USDC`);
+}
+
+function loadRequest() {
+  const raw = $("reqLoadInput").value.trim();
+  if (!raw) return;
+  try {
+    const json = JSON.parse(atob(raw.replace(/^tukreq1:/, "")));
+    if (json.kind !== "req" || !json.amount) throw new Error("not a Tukar payment request");
+    $("amount").value = json.amount;
+    $("recipient").value = json.memo || (json.addr ? `${json.addr.slice(0, 6)}…${json.addr.slice(-4)}` : "requested payee");
+    $("reqLoadInput").value = "";
+    setActiveStep(0);
+    status.textContent = `Loaded a request for ${json.amount} USDC — review and hit "Send into corridor".`;
+  } catch (e) {
+    status.textContent = "Couldn't load that request: " + ((e && e.message) || "invalid string");
+  }
 }
 
 function importNote() {
@@ -573,6 +613,8 @@ function resetUI() {
   $("compTamperLabel").setAttribute("aria-checked", "false");
   $("importInput").value = "";
   $("exportBox").style.display = "none";
+  $("reqLoadInput").value = "";
+  $("reqBox").style.display = "none";
   renderProof("idle");
   render();
   status.textContent = "Reset · session cleared (on-chain commitments persist).";
@@ -620,6 +662,9 @@ $("compTamperLabel").addEventListener("keydown", (e) => {
 $("resetBtn").addEventListener("click", resetUI);
 $("importBtn").addEventListener("click", importNote);
 $("importInput").addEventListener("keydown", (e) => { if (e.key === "Enter") importNote(); });
+$("reqBtn").addEventListener("click", createRequest);
+$("reqLoadBtn").addEventListener("click", loadRequest);
+$("reqLoadInput").addEventListener("keydown", (e) => { if (e.key === "Enter") loadRequest(); });
 $("incoming").addEventListener("click", (e) => {
   const off = e.target.closest("[data-reveal]");
   if (off) {

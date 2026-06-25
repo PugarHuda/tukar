@@ -139,6 +139,12 @@ This started as a demo and was hardened, increment by increment, into a
   note's leaf index is resolved on-chain by commitment at withdraw time (verified
   live: export → fresh wallet → import → on-chain withdraw). Demo keys only — the
   string carries the note's secret, so treat it like cash.
+- **Payment requests (the reverse direction).** The receiver can ask for money:
+  generate a request (a string **and a QR**, carrying just an amount + the payee
+  address — no secrets), and the sender **loads it to pre-fill the corridor send
+  form** and fulfills it with a normal shielded deposit (verified live: request →
+  load → on-chain deposit). Together with bearer notes this closes the P2P loop —
+  request money one way, hand over a spendable note the other.
 - **Adversarially self-audited.** A read-only audit (see
   [`docs/SECURITY.md`](docs/SECURITY.md)) hardened the contract — the verifier's
   return is now asserted (no fail-open), the deposit amount range and tree capacity
