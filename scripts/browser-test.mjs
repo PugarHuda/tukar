@@ -28,6 +28,9 @@ for (let i = 0; i < 40; i++) {
 }
 console.log("FINAL STATUS:", JSON.stringify(statusText));
 
+// Send is gated on a connection — activate the built-in testnet key first.
+await page.click("#demoKeyBtn").catch((e) => console.log("connect click err", e.message));
+await new Promise((r) => setTimeout(r, 400));
 // click Send into corridor
 await page.click("#sendBtn").catch((e) => console.log("send click err", e.message));
 await new Promise((r) => setTimeout(r, 800));

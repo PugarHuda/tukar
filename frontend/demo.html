@@ -36,6 +36,7 @@
       <div class="live"><span class="dot"></span> Live on Stellar testnet</div>
       <span id="walletTag" class="wallet-tag"></span>
       <button id="walletBtn" class="btn-ghost">Connect wallet</button>
+      <button id="demoKeyBtn" class="btn-ghost">Use testnet key</button>
       <button id="resetBtn" class="btn-ghost">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cfc8c1" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8 8 0 0 0 6 6L4 8"/><path d="M4 4V8H8"/><path d="M4 13A8 8 0 0 0 18 18L20 16"/><path d="M20 20V16H16"/></svg>
         Reset
@@ -104,6 +105,9 @@
           <span class="unit">USDC</span>
         </div>
 
+        <label class="fld mt">DESTINATION CORRIDOR</label>
+        <select id="corridor" class="tk-select"></select>
+
         <label class="fld mt">RECIPIENT (COUNTRY B)</label>
         <input id="recipient" class="tk-input" type="text" value="María · Mexico City" />
 
@@ -114,7 +118,8 @@
         <input id="compTamper" type="checkbox" style="display:none;" />
 
         <div class="spacer"></div>
-        <button id="sendBtn" class="btn-primary" style="margin-top:18px;">Send into corridor →</button>
+        <button id="sendBtn" class="btn-primary" style="margin-top:18px;" disabled>Send into corridor →</button>
+        <div id="connectHint" class="connect-hint">Connect a wallet (or the built-in testnet key) to send.</div>
         <div class="foot-note">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b645e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11H18V20H6Z"/><path d="M8.5 11V8A3.5 3.5 0 0 1 15.5 8V11"/></svg>
           fiat → USDC · client-side compliance proof
@@ -146,10 +151,10 @@
       <div class="panel" id="panel2">
         <div class="seq">03</div>
         <div class="phead">
-          <span class="chip-cc mx">MX</span>
+          <span class="chip-cc mx" id="rcvChip">MX</span>
           <div class="cc-label">COUNTRY B · RECEIVER</div>
         </div>
-        <p class="phint">Payments arrive shielded. At the off-ramp the receiver reveals the amount to convert to local fiat (MXN) — compliance by design.</p>
+        <p class="phint">Payments arrive shielded. At the off-ramp the receiver reveals the amount to convert to local fiat — compliance by design.</p>
 
         <div class="list-label">REQUEST A PAYMENT</div>
         <div class="import-row">
@@ -170,7 +175,7 @@
         <div class="spacer"></div>
         <div class="foot-note">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b645e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20H20"/><path d="M12 4V9.5"/><path d="M9 12 12 9 15 12 12 15Z"/><path d="M12 15V19.5"/><path d="M9.6 17.6 12 20 14.4 17.6"/></svg>
-          USDC → MXN at the edge · rate 17.12
+          <span id="rcvRate">USDC → MXN at the edge · rate 17.12</span>
         </div>
       </div>
 
@@ -229,6 +234,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=35"></script>
+  <script type="module" src="./app.js?v=36"></script>
 </body>
 </html>

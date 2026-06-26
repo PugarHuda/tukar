@@ -135,6 +135,7 @@ label.fld.mt { margin-top: 16px; }
 .btn-primary { display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--orange); color: var(--bg); font-weight: 700; font-size: 15px; padding: 15px; border-radius: 12px; border: none; cursor: pointer; width: 100%; }
 .btn-primary:disabled, .btn-primary.busy { background: rgba(255, 255, 255, 0.08); color: var(--tm); cursor: default; }
 .btn-primary.sm { font-size: 14px; padding: 14px; }
+.connect-hint { margin-top: 8px; font-size: 11px; color: var(--tf); text-align: center; line-height: 1.4; }
 .spacer { flex: 1; min-height: 10px; }
 .foot-note { margin-top: 12px; font-family: var(--mono); font-size: 10.5px; color: var(--tf); display: flex; align-items: center; gap: 7px; }
 

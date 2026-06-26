@@ -45,8 +45,11 @@ compliance).
   + amount-binding proofs in your browser and **deposits real USDC on-chain**
   (watch the pool's commitment count rise); the receiver off-ramps to fiat; and a
   regulator audit produces a disclosure proof that is **verified on-chain by the
-  live Stellar verifier**. Works with **no install and no wallet** (an embedded
-  throwaway testnet key signs), or **connect Freighter** to sign with your own.
+  live Stellar verifier**. **No install needed** — one click on **Use testnet key**
+  activates a real built-in testnet key (or **connect Freighter** to sign with your
+  own). On-chain actions are gated on that explicit connection — no silent signing.
+  Pick a **destination corridor** (Mexico/Philippines/India/Nigeria/Colombia) and
+  the off-ramp converts at a **live** USD→local exchange rate.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).

@@ -5,10 +5,13 @@ Goal: show (1) a real-world money use case (private cross-border remittance),
 on-chain, live contract reads, real USDC custody). You do **not** need to be on
 camera — screen-record the live site + voiceover.
 
-**Just open https://tukar-six.vercel.app** — no install, no wallet. Click
+**Just open https://tukar-six.vercel.app** — no install needed. Click
 **Launch the live demo** (→ `/demo`) and wait ~2s for the status line to read
-"Ready · zero-knowledge prover loaded." (Optional: open the console with F12 to
-show the `[tukar]` logs and the on-chain calls.)
+"Ready · zero-knowledge prover loaded." Then click **Use testnet key** in the top
+bar (one click — it activates a real built-in testnet key, no wallet install) — or
+**Connect wallet** to sign with your own Freighter. Transactions are gated on this
+connection, so **Send** only enables once you're connected. (Optional: open the
+console with F12 to show the `[tukar]` logs and the on-chain calls.)
 
 Tip: pre-load `/demo` once before recording so the prover (a ~1.8 MB wasm) is warm.
 
@@ -30,12 +33,14 @@ cross-border globe, then click **Launch the live demo**.
 **Screen:** the **Corridor Console** — headline *"USDC in. Private crossing. Local
 fiat out."*, the **SENDER → CORRIDOR → RECEIVER → REGULATOR** flow strip, and four
 sequence-badged panels. The **01 · Sender** panel glows (the active-step ring).
-Amount = 500 USDC, recipient "María · Mexico City". Click **Send into corridor →**
-(the button shows "Building compliance proof…").
+Amount = 500 USDC; pick a **destination corridor** (e.g. Mexico · MXN — or switch
+to Philippines/India/Nigeria/Colombia, the recipient + off-ramp currency update,
+with **live** USD→local FX). Click **Send into corridor →** (the button shows
+"Building compliance proof…").
 **Say:**
-> "A sender pays 500 real USDC into the corridor. In the browser, Tukar builds a
-> compliance proof *and* an amount-binding proof, then submits a signed deposit to
-> the pool contract. Watch the corridor panel."
+> "A sender pays 500 real USDC into the corridor, bound for — say — Mexico. In the
+> browser, Tukar builds a compliance proof *and* an amount-binding proof, then
+> submits a signed deposit to the pool contract. Watch the corridor panel."
 
 ## Scene 2 — Corridor on Stellar, live (0:50–1:15)
 **Screen:** the active ring moves to **02 · Corridor**. A commitment row appears

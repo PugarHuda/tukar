@@ -15,7 +15,21 @@ const VKEY = "./circuit/verification_key.json";
 // BN254 scalar field modulus
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
-const MXN_RATE = 17.12;      // USDC -> MXN at the off-ramp edge (matches the design)
+
+// Off-ramp corridors (Country B). `rate` is a sensible static fallback; it's
+// refreshed with LIVE USD->local FX on load (open.er-api.com, no API key) so the
+// figure revealed at the edge is a real exchange rate, not a hardcoded number.
+const CORRIDORS = [
+  { code: "MX", country: "Mexico",      recipient: "María · Mexico City", currency: "MXN", symbol: "$", rate: 17.1 },
+  { code: "PH", country: "Philippines", recipient: "Andrea · Manila",     currency: "PHP", symbol: "₱", rate: 58.5 },
+  { code: "IN", country: "India",       recipient: "Rohan · Mumbai",      currency: "INR", symbol: "₹", rate: 83.4 },
+  { code: "NG", country: "Nigeria",     recipient: "Chidi · Lagos",       currency: "NGN", symbol: "₦", rate: 1570 },
+  { code: "CO", country: "Colombia",    recipient: "Camila · Bogotá",     currency: "COP", symbol: "$", rate: 3950 },
+];
+let fxLive = false; // true once live FX rates have been applied
+const corridorByCode = (code) => CORRIDORS.find((c) => c.code === code) || CORRIDORS[0];
+const selectedCorridor = () => corridorByCode($("corridor") ? $("corridor").value : "MX");
+const fmtRate = (r) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
 
 const $ = (id) => document.getElementById(id);
 const status = $("status");
@@ -129,7 +143,39 @@ async function syncedLeaves() {
 }
 
 const BUILD = "v6-accumulator";
+// Fill the corridor dropdown + reflect the selected corridor on the receiver side.
+function populateCorridors() {
+  const sel = $("corridor");
+  if (!sel) return;
+  sel.innerHTML = CORRIDORS.map((c) => `<option value="${c.code}">${c.country} · ${c.currency}</option>`).join("");
+  sel.value = "MX";
+}
+function updateCorridorUI() {
+  const c = selectedCorridor();
+  if ($("rcvChip")) $("rcvChip").textContent = c.code;
+  if ($("rcvRate")) $("rcvRate").textContent = `USDC → ${c.currency} at the edge · rate ${fmtRate(c.rate)}${fxLive ? " · live" : ""}`;
+}
+// Real USD->local FX (no API key, no mock). Falls back to the static rates above
+// if the network is unavailable, so the off-ramp figure is always sensible.
+async function loadFxRates() {
+  try {
+    const r = await fetch("https://open.er-api.com/v6/latest/USD");
+    const j = await r.json();
+    const rates = j && j.rates;
+    if (!rates) return;
+    let any = false;
+    for (const c of CORRIDORS) {
+      const v = rates[c.currency];
+      if (typeof v === "number" && v > 0) { c.rate = v; any = true; }
+    }
+    if (any) { fxLive = true; updateCorridorUI(); renderReceiver(); }
+  } catch (_) { /* keep static fallbacks */ }
+}
+
 async function init() {
+  populateCorridors();
+  updateCorridorUI();
+  loadFxRates(); // async, non-blocking
   try {
     console.log(`[tukar ${BUILD}] loading Poseidon (circomlibjs)…`);
     status.textContent = "Loading Poseidon hasher…";
@@ -174,9 +220,11 @@ const CHIP = {
 
 // Sender: create a confidential payment (commitment) entering the corridor.
 async function createPayment() {
+  if (!connected) { promptConnect("send into the corridor"); return; }
   const usdc = $("amount").value;
   const recipient = $("recipient").value.trim() || "unknown";
   if (!usdc || Number(usdc) <= 0) return;
+  const corridor = selectedCorridor().code;
   const amount = usdcToStroops(usdc);
   const privKey = randomFieldElement();
   const pubKey = F.toObject(poseidon([privKey])); // pubKey = Poseidon(privKey) -> spendable
@@ -188,6 +236,7 @@ async function createPayment() {
     id: seq, // monotonic — notes.length is unstable across shift/unshift
     ref: "PAY-" + String(seq).padStart(3, "0"),
     recipient,
+    corridor,
     amount: amount.toString(),
     privKey: privKey.toString(),
     pubKey: pubKey.toString(),
@@ -335,13 +384,15 @@ function renderReceiver() {
   el.innerHTML = arrivals.map((n) => {
     const opened = offramped.has(n.id);
     const usdc = fmtUsdc(BigInt(n.amount));
-    const mxn = Math.round(Number(usdc) * MXN_RATE).toLocaleString("en-US");
+    const cor = corridorByCode(n.corridor);
+    const local = Number(usdc) * cor.rate;
+    const localStr = local.toLocaleString("en-US", { maximumFractionDigits: local >= 1000 ? 0 : 2 });
     const chipColor = opened ? "#37d67a" : "#ffb070";
     const chipLabel = opened ? "Off-ramped" : "Shielded";
 
     let body;
     if (opened) {
-      body = `<div class="mxn"><span class="amt">+ $${mxn} MXN</span><span class="lbl">$${usdc} USDC revealed</span></div>`;
+      body = `<div class="mxn"><span class="amt">+ ${cor.symbol}${localStr} ${cor.currency}</span><span class="lbl">$${usdc} USDC revealed</span></div>`;
     } else {
       body = `<button class="btn-reveal" data-reveal="${n.id}">Reveal &amp; off-ramp →</button>`;
     }
@@ -368,6 +419,7 @@ function renderReceiver() {
 // Spend a deposited note on-chain: build a transfer proof, submit pool.withdraw.
 async function withdrawNote(note) {
   if (!note.spendable || note.withdrawn || note.withdrawing) return;
+  if (!connected) { promptConnect("withdraw on-chain"); return; }
   note.withdrawing = true;
   renderReceiver();
   status.innerHTML = `<span class="spin">◠</span> ${note.ref} — building shielded transfer proof…`;
@@ -657,6 +709,8 @@ function resetUI() {
   try { localStorage.removeItem(STORE_KEY); } catch (_) {}
   setActiveStep(0);
   $("amount").value = "500";
+  if ($("corridor")) $("corridor").value = "MX";
+  updateCorridorUI();
   $("recipient").value = "María · Mexico City";
   $("auditCtx").value = "2026-Q2 · CNBV";
   $("tamper").checked = false;
@@ -715,6 +769,10 @@ $("compTamperLabel").addEventListener("keydown", (e) => {
 $("resetBtn").addEventListener("click", resetUI);
 $("importBtn").addEventListener("click", importNote);
 $("importInput").addEventListener("keydown", (e) => { if (e.key === "Enter") importNote(); });
+$("corridor").addEventListener("change", () => {
+  $("recipient").value = selectedCorridor().recipient;
+  updateCorridorUI();
+});
 $("reqBtn").addEventListener("click", createRequest);
 $("reqLoadBtn").addEventListener("click", loadRequest);
 // Retry a stranded note's tree registration (deposit succeeded, register didn't).
@@ -740,10 +798,13 @@ document.addEventListener("click", (e) => {
 $("incoming").addEventListener("click", (e) => {
   const off = e.target.closest("[data-reveal]");
   if (off) {
-    offramped.add(Number(off.dataset.reveal));
+    const id = Number(off.dataset.reveal);
+    offramped.add(id);
     renderReceiver();
     saveSession();
-    status.textContent = "Off-ramp: amount revealed at the corridor edge to convert to local fiat (MXN).";
+    const n = notes.find((x) => x.id === id);
+    const cur = n ? corridorByCode(n.corridor).currency : "local fiat";
+    status.textContent = `Off-ramp: amount revealed at the corridor edge to convert to ${cur}.`;
     return;
   }
   const ex = e.target.closest("[data-export]");
@@ -762,57 +823,93 @@ $("incoming").addEventListener("click", (e) => {
 // Optional Freighter wallet: when connected, deposits are signed by the user's
 // own wallet (with a one-click testnet faucet); otherwise the embedded demo key
 // is used, so the no-install demo always works.
+// On-chain actions (Send/Withdraw) require an EXPLICIT connection — no silent
+// signing. You connect either Freighter (your own wallet) or the built-in testnet
+// key (a real throwaway key signing real testnet txs, no install). Both are real;
+// neither is a mock. `connected` gates the buttons.
 let walletConn = null;
+let connected = false;
 const shortAddr = (a) => `${a.slice(0, 4)}…${a.slice(-4)}`;
-async function onWalletClick() {
-  if (walletConn) {
-    walletDisconnect();
-    walletConn = null;
-    $("walletTag").innerHTML = '<span style="opacity:.6;font-size:11px">testnet demo key</span>';
-    $("walletBtn").textContent = "Connect wallet";
-    status.textContent = "Wallet disconnected — using the testnet demo key.";
+
+function setSendGate() {
+  const sb = $("sendBtn");
+  if (sb) sb.disabled = !connected;
+  const h = $("connectHint");
+  if (h) h.style.display = connected ? "none" : "";
+}
+function promptConnect(action) {
+  status.innerHTML = `Connect a wallet — or click <b>“Use testnet key”</b> in the top bar — to ${action}.`;
+}
+function showConnected(tagHtml, msg) {
+  connected = true;
+  $("walletTag").innerHTML = tagHtml;
+  $("walletBtn").style.display = "none";
+  $("demoKeyBtn").textContent = "Disconnect";
+  $("demoKeyBtn").dataset.role = "disconnect";
+  setSendGate();
+  if (msg) status.textContent = msg;
+}
+function showDisconnected(msg) {
+  walletDisconnect(); // resets the signer back to the built-in key
+  walletConn = null;
+  connected = false;
+  $("walletTag").innerHTML = '<span style="opacity:.6;font-size:11px">not connected</span>';
+  $("walletBtn").style.display = "";
+  $("walletBtn").textContent = "Connect wallet";
+  $("demoKeyBtn").textContent = "Use testnet key";
+  $("demoKeyBtn").dataset.role = "connect";
+  setSendGate();
+  if (msg) status.textContent = msg;
+}
+
+// "Use testnet key" — activate the built-in throwaway testnet key as an explicit
+// connection (real key, real testnet txs, no install). Doubles as Disconnect.
+function onDemoKeyClick() {
+  if ($("demoKeyBtn").dataset.role === "disconnect") {
+    showDisconnected("Disconnected. Connect a wallet (or the built-in testnet key) to send.");
     return;
   }
+  walletDisconnect(); // ensure the default built-in-key signer is active
+  walletConn = null;
+  showConnected(
+    `<b>testnet key</b> · ${shortAddr(activeAddress())}`,
+    "Connected with the built-in testnet key — real testnet transactions, no install. (Connect Freighter to sign with your own wallet.)",
+  );
+}
+
+async function onWalletClick() {
   $("walletBtn").disabled = true;
   status.innerHTML = '<span class="spin">◠</span> Connecting Freighter… (approve in the extension)';
   try {
     const { address, signTransaction } = await walletConnect();
     walletConn = { address };
-    $("walletTag").innerHTML = `<b>${shortAddr(address)}</b>`;
-    $("walletBtn").textContent = "Disconnect";
+    showConnected(`<b>${shortAddr(address)}</b>`, `Wallet connected (${shortAddr(address)}) — transactions signed by Freighter.`);
     // Funding (friendbot XLM + USDC trustline + faucet) is best-effort: the wallet
-    // is already connected and usable, so a transient faucet/friendbot failure must
-    // NOT tear down a valid connection — keep it and just flag the funding step.
+    // is already connected, so a transient faucet failure must NOT drop it.
     try {
       await setupTestnetFunds(address, signTransaction, (m) => {
         status.innerHTML = `<span class="spin">◠</span> Wallet setup — ${m}`;
       });
-      status.textContent = `Wallet connected (${shortAddr(address)}) — deposits will be signed by Freighter.`;
+      status.textContent = `Wallet connected (${shortAddr(address)}) — transactions signed by Freighter.`;
     } catch (fundErr) {
       status.textContent = `Wallet connected (${shortAddr(address)}) — testnet funding step failed (${(fundErr && fundErr.message) || fundErr}); you may need XLM + a USDC trustline before depositing.`;
     }
   } catch (e) {
-    walletDisconnect();
-    walletConn = null;
-    $("walletTag").innerHTML = '<span style="opacity:.6;font-size:11px">testnet demo key</span>';
-    $("walletBtn").textContent = "Connect wallet";
     const msg = (e && e.message) || String(e);
     if (/not detected|not available|failed to load/i.test(msg)) {
-      // Make the "no wallet" case obvious + actionable instead of a silent fallback.
       status.innerHTML =
         'No Freighter wallet detected. <a href="https://www.freighter.app/" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline;font-weight:600">Install Freighter →</a> ' +
-        'then click Connect again — or try the corridor right now with the built-in testnet demo key.';
+        'then click Connect again — or click “Use testnet key” to run on the built-in testnet key.';
     } else {
-      status.textContent = "Wallet error: " + msg + " — continuing with the testnet demo key.";
+      status.textContent = "Wallet error: " + msg;
     }
   } finally {
     $("walletBtn").disabled = false;
   }
 }
 $("walletBtn").addEventListener("click", onWalletClick);
-// Show the default state up front: no wallet needed — the corridor runs on a
-// built-in testnet demo key until you connect Freighter.
-$("walletTag").innerHTML = '<span style="opacity:.6;font-size:11px">testnet demo key</span>';
+$("demoKeyBtn").addEventListener("click", onDemoKeyClick);
+showDisconnected();
 
 console.log("[tukar] app.js module executed — wiring UI");
 init();
