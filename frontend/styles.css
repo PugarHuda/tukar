@@ -231,6 +231,8 @@ label.fld.mt { margin-top: 16px; }
 .export-box .eh { display: flex; align-items: center; gap: 8px; }
 .btn-copy { margin-left: auto; flex: none; background: rgba(255,122,26,0.14); border: 1px solid rgba(255,122,26,0.4); color: var(--orange-l3); font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 7px; cursor: pointer; }
 .btn-copy:hover { background: rgba(255,122,26,0.22); }
+.btn-retry { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,122,26,0.12); border: 1px solid rgba(255,122,26,0.4); color: var(--orange-l3); font-weight: 600; font-size: 11px; padding: 5px 10px; border-radius: 8px; cursor: pointer; }
+.btn-retry:hover { background: rgba(255,122,26,0.2); }
 .export-box .qr { margin-top: 8px; }
 .export-box .qr img { border-radius: 8px; image-rendering: pixelated; display: block; }
 .qr-fallback { font-family: var(--mono); font-size: 10px; color: var(--tf); }

@@ -109,8 +109,12 @@ string into the **Import** box (or scan the QR on a second phone) and hit
 on-chain →**: it releases real tokens. Say: *"A completely different device, no
 shared account, no server — it just imports the note and withdraws. The tree
 reconstructs from chain anywhere, and the contract binds the payout to whoever
-withdraws."* (Bonus: try to withdraw the **same** note twice — the second is
-rejected on-chain: *"this note was already spent — its nullifier is used."*)
+withdraws."* (Bonus — show double-spend protection: **keep** the bearer string
+from before, then **Reset** and **Import** that same note again and hit **Withdraw
+on-chain →**. Since it was already withdrawn, the second spend is rejected
+on-chain: *"this note was already spent — its nullifier is used."* Note the
+withdraw button disappears once a note is spent in the same session, so the
+re-import is what surfaces the on-chain double-spend rejection.)
 
 ### Optional beat — payment requests (the reverse direction, before Scene 1)
 In the **Receiver** panel, under **Request a payment**, type an amount and click

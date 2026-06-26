@@ -225,11 +225,18 @@ async function createPayment() {
   note.status = "corridor";
   render();
 
-  // 2) Advance the on-chain Merkle root so the commitment is spendable. Re-sync
-  // the tree from chain first, so we insert at the real next index and prove
-  // against the real current root. If another deposit lands between our sync and
-  // our submit, the accumulator rejects our stale old_root (UnknownRoot) — so we
-  // re-sync and retry, which makes concurrent multi-user deposits self-heal.
+  // 2) Advance the on-chain Merkle root so the commitment becomes spendable.
+  await registerNote(note);
+}
+
+// Register a deposited note's commitment into the on-chain tree (makes it
+// spendable). Re-syncs from chain first so we insert at the real next index and
+// prove against the real current root; if another deposit lands in between, the
+// accumulator rejects our stale old_root (UnknownRoot) and we re-sync + retry, so
+// concurrent multi-user deposits self-heal. Reusable: a note whose registration
+// failed (network/race) keeps a "Retry registration" button instead of dead-ending.
+async function registerNote(note) {
+  const commitment = BigInt(note.commitment);
   status.innerHTML = `<span class="spin">◠</span> ${note.ref} deposited ✓ — registering into the on-chain tree…`;
   let reg;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -241,7 +248,7 @@ async function createPayment() {
     const path = tree.pathElements(leaves, index).map((x) => x.toString());
     const newLeaves = [...leaves, commitment];
     const newRoot = tree.root(newLeaves);
-    reg = await registerRootOnChain(oldRoot.toString(), commitment.toString(), newRoot.toString(), index, path);
+    reg = await registerRootOnChain(oldRoot.toString(), note.commitment, newRoot.toString(), index, path);
     if (reg.ok) { leaves = newLeaves; note.root = newRoot.toString(); break; }
     if (attempt < 3 && /UnknownRoot|Error\(Contract, #1\)/.test(reg.error || "")) {
       status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree advanced by another deposit, re-syncing… (try ${attempt + 1})`;
@@ -252,15 +259,18 @@ async function createPayment() {
   if (reg.ok) {
     note.spendable = true;
     note.status = "received";
+    note.regFailed = false;
     setActiveStep(2);
     status.textContent = `${note.ref} deposited & registered on-chain ✓ — shielded and spendable from the corridor.`;
   } else {
-    status.textContent = `${note.ref} deposited ✓ (tree registration failed — withdraw disabled): ` + reg.error;
+    note.regFailed = true;
+    status.textContent = `${note.ref} deposited ✓ — tree registration failed (tap “Retry registration”): ` + reg.error;
   }
   render();
   renderReceiver();
   saveSession();
   loadPoolState();
+  return reg.ok;
 }
 
 // Corridor (public view): commitments only; amounts hidden. + audit dropdown.
@@ -283,6 +293,7 @@ function render() {
           <span>${esc(n.ref)}</span>
           <span class="hid">${icon("lock", 11, "#6b645e")} •••• USDC · hidden</span>
         </div>
+        ${n.regFailed ? `<button class="btn-retry" data-retry="${n.id}">${icon("reset", 11, "#ff9c52")} Retry registration →</button>` : ""}
       </div>`;
     }).join("");
   }
@@ -691,6 +702,13 @@ $("importBtn").addEventListener("click", importNote);
 $("importInput").addEventListener("keydown", (e) => { if (e.key === "Enter") importNote(); });
 $("reqBtn").addEventListener("click", createRequest);
 $("reqLoadBtn").addEventListener("click", loadRequest);
+// Retry a stranded note's tree registration (deposit succeeded, register didn't).
+$("ledger").addEventListener("click", (e) => {
+  const rt = e.target.closest("[data-retry]");
+  if (!rt) return;
+  const n = notes.find((x) => x.id === Number(rt.dataset.retry));
+  if (n && !n.spendable) { n.regFailed = false; render(); registerNote(n); }
+});
 $("reqLoadInput").addEventListener("keydown", (e) => { if (e.key === "Enter") loadRequest(); });
 // Copy buttons on exported bearer notes / requests — honest per-click feedback.
 document.addEventListener("click", (e) => {
