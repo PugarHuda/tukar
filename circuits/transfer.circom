@@ -45,6 +45,7 @@ template Transfer(levels, nIns, nOuts) {
     component inIdxBits[nIns];
     component inTree[nIns];
     component inNull[nIns];
+    component inRange[nIns];
 
     var sumIn = 0;
 
@@ -79,6 +80,13 @@ template Transfer(levels, nIns, nOuts) {
         inNull[i].inputs[1] <== inLeafIndex[i];
         inNull[i].inputs[2] <== inPrivKey[i];
         inNull[i].out === inputNullifier[i];
+
+        // Range-check inputs to 248 bits too (defense-in-depth). Outputs are already
+        // bounded (below); bounding inputs makes value conservation provably
+        // wrap-free instead of relying on the inductive invariant that every tree
+        // leaf commits to a <2^248 amount. A zero-value dummy input passes trivially.
+        inRange[i] = Num2Bits(248);
+        inRange[i].in <== inAmount[i];
 
         sumIn += inAmount[i];
     }

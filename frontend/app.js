@@ -407,7 +407,9 @@ async function withdrawNote(note) {
       outPubkey: [o0Pub.toString(), o1Pub.toString()],
       outBlinding: [o0Blind.toString(), o1Blind.toString()],
     };
-    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm", "./circuit/transfer_final.zkey");
+    // ?v bumped when the transfer circuit changes (input range checks added) so a
+    // returning visitor never proves with a stale circuit the new verifier rejects.
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm?v=2", "./circuit/transfer_final.zkey?v=2");
     status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
     const res = await withdrawSubmit(proof, publicSignals, recipient, W);
     note.withdrawing = false;

@@ -18,11 +18,12 @@
       "tamperedResult": "rejected (InvalidProof)"
     },
     "transfer": {
-      "contractId": "CC3H6FTLUELIPGF3NQM4EQ5XQ5LIU3SQVW7M4YCN6NEUSYQRUZQPY6QC",
+      "contractId": "CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N",
+      "supersedes": "CC3H6FTLUELIPGF3NQM4EQ5XQ5LIU3SQVW7M4YCN6NEUSYQRUZQPY6QC (added 248-bit range checks on INPUT amounts; public inputs unchanged at 7)",
       "circuit": "circuits/transfer.circom",
       "publicInputs": 7,
       "verifyResult": "true",
-      "note": "2-in 2-out shielded JoinSplit, Merkle depth 10"
+      "note": "2-in 2-out shielded JoinSplit, Merkle depth 10; inputs AND outputs range-checked to 248 bits so value conservation is provably wrap-free"
     },
     "compliance": {
       "contractId": "CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO",
@@ -41,8 +42,8 @@
     }
   },
   "pool": {
-    "contractId": "CBR56NAUCPRAF2PNXPGX7TTIWAFIKGTLSO4INUJVUI5UEMOA7XQBDY6Z",
-    "supersedes": "CBK5V32Z…STX4 (which fixed the unbacked-leaf drain) -> redeployed again to (a) bind merkleUpdate leafIndex to LeafCount (close the accumulator-griefing DoS), (b) reject duplicate-commitment deposits, (c) bump commitment TTL. Earlier original: CCZ7CCGA…BDYX.",
+    "contractId": "CAFPJLO72HG7AZSMVXG733VGJPIAJKXK4ICVBPSUYPCPUZ6AW3XPT25K",
+    "supersedes": "CBR56NAU…DY6Z -> redeployed to point at the hardened transfer verifier (248-bit input range checks). Pool code unchanged (transfer public inputs stay 7); only the transfer_verifier constructor arg changed. Lineage: CCZ7CCGA…BDYX (orig) -> CBK5V32Z…STX4 (unbacked-leaf drain fix) -> CBR56NAU…DY6Z (leafIndex bind + dup-commit + TTL) -> this.",
     "wasm": "contracts/pool/",
     "description": "Hardened corridor pool with token custody + FULLY TRUSTLESS tree updates (no admin root backdoor — the only way to advance the root is a merkleUpdate proof). Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set (idempotent, no double-count) + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw.",
     "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[4]"],
@@ -66,6 +67,7 @@
       "unbackedLeafDrainFix": "CRITICAL fix (audit finding T13): previously `deposit` recorded a commitment + moved tokens in but did NOT insert the leaf; the tree advanced ONLY via the permissionless `register_root_verified`, which accepted ANY `new_leaf`. So an attacker could skip `deposit`, insert a self-made commitment with a valid merkleUpdate proof (which only attests the root math, not backing), and `withdraw` against it — draining other users' deposits (a second variant inserted one deposit's commitment twice -> two nullifiers -> double value). FIXED: `register_root_verified` now requires `new_leaf` to be a commitment already recorded by a real `deposit` (or a transfer/withdraw change-note output) -> UnknownCommitment (#3), and inserts each commitment at most once -> LeafAlreadyInserted (#9). Verified LIVE: an un-deposited leaf insert is rejected on-chain with Error(Contract,#3) BEFORE proof verification.",
       "leafIndexBindingFix": "HIGH fix (audit finding T14, griefing DoS): the merkleUpdate circuit's leafIndex was PRIVATE and unconstrained, but the contract stores the leaf at its own LeafCount. So a hand-crafted proof attesting insertion at a DIFFERENT empty index than LeafCount would advance current_root to a tree shape the durable leaves() list can't reproduce — permanently desyncing reconstruction from current_root and bricking the shared global accumulator for ~100 stroops (every honest client would then reconstruct a root that was never registered, so no further deposit could be registered and no note withdrawn). FIXED: leafIndex is now a PUBLIC merkleUpdate input and the pool builds the verifier's public-input vector with leafIndex = its own LeafCount, so the proven insertion index MUST equal the slot the contract stores into. Redeployed the merkleUpdate verifier (4 public inputs) + the pool. Verified LIVE end-to-end: the honest deposit->register->withdraw->disclose flow passes with the new 4-public-input proof (a mismatched-index proof fails Groth16 verification by construction, since the contract supplies LeafCount as the public leafIndex).",
       "duplicateCommitmentFix": "MEDIUM fix (audit finding): a second `deposit` to the same commitment used to move tokens in but could never become a second spendable leaf (insert-once), permanently locking those tokens. `deposit` now rejects a commitment that's already recorded -> DuplicateCommitment (#10), before any tokens move. Plus `record_commitment` now bumps the commitment's persistent TTL so a deposited-but-unregistered commitment's backing record can't be archived out from under a later register.",
+      "transferInputRangeFix": "Defense-in-depth (audit finding): transfer.circom range-checked OUTPUT amounts to 248 bits but not INPUTS. Value conservation sum(in)+publicAmount=sum(out) was sound only via the inductive invariant that every tree leaf commits to a <2^248 amount (deposits 64-bit, outputs 248-bit), so a 2-input sum couldn't wrap the BN254 field. Now each INPUT amount is range-checked to 248 bits too (a zero dummy passes trivially), making wrap-freeness explicit rather than reliant on a cross-component invariant. Public inputs unchanged (7), so only the transfer verifier + zkey/wasm were regenerated (Hermez ptau, 15884 constraints < 2^14) and the verifier redeployed; the pool was redeployed only to point at it. Verified LIVE end-to-end: deposit->register->withdraw->disclose->tamper all pass on the new pool, so the added input checks don't reject valid spends.",
       "unitTests": "19/19 pass (incl. poseidon_matches_circomlib, accumulator stale-root rejection, ordered-leaf storage, leaf_range pagination, deposit amount-range guard, register_root_verified_rejects_undeposited_leaf, register_root_verified_rejects_double_insert, deposit_rejects_duplicate_commitment)"
     }
   },
@@ -85,7 +87,7 @@
     "phase1": "Hermez perpetual powers-of-tau ceremony (powersOfTau28_hez_final_14.ptau) — a real multi-party ceremony, so phase-1 has no locally-known toxic waste",
     "phase2": "per-circuit Groth16 setup + a Tukar phase-2 contribution; all four proving keys and the on-chain verifiers were regenerated together from this ptau so they stay in sync",
     "maxConstraints": 16384,
-    "circuitConstraints": { "disclosure": 671, "compliance": 5220, "merkleUpdate": 10411, "transfer": 15386 }
+    "circuitConstraints": { "disclosure": 671, "compliance": 5220, "merkleUpdate": 10411, "transfer": 15884 }
   },
   "protocol": "Stellar Protocol 25/26 (X-Ray / Yardstick) native BN254 host functions"
 }
