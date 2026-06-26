@@ -242,11 +242,22 @@ const CHIP = {
 // Sender: create a confidential payment (commitment) entering the corridor.
 async function createPayment() {
   if (!connected) { promptConnect("send into the corridor"); return; }
-  const usdc = $("amount").value;
+  const usdc = $("amount").value.trim();
   const recipient = $("recipient").value.trim() || "unknown";
-  if (!usdc || Number(usdc) <= 0) return;
+  const num = Number(usdc);
+  // Reject empty/non-numeric/non-positive. `type=number` permits scientific
+  // notation ("1e9") which Number() accepts but BigInt() can't parse, so we
+  // normalise to a plain fixed-decimal string before converting to stroops.
+  if (!usdc || !isFinite(num) || num <= 0) {
+    status.textContent = "Enter a positive USDC amount.";
+    return;
+  }
+  if (num > 1_000_000_000) {
+    status.textContent = "Amount too large — keep it under 1,000,000,000 USDC.";
+    return;
+  }
   const corridor = selectedCorridor().code;
-  const amount = usdcToStroops(usdc);
+  const amount = usdcToStroops(num.toFixed(7));
   const privKey = randomFieldElement();
   const pubKey = F.toObject(poseidon([privKey])); // pubKey = Poseidon(privKey) -> spendable
   const blinding = randomFieldElement();
@@ -335,6 +346,16 @@ async function registerNote(note) {
     // multi-user deposits. (Branch on the numeric code, not the friendly string.)
     if (attempt < 3 && reg.code === 1) {
       status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree advanced by another deposit, re-syncing… (try ${attempt + 1})`;
+      continue;
+    }
+    // The deposit tx confirmed, but the RPC node our register simulation read
+    // hasn't caught up yet (read-after-write lag), so it doesn't see the commitment
+    // record -> UnknownCommitment (#3). Wait briefly and retry: the record
+    // propagates and the next attempt finds it. (Only reachable when the deposit
+    // itself succeeded — a failed deposit returns earlier, never calling this.)
+    if (attempt < 3 && reg.code === 3) {
+      status.innerHTML = `<span class="spin">◠</span> ${note.ref} — confirming the deposit on-chain… (try ${attempt + 1})`;
+      await new Promise((r) => setTimeout(r, 4500));
       continue;
     }
     break;

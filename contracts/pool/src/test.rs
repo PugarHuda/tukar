@@ -36,6 +36,21 @@ impl MockOracle {
     }
 }
 
+// Oracle stub that carries NO price for any asset (lastprice -> None) — models a
+// currency the feed doesn't support, so offramp_quote must return FxUnavailable.
+#[contract]
+pub struct MockOracleEmpty;
+
+#[contractimpl]
+impl MockOracleEmpty {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        None
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
 fn b32(env: &Env, k: u8) -> BytesN<32> {
     BytesN::from_array(env, &[k; 32])
 }
@@ -174,6 +189,39 @@ fn offramp_quote_reads_oracle_on_chain() {
     let sym = soroban_sdk::Symbol::new(&env, "MXN");
     assert_eq!(c.pool.offramp_quote(&sym, &100), 2000);
     assert_eq!(c.pool.offramp_quote(&sym, &500), 10000);
+    assert_eq!(c.pool.offramp_quote(&sym, &0), 0); // zero quote is well-defined
+}
+
+// A currency the oracle doesn't carry (lastprice -> None) -> FxUnavailable, not a trap.
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable
+fn offramp_quote_unsupported_currency_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    let empty = env.register(MockOracleEmpty, ());
+    c.pool.set_fx_oracle(&empty); // admin (mocked auth) repoints to the empty feed
+    let sym = soroban_sdk::Symbol::new(&env, "JPY");
+    c.pool.offramp_quote(&sym, &100);
+}
+
+// Negative quote input is rejected (bounds match deposit's 64-bit range).
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")] // InvalidAmount
+fn offramp_quote_rejects_negative_amount() {
+    let env = Env::default();
+    let c = setup(&env);
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.offramp_quote(&sym, &-1);
+}
+
+// set_fx_oracle updates the address the quote reads, and fx_oracle() reflects it.
+#[test]
+fn set_fx_oracle_updates_view() {
+    let env = Env::default();
+    let c = setup(&env);
+    let other = env.register(MockOracleEmpty, ());
+    c.pool.set_fx_oracle(&other);
+    assert_eq!(c.pool.fx_oracle(), other);
 }
 
 #[test]

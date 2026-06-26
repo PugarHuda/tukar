@@ -33,7 +33,7 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CD3752QCSKR3KU4NIDTBEOBUGI2B7XXP6X74DH7TGRAECYVVLL3RX4A7) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CARIJYGV3J3FMZ5QFCVS7DNGCV7VONAYZC3QGV5C7DRLNH2SZNSNX653) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
@@ -165,7 +165,7 @@ This started as a demo and was hardened, increment by increment, into a
   remaining caveat is that the *shared demo key's* secret is public — so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**21/21 pool unit tests** + a 16-point [threat model](docs/SECURITY.md). Full live
+**24/24 pool unit tests** + a 16-point [threat model](docs/SECURITY.md). Full live
 verification (deposit → register → withdraw → disclosure → tamper-rejected) runs in
 headless Chrome on every change (`scripts/browser-test.mjs`).
 
@@ -233,7 +233,7 @@ npm run serve                       # -> http://localhost:8000
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
-- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 21/21)
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 24/24)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

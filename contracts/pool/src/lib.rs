@@ -157,7 +157,10 @@ impl Pool {
     /// Reflector, not by a client-side hardcode. It does NOT gate token release
     /// (`withdraw` settles in USDC and never depends on the oracle being live).
     pub fn offramp_quote(env: Env, symbol: Symbol, usdc_amount: i128) -> i128 {
-        if usdc_amount < 0 {
+        // Bound the input to the same 64-bit range as a deposit (real corridor
+        // amounts are far smaller). Keeps the math well inside i128 regardless of
+        // what the oracle reports, and gives a typed error instead of a trap.
+        if usdc_amount < 0 || usdc_amount >= (1i128 << 64) {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
         }
         let oracle: Address = env.storage().instance().get(&DataKey::FxOracle).unwrap();
@@ -177,9 +180,20 @@ impl Pool {
             &Symbol::new(&env, "decimals"),
             vec![&env],
         );
-        let scale: i128 = 10i128.pow(decimals);
+        // A compromised/buggy oracle returning a huge `decimals` (or a price/amount
+        // combo that overflows) must yield a typed FxUnavailable, never a trap — this
+        // is a display quote and must fail gracefully. Note offramp_quote does NO
+        // state writes, so a bad oracle can only produce a wrong/absent quote, never
+        // affect custody, withdraw amounts, nullifiers, or the tree.
+        let scale = match 10i128.checked_pow(decimals) {
+            Some(s) => s,
+            None => soroban_sdk::panic_with_error!(&env, PoolError::FxUnavailable),
+        };
         // local = usdc * scale / price  (USD->local is the reciprocal of price/scale)
-        usdc_amount.checked_mul(scale).unwrap() / pd.price
+        match usdc_amount.checked_mul(scale) {
+            Some(num) => num / pd.price,
+            None => soroban_sdk::panic_with_error!(&env, PoolError::FxUnavailable),
+        }
     }
 
     /// Trustless root advance (G6). Anyone may advance the tree, but only with a
