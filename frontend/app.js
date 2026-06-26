@@ -22,11 +22,13 @@ const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
 // by Reflector's on-chain SEP-40 FX feed (testnet) — those corridors read their
 // rate from the Stellar ledger itself; the rest fall back to a public FX API.
 const CORRIDORS = [
-  { code: "MX", country: "Mexico",      recipient: "María · Mexico City", currency: "MXN", symbol: "$", rate: 17.1, oracle: "MXN" },
-  { code: "PH", country: "Philippines", recipient: "Andrea · Manila",     currency: "PHP", symbol: "₱", rate: 58.5 },
-  { code: "IN", country: "India",       recipient: "Rohan · Mumbai",      currency: "INR", symbol: "₹", rate: 83.4 },
-  { code: "NG", country: "Nigeria",     recipient: "Chidi · Lagos",       currency: "NGN", symbol: "₦", rate: 1570 },
-  { code: "CO", country: "Colombia",    recipient: "Camila · Bogotá",     currency: "COP", symbol: "$", rate: 3950 },
+  { code: "MX", country: "Mexico",      recipient: "María · Mexico City",  currency: "MXN", symbol: "$",  rate: 17.1, oracle: "MXN" },
+  { code: "BR", country: "Brazil",      recipient: "João · São Paulo",     currency: "BRL", symbol: "R$", rate: 5.2,  oracle: "BRL" },
+  { code: "AR", country: "Argentina",   recipient: "Sofía · Buenos Aires", currency: "ARS", symbol: "$",  rate: 1450, oracle: "ARS" },
+  { code: "PH", country: "Philippines", recipient: "Andrea · Manila",      currency: "PHP", symbol: "₱",  rate: 58.5 },
+  { code: "IN", country: "India",       recipient: "Rohan · Mumbai",       currency: "INR", symbol: "₹",  rate: 83.4 },
+  { code: "NG", country: "Nigeria",     recipient: "Chidi · Lagos",        currency: "NGN", symbol: "₦",  rate: 1570 },
+  { code: "CO", country: "Colombia",    recipient: "Camila · Bogotá",      currency: "COP", symbol: "$",  rate: 3950 },
 ];
 let fxLive = false; // true once live FX rates have been applied
 const corridorByCode = (code) => CORRIDORS.find((c) => c.code === code) || CORRIDORS[0];

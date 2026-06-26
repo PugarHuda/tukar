@@ -34,9 +34,10 @@ cross-border globe, then click **Launch the live demo**.
 fiat out."*, the **SENDER → CORRIDOR → RECEIVER → REGULATOR** flow strip, and four
 sequence-badged panels. The **01 · Sender** panel glows (the active-step ring).
 Amount = 500 USDC; pick a **destination corridor** (e.g. Mexico · MXN — or switch
-to Philippines/India/Nigeria/Colombia, the recipient + off-ramp currency update,
-with **live** USD→local FX). Click **Send into corridor →** (the button shows
-"Building compliance proof…").
+to Brazil/Argentina/Philippines/India/Nigeria/Colombia; the recipient + off-ramp
+currency update, with **live** USD→local FX — for Mexico/Brazil/Argentina that rate
+is read **on-chain from the Reflector oracle by the pool contract**). Click **Send
+into corridor →** (the button shows "Building compliance proof…").
 **Say:**
 > "A sender pays 500 real USDC into the corridor, bound for — say — Mexico. In the
 > browser, Tukar builds a compliance proof *and* an amount-binding proof, then

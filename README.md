@@ -48,15 +48,15 @@ compliance).
   live Stellar verifier**. **No install needed** — one click on **Use testnet key**
   activates a real built-in testnet key (or **connect Freighter** to sign with your
   own). On-chain actions are gated on that explicit connection — no silent signing.
-  Pick a **destination corridor** (Mexico/Philippines/India/Nigeria/Colombia) and
-  the off-ramp converts at a **live** USD→local exchange rate. For Mexico, the
-  receiver's revealed fiat figure is computed **on-chain by the pool contract
-  itself**, which cross-contract-reads
+  Pick a **destination corridor** (Mexico/Brazil/Argentina/Philippines/India/
+  Nigeria/Colombia) and the off-ramp converts at a **live** USD→local exchange rate.
+  For **Mexico, Brazil and Argentina**, the receiver's revealed fiat figure is
+  computed **on-chain by the pool contract itself**, which cross-contract-reads
   [Reflector](https://reflector.network) — Stellar's decentralized SEP-40 FX oracle
   (`pool.offramp_quote` → Reflector `lastprice`) — so the number comes from our
   Soroban contract reading a partner oracle on-chain, not a client-side hardcode
-  (other corridors fall back to a public FX API). It's a quote only — token release
-  never depends on the oracle being live.
+  (the other corridors fall back to a public FX API). It's a quote only — token
+  release never depends on the oracle being live.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
