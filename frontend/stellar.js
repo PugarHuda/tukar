@@ -15,12 +15,14 @@ const FIELD_R = 2188824287183927522224640574525727508854836440041603434369820418
 // Throwaway testnet demo key (non-admin). Used only to sign deposit txs so the
 // browser demo can write on-chain. Public on purpose; holds only free testnet XLM.
 const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
-const DEPOSIT_STROOPS = 100n; // tiny fixed token amount moved per deposit (testnet)
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
 export const POOL = "CAFPJLO72HG7AZSMVXG733VGJPIAJKXK4ICVBPSUYPCPUZ6AW3XPT25K";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
+// Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
+// We read USD->local rates from this live contract for the off-ramp figure.
+export const REFLECTOR_FX = "CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU5NV4W";
 const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // public key, used only to build a simulation tx
 
 const server = new Sdk.rpc.Server(RPC);
@@ -37,6 +39,42 @@ async function simulate(contractId, method, ...args) {
     return { ok: false, error: sim.error };
   }
   return { ok: true, value: Sdk.scValToNative(sim.result.retval) };
+}
+
+// Reflector's oracle decimals (queried once, cached). The FX feed reports prices
+// scaled by 10^decimals; we read it rather than hardcode so a feed change can't
+// silently 1000x the off-ramp number.
+let _fxDecimals = null;
+/**
+ * Read a live USD->local FX rate from the Reflector SEP-40 oracle (on-chain).
+ * `symbol` is the quote currency code (e.g. "MXN"); the oracle's base is USD.
+ * Reflector returns the USD price of 1 local unit, so the USD->local rate is
+ * its reciprocal. Returns { rate, timestamp } (local units per 1 USD), or null
+ * if the feed doesn't carry this currency / the read fails.
+ */
+export async function readReflectorFx(symbol) {
+  try {
+    if (_fxDecimals === null) {
+      const d = await simulate(REFLECTOR_FX, "decimals");
+      _fxDecimals = d.ok ? Number(d.value) : 14;
+    }
+    // Reflector's Asset is `enum { Stellar(Address), Other(Symbol) }`; the fiat
+    // feeds use the Other(Symbol) variant, encoded as a 2-element vec ScVal.
+    const asset = Sdk.xdr.ScVal.scvVec([
+      Sdk.xdr.ScVal.scvSymbol("Other"),
+      Sdk.xdr.ScVal.scvSymbol(symbol),
+    ]);
+    const res = await simulate(REFLECTOR_FX, "lastprice", asset);
+    if (!res.ok || !res.value || res.value.price === undefined) return null;
+    const price = BigInt(res.value.price); // USD value of 1 local unit, scaled 10^dec
+    if (price <= 0n) return null;
+    const scale = 10n ** BigInt(_fxDecimals);
+    const rate = Number(scale) / Number(price); // local units per 1 USD
+    if (!isFinite(rate) || rate <= 0) return null;
+    return { rate, timestamp: Number(res.value.timestamp) };
+  } catch (_) {
+    return null;
+  }
 }
 
 /** Read the pool's live custody balance + commitment count from chain. */
@@ -303,7 +341,6 @@ export async function registerRootOnChain(oldRootDec, newLeafDec, newRootDec, le
   }
 }
 
-export const WITHDRAW_STROOPS = DEPOSIT_STROOPS; // tokens released per withdraw
 export const DEMO_ADDRESS = Sdk.Keypair.fromSecret(DEMO_SECRET).publicKey();
 
 /**

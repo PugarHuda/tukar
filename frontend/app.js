@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -17,10 +17,12 @@ const R = 2188824287183927522224640574525727508854836440041603434369820418657580
 const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
 
 // Off-ramp corridors (Country B). `rate` is a sensible static fallback; it's
-// refreshed with LIVE USD->local FX on load (open.er-api.com, no API key) so the
-// figure revealed at the edge is a real exchange rate, not a hardcoded number.
+// refreshed with LIVE USD->local FX on load so the figure revealed at the edge is
+// a real exchange rate, not a hardcoded number. `oracle` names the symbol carried
+// by Reflector's on-chain SEP-40 FX feed (testnet) — those corridors read their
+// rate from the Stellar ledger itself; the rest fall back to a public FX API.
 const CORRIDORS = [
-  { code: "MX", country: "Mexico",      recipient: "María · Mexico City", currency: "MXN", symbol: "$", rate: 17.1 },
+  { code: "MX", country: "Mexico",      recipient: "María · Mexico City", currency: "MXN", symbol: "$", rate: 17.1, oracle: "MXN" },
   { code: "PH", country: "Philippines", recipient: "Andrea · Manila",     currency: "PHP", symbol: "₱", rate: 58.5 },
   { code: "IN", country: "India",       recipient: "Rohan · Mumbai",      currency: "INR", symbol: "₹", rate: 83.4 },
   { code: "NG", country: "Nigeria",     recipient: "Chidi · Lagos",       currency: "NGN", symbol: "₦", rate: 1570 },
@@ -153,23 +155,40 @@ function populateCorridors() {
 function updateCorridorUI() {
   const c = selectedCorridor();
   if ($("rcvChip")) $("rcvChip").textContent = c.code;
-  if ($("rcvRate")) $("rcvRate").textContent = `USDC → ${c.currency} at the edge · rate ${fmtRate(c.rate)}${fxLive ? " · live" : ""}`;
+  const src = c.source === "reflector" ? " · via Reflector oracle (on-chain)"
+            : c.source === "fx-api" ? " · live"
+            : "";
+  if ($("rcvRate")) $("rcvRate").textContent = `USDC → ${c.currency} at the edge · rate ${fmtRate(c.rate)}${src}`;
 }
-// Real USD->local FX (no API key, no mock). Falls back to the static rates above
-// if the network is unavailable, so the off-ramp figure is always sensible.
+// Real USD->local FX (no API key, no mock). Two sources, in order of preference:
+//  1) Reflector's on-chain SEP-40 oracle for the corridors its testnet feed carries
+//     (read straight from the Stellar ledger — see readReflectorFx in stellar.js);
+//  2) a public FX API for the rest. Either failing just keeps the static fallback,
+//     so the off-ramp figure is always sensible.
 async function loadFxRates() {
+  // 1) On-chain Reflector oracle (real Stellar read) for corridors it supports.
+  await Promise.all(CORRIDORS.filter((c) => c.oracle).map(async (c) => {
+    const fx = await readReflectorFx(c.oracle);
+    if (fx && fx.rate > 0) {
+      c.rate = fx.rate; c.source = "reflector"; fxLive = true;
+      console.log(`[tukar] FX ${c.currency} via Reflector oracle: ${fmtRate(fx.rate)} (on-chain)`);
+    }
+  }));
+  // 2) Public FX API fallback for everything Reflector didn't fill.
   try {
     const r = await fetch("https://open.er-api.com/v6/latest/USD");
     const j = await r.json();
     const rates = j && j.rates;
-    if (!rates) return;
-    let any = false;
-    for (const c of CORRIDORS) {
-      const v = rates[c.currency];
-      if (typeof v === "number" && v > 0) { c.rate = v; any = true; }
+    if (rates) {
+      for (const c of CORRIDORS) {
+        if (c.source === "reflector") continue;
+        const v = rates[c.currency];
+        if (typeof v === "number" && v > 0) { c.rate = v; c.source = "fx-api"; fxLive = true; }
+      }
     }
-    if (any) { fxLive = true; updateCorridorUI(); renderReceiver(); }
   } catch (_) { /* keep static fallbacks */ }
+  updateCorridorUI();
+  renderReceiver();
 }
 
 async function init() {

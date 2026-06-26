@@ -59,9 +59,10 @@ with **live** USD→local FX). Click **Send into corridor →** (the button show
 **Say:**
 > "On the receiving side the payment arrives still shielded. Only at the off-ramp
 > edge — where it converts to local fiat — is the amount revealed: 500 USDC
-> becomes about 8,560 pesos. Private through the middle, visible exactly where
-> compliance needs it." *(Optional: click **Withdraw on-chain →** to spend the
-> note's nullifier and release the tokens from the pool.)*
+> becomes about 8,560 pesos, at a rate read live from Reflector, Stellar's
+> on-chain FX oracle — not a hardcoded number. Private through the middle, visible
+> exactly where compliance needs it." *(Optional: click **Withdraw on-chain →** to
+> spend the note's nullifier and release the tokens from the pool.)*
 
 ## Scene 4 — Regulator: ZK disclosure, verified on-chain (1:40–2:15) ← the wedge
 **Screen:** the **04 · Regulator** panel. Pick `PAY-001` in the dropdown, audit

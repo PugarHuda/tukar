@@ -49,7 +49,10 @@ compliance).
   activates a real built-in testnet key (or **connect Freighter** to sign with your
   own). On-chain actions are gated on that explicit connection — no silent signing.
   Pick a **destination corridor** (Mexico/Philippines/India/Nigeria/Colombia) and
-  the off-ramp converts at a **live** USD→local exchange rate.
+  the off-ramp converts at a **live** USD→local exchange rate — for Mexico that
+  rate is read **on-chain from [Reflector](https://reflector.network), Stellar's
+  decentralized SEP-40 FX oracle** (the rest fall back to a public FX API), so the
+  fiat figure at the edge comes from the Stellar ledger itself, not a hardcode.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
