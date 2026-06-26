@@ -428,10 +428,11 @@
       { tag: "GROTH16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "VERIFIED ON-CHAIN", meta: "fake → reject", icon: "tree" }
     ],
     contracts: [
-      { tag: "SOROBAN", code: "CCYTAK…J6VS", name: "pool", type: "orchestration · nullifiers", status: "9/9 TESTS PASS", meta: "no double-spend", icon: "layers" },
-      { tag: "SOROBAN", code: "CB6M6IO…6Q3B", name: "transfer verifier", type: "shielded JoinSplit", status: "VERIFY → TRUE", meta: "BN254", icon: "chip" },
-      { tag: "SOROBAN", code: "CB67JH7…W3XO", name: "compliance verifier", type: "ASP allow / deny", status: "VERIFY → TRUE", meta: "tx ✓", icon: "shield" },
-      { tag: "SOROBAN", code: "CA2HHH…K47G2", name: "disclosure verifier", type: "selective disclosure", status: "VERIFY → TRUE", meta: "tamper → reject", icon: "eye" }
+      { tag: "SOROBAN", code: "CBI35CN…E3IVM", name: "pool", type: "orchestration · nullifiers", status: "20/20 TESTS PASS", meta: "no double-spend", icon: "layers" },
+      { tag: "SOROBAN", code: "CCRCRVF…I6K3N", name: "transfer verifier", type: "shielded JoinSplit", status: "VERIFY → TRUE", meta: "BN254", icon: "chip" },
+      { tag: "SOROBAN", code: "CAGBZGF…XIJQO", name: "compliance verifier", type: "ASP allow / deny", status: "VERIFY → TRUE", meta: "tx ✓", icon: "shield" },
+      { tag: "SOROBAN", code: "CACVDX2…AAOD3", name: "disclosure verifier", type: "selective disclosure", status: "VERIFY → TRUE", meta: "tamper → reject", icon: "eye" },
+      { tag: "SOROBAN", code: "CBQB4AJ…7EP5Z", name: "merkleUpdate verifier", type: "trustless root advance", status: "VERIFY → TRUE", meta: "fake → reject", icon: "tree" }
     ],
     flow: [
       { tag: "EDGE A", code: "fiat → USDC", name: "Deposit", type: "compliance proof bound", status: "ON-CHAIN", meta: "pinned ASP", icon: "in" },

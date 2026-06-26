@@ -245,6 +245,21 @@ fn transfer_unknown_root_rejected() {
     c.pool.transfer(&dummy_proof(&env), &b32(&env, 250), &b32(&env, 0), &b32(&env, 5), &nulls, &outs);
 }
 
+// A pure shielded transfer must move zero external value. A positive public_amount
+// with zero-value dummy inputs would otherwise MINT a backed commitment from nothing
+// (the circuit only enforces sumIn + publicAmount == sumOut, and dummy inputs skip
+// the Merkle check). The contract must reject any non-zero public_amount on transfer.
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")] // AmountNotBound
+fn transfer_rejects_nonzero_public_amount() {
+    let env = Env::default();
+    let c = setup(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    // root 0 is the known genesis; public_amount = 5 (non-zero) must be rejected.
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 0), &b32(&env, 5), &b32(&env, 5), &nulls, &outs);
+}
+
 #[test]
 fn disclose_requires_known_commitment() {
     let env = Env::default();

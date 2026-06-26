@@ -15,7 +15,7 @@
 //! **Custody.** `deposit` pulls `amount` tokens from the depositor into the pool;
 //! `withdraw` releases tokens to a recipient, where the released `amount` is
 //! bound to the proof's verified `public_amount`. Token = a SAC address (the
-//! demo uses the native XLM SAC as a USDC stand-in on testnet).
+//! demo uses the SAC of real testnet USDC — issuer `GC7SWGHR…` — not a stand-in).
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype,
@@ -271,6 +271,17 @@ impl Pool {
         nullifiers: Vec<BytesN<32>>,
         out_commitments: Vec<BytesN<32>>,
     ) {
+        // A pure shielded transfer moves NO external value: it must conserve value
+        // entirely inside the shielded set. The circuit only enforces
+        // `sumIn + publicAmount == sumOut`, and zero-amount inputs skip the Merkle
+        // membership check — so a positive `public_amount` with two zero-value dummy
+        // inputs would MINT a fully-backed output commitment out of nothing (which
+        // could then be registered into the tree and withdrawn for real tokens).
+        // Bind `public_amount` to zero here; any external value MUST go through
+        // `deposit` (tokens in, positive) or `withdraw` (tokens out, negative).
+        if public_amount != Self::amount_bytes(&env, 0) {
+            soroban_sdk::panic_with_error!(&env, PoolError::AmountNotBound);
+        }
         Self::require_known_root(&env, &root);
         let pi = Self::transfer_inputs(&env, &root, &public_amount, &ext_data_hash, &nullifiers, &out_commitments);
         Self::verify(&env, DataKey::TransferVerifier, &proof, &pi);
@@ -496,6 +507,12 @@ impl Pool {
                 soroban_sdk::panic_with_error!(env, PoolError::NullifierUsed);
             }
             env.storage().persistent().set(&key, &());
+            // Keep the spent marker alive as long as the roots/leaves it guards. On a
+            // long-lived accumulator the leaves and roots are continually TTL-extended,
+            // so a note stays provable indefinitely; if its nullifier were allowed to
+            // expire and be archived, `has(&key)` would read false and the same note
+            // could be spent again. Extend to match the root/leaf TTL.
+            env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
         }
     }
 

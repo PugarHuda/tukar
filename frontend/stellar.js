@@ -18,7 +18,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CAFPJLO72HG7AZSMVXG733VGJPIAJKXK4ICVBPSUYPCPUZ6AW3XPT25K";
+export const POOL = "CBI35CN74SVOUX2GST62GE64BMYTQJAFYMWK5OIDWTGFYGXU4GPE3IVM";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.
@@ -68,10 +68,17 @@ export async function readReflectorFx(symbol) {
     if (!res.ok || !res.value || res.value.price === undefined) return null;
     const price = BigInt(res.value.price); // USD value of 1 local unit, scaled 10^dec
     if (price <= 0n) return null;
+    // Staleness gate: don't present a frozen oracle price as a live rate. If the
+    // feed hasn't updated in over an hour, return null so the caller falls back to
+    // the HTTP FX API rather than mislabeling a stale number "live · on-chain".
+    const ts = Number(res.value.timestamp);
+    if (ts > 0 && Date.now() / 1000 - ts > 3600) return null;
     const scale = 10n ** BigInt(_fxDecimals);
     const rate = Number(scale) / Number(price); // local units per 1 USD
-    if (!isFinite(rate) || rate <= 0) return null;
-    return { rate, timestamp: Number(res.value.timestamp) };
+    // Plausibility bound: a dust/garbage price would make the reciprocal explode and
+    // 1000x the off-ramp figure. No real fiat trades above ~1e7 per USD; reject out-of-band.
+    if (!isFinite(rate) || rate <= 0 || rate > 1e7) return null;
+    return { rate, timestamp: ts };
   } catch (_) {
     return null;
   }
