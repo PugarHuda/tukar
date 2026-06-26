@@ -20,6 +20,22 @@ impl MockVerifier {
     }
 }
 
+// Stub Reflector SEP-40 oracle: USD-base feed reporting 1 unit = 0.05 USD scaled
+// 10^14 (price 5e12), so 1 USD = 20 local units. Lets us unit-test offramp_quote's
+// on-chain cross-contract read without the live network.
+#[contract]
+pub struct MockOracle;
+
+#[contractimpl]
+impl MockOracle {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        Some(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 })
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
 fn b32(env: &Env, k: u8) -> BytesN<32> {
     BytesN::from_array(env, &[k; 32])
 }
@@ -121,6 +137,7 @@ fn setup(env: &Env) -> Ctx {
     let admin = Address::generate(env);
     let user = Address::generate(env);
     let v = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
     let sac = env.register_stellar_asset_contract_v2(admin.clone());
     let token_addr = sac.address();
     StellarAssetClient::new(env, &token_addr).mint(&user, &1_000);
@@ -138,6 +155,7 @@ fn setup(env: &Env) -> Ctx {
             b32(env, 0),   // initial_root
             b32(env, 100), // asp_root
             deny,
+            oracle, // fx_oracle (Reflector stub)
         ),
     );
     Ctx {
@@ -145,6 +163,17 @@ fn setup(env: &Env) -> Ctx {
         token: TokenClient::new(env, &token_addr),
         user,
     }
+}
+
+// The pool computes the off-ramp figure ON-CHAIN by reading the Reflector oracle
+// (contract-to-contract). With the stub feed (1 USD = 20 local), 100 USDC -> 2000.
+#[test]
+fn offramp_quote_reads_oracle_on_chain() {
+    let env = Env::default();
+    let c = setup(&env);
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    assert_eq!(c.pool.offramp_quote(&sym, &100), 2000);
+    assert_eq!(c.pool.offramp_quote(&sym, &500), 10000);
 }
 
 #[test]

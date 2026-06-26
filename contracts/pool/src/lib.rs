@@ -57,6 +57,7 @@ pub enum PoolError {
     TreeFull = 8,
     LeafAlreadyInserted = 9,
     DuplicateCommitment = 10,
+    FxUnavailable = 11,
 }
 
 #[contracttype]
@@ -77,6 +78,23 @@ enum DataKey {
     Root(BytesN<32>),
     Nullifier(BytesN<32>),
     Commitment(BytesN<32>),
+    FxOracle,         // Reflector SEP-40 oracle address (USD-base FX feed)
+}
+
+// ---- Reflector SEP-40 oracle interface (the subset the pool calls) ----
+// Mirrors the partner contract's types so the pool can invoke it cross-contract.
+#[contracttype]
+#[derive(Clone)]
+pub enum Asset {
+    Stellar(Address),
+    Other(Symbol),
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct PriceData {
+    pub price: i128,
+    pub timestamp: u64,
 }
 
 #[contract]
@@ -95,6 +113,7 @@ impl Pool {
         initial_root: BytesN<32>,
         asp_root: BytesN<32>,
         deny_list: Vec<BytesN<32>>,
+        fx_oracle: Address,
     ) {
         if deny_list.len() != DENY_LEN {
             soroban_sdk::panic_with_error!(&env, PoolError::BadDenyList);
@@ -110,7 +129,57 @@ impl Pool {
         s.set(&DataKey::DenyList, &deny_list);
         s.set(&DataKey::CurrentRoot, &initial_root);
         s.set(&DataKey::Count, &0u32);
+        s.set(&DataKey::FxOracle, &fx_oracle);
         env.storage().persistent().set(&DataKey::Root(initial_root), &());
+    }
+
+    /// Admin-only: update the Reflector FX oracle address (e.g. if the partner
+    /// redeploys its testnet feed). Keeps the off-ramp quote pointed at a live feed
+    /// without redeploying the whole pool.
+    pub fn set_fx_oracle(env: Env, oracle: Address) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::FxOracle, &oracle);
+    }
+
+    /// The Reflector FX oracle this pool reads for off-ramp quotes.
+    pub fn fx_oracle(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::FxOracle).unwrap()
+    }
+
+    /// Off-ramp quote, computed ON-CHAIN by reading the Reflector SEP-40 oracle
+    /// (contract-to-contract composability). Given a `symbol` the oracle carries
+    /// (e.g. "MXN", base = USD) and a USDC amount (whole units), returns the local
+    /// fiat the receiver would get at the live on-chain FX rate. The oracle reports
+    /// the USD value of 1 local unit scaled by `decimals`, so:
+    ///   local = usdc * 10^decimals / price.
+    /// This is the figure the receiver panel reveals — derived by the pool reading
+    /// Reflector, not by a client-side hardcode. It does NOT gate token release
+    /// (`withdraw` settles in USDC and never depends on the oracle being live).
+    pub fn offramp_quote(env: Env, symbol: Symbol, usdc_amount: i128) -> i128 {
+        if usdc_amount < 0 {
+            soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
+        }
+        let oracle: Address = env.storage().instance().get(&DataKey::FxOracle).unwrap();
+        let asset = Asset::Other(symbol);
+        // Reflector: lastprice(asset) -> Option<PriceData>; decimals() -> u32.
+        let pd: Option<PriceData> = env.invoke_contract(
+            &oracle,
+            &Symbol::new(&env, "lastprice"),
+            vec![&env, asset.into_val(&env)],
+        );
+        let pd = match pd {
+            Some(p) if p.price > 0 => p,
+            _ => soroban_sdk::panic_with_error!(&env, PoolError::FxUnavailable),
+        };
+        let decimals: u32 = env.invoke_contract(
+            &oracle,
+            &Symbol::new(&env, "decimals"),
+            vec![&env],
+        );
+        let scale: i128 = 10i128.pow(decimals);
+        // local = usdc * scale / price  (USD->local is the reciprocal of price/scale)
+        usdc_amount.checked_mul(scale).unwrap() / pd.price
     }
 
     /// Trustless root advance (G6). Anyone may advance the tree, but only with a

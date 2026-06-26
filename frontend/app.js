@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -404,14 +404,20 @@ function renderReceiver() {
     const opened = offramped.has(n.id);
     const usdc = fmtUsdc(BigInt(n.amount));
     const cor = corridorByCode(n.corridor);
-    const local = Number(usdc) * cor.rate;
+    // Prefer the on-chain quote (pool read Reflector) when the reveal fetched one;
+    // otherwise fall back to the client rate.
+    const onchainQuote = typeof n.localQuote === "number";
+    const local = onchainQuote ? n.localQuote : Number(usdc) * cor.rate;
     const localStr = local.toLocaleString("en-US", { maximumFractionDigits: local >= 1000 ? 0 : 2 });
     const chipColor = opened ? "#37d67a" : "#ffb070";
     const chipLabel = opened ? "Off-ramped" : "Shielded";
 
     let body;
     if (opened) {
-      body = `<div class="mxn"><span class="amt">+ ${cor.symbol}${localStr} ${cor.currency}</span><span class="lbl">$${usdc} USDC revealed</span></div>`;
+      const lbl = onchainQuote
+        ? `$${usdc} USDC revealed · rate read on-chain by the pool from Reflector`
+        : `$${usdc} USDC revealed`;
+      body = `<div class="mxn"><span class="amt">+ ${cor.symbol}${localStr} ${cor.currency}</span><span class="lbl">${lbl}</span></div>`;
     } else {
       body = `<button class="btn-reveal" data-reveal="${n.id}">Reveal &amp; off-ramp →</button>`;
     }
@@ -814,7 +820,7 @@ document.addEventListener("click", (e) => {
       .catch(() => { cb.textContent = "Select & copy"; reset(); });
   } else { cb.textContent = "Select & copy"; reset(); }
 });
-$("incoming").addEventListener("click", (e) => {
+$("incoming").addEventListener("click", async (e) => {
   const off = e.target.closest("[data-reveal]");
   if (off) {
     const id = Number(off.dataset.reveal);
@@ -822,8 +828,23 @@ $("incoming").addEventListener("click", (e) => {
     renderReceiver();
     saveSession();
     const n = notes.find((x) => x.id === id);
-    const cur = n ? corridorByCode(n.corridor).currency : "local fiat";
+    const cor = n ? corridorByCode(n.corridor) : null;
+    const cur = cor ? cor.currency : "local fiat";
     status.textContent = `Off-ramp: amount revealed at the corridor edge to convert to ${cur}.`;
+    // For a Reflector-backed corridor, get the figure the way production would: ask
+    // the POOL CONTRACT, which reads Reflector on-chain and returns the local fiat.
+    if (n && cor && cor.oracle) {
+      try {
+        const usdc = Number(fmtUsdc(BigInt(n.amount)));
+        const q = await offrampQuote(cor.oracle, usdc);
+        if (q != null) {
+          n.localQuote = q;
+          renderReceiver();
+          saveSession();
+          console.log(`[tukar] off-ramp quote ${cor.currency} computed on-chain by the pool (reads Reflector): ${q}`);
+        }
+      } catch (_) { /* keep the client-rate figure */ }
+    }
     return;
   }
   const ex = e.target.closest("[data-export]");

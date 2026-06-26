@@ -18,7 +18,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CBI35CN74SVOUX2GST62GE64BMYTQJAFYMWK5OIDWTGFYGXU4GPE3IVM";
+export const POOL = "CD3752QCSKR3KU4NIDTBEOBUGI2B7XXP6X74DH7TGRAECYVVLL3RX4A7";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.
@@ -82,6 +82,25 @@ export async function readReflectorFx(symbol) {
   } catch (_) {
     return null;
   }
+}
+
+/**
+ * Off-ramp quote computed ON-CHAIN by the pool: it cross-contract-reads the
+ * Reflector oracle and returns the local fiat for `usdcAmount` (whole USDC) at the
+ * live rate. This is contract-to-contract composability — the receiver's revealed
+ * figure is derived by our Soroban contract reading Reflector, not a client math.
+ * Returns the local amount (Number) or null if the feed doesn't carry the symbol.
+ */
+export async function offrampQuote(symbol, usdcAmount) {
+  const res = await simulate(
+    POOL,
+    "offramp_quote",
+    Sdk.xdr.ScVal.scvSymbol(symbol),
+    Sdk.nativeToScVal(BigInt(Math.max(0, Math.round(usdcAmount))), { type: "i128" }),
+  );
+  if (!res.ok || res.value == null) return null;
+  const n = Number(res.value);
+  return isFinite(n) && n >= 0 ? n : null;
 }
 
 /** Read the pool's live custody balance + commitment count from chain. */

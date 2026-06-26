@@ -33,7 +33,7 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CBI35CN74SVOUX2GST62GE64BMYTQJAFYMWK5OIDWTGFYGXU4GPE3IVM) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CD3752QCSKR3KU4NIDTBEOBUGI2B7XXP6X74DH7TGRAECYVVLL3RX4A7) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
@@ -49,10 +49,14 @@ compliance).
   activates a real built-in testnet key (or **connect Freighter** to sign with your
   own). On-chain actions are gated on that explicit connection — no silent signing.
   Pick a **destination corridor** (Mexico/Philippines/India/Nigeria/Colombia) and
-  the off-ramp converts at a **live** USD→local exchange rate — for Mexico that
-  rate is read **on-chain from [Reflector](https://reflector.network), Stellar's
-  decentralized SEP-40 FX oracle** (the rest fall back to a public FX API), so the
-  fiat figure at the edge comes from the Stellar ledger itself, not a hardcode.
+  the off-ramp converts at a **live** USD→local exchange rate. For Mexico, the
+  receiver's revealed fiat figure is computed **on-chain by the pool contract
+  itself**, which cross-contract-reads
+  [Reflector](https://reflector.network) — Stellar's decentralized SEP-40 FX oracle
+  (`pool.offramp_quote` → Reflector `lastprice`) — so the number comes from our
+  Soroban contract reading a partner oracle on-chain, not a client-side hardcode
+  (other corridors fall back to a public FX API). It's a quote only — token release
+  never depends on the oracle being live.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
@@ -161,7 +165,7 @@ This started as a demo and was hardened, increment by increment, into a
   remaining caveat is that the *shared demo key's* secret is public — so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**20/20 pool unit tests** + a 16-point [threat model](docs/SECURITY.md). Full live
+**21/21 pool unit tests** + a 16-point [threat model](docs/SECURITY.md). Full live
 verification (deposit → register → withdraw → disclosure → tamper-rejected) runs in
 headless Chrome on every change (`scripts/browser-test.mjs`).
 
@@ -229,7 +233,7 @@ npm run serve                       # -> http://localhost:8000
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
-- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 20/20)
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 21/21)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`
