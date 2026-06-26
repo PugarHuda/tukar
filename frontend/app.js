@@ -242,6 +242,16 @@ async function registerNote(note) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const syncedDep = await syncedLeaves();
     if (syncedDep) leaves = syncedDep;
+    // Already in the on-chain tree? (a prior submit landed but its tx response was
+    // lost, then we retried) — don't re-insert: that hits LeafAlreadyInserted (#9)
+    // and would strand a note that's actually spendable. Adopt the on-chain index.
+    const already = leaves.findIndex((l) => l === commitment);
+    if (already >= 0) {
+      note.leafIndex = already;
+      note.root = tree.root(leaves).toString();
+      reg = { ok: true };
+      break;
+    }
     const index = leaves.length;
     note.leafIndex = index;
     const oldRoot = tree.root(leaves);
@@ -250,7 +260,10 @@ async function registerNote(note) {
     const newRoot = tree.root(newLeaves);
     reg = await registerRootOnChain(oldRoot.toString(), note.commitment, newRoot.toString(), index, path);
     if (reg.ok) { leaves = newLeaves; note.root = newRoot.toString(); break; }
-    if (attempt < 3 && /UnknownRoot|Error\(Contract, #1\)/.test(reg.error || "")) {
+    // Another deposit advanced the tree between our sync and submit -> stale
+    // old_root (UnknownRoot, code 1). Re-sync and retry — self-heals concurrent
+    // multi-user deposits. (Branch on the numeric code, not the friendly string.)
+    if (attempt < 3 && reg.code === 1) {
       status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree advanced by another deposit, re-syncing… (try ${attempt + 1})`;
       continue;
     }
@@ -767,10 +780,17 @@ async function onWalletClick() {
     walletConn = { address };
     $("walletTag").innerHTML = `<b>${shortAddr(address)}</b>`;
     $("walletBtn").textContent = "Disconnect";
-    await setupTestnetFunds(address, signTransaction, (m) => {
-      status.innerHTML = `<span class="spin">◠</span> Wallet setup — ${m}`;
-    });
-    status.textContent = `Wallet connected (${shortAddr(address)}) — deposits will be signed by Freighter.`;
+    // Funding (friendbot XLM + USDC trustline + faucet) is best-effort: the wallet
+    // is already connected and usable, so a transient faucet/friendbot failure must
+    // NOT tear down a valid connection — keep it and just flag the funding step.
+    try {
+      await setupTestnetFunds(address, signTransaction, (m) => {
+        status.innerHTML = `<span class="spin">◠</span> Wallet setup — ${m}`;
+      });
+      status.textContent = `Wallet connected (${shortAddr(address)}) — deposits will be signed by Freighter.`;
+    } catch (fundErr) {
+      status.textContent = `Wallet connected (${shortAddr(address)}) — testnet funding step failed (${(fundErr && fundErr.message) || fundErr}); you may need XLM + a USDC trustline before depositing.`;
+    }
   } catch (e) {
     walletDisconnect();
     walletConn = null;

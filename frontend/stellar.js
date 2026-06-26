@@ -299,7 +299,7 @@ export async function registerRootOnChain(oldRootDec, newLeafDec, newRootDec, le
     const res = await at.signAndSend();
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
   } catch (e) {
-    return { ok: false, error: friendlyPoolError(e) };
+    return { ok: false, error: friendlyPoolError(e), code: poolErrorCode(e) };
   }
 }
 
@@ -357,6 +357,12 @@ function friendlyPoolError(e) {
   const m = msg.match(/Error\(Contract,\s*#(\d+)\)/);
   if (m && POOL_ERRORS[Number(m[1])]) return POOL_ERRORS[Number(m[1])];
   return msg;
+}
+// The numeric PoolError code (or null). Callers branch on this instead of
+// pattern-matching the friendly string (which no longer contains "#N").
+function poolErrorCode(e) {
+  const m = ((e && e.message) || String(e)).match(/Error\(Contract,\s*#(\d+)\)/);
+  return m ? Number(m[1]) : null;
 }
 
 export async function withdrawSubmit(proof, publicSignals, recipientPub, releaseAmount) {
