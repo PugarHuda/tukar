@@ -378,6 +378,38 @@ fn withdraw_oracle_gate_fails_closed_on_dead_feed() {
     );
 }
 
+// CRITICAL regression (audit round 7): the Groth16 verifier sees only a FLAT public-
+// input vector, so the contract must pin how many entries are nullifiers vs.
+// commitments. A 2-in/2-out proof's vector [root,pa,edh, n0,n1, o0,o1] is byte-identical
+// whether split (2 nullifiers, 2 commitments) or (1 nullifier, 3 commitments) — so the
+// SAME proof verifies, but `spend_nullifiers` would then burn only n0, leaving n1
+// unspent and double-spendable. Pinning the counts rejects the malformed split.
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")] // BadIoCount
+fn transfer_rejects_shifted_io_split() {
+    let env = Env::default();
+    let c = setup(&env);
+    // attacker shifts a nullifier (n1=b32(11)) into the commitments segment: 1 + 3
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 11), b32(&env, 20), b32(&env, 21)];
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 0), &b32(&env, 0), &b32(&env, 5), &nulls, &outs);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")] // BadIoCount
+fn withdraw_rejects_shifted_io_split() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 11), b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
+
 #[test]
 fn transfer_spends_nullifiers_and_records_outputs() {
     let env = Env::default();

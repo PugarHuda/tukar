@@ -33,7 +33,7 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CB57S6X6C3EEIBYVBGUNPHJLHDAIKIFS2MAX5WPMMAPZJ35FB3KI5GZY) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CDSRAC2DQN6RNV4O6TOLUXDTPIRST6OJQ64RSJNERQPHYPHUNV6DP6R4) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
@@ -93,8 +93,9 @@ layer that turns "private payments" into *compliant* private payments. See
 
 ## What's real (not mocked)
 
-This started as a demo and was hardened, increment by increment, into a
-**production-grade testnet** system. What that means concretely:
+This started as a demo and was hardened, increment by increment, through many
+adversarial self-audit rounds into a **security-hardened testnet** system (not
+professionally audited — see the caveats below). What that means concretely:
 
 - **Real USDC, real custody.** The pool custodies a **real testnet USDC asset**
   (SAC [`CAT6F6HX…FVA2`](https://stellar.expert/explorer/testnet/contract/CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2),
@@ -175,9 +176,12 @@ This started as a demo and was hardened, increment by increment, into a
   remaining caveat is that the *shared demo key's* secret is public — so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**28/28 pool unit tests** + a 16-point [threat model](docs/SECURITY.md). Full live
-verification (deposit → register → withdraw → disclosure → tamper-rejected) runs in
-headless Chrome on every change (`scripts/browser-test.mjs`).
+**30/30 pool unit tests** + a 17-point [threat model](docs/SECURITY.md). CI runs the
+pool tests, the in-browser proving flow, and the circuit-soundness suite on every push
+(`.github/workflows/ci.yml`). The full live on-chain flow (deposit → register →
+withdraw → disclosure → tamper-rejected) is run **locally before each deploy** with
+`scripts/browser-test.mjs` / `npm run test:e2e` — it needs a funded testnet key + a
+deployed pool, so it's a manual gate, not CI-automated.
 
 ---
 
@@ -243,7 +247,7 @@ npm run serve                       # -> http://localhost:8000
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
-- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 28/28)
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 30/30)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

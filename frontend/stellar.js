@@ -3,7 +3,9 @@
 //  * deposit() is a real signed write. It uses a THROWAWAY testnet demo key
 //    (non-admin, holds only free testnet XLM) embedded below so anyone can try
 //    the demo without a wallet. Never reuse this pattern for real funds.
-const mod = await import("https://esm.sh/@stellar/stellar-sdk@14");
+// Pinned to an exact version (not a floating @14) so esm.sh can't silently serve a
+// different minor at load time — matches the exact-pinning of the other CDN deps.
+const mod = await import("https://esm.sh/@stellar/stellar-sdk@14.6.1");
 const Sdk = mod.default ?? mod;
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import sha3 from "https://esm.sh/js-sha3@0.9.3";
@@ -18,7 +20,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CB57S6X6C3EEIBYVBGUNPHJLHDAIKIFS2MAX5WPMMAPZJ35FB3KI5GZY";
+export const POOL = "CDSRAC2DQN6RNV4O6TOLUXDTPIRST6OJQ64RSJNERQPHYPHUNV6DP6R4";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.

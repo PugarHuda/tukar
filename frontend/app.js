@@ -620,6 +620,7 @@ async function exportNote(note) {
   const payload = {
     v: 1, ref: note.ref, amount: note.amount, privKey: note.privKey,
     pubKey: note.pubKey, blinding: note.blinding, commitment: note.commitment,
+    corridor: note.corridor, // carry the corridor so the receiver off-ramps to the right currency
   };
   const str = "tukar1:" + btoa(JSON.stringify(payload));
   const box = $("exportBox");
@@ -713,6 +714,9 @@ function importNote() {
       id: seq, ref: safeRef,
       recipient: "you", amount: json.amount, privKey: json.privKey, pubKey: json.pubKey,
       blinding: json.blinding, commitment: json.commitment, leafIndex: 0,
+      // preserve the sender's corridor so the off-ramp + min-receive gate use the right
+      // currency; corridorByCode falls back to the first corridor for a missing/unknown code.
+      corridor: corridorByCode(json.corridor).code,
       ts: new Date().toLocaleTimeString(), status: "received", spendable: true,
       imported: true, onchain: "ok",
     };

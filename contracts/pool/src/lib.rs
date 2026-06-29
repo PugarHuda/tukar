@@ -59,7 +59,17 @@ pub enum PoolError {
     DuplicateCommitment = 10,
     FxUnavailable = 11,
     SlippageExceeded = 12,
+    BadIoCount = 13,
 }
+
+// The transfer/withdraw JoinSplit is fixed at 2 inputs and 2 outputs (Transfer(10,2,2)).
+// The Groth16 verifier only sees a FLAT public-input vector, so the contract MUST pin
+// how many of those are nullifiers vs. commitments — otherwise a caller could shift the
+// boundary (e.g. 1 nullifier + 3 commitments instead of 2+2): the flat vector is
+// identical so the same proof verifies, but only 1 nullifier gets spent and the second
+// input note stays unspent -> double-spendable. Pinning the counts closes that.
+const TRANSFER_NINS: u32 = 2;
+const TRANSFER_NOUTS: u32 = 2;
 
 // USDC SAC has 7 decimals, so 1 whole USDC = 10^7 stroops. The off-ramp quote works
 // in whole-USDC units (what the receiver sees), so the withdraw gate converts the
@@ -602,6 +612,13 @@ impl Pool {
         nullifiers: &Vec<BytesN<32>>,
         out_commitments: &Vec<BytesN<32>>,
     ) -> Vec<Bn254Fr> {
+        // Pin the input/output counts: the verifier sees only the flat vector, so an
+        // unpinned split (e.g. 1 nullifier + 3 commitments) would verify the same proof
+        // while spending one fewer nullifier -> double-spend. Both callers route through
+        // here, so one guard covers transfer AND withdraw.
+        if nullifiers.len() != TRANSFER_NINS || out_commitments.len() != TRANSFER_NOUTS {
+            soroban_sdk::panic_with_error!(env, PoolError::BadIoCount);
+        }
         let mut pi = vec![
             env,
             Self::fr(env, root),

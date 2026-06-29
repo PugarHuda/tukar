@@ -2,6 +2,7 @@
 // Confirms: (1) valid inputs prove, (2) inputs that violate a core constraint
 // CANNOT produce a proof (witness generation fails).
 import * as snarkjs from "snarkjs";
+import { existsSync } from "node:fs";
 import { makePoseidon, buildTree } from "./merkle.mjs";
 
 const { h1, h2, h3 } = await makePoseidon();
@@ -68,8 +69,14 @@ function complianceInput() {
   };
 }
 
-const TW = "circuits/build/transfer_js/transfer.wasm", TZ = "circuits/build/transfer_final.zkey";
-const CW = "circuits/build/compliance_js/compliance.wasm", CZ = "circuits/build/compliance_final.zkey";
+// Prefer freshly-built artifacts when present (local dev), else fall back to the
+// committed frontend/circuit/* — so this soundness suite also runs in CI, which only
+// has the committed artifacts (circuits/build/ is gitignored).
+const pick = (build, committed) => (existsSync(build) ? build : committed);
+const TW = pick("circuits/build/transfer_js/transfer.wasm", "frontend/circuit/transfer.wasm");
+const TZ = pick("circuits/build/transfer_final.zkey", "frontend/circuit/transfer_final.zkey");
+const CW = pick("circuits/build/compliance_js/compliance.wasm", "frontend/circuit/compliance.wasm");
+const CZ = pick("circuits/build/compliance_final.zkey", "frontend/circuit/compliance_final.zkey");
 
 console.log("transfer:");
 await expectProve("valid", TW, TZ, transferInput());

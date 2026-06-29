@@ -31,3 +31,7 @@ jobs:
       # Uses the committed disclosure circuit artifacts (frontend/circuit/*) —
       # no circom needed. Validates valid / tampered / false-witness behaviour.
       - run: node scripts/test-fullprove.mjs
+      # Circuit-soundness suite (transfer + compliance): bad witnesses must be
+      # rejected. Falls back to the committed frontend/circuit/* artifacts, so it
+      # runs here without a fresh circom build.
+      - run: node scripts/test-negative.mjs
