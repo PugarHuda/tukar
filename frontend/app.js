@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -231,6 +231,42 @@ async function loadPoolState() {
     const { commitments } = await readPoolState();
     $("poolCount").textContent = commitments;
   } catch (_) { /* network — leave as-is */ }
+  loadActivity();
+}
+
+// Live activity feed sourced from on-chain events (RPC getEvents) — the indexing
+// tier. Shows the corridor's public footprint (deposits, shielded transfers, tree
+// advances, withdrawals) read back from chain; amounts/links stay shielded. Best-
+// effort: empty if the RPC has aged the events out (testnet retains ~recent ledgers).
+const ACT = {
+  deposit: { label: "Deposit into corridor", color: "#ff9445" },
+  transfer: { label: "Shielded transfer", color: "#ffb070" },
+  root: { label: "Tree advanced (merkle proof)", color: "#8ab4ff" },
+  withdraw: { label: "Off-ramp withdrawal", color: "#37d67a" },
+};
+async function loadActivity() {
+  const el = $("activityFeed");
+  if (!el) return;
+  try {
+    const events = await readRecentActivity(8);
+    if (!events.length) {
+      el.innerHTML = `<div class="empty"><div class="s">No recent on-chain events — testnet RPC retains only recent ledgers (the spendable tree is read from durable state, not events).</div></div>`;
+      return;
+    }
+    el.innerHTML = events.map((e) => {
+      const a = ACT[e.kind] || { label: e.kind, color: "#8a847e" };
+      const link = e.txHash
+        ? `<a class="hash" style="text-decoration:none;" href="${txExplorer(e.txHash)}" target="_blank" rel="noreferrer">${String(e.txHash).slice(0, 8)}… ↗</a>`
+        : `<span class="hash">ledger ${e.ledger}</span>`;
+      return `<div class="crow">
+        <div class="top">
+          ${link}
+          <span class="st" style="color:${a.color};"><i style="background:${a.color};"></i>${a.label}</span>
+        </div>
+        <div class="meta"><span>ledger ${e.ledger}</span></div>
+      </div>`;
+    }).join("");
+  } catch (_) { /* best-effort feed */ }
 }
 
 const CHIP = {

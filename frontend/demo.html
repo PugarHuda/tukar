@@ -144,6 +144,11 @@
         <div id="ledger" class="list">
           <div class="empty"><div class="t">No confidential payments yet.</div><div class="s"><i></i> Reading live pool state from Stellar…</div></div>
         </div>
+
+        <div class="list-label" style="margin-top:16px;">LIVE ACTIVITY <span style="opacity:.55;font-weight:400;">· on-chain events via RPC <code style="opacity:.8;">getEvents</code></span></div>
+        <div id="activityFeed" class="list">
+          <div class="empty"><div class="s"><i></i> Reading pool events from Stellar RPC…</div></div>
+        </div>
         <span id="poolState" style="display:none;"></span>
       </div>
 
@@ -234,6 +239,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=47"></script>
+  <script type="module" src="./app.js?v=48"></script>
 </body>
 </html>

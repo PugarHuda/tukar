@@ -115,6 +115,42 @@ export async function readPoolState() {
   };
 }
 
+/**
+ * Recent corridor activity from on-chain events via RPC getEvents — the indexing
+ * tier. The pool emits deposit/withdraw/transfer/root events; this reads them back so
+ * the console can show a live feed sourced from chain, not local state. Privacy holds:
+ * deposit/withdraw are the public on/off-ramp edges (real USDC moves to/from a public
+ * address there); the SHIELDED middle leg is unlinkable, and an event feed never
+ * reveals which deposit a withdrawal came from. NOTE: testnet public RPC ages events
+ * out (~latest-10k ledgers), so this is a RECENT view, not a source of truth — the
+ * spendable tree is reconstructed from DURABLE state (loadLeavesFromChain), which has
+ * no retention dependency. Returns [] on any error (feed is best-effort).
+ */
+export async function readRecentActivity(maxEvents = 10) {
+  try {
+    const latest = await server.getLatestLedger();
+    const startLedger = Math.max(1, latest.sequence - 9000); // ~half a day at ~5s/ledger
+    const res = await server.getEvents({
+      startLedger,
+      filters: [{ type: "contract", contractIds: [POOL] }],
+      limit: 100,
+    });
+    const toNative = (x) => {
+      try {
+        const sc = typeof x === "string" ? Sdk.xdr.ScVal.fromXDR(x, "base64") : x;
+        return Sdk.scValToNative(sc);
+      } catch (_) { return null; }
+    };
+    return (res.events || []).map((ev) => ({
+      kind: String((ev.topic && ev.topic[0] != null ? toNative(ev.topic[0]) : "?")), // deposit|withdraw|transfer|root
+      ledger: ev.ledger,
+      txHash: ev.txHash,
+    })).slice(-maxEvents).reverse(); // newest first
+  } catch (_) {
+    return [];
+  }
+}
+
 const bytesToBig = (u8) => { let x = 0n; for (const b of u8) x = (x << 8n) | BigInt(b); return x; };
 
 /** The pool's current Merkle root, as a BigInt (or null on error). */
