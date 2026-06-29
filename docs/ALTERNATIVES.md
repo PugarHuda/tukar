@@ -11,7 +11,7 @@ alternative**, whether it's been **built and live-verified**, and the honest cei
 |---|---|---|
 | Launchtube paymaster (gasless) | **Fee-bump transactions (CAP-15)** | ✅ Built + live-verified on testnet |
 | Mercury durable indexing | **Durable-contract-state reconstruction** | ✅ Already implemented (better for the accumulator) |
-| Passkey smart-wallet | **`secp256r1_verify` host fn** / ephemeral per-visitor key | ◑ Buildable; full UX needs a human authenticator |
+| Passkey smart-wallet | **`secp256r1_verify` host fn** (on-chain half) | ◑ On-chain primitive buildable; full UX needs a human authenticator |
 | SEP-24 anchor (fiat ramp) | **SEP-10 web-auth** against the public testanchor | ◑ Handshake buildable; SEP-24 ramp needs a partner |
 
 ---
@@ -59,15 +59,26 @@ would be closed by a passkey-controlled smart wallet. Two native angles:
   **unit-testable in Rust with a known P-256 keypair** — no authenticator needed to
   prove the on-chain half works (the same way on-chain Poseidon was proven by unit
   test without putting it on the hot path).
-- **Closing the caveat today without WebAuthn:** generate an **ephemeral keypair per
-  visitor** in the browser and friendbot-fund it (the `wallet.js` testnet-setup flow
-  already does friendbot + USDC trustline + faucet), instead of one shared key. Fully
-  native and verifiable; the trade-off is added page-load latency from per-visitor
-  funding, so it's left as a deliberate UX choice rather than forced on the demo.
-
-The browser WebAuthn UX itself (registration/assertion) genuinely needs a human
-authenticator and can't run in headless CI — same limitation already documented for
-Freighter.
+- **Why an ephemeral per-visitor key does NOT work here (corrected):** an earlier
+  draft suggested generating a fresh keypair per visitor to drop the shared key. That
+  is wrong, and it's worth stating plainly. Tukar enforces **key-on-from compliance**:
+  `deposit` does `from.require_auth()` and pins `sourceKey = field(from) =
+  keccak256(from XDR) mod r` as a compliance public input that the proof must show is a
+  member of the ASP allow-list (`aspRoot`). The allow-list holds exactly one real
+  account — the demo key (`field(demoKey)` at index 0; the other 15 leaves are inert
+  `h1(2000+i)` padding, not anyone's `field`). `aspRoot` is set once in the constructor
+  and has **no runtime add-member entrypoint**. So a fresh ephemeral account's `field`
+  is not in the list, no membership proof exists for it, and the deposit is rejected —
+  client-side (`stellar.js`: "this account is not an approved ASP source") and on-chain.
+  The shared-demo-key caveat is therefore **structurally tied to the compliant-deposit
+  model**, not a lazy default: the demo must use *an approved account*, and the one
+  approved account's key is shared so the no-install demo can deposit.
+- **The only real way to close it** is a passkey **smart wallet whose CONTRACT ADDRESS
+  is the approved ASP member** — then the passkey (not a shared secret) authorizes the
+  one allowed depositor. That needs the browser WebAuthn UX, which genuinely requires a
+  human authenticator and can't run in headless CI (same limit as Freighter). The
+  on-chain half (`secp256r1_verify`) is buildable/unit-testable now, but it does not by
+  itself close the caveat without the wallet + WebAuthn wiring.
 
 ## 4. SEP-24 anchor → SEP-10 web-auth — handshake buildable, ramp needs a partner
 
