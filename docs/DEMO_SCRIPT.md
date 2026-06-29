@@ -56,7 +56,8 @@ into corridor →** (the button shows "Building compliance proof…").
 
 ## Scene 3 — Country B · Receiver + off-ramp (1:15–1:40)
 **Screen:** the active ring moves to **03 · Receiver**; `PAY-001 · from US` arrives
-**Shielded**. Click **Reveal & off-ramp →** → it shows green **"+ $8,560 MXN"**.
+**Shielded**. Click **Reveal & off-ramp →** → it shows green **"≈ +$8,5xx MXN"**
+(the exact figure is live — the pool reads Reflector on-chain).
 **Say:**
 > "On the receiving side the payment arrives still shielded. Only at the off-ramp
 > edge — where it converts to local fiat — is the amount revealed: 500 USDC

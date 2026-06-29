@@ -538,6 +538,13 @@ async function withdrawNote(note) {
     if (res.ok) {
       note.withdrawn = res.hash || "ok";
       status.textContent = `${note.ref} withdrawn on-chain ✓ — the note was spent and tokens released from the pool.`;
+    } else if (res.code === 2) {
+      // NullifierUsed: this note's nullifier is already on-chain. Either a prior
+      // withdraw whose response we lost, or a genuine double-spend attempt — both
+      // mean the funds are settled and there's nothing left to release. Mark it
+      // spent rather than showing a scary failure for the lost-response case.
+      note.withdrawn = "spent";
+      status.textContent = `${note.ref} — already spent (nullifier on-chain). Tokens were released; nothing left to withdraw.`;
     } else {
       status.textContent = "Withdraw failed: " + res.error;
     }
