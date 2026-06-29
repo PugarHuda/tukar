@@ -12,11 +12,13 @@
     "circuit:all": "bash scripts/build-all-circuits.sh",
     "test:proving": "node scripts/test-fullprove.mjs",
     "test:negative": "node scripts/test-negative.mjs",
+    "test:e2e": "node scripts/e2e-playwright.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
     "circomlib": "^2.0.5",
     "circomlibjs": "^0.1.7",
+    "playwright-core": "^1.61.1",
     "puppeteer-core": "^25.1.0",
     "snarkjs": "^0.7.5"
   }
