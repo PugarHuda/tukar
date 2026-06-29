@@ -446,7 +446,7 @@ export async function withdrawSubmit(proof, publicSignals, recipientPub, release
     const res = await at.signAndSend();
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
   } catch (e) {
-    return { ok: false, error: friendlyPoolError(e) };
+    return { ok: false, error: friendlyPoolError(e), code: poolErrorCode(e) };
   }
 }
 

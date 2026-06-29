@@ -484,47 +484,56 @@ async function withdrawNote(note) {
     const o1Priv = randomFieldElement(), o1Blind = randomFieldElement();
     const o1Pub = F.toObject(poseidon([o1Priv]));
     const o1Commit = F.toObject(poseidon([0n, o1Pub, o1Blind]));
-    // Re-sync the tree from chain, then locate this note's REAL on-chain index by
-    // its commitment (don't trust a possibly-stale local leafIndex). The nullifier
-    // and the Merkle path must both use the actual index, or the proof won't verify.
-    const syncedWd = await syncedLeaves();
-    if (syncedWd) leaves = syncedWd;
-    const realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
-    if (realIndex < 0) {
-      note.withdrawing = false;
-      status.textContent = `${note.ref} isn't registered in the on-chain tree yet — can't withdraw.`;
-      renderReceiver();
-      return;
-    }
-    note.leafIndex = realIndex;
-    const n0 = F.toObject(poseidon([BigInt(note.commitment), BigInt(realIndex), BigInt(note.privKey)]));
-    const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
-    const root = tree.root(leaves);
-    const path = tree.pathElements(leaves, realIndex).map((x) => x.toString());
-    // Withdraw moves value OUT of the shielded set, so publicAmount is negative
-    // (field-encoded as r - W). sum(in)+publicAmount=sum(out) -> outputs sum to V - W.
-    // Bind the recipient into the proof via extDataHash (the contract recomputes it).
+    // Re-sync the tree from chain, build the proof against the current root, submit.
+    // Retry on UnknownRoot (#1): syncedLeaves() reads leaves() and current_root in
+    // two RPC calls, so lag can momentarily reconstruct a stale root the contract no
+    // longer recognizes — re-sync and retry, exactly as registerNote does. Locate the
+    // note's REAL on-chain index by commitment (not a stale local leafIndex), or the
+    // nullifier and Merkle path won't match.
     const recipient = activeAddress();
     const pubAmount = ((R - W) % R).toString();
     const extDataHash = extDataHashFor(recipient, pubAmount);
-    const input = {
-      root: root.toString(), publicAmount: pubAmount, extDataHash,
-      inputNullifier: [n0.toString(), n1.toString()],
-      outputCommitment: [o0Commit.toString(), o1Commit.toString()],
-      inAmount: [note.amount, "0"],
-      inPrivKey: [note.privKey, dPriv.toString()],
-      inBlinding: [note.blinding, dBlind.toString()],
-      inLeafIndex: [String(realIndex), "0"],
-      inPathElements: [path, new Array(10).fill("0")],
-      outAmount: [o0Amt.toString(), "0"],
-      outPubkey: [o0Pub.toString(), o1Pub.toString()],
-      outBlinding: [o0Blind.toString(), o1Blind.toString()],
-    };
-    // ?v bumped when the transfer circuit changes (input range checks added) so a
-    // returning visitor never proves with a stale circuit the new verifier rejects.
-    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm?v=2", "./circuit/transfer_final.zkey?v=2");
-    status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
-    const res = await withdrawSubmit(proof, publicSignals, recipient, W);
+    let res;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const syncedWd = await syncedLeaves();
+      if (syncedWd) leaves = syncedWd;
+      const realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
+      if (realIndex < 0) {
+        note.withdrawing = false;
+        status.textContent = `${note.ref} isn't registered in the on-chain tree yet — can't withdraw.`;
+        renderReceiver();
+        return;
+      }
+      note.leafIndex = realIndex;
+      const n0 = F.toObject(poseidon([BigInt(note.commitment), BigInt(realIndex), BigInt(note.privKey)]));
+      const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
+      const root = tree.root(leaves);
+      const path = tree.pathElements(leaves, realIndex).map((x) => x.toString());
+      const input = {
+        root: root.toString(), publicAmount: pubAmount, extDataHash,
+        inputNullifier: [n0.toString(), n1.toString()],
+        outputCommitment: [o0Commit.toString(), o1Commit.toString()],
+        inAmount: [note.amount, "0"],
+        inPrivKey: [note.privKey, dPriv.toString()],
+        inBlinding: [note.blinding, dBlind.toString()],
+        inLeafIndex: [String(realIndex), "0"],
+        inPathElements: [path, new Array(10).fill("0")],
+        outAmount: [o0Amt.toString(), "0"],
+        outPubkey: [o0Pub.toString(), o1Pub.toString()],
+        outBlinding: [o0Blind.toString(), o1Blind.toString()],
+      };
+      // ?v bumped when the transfer circuit changes so a returning visitor never proves
+      // with a stale circuit the new verifier rejects.
+      const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm?v=2", "./circuit/transfer_final.zkey?v=2");
+      status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
+      res = await withdrawSubmit(proof, publicSignals, recipient, W);
+      if (res.ok) break;
+      if (attempt < 3 && res.code === 1) {
+        status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree moved on, re-syncing… (try ${attempt + 1})`;
+        continue;
+      }
+      break;
+    }
     note.withdrawing = false;
     if (res.ok) {
       note.withdrawn = res.hash || "ok";
