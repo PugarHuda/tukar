@@ -53,7 +53,18 @@ inserted at most once — `register_root_verified_rejects_undeposited_leaf`
 `leafIndex` is now a **public** input the pool pins to its own `LeafCount`, so a
 proof can't attest insertion at a different slot than the one stored (closes the
 accumulator-griefing DoS). And `deposit_rejects_duplicate_commitment`
-(`DuplicateCommitment`) covers the duplicate-deposit fund-lock fix.
+(`DuplicateCommitment`) covers the duplicate-deposit fund-lock fix. The I/O-count
+pinning that closes the unpinned-split double-spend (T17) is covered by
+`transfer_rejects_shifted_io_split` / `withdraw_rejects_shifted_io_split`
+(`BadIoCount`).
+
+> **What these unit tests do and don't cover.** `cargo test` runs against a **mock
+> verifier that returns `true`** (`test.rs`), so it validates the pool's *binding,
+> authorization, state-machine and oracle-gate logic* — not Groth16 soundness itself.
+> Real proof verification (valid → `true`, tampered/false-witness → rejected) is
+> covered separately by `npm run test:negative` (circuit soundness, §2) and by the
+> **live on-chain** results against the deployed Nethermind BN254 verifiers (§4).
+> The two layers together cover the system end-to-end; neither alone does.
 
 ## 4. On-chain behaviour (Stellar testnet) ✅
 
