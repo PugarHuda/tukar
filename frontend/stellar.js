@@ -231,6 +231,28 @@ async function poolWriteClient() {
   return _poolWrite;
 }
 
+// signAndSend with a refetch-and-retry on txBadSeq. The shared embedded demo key can
+// race its own sequence number when txns fire back-to-back (multiple tabs, or one
+// flow's deposit→register→withdraw in quick succession). `buildAt` rebuilds the
+// AssembledTransaction, which re-simulates and refetches the source sequence, so a
+// retry self-heals. ponytail: bounded to 4 tries; a real per-user wallet never races.
+const _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const _isBadSeq = (e) => /txbadseq|tx_bad_seq|bad_seq/i.test(String(e?.message ?? e ?? ""));
+async function sendTx(buildAt, attempts = 4) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const at = await buildAt();
+      return await at.signAndSend();
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts && _isBadSeq(e)) { await _sleep(1200 + i * 900); continue; }
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
 // ---- testnet wallet setup helpers (for the optional Freighter path) ----
 const USDC = new Sdk.Asset("USDC", "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B");
 
@@ -322,14 +344,13 @@ export async function depositOnChain(note, opts = {}) {
     );
     // 3. signed deposit moving the REAL token amount
     const client = await poolWriteClient();
-    const at = await client.deposit({
+    const res = await sendTx(() => client.deposit({
       from: client._from,
       amount: BigInt(note.amount),
       commitment: buf32(note.commitment),
       proof: scProof(compProof),
       binding_proof: scProof(bindProof),
-    });
-    const res = await at.signAndSend();
+    }));
     const hash = res?.sendTransactionResponse?.hash || res?.getTransactionResponse?.txHash || "";
     return { ok: true, hash };
   } catch (e) {
@@ -354,13 +375,12 @@ export async function registerRootOnChain(oldRootDec, newLeafDec, newRootDec, le
       input, "./circuit/merkleUpdate.wasm?v=2", "./circuit/merkleUpdate_final.zkey?v=2",
     );
     const client = await poolWriteClient();
-    const at = await client.register_root_verified({
+    const res = await sendTx(() => client.register_root_verified({
       proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
       old_root: buf32(oldRootDec),
       new_leaf: buf32(newLeafDec),
       new_root: buf32(newRootDec),
-    });
-    const res = await at.signAndSend();
+    }));
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
   } catch (e) {
     return { ok: false, error: friendlyPoolError(e), code: poolErrorCode(e) };
@@ -434,7 +454,7 @@ export async function withdrawSubmit(proof, publicSignals, recipientPub, release
     const client = await poolWriteClient();
     // No ext_data_hash arg: the contract recomputes it from (recipient, public_amount)
     // and binds the proof to the recipient — so a replayed proof can't be redirected.
-    const at = await client.withdraw({
+    const res = await sendTx(() => client.withdraw({
       proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
       root: buf32(root),
       public_amount: buf32(publicAmount), // field-negative (r - amount): value leaving
@@ -442,8 +462,7 @@ export async function withdrawSubmit(proof, publicSignals, recipientPub, release
       out_commitments: [buf32(oc0), buf32(oc1)],
       recipient: recipientPub || DEMO_ADDRESS,
       amount: BigInt(releaseAmount), // magnitude released; pool binds it to (r - amount)
-    });
-    const res = await at.signAndSend();
+    }));
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
   } catch (e) {
     return { ok: false, error: friendlyPoolError(e), code: poolErrorCode(e) };

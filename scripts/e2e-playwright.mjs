@@ -19,11 +19,12 @@ const assert = (c, m) => { if (!c) throw new Error(m); };
 // Let the shared embedded demo key's sequence settle between on-chain-heavy cases
 // (back-to-back txns from one key race -> txBadSeq / RPC read-after-write lag). A
 // single real user with their own key never needs this; it's a test-harness pacer.
-const settleKey = () => new Promise((r) => setTimeout(r, 15000));
+const settleKey = () => new Promise((r) => setTimeout(r, 30000));
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await ctx.newPage();
+page.setDefaultTimeout(60000); // on-chain renders are slow; 30s default is too tight
 const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(e.message));
 page.on("dialog", (d) => d.accept().catch(() => {})); // auto-accept any confirm()
@@ -31,7 +32,11 @@ page.on("dialog", (d) => d.accept().catch(() => {})); // auto-accept any confirm
 const DEMO = BASE.includes("localhost") ? "/demo.html" : "/demo";
 const statusText = () => page.locator("#status").innerText();
 const waitStatus = (re, ms = 120000) => page.locator("#status").filter({ hasText: re }).waitFor({ timeout: ms });
-const connect = async () => { await page.getByRole("button", { name: /Use testnet key/i }).click(); await page.locator("#sendBtn:not([disabled])").waitFor({ timeout: 10000 }); };
+const connect = async () => {
+  if (await page.locator("#sendBtn").isEnabled().catch(() => false)) return; // already connected (reset keeps the session)
+  await page.getByRole("button", { name: /Use testnet key/i }).click();
+  await page.locator("#sendBtn:not([disabled])").waitFor({ timeout: 10000 });
+};
 
 console.log(`E2E (Playwright real-click) against ${BASE}${DEMO}\n`);
 await page.goto(BASE + DEMO, { waitUntil: "domcontentloaded" });
@@ -138,7 +143,7 @@ await tc("bearer note: export→reset→import→withdraw, then double-spend rej
   await connect();
   await page.locator("#importInput").fill(note);
   await page.getByRole("button", { name: /Import →/ }).click();
-  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 10000 });
+  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 25000 });
   // withdraw the imported note on-chain
   await page.locator("#incoming [data-withdraw]").first().click();
   await waitStatus(/withdrawn on-chain ✓|withdraw failed/i);
@@ -147,7 +152,7 @@ await tc("bearer note: export→reset→import→withdraw, then double-spend rej
   await settleKey();
   await page.locator("#importInput").fill(note);
   await page.getByRole("button", { name: /Import →/ }).click();
-  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 10000 });
+  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 25000 });
   await page.locator("#incoming [data-withdraw]").first().click();
   await waitStatus(/already spent|nullifier|withdraw failed/i, 120000);
   assert(/already spent|nullifier/i.test(await statusText()), `double-spend not caught: "${await statusText()}"`);
