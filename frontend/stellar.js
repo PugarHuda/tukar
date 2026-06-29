@@ -18,7 +18,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CARIJYGV3J3FMZ5QFCVS7DNGCV7VONAYZC3QGV5C7DRLNH2SZNSNX653";
+export const POOL = "CBQFYHXARDCV7MTOOGEC2E6LSTUC54MHG26NXL2LGQIEJUIKZCM76T5P";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.
@@ -434,6 +434,8 @@ const POOL_ERRORS = {
   8: "the corridor tree is full",
   9: "this leaf isn't a backed deposit, or was already inserted (unbacked-leaf insert rejected)",
   10: "this commitment was already deposited (duplicate deposit rejected — it would lock funds)",
+  11: "the FX oracle has no live price for this currency (off-ramp quote unavailable)",
+  12: "the live FX rate would deliver less than your minimum (slippage too high — release blocked, note unspent)",
 };
 function friendlyPoolError(e) {
   const msg = (e && e.message) || String(e);
@@ -448,12 +450,15 @@ function poolErrorCode(e) {
   return m ? Number(m[1]) : null;
 }
 
-export async function withdrawSubmit(proof, publicSignals, recipientPub, releaseAmount) {
+export async function withdrawSubmit(proof, publicSignals, recipientPub, releaseAmount, offrampSymbol, minLocalOut) {
   try {
     const [root, publicAmount, , n0, n1, oc0, oc1] = publicSignals;
     const client = await poolWriteClient();
     // No ext_data_hash arg: the contract recomputes it from (recipient, public_amount)
     // and binds the proof to the recipient — so a replayed proof can't be redirected.
+    // offramp_symbol + min_local_out are the OPTIONAL min-receive settlement gate: when
+    // set, the pool reads Reflector on-chain and refuses to release if the live local
+    // amount is below the floor (SlippageExceeded). undefined -> None (no gate).
     const res = await sendTx(() => client.withdraw({
       proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
       root: buf32(root),
@@ -462,6 +467,8 @@ export async function withdrawSubmit(proof, publicSignals, recipientPub, release
       out_commitments: [buf32(oc0), buf32(oc1)],
       recipient: recipientPub || DEMO_ADDRESS,
       amount: BigInt(releaseAmount), // magnitude released; pool binds it to (r - amount)
+      offramp_symbol: offrampSymbol || undefined,
+      min_local_out: (minLocalOut != null) ? BigInt(Math.floor(minLocalOut)) : undefined,
     }));
     return { ok: true, hash: res?.sendTransactionResponse?.hash || "" };
   } catch (e) {

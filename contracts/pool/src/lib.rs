@@ -58,7 +58,13 @@ pub enum PoolError {
     LeafAlreadyInserted = 9,
     DuplicateCommitment = 10,
     FxUnavailable = 11,
+    SlippageExceeded = 12,
 }
+
+// USDC SAC has 7 decimals, so 1 whole USDC = 10^7 stroops. The off-ramp quote works
+// in whole-USDC units (what the receiver sees), so the withdraw gate converts the
+// released stroop amount to whole USDC before pricing it against the oracle.
+const USDC_STROOPS: i128 = 10_000_000;
 
 #[contracttype]
 enum DataKey {
@@ -163,36 +169,43 @@ impl Pool {
         if usdc_amount < 0 || usdc_amount >= (1i128 << 64) {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
         }
+        Self::quote_local(&env, symbol, usdc_amount)
+    }
+
+    /// Local fiat for `usdc_amount` whole USDC at the live Reflector rate, read
+    /// ON-CHAIN (cross-contract). Shared by `offramp_quote` (display) and `withdraw`
+    /// (the min-receive settlement gate) so both derive the figure from the same
+    /// oracle read. A stale/absent feed or an overflow yields a typed FxUnavailable,
+    /// never a VM trap — so a gated withdraw FAILS CLOSED (funds stay put) rather than
+    /// settling at an unknown rate, and a display quote degrades gracefully.
+    fn quote_local(env: &Env, symbol: Symbol, usdc_amount: i128) -> i128 {
         let oracle: Address = env.storage().instance().get(&DataKey::FxOracle).unwrap();
         let asset = Asset::Other(symbol);
         // Reflector: lastprice(asset) -> Option<PriceData>; decimals() -> u32.
         let pd: Option<PriceData> = env.invoke_contract(
             &oracle,
-            &Symbol::new(&env, "lastprice"),
-            vec![&env, asset.into_val(&env)],
+            &Symbol::new(env, "lastprice"),
+            vec![env, asset.into_val(env)],
         );
         let pd = match pd {
             Some(p) if p.price > 0 => p,
-            _ => soroban_sdk::panic_with_error!(&env, PoolError::FxUnavailable),
+            _ => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         };
         let decimals: u32 = env.invoke_contract(
             &oracle,
-            &Symbol::new(&env, "decimals"),
-            vec![&env],
+            &Symbol::new(env, "decimals"),
+            vec![env],
         );
         // A compromised/buggy oracle returning a huge `decimals` (or a price/amount
-        // combo that overflows) must yield a typed FxUnavailable, never a trap — this
-        // is a display quote and must fail gracefully. Note offramp_quote does NO
-        // state writes, so a bad oracle can only produce a wrong/absent quote, never
-        // affect custody, withdraw amounts, nullifiers, or the tree.
+        // combo that overflows) must yield a typed FxUnavailable, never a trap.
         let scale = match 10i128.checked_pow(decimals) {
             Some(s) => s,
-            None => soroban_sdk::panic_with_error!(&env, PoolError::FxUnavailable),
+            None => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         };
         // local = usdc * scale / price  (USD->local is the reciprocal of price/scale)
         match usdc_amount.checked_mul(scale) {
             Some(num) => num / pd.price,
-            None => soroban_sdk::panic_with_error!(&env, PoolError::FxUnavailable),
+            None => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         }
     }
 
@@ -387,6 +400,8 @@ impl Pool {
         out_commitments: Vec<BytesN<32>>,
         recipient: Address,
         amount: i128,
+        offramp_symbol: Option<Symbol>,
+        min_local_out: Option<i128>,
     ) {
         if amount <= 0 {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
@@ -406,6 +421,21 @@ impl Pool {
         let ext_data_hash = Self::ext_data_hash(&env, &recipient, &public_amount);
         let pi = Self::transfer_inputs(&env, &root, &public_amount, &ext_data_hash, &nullifiers, &out_commitments);
         Self::verify(&env, DataKey::TransferVerifier, &proof, &pi);
+        // Optional min-receive settlement gate. When the caller asks for off-ramp
+        // slippage protection, the pool reads Reflector ON-CHAIN for the live local
+        // rate and refuses to release if it would deliver less than `min_local_out`.
+        // This makes the oracle LOAD-BEARING for fund movement, not just display.
+        // It runs after proof verification but BEFORE nullifiers are spent, so a
+        // withdraw rejected for too much slippage burns no nullifier and can be
+        // retried when the rate recovers. Fail-closed: a stale/absent feed traps the
+        // read into FxUnavailable here, so funds never move at an unknown rate.
+        if let (Some(sym), Some(min_out)) = (offramp_symbol, min_local_out) {
+            let usdc_whole = amount / USDC_STROOPS; // 7-dp SAC -> whole-USDC quote unit
+            let local = Self::quote_local(&env, sym, usdc_whole);
+            if local < min_out {
+                soroban_sdk::panic_with_error!(&env, PoolError::SlippageExceeded);
+            }
+        }
         Self::spend_nullifiers(&env, &nullifiers);
         for c in out_commitments.iter() {
             Self::record_commitment(&env, &c);

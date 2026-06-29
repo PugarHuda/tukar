@@ -268,7 +268,7 @@ fn withdraw_releases_bound_amount() {
     // public_amount must equal the field-negative of the released amount (binding)
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
-        &nulls, &outs, &recipient, &120,
+        &nulls, &outs, &recipient, &120, &None, &None,
     );
     assert_eq!(c.token.balance(&recipient), 120);
     assert_eq!(c.pool.balance(), 180);
@@ -286,7 +286,71 @@ fn withdraw_amount_must_match_public_amount() {
     // public_amount binds to 50 but caller tries to release 120 -> rejected
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 50),
-        &nulls, &outs, &recipient, &120,
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
+
+// The min-receive settlement gate: when a withdraw asks for off-ramp slippage
+// protection, the pool reads Reflector ON-CHAIN and only releases if the live local
+// amount meets the floor. With the stub feed (1 USD = 20 local), a 2-USDC withdraw
+// quotes 40 local: a 40 floor passes, a 41 floor is rejected (SlippageExceeded).
+#[test]
+fn withdraw_oracle_gate_passes_when_rate_meets_floor() {
+    let env = Env::default();
+    let c = setup(&env);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128; // 2 whole USDC in 7-dp stroops
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40),
+    );
+    assert_eq!(c.token.balance(&recipient), two_usdc); // released: live rate met the floor
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")] // SlippageExceeded
+fn withdraw_oracle_gate_rejects_below_floor() {
+    let env = Env::default();
+    let c = setup(&env);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    // quote is 40 local; demanding 41 must reject and release nothing.
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(41),
+    );
+}
+
+// Fail-closed: if the gate is requested but the feed can't price the currency
+// (lastprice -> None), the withdraw aborts (FxUnavailable) rather than releasing
+// funds at an unknown rate. The nullifier is NOT spent, so it stays retryable.
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable
+fn withdraw_oracle_gate_fails_closed_on_dead_feed() {
+    let env = Env::default();
+    let c = setup(&env);
+    let empty = env.register(MockOracleEmpty, ());
+    c.pool.set_fx_oracle(&empty);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
     );
 }
 

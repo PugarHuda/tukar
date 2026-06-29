@@ -10,7 +10,7 @@ npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN25
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 24/24
+cd contracts/pool && cargo test          # 27/27
 ```
 
 ## 1. Repo hygiene ✅
@@ -34,7 +34,7 @@ cd contracts/pool && cargo test          # 24/24
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **24/24 passed** (`cargo test`): deposit pulls USDC + records
+`contracts/pool` — **27/27 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**

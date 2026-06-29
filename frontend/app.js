@@ -493,6 +493,19 @@ async function withdrawNote(note) {
     const recipient = activeAddress();
     const pubAmount = ((R - W) % R).toString();
     const extDataHash = extDataHashFor(recipient, pubAmount);
+    // Min-receive settlement gate: for oracle-backed corridors, read the live local
+    // rate and ask the pool to refuse releasing below 99% of it (1% slippage). The
+    // pool re-reads Reflector on-chain AT settlement, so the displayed quote becomes
+    // load-bearing for the actual fund release — not just a number. Only gate when we
+    // have a fresh quote (oracle live); a null quote -> no gate, so a transient read
+    // failure never blocks a withdraw.
+    let offrampSym, minLocalOut;
+    const cor = corridorByCode(note.corridor);
+    if (cor && cor.oracle) {
+      const usdc = Number(fmtUsdc(BigInt(note.amount)));
+      const q = await offrampQuote(cor.oracle, usdc);
+      if (q != null && q > 0) { offrampSym = cor.oracle; minLocalOut = Math.floor(q * 0.99); }
+    }
     let res;
     for (let attempt = 1; attempt <= 3; attempt++) {
       const syncedWd = await syncedLeaves();
@@ -526,7 +539,7 @@ async function withdrawNote(note) {
       // with a stale circuit the new verifier rejects.
       const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm?v=2", "./circuit/transfer_final.zkey?v=2");
       status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
-      res = await withdrawSubmit(proof, publicSignals, recipient, W);
+      res = await withdrawSubmit(proof, publicSignals, recipient, W, offrampSym, minLocalOut);
       if (res.ok) break;
       if (attempt < 3 && res.code === 1) {
         status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree moved on, re-syncing… (try ${attempt + 1})`;

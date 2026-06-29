@@ -33,7 +33,7 @@ compliance).
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CARIJYGV3J3FMZ5QFCVS7DNGCV7VONAYZC3QGV5C7DRLNH2SZNSNX653) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CBQFYHXARDCV7MTOOGEC2E6LSTUC54MHG26NXL2LGQIEJUIKZCM76T5P) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
@@ -55,8 +55,12 @@ compliance).
   [Reflector](https://reflector.network) — Stellar's decentralized SEP-40 FX oracle
   (`pool.offramp_quote` → Reflector `lastprice`) — so the number comes from our
   Soroban contract reading a partner oracle on-chain, not a client-side hardcode
-  (the other corridors fall back to a public FX API). It's a quote only — token
-  release never depends on the oracle being live.
+  (the other corridors fall back to a public FX API). For those three corridors the
+  withdraw also carries an **optional min-receive gate**: it passes the live quote as
+  `min_local_out`, and the pool **re-reads Reflector on-chain at settlement** and
+  refuses to release below ~99% of it (`SlippageExceeded`), failing closed if the feed
+  is down — so the oracle is **load-bearing for fund movement**, not just display. A
+  plain withdraw (no gate) still settles in USDC and never touches the oracle.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
@@ -165,7 +169,7 @@ This started as a demo and was hardened, increment by increment, into a
   remaining caveat is that the *shared demo key's* secret is public — so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**24/24 pool unit tests** + a 16-point [threat model](docs/SECURITY.md). Full live
+**27/27 pool unit tests** + a 16-point [threat model](docs/SECURITY.md). Full live
 verification (deposit → register → withdraw → disclosure → tamper-rejected) runs in
 headless Chrome on every change (`scripts/browser-test.mjs`).
 
@@ -233,7 +237,7 @@ npm run serve                       # -> http://localhost:8000
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
-- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 24/24)
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 27/27)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`
