@@ -63,6 +63,12 @@ compliance).
   plain withdraw (no gate) still settles in USDC and never touches the oracle.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
+- **Gasless, natively:** fees can be sponsored by a relayer via Stellar's native
+  **fee-bump** (CAP-15) — the no-gated-token alternative to a Launchtube paymaster.
+  Proven on testnet: `npm run demo:feebump` (a tx signed by one account, fee paid by
+  another). See [`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) for how each
+  externally-gated integration (Launchtube, Mercury, passkeys, SEP-24) maps to a
+  native alternative and what's verifiable here.
 - **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
 
 ## What the ZK is doing (load-bearing)

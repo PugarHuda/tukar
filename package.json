@@ -13,6 +13,7 @@
     "test:proving": "node scripts/test-fullprove.mjs",
     "test:negative": "node scripts/test-negative.mjs",
     "test:e2e": "node scripts/e2e-playwright.mjs",
+    "demo:feebump": "node scripts/feebump-paymaster.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
