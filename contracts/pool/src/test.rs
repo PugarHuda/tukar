@@ -3,7 +3,7 @@ extern crate std;
 use super::*;
 use soroban_sdk::{
     contract, contractimpl,
-    testutils::Address as _,
+    testutils::{Address as _, Ledger as _},
     token::{StellarAssetClient, TokenClient},
     vec, Address, BytesN, Env, Vec,
 };
@@ -328,6 +328,30 @@ fn withdraw_oracle_gate_rejects_below_floor() {
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
         &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(41),
+    );
+}
+
+// Fail-closed on a STALE feed too: a frozen-but-positive price (older than the
+// pool's freshness bound) must not be used as a live rate. The mock prices are
+// stamped at 1_700_000_000; advancing the ledger clock 2h past that makes the feed
+// stale, so a gated withdraw aborts with FxUnavailable rather than settling at a
+// stale rate. (Guards against the "fail-closed" claim being true only for absent feeds.)
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable (stale)
+fn withdraw_oracle_gate_rejects_stale_feed() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.ledger().set_timestamp(1_700_000_000 + 7200); // 2h after the mock price stamp > 3600s bound
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
     );
 }
 

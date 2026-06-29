@@ -65,6 +65,12 @@ pub enum PoolError {
 // in whole-USDC units (what the receiver sees), so the withdraw gate converts the
 // released stroop amount to whole USDC before pricing it against the oracle.
 const USDC_STROOPS: i128 = 10_000_000;
+// Max age (seconds) of a Reflector price before the pool treats the feed as
+// unavailable. Mirrors the frontend's 1-hour bound so display and on-chain
+// settlement agree; the Reflector testnet feed updates every ~2 min, so a healthy
+// feed passes comfortably. A frozen-but-positive stale price must NOT be used as a
+// live rate by the settlement gate — so staleness fails closed (FxUnavailable).
+const FX_MAX_STALENESS: u64 = 3600;
 
 #[contracttype]
 enum DataKey {
@@ -187,8 +193,12 @@ impl Pool {
             &Symbol::new(env, "lastprice"),
             vec![env, asset.into_val(env)],
         );
+        // Reject an ABSENT feed (None), a non-positive price, AND a STALE price: a
+        // frozen-but-positive price must not pass as a live rate. now - timestamp is
+        // saturating so a price stamped at/after the ledger clock counts as fresh.
+        let now = env.ledger().timestamp();
         let pd = match pd {
-            Some(p) if p.price > 0 => p,
+            Some(p) if p.price > 0 && now.saturating_sub(p.timestamp) <= FX_MAX_STALENESS => p,
             _ => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         };
         let decimals: u32 = env.invoke_contract(

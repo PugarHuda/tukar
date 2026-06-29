@@ -18,7 +18,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CBQFYHXARDCV7MTOOGEC2E6LSTUC54MHG26NXL2LGQIEJUIKZCM76T5P";
+export const POOL = "CB57S6X6C3EEIBYVBGUNPHJLHDAIKIFS2MAX5WPMMAPZJ35FB3KI5GZY";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.

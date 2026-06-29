@@ -428,7 +428,7 @@
       { tag: "GROTH16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "VERIFIED ON-CHAIN", meta: "fake → reject", icon: "tree" }
     ],
     contracts: [
-      { tag: "SOROBAN", code: "CARIJYG…ZNSNX653", name: "pool", type: "orchestration · nullifiers", status: "24/24 TESTS PASS", meta: "no double-spend", icon: "layers" },
+      { tag: "SOROBAN", code: "CB57S6X…B3KI5GZY", name: "pool", type: "orchestration · nullifiers", status: "28/28 TESTS PASS", meta: "no double-spend", icon: "layers" },
       { tag: "SOROBAN", code: "CCRCRVF…I6K3N", name: "transfer verifier", type: "shielded JoinSplit", status: "VERIFY → TRUE", meta: "BN254", icon: "chip" },
       { tag: "SOROBAN", code: "CAGBZGF…XIJQO", name: "compliance verifier", type: "ASP allow / deny", status: "VERIFY → TRUE", meta: "tx ✓", icon: "shield" },
       { tag: "SOROBAN", code: "CACVDX2…AAOD3", name: "disclosure verifier", type: "selective disclosure", status: "VERIFY → TRUE", meta: "tamper → reject", icon: "eye" },

@@ -254,7 +254,7 @@ async function loadActivity() {
       return;
     }
     el.innerHTML = events.map((e) => {
-      const a = ACT[e.kind] || { label: e.kind, color: "#8a847e" };
+      const a = ACT[e.kind] || { label: esc(e.kind), color: "#8a847e" }; // esc: defensive, e.kind is a fixed pool symbol today
       const link = e.txHash
         ? `<a class="hash" style="text-decoration:none;" href="${txExplorer(e.txHash)}" target="_blank" rel="noreferrer">${String(e.txHash).slice(0, 8)}… ↗</a>`
         : `<span class="hash">ledger ${e.ledger}</span>`;
@@ -538,9 +538,15 @@ async function withdrawNote(note) {
     let offrampSym, minLocalOut;
     const cor = corridorByCode(note.corridor);
     if (cor && cor.oracle) {
-      const usdc = Number(fmtUsdc(BigInt(note.amount)));
-      const q = await offrampQuote(cor.oracle, usdc);
-      if (q != null && q > 0) { offrampSym = cor.oracle; minLocalOut = Math.floor(q * 0.99); }
+      // Quote the SAME whole-USDC unit the contract gate prices: it floors
+      // amount/10^7, so we must too — else a fractional note (e.g. $20.50) makes the
+      // frontend min (rounded up) exceed the contract's floored quote and the gate
+      // wrongly rejects forever. Skip the gate when the floored unit is 0 (<1 USDC).
+      const usdcWhole = BigInt(note.amount) / STROOPS; // matches lib.rs: amount / USDC_STROOPS
+      if (usdcWhole > 0n) {
+        const q = await offrampQuote(cor.oracle, Number(usdcWhole));
+        if (q != null && q > 0) { offrampSym = cor.oracle; minLocalOut = Math.floor(q * 0.99); }
+      }
     }
     let res;
     for (let attempt = 1; attempt <= 3; attempt++) {
