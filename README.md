@@ -186,10 +186,11 @@ professionally audited — see the caveats below). What that means concretely:
 [threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser proving
 flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
 
-**Live real-click e2e (`npm run test:e2e`): 9/10** against the deployed site —
+**Live real-click e2e (`npm run test:e2e`): 10/11** against the deployed site —
 Playwright drives genuine clicks through the full on-chain flow (deposit → reveal →
 withdraw → disclose → tamper-rejected), on-chain ASP forge-rejection, corridor
-switching, and UI gating, with zero uncaught page errors. The one non-passing case
+switching, graceful junk-input handling, and UI gating, with zero uncaught page
+errors. The one non-passing case
 (bearer-note P2P) is a **harness limitation, not a product bug**: it queues five
 on-chain txns back-to-back on the single shared demo key and the public RPC lags
 that one sequence past timeout — double-spend protection itself is proven by the

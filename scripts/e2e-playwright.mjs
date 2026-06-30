@@ -80,6 +80,25 @@ await tc("invalid amounts rejected, no crash", async () => {
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 
+// 5b) junk typed into Load / Import is rejected gracefully (no crash). Covers the
+// real "I typed plain text into the box" case — both parsers atob/JSON.parse inside
+// try/catch with field validation, so bad input shows a message, never throws.
+await tc("junk in Load/Import handled gracefully (no crash)", async () => {
+  const before = pageErrors.length;
+  await page.locator("#reqLoadInput").fill("ya");
+  await page.getByRole("button", { name: /Load →/ }).click();
+  await page.waitForTimeout(300);
+  assert(/Couldn.t load that request/i.test(await statusText()), `Load junk gave: "${await statusText()}"`);
+  assert((await page.locator("#amount").inputValue()) !== "ya", "amount polluted by junk Load");
+  await page.locator("#importInput").fill("ya");
+  await page.getByRole("button", { name: /Import →/ }).click();
+  await page.waitForTimeout(300);
+  assert(/Couldn.t import that note/i.test(await statusText()), `Import junk gave: "${await statusText()}"`);
+  assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
+  await page.locator("#reqLoadInput").fill("");
+  await page.locator("#importInput").fill("");
+});
+
 // 6) all 7 corridors switch; MXN/BRL/ARS read on-chain, others on FX-API fallback
 await tc("corridor switching + labels (3 on-chain, 4 fallback)", async () => {
   await page.waitForTimeout(4000);

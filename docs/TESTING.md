@@ -126,19 +126,20 @@ this exact ptau and run the same assertion, so a stale local-ptau key can never
 silently replace a deployed one. Honest caveat: **phase-2** is a single Tukar
 contribution (a production deploy wants a multi-party phase-2 too).
 
-## 6. End-to-end UI (Playwright real-click) ✅ 9/10 live
+## 6. End-to-end UI (Playwright real-click) ✅ 10/11 live
 
 `npm run test:e2e` drives the **live** site (`tukar-six.vercel.app/demo`) with
-genuine clicks/typing/selects (not `evaluate`-injection) over system Chrome. Ten
+genuine clicks/typing/selects (not `evaluate`-injection) over system Chrome. Eleven
 cases: prover-load, Send-gating pre-connect, payment-request round-trip, connect,
-invalid-amount fuzzing (no crash), all 7 corridors (3 on-chain Reflector / 4
-FX-API), the full happy path (deposit → reveal → withdraw → disclose → tamper),
-on-chain ASP forge-rejection (and that the forge toggle **auto-clears** after the
-rejection, so a real send isn't trapped re-forging), bearer-note P2P + double-spend,
-and disconnect re-gating.
+invalid-amount fuzzing (no crash), **junk typed into Load/Import handled gracefully**
+(no crash — covers a real user mistyping into those boxes), all 7 corridors (3
+on-chain Reflector / 4 FX-API), the full happy path (deposit → reveal → withdraw →
+disclose → tamper), on-chain ASP forge-rejection (and that the forge toggle
+**auto-clears** after the rejection, so a real send isn't trapped re-forging),
+bearer-note P2P + double-spend, and disconnect re-gating.
 
-Verified 2026-06-30 against the live deploy: **9/10**, zero uncaught page errors.
-The 8 product-critical flows pass, including both heavy on-chain flows (happy path
+Verified 2026-06-30 against the live deploy: **10/11**, zero uncaught page errors.
+The 10 product-critical flows pass, including both heavy on-chain flows (happy path
 + ASP forge-rejection). The one failing case (bearer-note) is a **test-harness
 limitation, not a product bug**: it chains *five* on-chain operations back-to-back
 on the single shared demo key — deposit, export, import+withdraw, re-import,
