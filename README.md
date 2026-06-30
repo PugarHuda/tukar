@@ -19,6 +19,30 @@ implementation of Stellar's privacy strategy and the
 (visible deposits/withdrawals, private transfers, ASP + selective disclosure for
 compliance).
 
+### Where Tukar sits in Stellar's privacy stack
+
+Stellar's privacy stack has two complementary tiers, and Stellar itself draws the
+line ([Confidential Tokens preview](https://stellar.org/blog/developers/developer-preview-confidential-tokens-on-stellar),
+Jun 2026):
+
+- **Confidential, not anonymous** — OpenZeppelin's **Confidential Tokens** (Noir +
+  Nethermind UltraHonk) hide **balances and amounts** but keep **sender/recipient
+  visible**. Ideal for treasury, payroll, institutional settlement — *known*
+  counterparties.
+- **Anonymous (privacy pool)** — the tier that *also* hides the counterparties. The
+  Confidential Tokens post names **Stellar Private Payments (SPP)** here: *"privacy
+  pool implementations … shield **both the parties and the amounts**."* **Tukar is
+  in this tier** — its shielded transfer leg hides amount *and* who-paid-whom, which
+  is exactly the cross-border-remittance threat model (a corridor must not leak the
+  payment graph).
+
+So Tukar isn't an alternative to Confidential Tokens — it's the **more-private
+remittance tier** of the same stack, and it ships the *same* compliance primitives
+Stellar shipped (auditor/selective disclosure + an ASP allow/deny policy), built
+independently during the hackathon. Honest scope: Confidential Tokens is an official,
+audit-in-progress preview; Tukar is a hackathon implementation of the privacy-pool
+tier, with its ZK verified live on testnet.
+
 ---
 
 ![Tukar architecture](docs/architecture.svg)
