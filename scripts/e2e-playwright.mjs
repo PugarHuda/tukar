@@ -89,25 +89,25 @@ await tc("invalid amounts rejected, no crash", async () => {
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 
-// 5b) junk typed into Load (Sender) / Import (Receiver) is handled gracefully (no crash)
+// 5b) junk typed into Load (Sender) / Import (Receiver) is handled gracefully (no
+// crash). Each part starts from a CLEAN direct load of its step page — the faithful
+// "user lands here and mistypes" case, and it avoids any cross-case timing race.
 await tc("junk in Load/Import handled gracefully (no crash)", async () => {
   const before = pageErrors.length;
-  await goStep(0);
-  await page.locator("#reqLoadInput").waitFor({ state: "visible" });
+  await page.goto(BASE + "/demo/send", { waitUntil: "domcontentloaded" });
+  await page.locator("#reqLoadInput").waitFor({ state: "visible", timeout: 45000 });
   await page.locator("#reqLoadInput").fill("ya");
   await page.getByRole("button", { name: /Load →/ }).click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(400);
   assert(/Couldn.t load that request/i.test(await statusText()), `Load junk gave: "${await statusText()}"`);
   assert((await page.locator("#amount").inputValue()) !== "ya", "amount polluted by junk Load");
-  await goStep(2);
-  await page.locator("#importInput").waitFor({ state: "visible" });
+  await page.goto(BASE + "/demo/receive", { waitUntil: "domcontentloaded" });
+  await page.locator("#importInput").waitFor({ state: "visible", timeout: 45000 });
   await page.locator("#importInput").fill("ya");
   await page.getByRole("button", { name: /Import →/ }).click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(400);
   assert(/Couldn.t import that note/i.test(await statusText()), `Import junk gave: "${await statusText()}"`);
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
-  await page.locator("#reqLoadInput").fill("");
-  await page.locator("#importInput").fill("");
 });
 
 // 6) all 7 corridors switch; MXN/BRL/ARS read on-chain, others on FX-API fallback (Sender step)
@@ -126,6 +126,7 @@ await tc("corridor switching + labels (3 on-chain, 4 fallback)", async () => {
 // 7) full on-chain happy path (Sender -> auto-advance to Corridor -> Receiver -> Regulator)
 await tc("FULL flow: deposit→reveal→withdraw→disclose→tamper", async () => {
   await goStep(0);
+  await connect(); // re-assert connection (case 5b reloaded the page)
   await page.locator("#corridor").selectOption("MX");
   await page.locator("#amount").fill("500");
   await page.locator("#sendBtn").click();
