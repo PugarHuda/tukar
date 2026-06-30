@@ -209,6 +209,19 @@ Verified 2026-06-30 on the live deploy: **5/5**, zero uncaught page errors. (Fix
 this round: the footer links previously all pointed at the repo root, so "Architecture"
 didn't open ARCHITECTURE.md; now they deep-link.)
 
+## 10. Per-page routing (Playwright) ✅ 8/8 live
+
+The demo console is one corridor step per URL — `/demo/send`, `/demo/corridor`,
+`/demo/receive`, `/demo/audit`. `npm run test:pages` asserts: loading `/demo` shows
+only the Sender panel; the flow-strip and Back/Next pager navigate (pushState, URL
+updates, only the active panel visible); the browser Back button works (popstate);
+and a **direct load** of a deep route (e.g. `/demo/audit`) renders the right panel —
+which requires the SPA rewrite (`vercel.json` / `serve.mjs` map `/demo/<slug>` → the
+console) **and** `<base href="/">` so relative assets resolve from root on a deep
+path (a 404 the routing test caught before ship). Verified 8/8 on the live deploy;
+client state (notes, demo-key connection) persists across steps via localStorage, so
+a refresh or shared step link rehydrates.
+
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the
   `merkleUpdate` proof — there is **no admin root backdoor**.
