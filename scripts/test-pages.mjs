@@ -24,6 +24,11 @@ const ready = () => page.locator("#status").filter({ hasText: /Ready/ }).waitFor
 console.log(`Per-page routing test against ${BASE}/demo\n`);
 
 await page.goto(BASE + "/demo", { waitUntil: "domcontentloaded" });
+// No flash-of-all-panels: even BEFORE init() finishes (prover still loading), only
+// the Sender panel may be visible — panels are display:none by default in CSS and
+// panel0 is .active in the HTML, so the first paint is already correct.
+chk(await vis("#panel0") && !(await vis("#panel1")) && !(await vis("#panel2")) && !(await vis("#panel3")),
+  "no flash-of-all-panels on load (only Sender visible pre-init)");
 await ready();
 chk(await vis("#panel0") && !(await vis("#panel1")) && !(await vis("#panel2")) && !(await vis("#panel3")),
   "load /demo → only the Sender panel is shown");

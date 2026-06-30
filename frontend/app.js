@@ -1115,5 +1115,10 @@ for (let i = 0; i < 4; i++) {
 
 showDisconnected();
 
+// Set the correct single panel from the URL IMMEDIATELY (synchronously, before the
+// async prover init below) so deep routes don't flash the default Sender panel, and
+// no route flashes all four while init() loads the prover/tree.
+showStep(stepIndexFromPath(), false);
+
 console.log("[tukar] app.js module executed — wiring UI");
 init();

@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://esm.sh" crossorigin />
   <link rel="dns-prefetch" href="https://soroban-testnet.stellar.org" />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=2" />
 </head>
 <body>
 
@@ -87,8 +87,9 @@
     <!-- ===== 4 PANELS ===== -->
     <div class="grid">
 
-      <!-- PANEL 01: SENDER -->
-      <div class="panel" id="panel0">
+      <!-- PANEL 01: SENDER (active by default so the Sender step paints immediately
+           on /demo; app.js corrects to the URL's step on load for deep routes) -->
+      <div class="panel active" id="panel0">
         <div class="seq">01</div>
         <div class="phead">
           <span class="chip-cc us">US</span>
@@ -249,6 +250,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=55"></script>
+  <script type="module" src="./app.js?v=56"></script>
 </body>
 </html>
