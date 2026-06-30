@@ -327,8 +327,15 @@ async function createPayment() {
     if (forge) {
       // Expected: the ASP rejected a forged-source deposit on-chain.
       notes.shift(); // drop the rejected attempt from the ledger
+      // Auto-clear the forge toggle so the NEXT Send is a normal honest deposit.
+      // Otherwise it stays checked and every retry re-forges + bounces back to the
+      // Sender panel — which reads as "I sent into the corridor but it keeps coming
+      // back" (the demo's educational toggle silently trapping a real send).
+      $("compTamper").checked = false;
+      $("compTamperLabel").classList.remove("on");
+      $("compTamperLabel").setAttribute("aria-checked", "false");
       setActiveStep(0);
-      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit REJECTED by the ASP on-chain</b> — the compliance proof claimed a source you don't control. The pool pins the source to <i>your authenticated key</i>, so only an approved key you can sign with may deposit.`;
+      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit REJECTED by the ASP on-chain</b> — the compliance proof claimed a source you don't control. The pool pins the source to <i>your authenticated key</i>, so only an approved key you can sign with may deposit. <b>Forge is now off</b> — press <i>Send into corridor →</i> again for a normal deposit.`;
       render(); loadPoolState();
       return;
     }
