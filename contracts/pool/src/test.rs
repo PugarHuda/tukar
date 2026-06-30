@@ -287,6 +287,38 @@ fn set_fx_oracle_updates_view() {
     assert_eq!(c.pool.fx_oracle(), other);
 }
 
+// Configurable compliance policy (mirrors Confidential Tokens' policy engine):
+// set_asp_root / set_deny_list update the live policy the compliance check reads,
+// and the views reflect it — so policy can change without redeploying the pool.
+#[test]
+fn set_asp_root_updates_view() {
+    let env = Env::default();
+    let c = setup(&env);
+    assert_eq!(c.pool.asp_root(), b32(&env, 100)); // constructor value
+    c.pool.set_asp_root(&b32(&env, 77));
+    assert_eq!(c.pool.asp_root(), b32(&env, 77));
+}
+
+#[test]
+fn set_deny_list_updates_view() {
+    let env = Env::default();
+    let c = setup(&env);
+    let new: Vec<BytesN<32>> = vec![&env, b32(&env, 81), b32(&env, 82), b32(&env, 83), b32(&env, 84)];
+    c.pool.set_deny_list(&new);
+    assert_eq!(c.pool.deny_list(), new);
+}
+
+#[test]
+#[should_panic]
+fn set_deny_list_rejects_wrong_len() {
+    let env = Env::default();
+    let c = setup(&env);
+    // 3 entries != DENY_LEN (4) — must reject so the deny-list always matches the
+    // circuit's fixed public-input count.
+    let bad: Vec<BytesN<32>> = vec![&env, b32(&env, 81), b32(&env, 82), b32(&env, 83)];
+    c.pool.set_deny_list(&bad);
+}
+
 #[test]
 fn deposit_pulls_tokens_and_records_commitment() {
     let env = Env::default();

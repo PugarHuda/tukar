@@ -176,6 +176,42 @@ impl Pool {
         env.storage().instance().get(&DataKey::FxOracle).unwrap()
     }
 
+    /// Admin-only: replace the ASP allow-list root (the allow-list "policy
+    /// registry"). Lets the compliance policy evolve WITHOUT redeploying the pool —
+    /// the configurable-policy property Stellar's Confidential Tokens expose, here on
+    /// the privacy-pool tier. The compliance circuit reads `aspRoot` as a public
+    /// input the pool builds from storage, so this re-points the membership check;
+    /// the operator must publish a matching allow-list witness for provers.
+    pub fn set_asp_root(env: Env, asp_root: BytesN<32>) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::AspRoot, &asp_root);
+    }
+
+    /// Admin-only: replace the deny-list (the block-list "identity registry"). Must
+    /// keep the fixed length the circuit expects (`DENY_LEN` public inputs); updating
+    /// the values re-points the non-membership check without a redeploy.
+    pub fn set_deny_list(env: Env, deny_list: Vec<BytesN<32>>) {
+        if deny_list.len() != DENY_LEN {
+            soroban_sdk::panic_with_error!(&env, PoolError::BadDenyList);
+        }
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::DenyList, &deny_list);
+    }
+
+    /// The current ASP allow-list root — so a client can confirm its membership
+    /// witness matches the live policy before proving.
+    pub fn asp_root(env: Env) -> BytesN<32> {
+        env.storage().instance().get(&DataKey::AspRoot).unwrap()
+    }
+
+    /// The current deny-list — so a client builds the compliance proof's public
+    /// inputs from the LIVE policy, not a stale hardcode.
+    pub fn deny_list(env: Env) -> Vec<BytesN<32>> {
+        env.storage().instance().get(&DataKey::DenyList).unwrap()
+    }
+
     /// Off-ramp quote, computed ON-CHAIN by reading the Reflector SEP-40 oracle
     /// (contract-to-contract composability). Given a `symbol` the oracle carries
     /// (e.g. "MXN", base = USD) and a USDC amount (whole units), returns the local
