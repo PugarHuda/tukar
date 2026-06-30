@@ -39,6 +39,27 @@ cd contracts/pool && cargo test          # 33/33
 `npm run test:negative` → **6/6 passed**. `npm run test:proving` → valid/tampered/
 false-witness all behave correctly.
 
+**Manual circuit review (2026-06-30)** — complements the runtime negative tests by
+checking the Circom source for under-constrained signals (the soundness holes a
+passing happy-path can't reveal):
+- **Every private signal is constrained.** In `transfer`, `compliance`, `disclosure`
+  and `merkleUpdate`, each `signal input` feeds a `===`/`<==` constraint (Poseidon
+  preimage, Merkle path, nullifier, or range) — no `<--` left dangling.
+- **All amounts are range-checked:** transfer inputs **and** outputs to 248 bits
+  (wrap-free value conservation, not just an inductive invariant); disclosure amount
+  to 64 bits.
+- **Path indices are boolean-forced** in `DualMux` (`s*(1-s)===0`), so a malformed
+  Merkle witness can't bend the path even if a caller skips `Num2Bits`.
+- **`merkleUpdate` proves the slot is empty** (leaf=0 must reproduce the public
+  `oldRoot`) and that the same private siblings yield `newRoot` — siblings can't be
+  faked (Poseidon CR + public `oldRoot`).
+- **Dummy JoinSplit inputs are sound:** zero-value inputs skip Merkle membership
+  (`(root-r)*inAmount===0`) but still bind a nullifier; the frontend draws the
+  dummy's `privKey`/`blinding` from a CSPRNG per spend, so dummy nullifiers never
+  collide across withdraws. No `NullifierUsed` trap, no value mint.
+
+Result: no under-constrained signal or missing range check found.
+
 ## 3. Contract unit tests ✅
 `contracts/pool` — **33/33 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
