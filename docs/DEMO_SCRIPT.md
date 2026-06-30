@@ -1,4 +1,52 @@
-# Tukar — 2.5–3 minute demo video script
+# Tukar — demo video script
+
+> **Two cuts below.** The **2:00 fast cut** (this section) is the one to record if
+> you want a tight, skimmable judge video. The **full 2.5–3 min walkthrough**
+> (after the divider) has every beat + optional scenes for a longer cut. Same live
+> site, same recorder beats — the fast cut just trims the narration.
+
+---
+
+## ⏱ 2-minute fast cut (record this one)
+
+Open **https://tukar-six.vercel.app**, click **Launch the live demo**, wait for
+"Ready", click **Use testnet key**. ~300 words of voiceover ≈ 2:00 at a calm pace.
+
+**0:00–0:15 · Hook** — *landing hero, then click Launch the live demo*
+> "Stellar moves real money across borders. Tukar makes that money private in the
+> middle and accountable at the edges — USDC in, local fiat out, with zero-knowledge
+> proofs verified inside Stellar smart contracts. Let's run it live."
+
+**0:15–0:40 · Send** — *Sender panel: 500 USDC, Mexico corridor, click Send into corridor →*
+> "A sender pays 500 real testnet USDC into the Mexico corridor. In the browser,
+> Tukar builds a compliance proof and an amount-binding proof, then submits a signed
+> deposit to the pool contract."
+
+**0:40–1:00 · Corridor** — *commitment row appears; COMMITMENTS counter ticks (read live from chain)*
+> "On the public ledger you see only a commitment — amount and recipient shielded.
+> Not a mock: that count is read live from the pool, real USDC just entered custody,
+> and the Merkle tree advanced trustlessly with a proof — no admin can forge a root."
+
+**1:00–1:25 · Off-ramp** — *Receiver panel: Reveal & off-ramp → shows ≈ +MXN*
+> "It arrives still shielded. Only at the off-ramp edge is the amount revealed:
+> 500 USDC becomes about 8,700 pesos — at a rate the pool reads on-chain from
+> Reflector, Stellar's FX oracle, not a hardcoded number. And that oracle is
+> load-bearing: a withdrawal won't settle below a live floor."
+
+**1:25–1:50 · Audit + tamper** — *Regulator panel: Generate & verify disclosure proof → green "Verified on-chain"; then tick Tamper → red reject*
+> "Now an audit. The holder proves one fact — the amount — and nothing else: no keys,
+> no other payments. The same proof is verified by the live Stellar verifier contract.
+> And a false claim can't pass: tamper with the amount and it's rejected, in the
+> browser and on-chain. The proof is sound."
+
+**1:50–2:00 · Close**
+> "Four circuits, five live contracts, real USDC, double-spend protection, a real
+> trusted setup. Open source. Tukar: real-world money, private, kept compliant — on
+> Stellar."
+
+---
+
+# Full 2.5–3 minute walkthrough
 
 Goal: show (1) a real-world money use case (private cross-border remittance),
 (2) ZK doing the load-bearing work, (3) it touching Stellar (proofs verified
