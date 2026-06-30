@@ -122,7 +122,10 @@ await tc("compliance forge → deposit rejected on-chain by ASP", async () => {
   await page.locator("#sendBtn").click();
   await waitStatus(/REJECTED by the ASP|rejected|failed/i, 120000);
   assert(/REJECTED by the ASP/i.test(await statusText()), `expected ASP rejection, got: "${await statusText()}"`);
-  await page.locator("#compTamperLabel").click(); // un-forge for later cases
+  // The forge toggle must AUTO-CLEAR on rejection so a real send isn't trapped
+  // re-forging on every retry (user-reported "I sent but it keeps coming back").
+  // Assert the fix and do NOT re-toggle — it's already off for the later cases.
+  assert(!(await page.locator("#compTamper").isChecked()), "forge toggle should auto-clear after the ASP rejection");
 });
 
 // 9) bearer-note P2P handoff + double-spend rejection

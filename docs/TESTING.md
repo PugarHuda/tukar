@@ -133,8 +133,9 @@ genuine clicks/typing/selects (not `evaluate`-injection) over system Chrome. Ten
 cases: prover-load, Send-gating pre-connect, payment-request round-trip, connect,
 invalid-amount fuzzing (no crash), all 7 corridors (3 on-chain Reflector / 4
 FX-API), the full happy path (deposit → reveal → withdraw → disclose → tamper),
-on-chain ASP forge-rejection, bearer-note P2P + double-spend, and disconnect
-re-gating.
+on-chain ASP forge-rejection (and that the forge toggle **auto-clears** after the
+rejection, so a real send isn't trapped re-forging), bearer-note P2P + double-spend,
+and disconnect re-gating.
 
 Verified 2026-06-30 against the live deploy: **9/10**, zero uncaught page errors.
 The 8 product-critical flows pass, including both heavy on-chain flows (happy path

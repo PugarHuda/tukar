@@ -153,7 +153,9 @@ control"** and hit **Send**. The deposit is **rejected on the ledger**:
 control."* Say: *"Compliance isn't cosmetic — the pool pins the proof's source to
 your authenticated key, so you can't deposit pretending to be a different approved
 account. Only an allow-listed key you can actually sign with gets in."* (Mirror of
-the regulator's tamper toggle, but for the ASP edge.)
+the regulator's tamper toggle, but for the ASP edge.) The toggle **auto-clears
+after the rejection**, so your very next **Send** is a normal, honest deposit — no
+need to untick it manually.
 
 ### Optional beat — bearer notes: receive money on another phone (after Scene 3)
 In the **Receiver** panel, under an arrived payment, click **Export bearer note**.
