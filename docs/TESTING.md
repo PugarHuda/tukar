@@ -170,6 +170,19 @@ five txns on one sequence. The double-spend *protection* itself is proven
 independently by the unit test `transfer_double_spend_rejected` and the on-chain
 `NullifierUsed` result in §4 — not by this UI race.
 
+## 7. QR codes actually scan ✅ 2/2 live
+
+`npm run test:qr` proves the bearer-note and payment-request QR codes the demo
+renders decode back to the **exact** string a phone camera would read — important
+because Tukar styles them with custom colors (dark `#0a0705` on `#f3ad79`), not
+plain black-on-white. The test loads the live demo, generates each QR, then decodes
+the rendered PNG with **jsQR** over its raw pixels (the same algorithm a scanner
+uses) and asserts `decoded === the visible string`.
+
+Verified 2026-06-30 against the live deploy: **2/2** — `tukreq1:…` (payment request)
+and `tukar1:…` (bearer note, after a real on-chain deposit) both decode exactly,
+zero uncaught page errors. So the custom-styled QR remains camera-scannable.
+
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the
   `merkleUpdate` proof — there is **no admin root backdoor**.
