@@ -183,6 +183,19 @@ Verified 2026-06-30 against the live deploy: **2/2** — `tukreq1:…` (payment 
 and `tukar1:…` (bearer note, after a real on-chain deposit) both decode exactly,
 zero uncaught page errors. So the custom-styled QR remains camera-scannable.
 
+## 8. Bearer note is real spendable money ✅ 4/4 live
+
+`npm run test:bearer` proves the `tukar1:…` string a QR encodes isn't just display —
+it's withdrawable value on a device that has nothing but the string. Steps, on the
+live deploy: (1) deposit a note on-chain, (2) export the bearer string, (3) **wipe
+the local session** and import the bare string as a fresh holder (the pool
+reconstructs the tree from chain), (4) withdraw it — real tokens released on-chain.
+
+Verified 2026-06-30: **4/4**, zero uncaught page errors. This isolates the genuine
+P2P-handoff feature from the e2e's *double-spend* stress step (§6 case 9), which is
+the only part that flakes under back-to-back shared-key contention — the handoff +
+withdraw itself works end-to-end every time.
+
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the
   `merkleUpdate` proof — there is **no admin root backdoor**.

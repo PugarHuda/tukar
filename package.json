@@ -16,6 +16,7 @@
     "demo:feebump": "node scripts/feebump-paymaster.mjs",
     "record:demo": "node scripts/record-demo.mjs https://tukar-six.vercel.app tukar-demo.webm",
     "test:qr": "node scripts/scan-qr.mjs https://tukar-six.vercel.app",
+    "test:bearer": "node scripts/test-bearer.mjs https://tukar-six.vercel.app",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
