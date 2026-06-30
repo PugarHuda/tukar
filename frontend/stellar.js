@@ -20,7 +20,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CDSRAC2DQN6RNV4O6TOLUXDTPIRST6OJQ64RSJNERQPHYPHUNV6DP6R4";
+export const POOL = "CDLWFTEEQRA7Q7U5WHZTNDV5ZSFXYE57XXARDG66B5MRU5YQHVUJTJCB";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.
@@ -99,6 +99,26 @@ export async function offrampQuote(symbol, usdcAmount) {
     "offramp_quote",
     Sdk.xdr.ScVal.scvSymbol(symbol),
     Sdk.nativeToScVal(BigInt(Math.max(0, Math.round(usdcAmount))), { type: "i128" }),
+  );
+  if (!res.ok || res.value == null) return null;
+  const n = Number(res.value);
+  return isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Manipulation-resistant off-ramp quote: priced at the MEDIAN of the last `records`
+ * Reflector records — the exact basis the withdraw settlement gate enforces. Used to
+ * compute the min-receive floor so the client's floor and the on-chain gate agree
+ * (rather than deriving the floor from a spot price that could diverge from the median).
+ * Returns the local amount (Number) or null if the feed is too thin / unavailable.
+ */
+export async function offrampQuoteTwap(symbol, usdcAmount, records = 5) {
+  const res = await simulate(
+    POOL,
+    "offramp_quote_twap",
+    Sdk.xdr.ScVal.scvSymbol(symbol),
+    Sdk.nativeToScVal(BigInt(Math.max(0, Math.round(usdcAmount))), { type: "i128" }),
+    Sdk.nativeToScVal(records, { type: "u32" }),
   );
   if (!res.ok || res.value == null) return null;
   const n = Number(res.value);

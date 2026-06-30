@@ -10,7 +10,7 @@ npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN25
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 30/30
+cd contracts/pool && cargo test          # 33/33
 ```
 
 ## 1. Repo hygiene ✅
@@ -18,7 +18,7 @@ cd contracts/pool && cargo test          # 30/30
 - Only the demo artifacts (`frontend/circuit/disclosure.wasm`, `.zkey`, vk) are
   committed (needed to serve the browser demo). Largest tracked file 1.8 MB.
 - Contract IDs are consistent across README, the frontend, these docs, and
-  `deployments/testnet.json` (current pool `CDSRAC2…NV6DP6R4`; older deployments are
+  `deployments/testnet.json` (current pool `CDLWFTE…HVUJTJCB`; older deployments are
   recorded under `deployments/testnet.json` → `pool.supersedes`).
 - `LICENSE` (Apache-2.0) present; `test_snapshots/` ignored.
 
@@ -34,7 +34,7 @@ cd contracts/pool && cargo test          # 30/30
 false-witness all behave correctly.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **30/30 passed** (`cargo test`): deposit pulls USDC + records
+`contracts/pool` — **33/33 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
@@ -75,10 +75,10 @@ Positive — all return `true`:
 | `disclosure.verify` | `CACVDX…AOD3` | `true` |
 | `transfer.verify` | `CCRCRVF…I6K3N` | `true` |
 | `compliance.verify` | `CAGBZGF…XIJQO` | `true` |
-| `pool.deposit` | `CDSRAC2…NV6DP6R4` | success — moved real USDC in, bound to the commitment |
-| `pool.withdraw` | `CDSRAC2…NV6DP6R4` | success — released USDC, amount bound to negative `public_amount` |
-| `pool.register_root_verified` | `CDSRAC2…NV6DP6R4` | success — trustless root advance (merkleUpdate proof) |
-| `pool.poseidon_hash(1,2)` | `CDSRAC2…NV6DP6R4` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
+| `pool.deposit` | `CDLWFTE…HVUJTJCB` | success — moved real USDC in, bound to the commitment |
+| `pool.withdraw` | `CDLWFTE…HVUJTJCB` | success — released USDC, amount bound to negative `public_amount` |
+| `pool.register_root_verified` | `CDLWFTE…HVUJTJCB` | success — trustless root advance (merkleUpdate proof) |
+| `pool.poseidon_hash(1,2)` | `CDLWFTE…HVUJTJCB` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
 | `merkleUpdate.verify` | `CBQB4AJ…7EP5Z` | `true` |
 
 Negative — all correctly rejected:

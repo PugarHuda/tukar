@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, offrampQuoteTwap, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -544,7 +544,11 @@ async function withdrawNote(note) {
       // wrongly rejects forever. Skip the gate when the floored unit is 0 (<1 USDC).
       const usdcWhole = BigInt(note.amount) / STROOPS; // matches lib.rs: amount / USDC_STROOPS
       if (usdcWhole > 0n) {
-        const q = await offrampQuote(cor.oracle, Number(usdcWhole));
+        // Compute the floor from the MEDIAN quote (offramp_quote_twap, 5 records) — the
+        // exact basis the on-chain gate enforces — so the client floor and the gate
+        // agree, and a manipulated spot can't desync them. null (thin/dead feed) -> no
+        // gate, so a transient read failure never blocks a withdraw.
+        const q = await offrampQuoteTwap(cor.oracle, Number(usdcWhole), 5);
         if (q != null && q > 0) { offrampSym = cor.oracle; minLocalOut = Math.floor(q * 0.99); }
       }
     }

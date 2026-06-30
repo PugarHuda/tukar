@@ -81,6 +81,13 @@ const USDC_STROOPS: i128 = 10_000_000;
 // feed passes comfortably. A frozen-but-positive stale price must NOT be used as a
 // live rate by the settlement gate — so staleness fails closed (FxUnavailable).
 const FX_MAX_STALENESS: u64 = 3600;
+// The withdraw SETTLEMENT gate prices against the MEDIAN of the last N Reflector
+// records, not a single spot price — so a transient manipulation or glitch of one
+// record can't move the floor (the median of N is robust to an outlier). FX_MIN_RECORDS
+// is the minimum the feed must return, so a thin feed can't silently degrade the median
+// back to a single spot read; below it the gate fails closed (FxUnavailable).
+const FX_GATE_RECORDS: u32 = 5;
+const FX_MIN_RECORDS: u32 = 3;
 
 #[contracttype]
 enum DataKey {
@@ -188,16 +195,26 @@ impl Pool {
         Self::quote_local(&env, symbol, usdc_amount)
     }
 
-    /// Local fiat for `usdc_amount` whole USDC at the live Reflector rate, read
-    /// ON-CHAIN (cross-contract). Shared by `offramp_quote` (display) and `withdraw`
-    /// (the min-receive settlement gate) so both derive the figure from the same
-    /// oracle read. A stale/absent feed or an overflow yields a typed FxUnavailable,
-    /// never a VM trap — so a gated withdraw FAILS CLOSED (funds stay put) rather than
-    /// settling at an unknown rate, and a display quote degrades gracefully.
+    /// Manipulation-resistant off-ramp quote: like `offramp_quote`, but priced at the
+    /// MEDIAN of the last `records` Reflector records — exactly what the withdraw
+    /// settlement gate enforces. Exposed so a client can compute its min-receive floor
+    /// on the SAME basis the gate uses (not a spot price that could diverge). Read-only.
+    pub fn offramp_quote_twap(env: Env, symbol: Symbol, usdc_amount: i128, records: u32) -> i128 {
+        if usdc_amount < 0 || usdc_amount >= (1i128 << 64) {
+            soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
+        }
+        Self::quote_local_median(&env, symbol, usdc_amount, records)
+    }
+
+    /// Local fiat for `usdc_amount` whole USDC at the live Reflector SPOT rate, read
+    /// ON-CHAIN (cross-contract). Used by the DISPLAY quote (`offramp_quote`). A
+    /// stale/absent feed or an overflow yields a typed FxUnavailable, never a VM trap,
+    /// so the display degrades gracefully. The load-bearing settlement gate uses the
+    /// median path (`quote_local_median`) instead, for manipulation resistance.
     fn quote_local(env: &Env, symbol: Symbol, usdc_amount: i128) -> i128 {
         let oracle: Address = env.storage().instance().get(&DataKey::FxOracle).unwrap();
         let asset = Asset::Other(symbol);
-        // Reflector: lastprice(asset) -> Option<PriceData>; decimals() -> u32.
+        // Reflector: lastprice(asset) -> Option<PriceData>.
         let pd: Option<PriceData> = env.invoke_contract(
             &oracle,
             &Symbol::new(env, "lastprice"),
@@ -211,20 +228,79 @@ impl Pool {
             Some(p) if p.price > 0 && now.saturating_sub(p.timestamp) <= FX_MAX_STALENESS => p,
             _ => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         };
-        let decimals: u32 = env.invoke_contract(
+        Self::price_to_local(env, &oracle, usdc_amount, pd.price)
+    }
+
+    /// Manipulation-resistant rate for the SETTLEMENT gate: read the last `records`
+    /// Reflector records and price at their MEDIAN, so a single manipulated/glitched
+    /// record can't move the floor (median of N is robust to one outlier). The NEWEST
+    /// record must still be fresh (<= FX_MAX_STALENESS), so a stalled feed fails closed;
+    /// the feed must return at least FX_MIN_RECORDS, so a thin feed can't degrade the
+    /// median back to spot. Absent feed / too-few records / overflow -> FxUnavailable.
+    fn quote_local_median(env: &Env, symbol: Symbol, usdc_amount: i128, records: u32) -> i128 {
+        let oracle: Address = env.storage().instance().get(&DataKey::FxOracle).unwrap();
+        let asset = Asset::Other(symbol);
+        // Reflector: prices(asset, records) -> Option<Vec<PriceData>> (newest first).
+        let pv: Option<Vec<PriceData>> = env.invoke_contract(
             &oracle,
-            &Symbol::new(env, "decimals"),
-            vec![env],
+            &Symbol::new(env, "prices"),
+            vec![env, asset.into_val(env), records.into_val(env)],
         );
-        // A compromised/buggy oracle returning a huge `decimals` (or a price/amount
-        // combo that overflows) must yield a typed FxUnavailable, never a trap.
+        let pv = match pv {
+            Some(v) if v.len() >= FX_MIN_RECORDS => v,
+            _ => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
+        };
+        // Newest record (index 0) must be fresh, else a stalled feed could settle a gate.
+        let now = env.ledger().timestamp();
+        let newest = pv.get(0).unwrap();
+        if newest.timestamp == 0 || now.saturating_sub(newest.timestamp) > FX_MAX_STALENESS {
+            soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable);
+        }
+        let median = Self::median_price(env, &pv);
+        Self::price_to_local(env, &oracle, usdc_amount, median)
+    }
+
+    /// Median of the record prices (each must be > 0, else FxUnavailable). Insertion-
+    /// sorts a small Vec (N ~ 5, well within the CPU budget) and takes the middle; for
+    /// an even count this picks the upper-middle, which only makes the floor slightly
+    /// STRICTER — fund-safe (the gate can over-protect, never under-protect).
+    fn median_price(env: &Env, prices: &Vec<PriceData>) -> i128 {
+        let mut vals: Vec<i128> = vec![env];
+        for p in prices.iter() {
+            if p.price <= 0 {
+                soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable);
+            }
+            vals.push_back(p.price);
+        }
+        let len = vals.len();
+        let mut i = 1u32;
+        while i < len {
+            let key = vals.get(i).unwrap();
+            let mut j = i;
+            while j > 0 && vals.get(j - 1).unwrap() > key {
+                let prev = vals.get(j - 1).unwrap();
+                vals.set(j, prev);
+                j -= 1;
+            }
+            vals.set(j, key);
+            i += 1;
+        }
+        vals.get(len / 2).unwrap()
+    }
+
+    /// Convert a USD-base oracle `price` (scaled by the oracle's `decimals`) into local
+    /// fiat for `usdc_amount` whole USDC: local = usdc * 10^decimals / price. Reads the
+    /// oracle's decimals (so a feed-config change can't silently misscale) and uses
+    /// checked math, so a buggy/hostile oracle yields FxUnavailable, never a VM trap.
+    fn price_to_local(env: &Env, oracle: &Address, usdc_amount: i128, price: i128) -> i128 {
+        let decimals: u32 = env.invoke_contract(oracle, &Symbol::new(env, "decimals"), vec![env]);
         let scale = match 10i128.checked_pow(decimals) {
             Some(s) => s,
             None => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         };
         // local = usdc * scale / price  (USD->local is the reciprocal of price/scale)
         match usdc_amount.checked_mul(scale) {
-            Some(num) => num / pd.price,
+            Some(num) => num / price,
             None => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         }
     }
@@ -451,7 +527,9 @@ impl Pool {
         // read into FxUnavailable here, so funds never move at an unknown rate.
         if let (Some(sym), Some(min_out)) = (offramp_symbol, min_local_out) {
             let usdc_whole = amount / USDC_STROOPS; // 7-dp SAC -> whole-USDC quote unit
-            let local = Self::quote_local(&env, sym, usdc_whole);
+            // Settlement gate prices at the MEDIAN of recent records, not spot, so a
+            // transient oracle manipulation can't lower the floor and force a bad fill.
+            let local = Self::quote_local_median(&env, sym, usdc_whole, FX_GATE_RECORDS);
             if local < min_out {
                 soroban_sdk::panic_with_error!(&env, PoolError::SlippageExceeded);
             }

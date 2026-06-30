@@ -31,6 +31,66 @@ impl MockOracle {
     pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
         Some(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 })
     }
+    // Last `n` records (newest first), all at the spot price — the median path the
+    // settlement gate uses sees a stable 5e12 median, matching lastprice.
+    pub fn prices(e: Env, _asset: Asset, n: u32) -> Option<Vec<PriceData>> {
+        let mut v = vec![&e];
+        let mut i = 0u32;
+        while i < n {
+            v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+            i += 1;
+        }
+        Some(v)
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
+// Oracle whose SPOT (lastprice) is a manipulated high outlier (100e12 -> a much
+// smaller local quote) but whose recent history is mostly the honest 5e12. The median
+// path must ignore the outlier and price at 5e12; a spot-based gate would not.
+#[contract]
+pub struct MockOracleOutlier;
+
+#[contractimpl]
+impl MockOracleOutlier {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        Some(PriceData { price: 100_000_000_000_000i128, timestamp: 1_700_000_000u64 })
+    }
+    // 5 records: one manipulated outlier (100e12) + four honest (5e12). Sorted median
+    // (index 2 of [5,5,5,5,100]e12) = 5e12 — the outlier can't move the floor.
+    pub fn prices(e: Env, _asset: Asset, _n: u32) -> Option<Vec<PriceData>> {
+        let mut v = vec![&e];
+        v.push_back(PriceData { price: 100_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+        let mut i = 0u32;
+        while i < 4 {
+            v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+            i += 1;
+        }
+        Some(v)
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
+// Oracle whose feed is too thin for the gate (only 2 records < FX_MIN_RECORDS=3) —
+// the median gate must fail closed rather than degrade to a near-spot read.
+#[contract]
+pub struct MockOracleThin;
+
+#[contractimpl]
+impl MockOracleThin {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        Some(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 })
+    }
+    pub fn prices(e: Env, _asset: Asset, _n: u32) -> Option<Vec<PriceData>> {
+        let mut v = vec![&e];
+        v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+        v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+        Some(v) // only 2 < FX_MIN_RECORDS
+    }
     pub fn decimals(_e: Env) -> u32 {
         14
     }
@@ -44,6 +104,9 @@ pub struct MockOracleEmpty;
 #[contractimpl]
 impl MockOracleEmpty {
     pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        None
+    }
+    pub fn prices(_e: Env, _asset: Asset, _n: u32) -> Option<Vec<PriceData>> {
         None
     }
     pub fn decimals(_e: Env) -> u32 {
@@ -376,6 +439,63 @@ fn withdraw_oracle_gate_fails_closed_on_dead_feed() {
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
         &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
     );
+}
+
+// OUT-OF-THE-BOX (audit round 9): the settlement gate prices at the MEDIAN of recent
+// records, not spot. Here the oracle's SPOT (lastprice) is a manipulated high outlier
+// (100e12 -> only ~2 local for 2 USDC, which would FAIL a 40 floor), but the median of
+// its recent records is the honest 5e12 -> 40 local -> the legit withdraw PASSES. A
+// spot-based gate would have wrongly rejected; the median gate ignores the outlier.
+#[test]
+fn withdraw_oracle_gate_median_ignores_spot_outlier() {
+    let env = Env::default();
+    let c = setup(&env);
+    let outlier = env.register(MockOracleOutlier, ());
+    c.pool.set_fx_oracle(&outlier);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40),
+    );
+    assert_eq!(c.token.balance(&recipient), two_usdc); // released: median (5e12) met the 40 floor
+}
+
+// Thin feed (fewer than FX_MIN_RECORDS records) -> the median gate fails closed
+// (FxUnavailable) rather than degrading to a near-spot read on too little data.
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable
+fn withdraw_oracle_gate_rejects_thin_feed() {
+    let env = Env::default();
+    let c = setup(&env);
+    let thin = env.register(MockOracleThin, ());
+    c.pool.set_fx_oracle(&thin);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
+    );
+}
+
+// The public median view the frontend uses for its floor: with the stub feed
+// (1 USD = 20 local) the median of identical records gives the same 2000 for 100 USDC.
+#[test]
+fn offramp_quote_twap_reads_median_on_chain() {
+    let env = Env::default();
+    let c = setup(&env);
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    assert_eq!(c.pool.offramp_quote_twap(&sym, &100, &5), 2000);
 }
 
 // CRITICAL regression (audit round 7): the Groth16 verifier sees only a FLAT public-
