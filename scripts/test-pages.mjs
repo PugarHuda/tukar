@@ -46,6 +46,18 @@ await page.goto(BASE + "/demo/audit", { waitUntil: "domcontentloaded" });
 await ready();
 chk(await vis("#panel3") && !(await vis("#panel0")), "direct load /demo/audit → Regulator panel shown");
 
+// demo-key connection persists across a FULL reload (localStorage rehydration) —
+// connect on one step, hard-navigate to another, and it should still be connected.
+await page.goto(BASE + "/demo/send", { waitUntil: "domcontentloaded" });
+await ready();
+await page.getByRole("button", { name: /Use testnet key/i }).click();
+await page.locator("#sendBtn:not([disabled])").waitFor({ timeout: 10000 });
+await page.goto(BASE + "/demo/receive", { waitUntil: "domcontentloaded" });
+await ready();
+await page.waitForTimeout(1500); // allow init to rehydrate the connection
+chk(/testnet key/i.test(await page.locator("#walletTag").innerText().catch(() => "")),
+  "demo-key connection persists across a full reload (localStorage rehydration)");
+
 chk(errs.length === 0, `no uncaught page errors${errs.length ? " (" + errs.join("; ") + ")" : ""}`);
 
 const passed = results.filter((r) => r[0]).length;

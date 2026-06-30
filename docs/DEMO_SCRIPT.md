@@ -77,10 +77,16 @@ cross-border globe, then click **Launch the live demo**.
 > local fiat — with zero-knowledge proofs verified inside Stellar smart contracts.
 > Four circuits, five live contracts, real testnet USDC. Let's run it."
 
+> **Note — the demo is now one step per page.** Each corridor stage is its own URL
+> (`/demo/send` · `/demo/corridor` · `/demo/receive` · `/demo/audit`); the
+> **SENDER → CORRIDOR → RECEIVER → REGULATOR** flow strip (and the Back/Next pager)
+> navigates between them, and many actions auto-advance to the next step. So each
+> scene below is its own page — let the URL change land before narrating.
+
 ## Scene 1 — The console + Country A · Sender (0:25–0:50)
-**Screen:** the **Corridor Console** — headline *"USDC in. Private crossing. Local
-fiat out."*, the **SENDER → CORRIDOR → RECEIVER → REGULATOR** flow strip, and four
-sequence-badged panels. The **01 · Sender** panel glows (the active-step ring).
+**Screen:** the **Corridor Console** opens on the **Sender** step (`/demo/send`) —
+headline *"USDC in. Private crossing. Local fiat out."* and the
+**SENDER → CORRIDOR → RECEIVER → REGULATOR** flow strip (also the step nav).
 Amount = 500 USDC; pick a **destination corridor** (e.g. Mexico · MXN — or switch
 to Brazil/Argentina/Philippines/India/Nigeria/Colombia; the recipient + off-ramp
 currency update, with **live** USD→local FX — for Mexico/Brazil/Argentina that rate
@@ -92,7 +98,8 @@ into corridor →** (the button shows "Building compliance proof…").
 > submits a signed deposit to the pool contract. Watch the corridor panel."
 
 ## Scene 2 — Corridor on Stellar, live (0:50–1:15)
-**Screen:** the active ring moves to **02 · Corridor**. A commitment row appears
+**Screen:** the deposit **auto-advances to the Corridor step** (URL → `/demo/corridor`).
+A commitment row appears
 (`PAY-001`, a `0x…` hash, a **Shielded** chip, "•••• USDC · hidden"); the
 **COMMITMENTS** counter — read **live from chain** — ticks up.
 **Say:**
@@ -103,7 +110,8 @@ into corridor →** (the button shows "Building compliance proof…").
 > root."
 
 ## Scene 3 — Country B · Receiver + off-ramp (1:15–1:40)
-**Screen:** the active ring moves to **03 · Receiver**; `PAY-001 · from US` arrives
+**Screen:** click **Receiver** in the flow strip (or Next) → the **Receiver** step
+(`/demo/receive`); `PAY-001 · from US` arrives
 **Shielded**. Click **Reveal & off-ramp →** → it shows green **"≈ +$8,5xx MXN"**
 (the exact figure is live — the pool reads Reflector on-chain).
 **Say:**
@@ -115,7 +123,8 @@ into corridor →** (the button shows "Building compliance proof…").
 > spend the note's nullifier and release the tokens from the pool.)*
 
 ## Scene 4 — Regulator: ZK disclosure, verified on-chain (1:40–2:15) ← the wedge
-**Screen:** the **04 · Regulator** panel. Pick `PAY-001` in the dropdown, audit
+**Screen:** click **Regulator** in the flow strip → the **Regulator** step
+(`/demo/audit`). Pick `PAY-001` in the dropdown, audit
 context "2026-Q2 · CNBV". Click **Generate & verify disclosure proof** — the proof
 box shows **Proving in browser…** (progress bar), then turns green **"Verified
 on-chain — Disclosed amount: $500 USDC. Nothing else is revealed."** with the line
@@ -198,6 +207,6 @@ full peer-to-peer loop."*
 
 ### Recording tips
 - Pre-warm `/demo`; the first proof loads a ~1.8 MB wasm.
-- Keep browser zoom up so the four panels are readable; trim dead air during proving.
+- One step per page now — keep browser zoom up so the single active panel is readable; trim dead air during proving.
 - The on-chain confirmation line appears ~2–3s after the in-browser result — don't cut early.
-- The active-step ring (orange glow) follows the flow Sender→Corridor→Receiver→Regulator — let it land on each panel before narrating it.
+- Navigate with the flow strip (Sender→Corridor→Receiver→Regulator) or the Back/Next pager; the URL changes per step (`/demo/send` … `/demo/audit`) and many actions auto-advance. Let each page settle before narrating. You can also deep-link a scene (e.g. open `/demo/receive` directly) for a clean retake.
