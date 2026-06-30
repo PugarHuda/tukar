@@ -12,6 +12,8 @@ process.env.PATH = "C:\\Hackathons\\Hackathon Stellar Real World ZK\\tools\\bin;
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const BASE = process.argv[2] || "http://localhost:8000";
 const OUT = process.argv[3] || "tukar-demo.webm";
+// The local static server serves /demo.html; Vercel rewrites /demo. Match the e2e suite.
+const DEMO = BASE.includes("localhost") ? "/demo.html" : "/demo";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const waitStatus = async (p, re, tries = 70) => {
   for (let i = 0; i < tries; i++) {
@@ -45,7 +47,7 @@ try {
   await sleep(1200);
 
   // 2) into the live demo; wait for the prover to be ready
-  await p.goto(BASE + "/demo", { waitUntil: "networkidle2", timeout: 60000 });
+  await p.goto(BASE + DEMO, { waitUntil: "networkidle2", timeout: 60000 });
   await waitStatus(p, /Ready/, 30);
   await sleep(1500);
 

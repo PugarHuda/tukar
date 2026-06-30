@@ -72,7 +72,10 @@ compliance).
   another). See [`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) for how each
   externally-gated integration (Launchtube, Mercury, passkeys, SEP-24) maps to a
   native alternative and what's verifiable here.
-- **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
+- **Demo video:** _add link here_ — generate fresh footage of the **live** flow with
+  `npm run record:demo` (records landing → connect → on-chain deposit → off-ramp →
+  withdraw → disclosure → tamper into `tukar-demo.webm`), then narrate over it using the
+  shot-by-shot script in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 ## What the ZK is doing (load-bearing)
 
