@@ -14,11 +14,15 @@ mkdir -p "$BUILD"
 echo "==> [1/6] Compiling disclosure.circom"
 "$CIRCOM" circuits/disclosure.circom --r1cs --wasm --sym -l node_modules -o "$BUILD"
 
-echo "==> [2/6] Powers of Tau (phase 1, BN254)"
-if [ ! -f "$BUILD/pot12_final.ptau" ]; then
-  $SNARKJS powersoftau new bn128 12 "$BUILD/pot12_0000.ptau" -v
-  $SNARKJS powersoftau contribute "$BUILD/pot12_0000.ptau" "$BUILD/pot12_0001.ptau" --name="corredor-1" -v -e="corredor entropy one"
-  $SNARKJS powersoftau prepare phase2 "$BUILD/pot12_0001.ptau" "$BUILD/pot12_final.ptau" -v
+echo "==> [2/6] Powers of Tau — REAL Hermez phase-1 ceremony (no locally-known waste)"
+# Same Hermez phase-1 the deployed verifier was built from (and the same 2^14 ptau
+# the other three circuits use), NOT a fresh local one — a local phase-1 has
+# locally-known toxic waste and a different phase-1, so its zkey wouldn't match the
+# on-chain verifier. Disclosure is only 671 constraints, so 2^14 is ample.
+PTAU="$BUILD/pot14_hez.ptau"
+HEZ_URL="https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_14.ptau"
+if [ ! -f "$PTAU" ]; then
+  curl -fSL "$HEZ_URL" -o "$PTAU"
 fi
 
 # Reproducibility: reuse the committed proving key if present (snarkjs setup is
@@ -27,10 +31,12 @@ if [ -f "$BUILD/disclosure_final.zkey" ]; then
   echo "==> [3/6] Reusing existing disclosure_final.zkey (committed key)"
 else
   echo "==> [3/6] Groth16 setup (phase 2)"
-  $SNARKJS groth16 setup "$BUILD/disclosure.r1cs" "$BUILD/pot12_final.ptau" "$BUILD/disclosure_0000.zkey"
+  $SNARKJS groth16 setup "$BUILD/disclosure.r1cs" "$PTAU" "$BUILD/disclosure_0000.zkey"
   $SNARKJS zkey contribute "$BUILD/disclosure_0000.zkey" "$BUILD/disclosure_final.zkey" --name="corredor-key" -v -e="corredor entropy two"
 fi
 $SNARKJS zkey export verificationkey "$BUILD/disclosure_final.zkey" "$BUILD/verification_key.json"
+# Assert the zkey derives from the Hermez phase-1 (makes the no-waste claim checkable).
+$SNARKJS zkey verify "$BUILD/disclosure.r1cs" "$PTAU" "$BUILD/disclosure_final.zkey"
 
 echo "==> [4/6] Generate sample input"
 node scripts/gen-input.mjs > "$BUILD/input.json"

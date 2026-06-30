@@ -21,14 +21,19 @@ echo "==> [1/5] Compiling $NAME.circom"
 "$CIRCOM" "circuits/$NAME.circom" --r1cs --wasm --sym -l node_modules -o "$BUILD"
 $SNARKJS r1cs info "$BUILD/$NAME.r1cs" | grep -i constraints || true
 
-PTAU="$BUILD/pot${POW}_final.ptau"
+# Phase-1 = the REAL Hermez perpetual Powers-of-Tau ceremony (a multi-party
+# ceremony — no locally-known toxic waste), exactly what the DEPLOYED verifiers
+# were built from. We deliberately do NOT `powersoftau new` a local phase-1: that
+# would have locally-known waste AND a different phase-1, so the rebuilt zkeys
+# wouldn't match the on-chain verifiers. 2^14 covers every circuit here
+# (transfer is the largest at 15884 < 16384 constraints).
+PTAU="$BUILD/pot14_hez.ptau"
+HEZ_URL="https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_14.ptau"
 if [ ! -f "$PTAU" ]; then
-  echo "==> [2/5] Powers of Tau 2^$POW"
-  $SNARKJS powersoftau new bn128 "$POW" "$BUILD/pot${POW}_0.ptau" -v
-  $SNARKJS powersoftau contribute "$BUILD/pot${POW}_0.ptau" "$BUILD/pot${POW}_1.ptau" --name=c1 -v -e="corredor $NAME entropy"
-  $SNARKJS powersoftau prepare phase2 "$BUILD/pot${POW}_1.ptau" "$PTAU" -v
+  echo "==> [2/5] Fetching Hermez phase-1 ptau (powersOfTau28_hez_final_14)"
+  curl -fSL "$HEZ_URL" -o "$PTAU"
 else
-  echo "==> [2/5] Reusing $PTAU"
+  echo "==> [2/5] Reusing Hermez phase-1 ptau $PTAU"
 fi
 
 # Reproducibility: reuse the committed proving key if present. snarkjs trusted
@@ -43,6 +48,10 @@ else
   $SNARKJS zkey contribute "$BUILD/${NAME}_0.zkey" "$BUILD/${NAME}_final.zkey" --name=k1 -v -e="corredor $NAME key"
 fi
 $SNARKJS zkey export verificationkey "$BUILD/${NAME}_final.zkey" "$BUILD/${NAME}_vk.json"
+# Reproducibility assertion: prove the zkey's phase-2 was built on the Hermez
+# phase-1 above (this is what makes the "no locally-known toxic waste" claim true
+# and checkable). Fails loudly if a stale local-ptau key ever sneaks back in.
+$SNARKJS zkey verify "$BUILD/$NAME.r1cs" "$PTAU" "$BUILD/${NAME}_final.zkey"
 
 echo "==> [4/5] Input + witness + proof"
 node "$GEN" > "$BUILD/${NAME}_input.json"
