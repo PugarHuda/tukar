@@ -147,11 +147,18 @@ transfers**. It is important to be precise about what that does and does not hid
 - **The shared demo key collapses it to zero** (see the demo-key caveat above): one
   key on both edges self-links every payment.
 
-**Production fix (the canonical one):** fixed-denomination notes + a split-on-deposit
-transfer so withdrawals are denomination-sized and mutually indistinguishable — the
-design the cited whitepaper specifies. Documented here rather than built because it's
-a meaningful design change beyond the demo's scope; the machinery (`transfer` JoinSplit)
-already supports it.
+**Honest note on the "fix".** Fixed-denomination notes (Tornado / Privacy-Pools) are
+the textbook anonymity-set grower, but they fit *remittance* poorly: a remittance is an
+exogenous specific amount, so bucketing `1,437.22` into `1×1000 + 4×100 + 3×10 + 7×1`
+just re-encodes the amount in the note **count and bucket-mix** (and the `$0.22` has no
+bucket), and Tukar's 2-in/2-out `transfer` would need several sequential splits — a real
+circuit/UX redesign, not a config flip. So for arbitrary-amount remittance, link-privacy
+is fundamentally an **operational** property, and the honest levers are: (1) a large
+concurrent same-corridor user base; (2) deposit/withdraw **batching + timing
+decorrelation** (a relayer/queue so edges don't pair 1:1 in time); (3) **not** withdrawing
+the exact deposited amount — using the JoinSplit re-denomination that already exists
+between the edges (which the demo does not currently exercise). Denominations are at best
+a partial, poorly-fitting structural mitigation here; we do not claim them as a clean fix.
 
 ## Out of scope (this testnet build)
 
