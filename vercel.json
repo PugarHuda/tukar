@@ -5,6 +5,12 @@
   "installCommand": null,
   "outputDirectory": "frontend",
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/demo/send", "destination": "/demo.html" },
+    { "source": "/demo/corridor", "destination": "/demo.html" },
+    { "source": "/demo/receive", "destination": "/demo.html" },
+    { "source": "/demo/audit", "destination": "/demo.html" }
+  ],
   "headers": [
     {
       "source": "/circuit/(.*)",

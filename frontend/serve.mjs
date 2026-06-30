@@ -23,6 +23,9 @@ createServer(async (req, res) => {
   try {
     let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
     if (path === "/") path = "/index.html";
+    // SPA rewrites (mirror vercel.json): /demo and the per-step routes serve the
+    // single demo console, which renders the right panel from the URL.
+    else if (path === "/demo" || /^\/demo\/(send|corridor|receive|audit)\/?$/.test(path)) path = "/demo.html";
     const file = join(ROOT, normalize(path).replace(/^(\.\.[/\\])+/, ""));
     if (!file.startsWith(ROOT)) { res.writeHead(403).end("forbidden"); return; }
     const data = await readFile(file);

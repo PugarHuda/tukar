@@ -107,7 +107,12 @@ header.bar {
 .flow-track.g i { background: linear-gradient(90deg, transparent, var(--green)); animation-delay: 1.4s; }
 
 /* ---- panels ---- */
-.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+/* One step per page: a single centered panel (the corridor stage the URL points to). */
+.grid { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: stretch; max-width: 720px; margin: 0 auto; }
+/* Step pager (per-page Back/Next nav) */
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 720px; margin: 18px auto 0; }
+.pager-label { font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: .04em; color: var(--muted, #8a847e); text-transform: uppercase; }
+.pager .btn-ghost, .pager .btn-primary { min-width: 110px; flex: 0 0 auto; }
 .panel {
   position: relative; border: 1px solid var(--border); border-radius: 18px; background: var(--surface);
   padding: 24px; display: flex; flex-direction: column; transition: box-shadow 0.4s;

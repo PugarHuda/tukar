@@ -10,7 +10,7 @@ import { chromium } from "playwright-core";
 
 const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const BASE = process.argv[2] || "https://tukar-six.vercel.app";
-const DEMO = BASE.includes("localhost") ? "/demo.html" : "/demo";
+const DEMO = "/demo"; // per-step routes are /demo/<slug>; rewrites serve the same console
 const results = [];
 const ok = (n) => { results.push([true, n]); console.log(`  ✅ ${n}`); };
 const bad = (n, w) => { results.push([false, `${n} — ${w}`]); console.log(`  ❌ ${n} — ${w}`); };
@@ -39,12 +39,20 @@ page.setDefaultTimeout(60000);
 const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(e.message));
 
+// Navigate corridor steps (0 Sender, 1 Corridor, 2 Receiver, 3 Regulator) via the flow strip.
+const goStep = async (i) => {
+  await page.locator("#fn" + i).click();
+  await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 10000 });
+  await page.waitForTimeout(150);
+};
+
 console.log(`QR scan test against ${BASE}${DEMO}\n`);
 await page.goto(BASE + DEMO, { waitUntil: "domcontentloaded" });
 await page.locator("#status").filter({ hasText: /Ready/ }).waitFor({ timeout: 45000 });
 
-// 1) Payment-request QR (no chain needed) — Request 500, then scan #reqQr.
+// 1) Payment-request QR (no chain needed) — Request 500 on the Receiver step, scan #reqQr.
 try {
+  await goStep(2);
   await page.locator("#reqAmount").fill("500");
   await page.getByRole("button", { name: /Request →/ }).click();
   await page.locator("#reqEsTxt").waitFor({ timeout: 8000 });
@@ -58,6 +66,7 @@ try {
 
 // 2) Bearer-note QR (the "money") — connect, deposit on-chain, export, scan #exportQr.
 try {
+  await goStep(0); // Sender
   if (!(await page.locator("#sendBtn").isEnabled().catch(() => false))) {
     await page.getByRole("button", { name: /Use testnet key/i }).click();
     await page.locator("#sendBtn:not([disabled])").waitFor({ timeout: 10000 });
@@ -67,6 +76,7 @@ try {
   await page.locator("#status").filter({ hasText: /registered on-chain ✓|registration failed|deposit failed/i }).waitFor({ timeout: 120000 });
   const st = (await page.locator("#status").innerText()).trim();
   if (!/registered on-chain ✓/i.test(st)) throw new Error("deposit didn't register: " + st);
+  await goStep(2); // Receiver
   await page.locator("#incoming [data-export]").first().click();
   await page.locator("#exportEsTxt").waitFor({ timeout: 8000 });
   const want = (await page.locator("#exportEsTxt").innerText()).trim();

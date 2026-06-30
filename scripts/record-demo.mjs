@@ -62,8 +62,10 @@ try {
   console.log("deposit:", JSON.stringify(await waitStatus(p, /registered on-chain|registration failed|deposit failed/i)));
   await sleep(2600);
 
-  // 5) Receiver — reveal & off-ramp (figure computed ON-CHAIN by the pool reading
-  //    Reflector); let the on-chain quote land, then linger on it
+  // 5) Receiver — navigate to the Receiver step (per-page), then reveal & off-ramp
+  //    (figure computed ON-CHAIN by the pool reading Reflector); linger on it
+  await safeClick(p, "#fn2");
+  await sleep(1200);
   await safeClick(p, "#incoming [data-reveal]");
   await sleep(3200);
 
@@ -72,7 +74,9 @@ try {
   console.log("withdraw:", JSON.stringify(await waitStatus(p, /withdrawn on-chain|withdraw failed/i)));
   await sleep(2600);
 
-  // 7) Regulator — disclosure proof verified on-chain
+  // 7) Regulator — navigate to the Regulator step, disclosure proof verified on-chain
+  await safeClick(p, "#fn3");
+  await sleep(1200);
   await p.select("#auditSelect", "1").catch(() => {});
   await sleep(700);
   await safeClick(p, "#proveBtn");

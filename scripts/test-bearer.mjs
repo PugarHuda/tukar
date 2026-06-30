@@ -10,7 +10,7 @@ import { chromium } from "playwright-core";
 
 const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const BASE = process.argv[2] || "https://tukar-six.vercel.app";
-const DEMO = BASE.includes("localhost") ? "/demo.html" : "/demo";
+const DEMO = "/demo"; // per-step routes are /demo/<slug>; rewrites serve the same console
 const assert = (c, m) => { if (!c) throw new Error(m); };
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
@@ -25,6 +25,12 @@ const connect = async () => {
   await page.getByRole("button", { name: /Use testnet key/i }).click();
   await page.locator("#sendBtn:not([disabled])").waitFor({ timeout: 10000 });
 };
+// Navigate corridor steps (0 Sender, 1 Corridor, 2 Receiver, 3 Regulator) via the flow strip.
+const goStep = async (i) => {
+  await page.locator("#fn" + i).click();
+  await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 10000 });
+  await page.waitForTimeout(150);
+};
 
 console.log(`Bearer-note end-to-end against ${BASE}${DEMO}\n`);
 let okCount = 0;
@@ -33,7 +39,8 @@ try {
   await page.locator("#status").filter({ hasText: /Ready/ }).waitFor({ timeout: 45000 });
   await connect();
 
-  // 1) deposit a real note on-chain
+  // 1) deposit a real note on-chain (Sender step)
+  await goStep(0);
   await page.locator("#corridor").selectOption("MX");
   await page.locator("#amount").fill("500");
   await page.locator("#sendBtn").click();
@@ -42,7 +49,8 @@ try {
   console.log("  ✅ 1. deposited a note on-chain (registered)");
   okCount++;
 
-  // 2) export the bearer string (the thing the QR encodes)
+  // 2) export the bearer string (the thing the QR encodes) — Receiver step
+  await goStep(2);
   await page.locator("#incoming [data-export]").first().click();
   await page.locator("#exportEsTxt").waitFor({ timeout: 8000 });
   const note = (await page.locator("#exportEsTxt").innerText()).trim();
@@ -57,6 +65,7 @@ try {
   await connect();
   // let the just-registered leaf propagate to the public RPC before reconstructing
   await page.waitForTimeout(30000);
+  await goStep(2); // Receiver step for the import box
   await page.locator("#importInput").fill(note);
   await page.getByRole("button", { name: /Import →/ }).click();
   await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 60000 });

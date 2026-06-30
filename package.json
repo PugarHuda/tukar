@@ -18,6 +18,7 @@
     "test:qr": "node scripts/scan-qr.mjs https://tukar-six.vercel.app",
     "test:bearer": "node scripts/test-bearer.mjs https://tukar-six.vercel.app",
     "test:landing": "node scripts/landing-check.mjs https://tukar-six.vercel.app",
+    "test:pages": "node scripts/test-pages.mjs https://tukar-six.vercel.app",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {

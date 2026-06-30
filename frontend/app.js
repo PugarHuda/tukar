@@ -124,12 +124,43 @@ const short = (s) => `${String(s).slice(0, 10)}…${String(s).slice(-8)}`;
 const shortHash = (s) => `0x${BigInt(s).toString(16).slice(0, 8)}…${BigInt(s).toString(16).slice(-2)}`;
 
 // Light the active panel + flow node for the current step (0..3).
-function setActiveStep(n) {
-  for (let i = 0; i < 4; i++) {
-    $("panel" + i).classList.toggle("active", i === n);
-    $("fn" + i).classList.toggle("active", i === n);
-  }
+// ---- Per-step routing: each corridor stage is its own URL (/demo/<slug>). Panel
+// index == step index (0 Sender, 1 Corridor, 2 Receiver, 3 Regulator). Only the
+// active step's panel is shown; navigation pushes a real URL so a direct load /
+// refresh / shared link of any step works (Vercel rewrites /demo/* -> /demo.html,
+// and state is rehydrated from localStorage on boot). ----
+const STEPS = [
+  { slug: "send", label: "Sender" },
+  { slug: "corridor", label: "Corridor" },
+  { slug: "receive", label: "Receiver" },
+  { slug: "audit", label: "Regulator" },
+];
+function stepIndexFromPath() {
+  const m = location.pathname.match(/\/demo\/(send|corridor|receive|audit)\/?$/);
+  const i = m ? STEPS.findIndex((s) => s.slug === m[1]) : 0;
+  return i < 0 ? 0 : i;
 }
+function showStep(n, push) {
+  n = Math.max(0, Math.min(STEPS.length - 1, n));
+  for (let i = 0; i < 4; i++) {
+    const on = i === n;
+    const p = $("panel" + i);
+    if (p) { p.style.display = on ? "" : "none"; p.classList.toggle("active", on); }
+    const f = $("fn" + i);
+    if (f) f.classList.toggle("active", on);
+  }
+  const prev = $("navPrev"), next = $("navNext"), lab = $("navLabel");
+  if (prev) prev.style.visibility = n > 0 ? "" : "hidden";
+  if (next) next.style.visibility = n < STEPS.length - 1 ? "" : "hidden";
+  if (lab) lab.textContent = `Step ${n + 1} of ${STEPS.length} · ${STEPS[n].label}`;
+  const want = "/demo/" + STEPS[n].slug;
+  if (push && location.pathname !== want) history.pushState({ step: n }, "", want);
+  window.scrollTo(0, 0);
+}
+// setActiveStep is the navigation primitive: existing flow code that advances the
+// step (after a deposit, import, withdraw, …) now navigates to that step's page.
+function setActiveStep(n) { showStep(n, true); }
+window.addEventListener("popstate", () => showStep(stepIndexFromPath(), false));
 
 // Rebuild the Merkle tree from on-chain events, but ONLY trust it if its root
 // matches the pool's live current_root. If the RPC event window doesn't reach far
@@ -212,11 +243,17 @@ async function init() {
     const synced = await syncedLeaves();
     if (synced) leaves = synced;
     loadSession(); // restore this browser's notes so withdraw survives a reload
+    // Rehydrate the demo-key connection across page navigations / refresh (only the
+    // built-in testnet key — a Freighter connection needs an explicit re-approval).
+    if (localStorage.getItem("tukar:conn") === "demo") {
+      walletDisconnect(); walletConn = null;
+      showConnected(`<b>testnet key</b> · ${shortAddr(activeAddress())}`, null);
+    }
     console.log(`[tukar ${BUILD}] init complete — ${synced ? synced.length + " on-chain leaves synced" : "session-local tree"}, ${notes.length} saved note(s)`);
     status.textContent = notes.length
       ? `Ready · ${notes.length} saved payment(s) restored.`
       : "Ready · zero-knowledge prover loaded.";
-    setActiveStep(0);
+    showStep(stepIndexFromPath(), false); // open the step the URL asks for
     render();
     loadPoolState();
   } catch (e) {
@@ -1015,6 +1052,7 @@ function showDisconnected(msg) {
 // connection (real key, real testnet txs, no install). Doubles as Disconnect.
 function onDemoKeyClick() {
   if ($("demoKeyBtn").dataset.role === "disconnect") {
+    localStorage.removeItem("tukar:conn"); // forget the persisted connection
     showDisconnected("Disconnected. Connect a wallet (or the built-in testnet key) to send.");
     return;
   }
@@ -1024,6 +1062,8 @@ function onDemoKeyClick() {
     `<b>testnet key</b> · ${shortAddr(activeAddress())}`,
     "Connected with the built-in testnet key — real testnet transactions, no install. (Connect Freighter to sign with your own wallet.)",
   );
+  // Persist so navigating between step pages (or refreshing one) keeps the connection.
+  localStorage.setItem("tukar:conn", "demo");
 }
 
 async function onWalletClick() {
@@ -1032,6 +1072,7 @@ async function onWalletClick() {
   try {
     const { address, signTransaction } = await walletConnect();
     walletConn = { address };
+    localStorage.removeItem("tukar:conn"); // a Freighter session isn't auto-restored (needs re-approval)
     showConnected(`<b>${shortAddr(address)}</b>`, `Wallet connected (${shortAddr(address)}) — transactions signed by Freighter.`);
     // Funding (friendbot XLM + USDC trustline + faucet) is best-effort: the wallet
     // is already connected, so a transient faucet failure must NOT drop it.
@@ -1058,6 +1099,20 @@ async function onWalletClick() {
 }
 $("walletBtn").addEventListener("click", onWalletClick);
 $("demoKeyBtn").addEventListener("click", onDemoKeyClick);
+
+// Per-step navigation: Back/Next pager + the flow strip nodes are links to each step.
+if ($("navPrev")) $("navPrev").addEventListener("click", () => setActiveStep(stepIndexFromPath() - 1));
+if ($("navNext")) $("navNext").addEventListener("click", () => setActiveStep(stepIndexFromPath() + 1));
+for (let i = 0; i < 4; i++) {
+  const f = $("fn" + i);
+  if (!f) continue;
+  f.style.cursor = "pointer";
+  f.setAttribute("role", "link");
+  f.setAttribute("tabindex", "0");
+  f.addEventListener("click", () => setActiveStep(i));
+  f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveStep(i); } });
+}
+
 showDisconnected();
 
 console.log("[tukar] app.js module executed — wiring UI");

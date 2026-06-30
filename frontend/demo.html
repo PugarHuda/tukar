@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- Resolve all relative asset URLs from the site root so deep step routes
+       (/demo/send, /demo/audit, …) load app.js / styles.css / circuit/* correctly. -->
+  <base href="/" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tukar — Corridor Console (live demo)</title>
   <meta name="description" content="Run the Tukar corridor live on Stellar testnet: deposit real USDC with a zero-knowledge compliance proof, off-ramp to fiat, and audit with a selective-disclosure proof verified on-chain. No install, no wallet." />
@@ -219,6 +222,13 @@
 
     </div>
 
+    <!-- ===== STEP PAGER (per-page navigation) ===== -->
+    <div class="pager">
+      <button id="navPrev" class="btn-ghost" type="button">← Back</button>
+      <span id="navLabel" class="pager-label"></span>
+      <button id="navNext" class="btn-primary" type="button">Next →</button>
+    </div>
+
     <!-- ===== FOOTER NOTE ===== -->
     <div class="fnote">
       <div class="fchips">
@@ -239,6 +249,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=54"></script>
+  <script type="module" src="./app.js?v=55"></script>
 </body>
 </html>
