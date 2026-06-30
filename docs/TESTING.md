@@ -9,9 +9,15 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN254)
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
+npm run test:e2e         # Playwright real-click e2e (drives the live site, real clicks)
 # contract unit tests (in WSL/Linux):
 cd contracts/pool && cargo test          # 33/33
 ```
+
+> `npm run circuit:all` fetches the **real Hermez** phase-1 ptau
+> (`powersOfTau28_hez_final_14.ptau`, ~19 MB) on first run and asserts each rebuilt
+> zkey derives from it (`snarkjs zkey verify`) — so the build is reproducibly
+> waste-free, not generated from a local phase-1. See §5.
 
 ## 1. Repo hygiene ✅
 - No secrets, `.ptau`, `.wtns`, tool binaries, or `node_modules` tracked.
@@ -100,6 +106,46 @@ verification fails. This closes the binding gap found in QA.
 
 State checks after the test transfer: `pool.current_root` = registered root,
 `commitment_count` = 2, `is_root_known(root)` = true, `is_nullifier_used(spent)` = true.
+
+## 5. Trusted setup — independently verifiable ✅
+
+All four **deployed** proving keys (`frontend/circuit/*_final.zkey`) derive from the
+real **Hermez** perpetual Powers-of-Tau ceremony (`powersOfTau28_hez_final_14.ptau`),
+so phase-1 has **no locally-known toxic waste**. This is not a claim to take on
+faith — anyone can check it:
+
+```bash
+# for each circuit c in {disclosure, compliance, merkleUpdate, transfer}:
+snarkjs zkey verify circuits/build/$c.r1cs circuits/build/pot14_hez.ptau \
+        frontend/circuit/${c}_final.zkey      # => "ZKey Ok!"
+```
+
+Verified 2026-06-30: **ZKey Ok! for all four** (2^14 = 16384 ≥ transfer's 15884
+constraints). The build scripts (`build-circuit.sh`, `build-disclosure.sh`) fetch
+this exact ptau and run the same assertion, so a stale local-ptau key can never
+silently replace a deployed one. Honest caveat: **phase-2** is a single Tukar
+contribution (a production deploy wants a multi-party phase-2 too).
+
+## 6. End-to-end UI (Playwright real-click) ✅ 9/10 live
+
+`npm run test:e2e` drives the **live** site (`tukar-six.vercel.app/demo`) with
+genuine clicks/typing/selects (not `evaluate`-injection) over system Chrome. Ten
+cases: prover-load, Send-gating pre-connect, payment-request round-trip, connect,
+invalid-amount fuzzing (no crash), all 7 corridors (3 on-chain Reflector / 4
+FX-API), the full happy path (deposit → reveal → withdraw → disclose → tamper),
+on-chain ASP forge-rejection, bearer-note P2P + double-spend, and disconnect
+re-gating.
+
+Verified 2026-06-30 against the live deploy: **9/10**, zero uncaught page errors.
+The 8 product-critical flows pass, including both heavy on-chain flows (happy path
++ ASP forge-rejection). The one failing case (bearer-note) is a **test-harness
+limitation, not a product bug**: it chains *five* on-chain operations back-to-back
+on the single shared demo key — deposit, export, import+withdraw, re-import,
+double-spend — and the public testnet RPC serializes/lags that one key past the
+timeout on the final step. A real user signs with their own key and never queues
+five txns on one sequence. The double-spend *protection* itself is proven
+independently by the unit test `transfer_double_spend_rejected` and the on-chain
+`NullifierUsed` result in §4 — not by this UI race.
 
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the

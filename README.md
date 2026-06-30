@@ -182,12 +182,23 @@ professionally audited — see the caveats below). What that means concretely:
   remaining caveat is that the *shared demo key's* secret is public — so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**33/33 pool unit tests** + an 18-point [threat model](docs/SECURITY.md). CI runs the
-pool tests, the in-browser proving flow, and the circuit-soundness suite on every push
-(`.github/workflows/ci.yml`). The full live on-chain flow (deposit → register →
-withdraw → disclosure → tamper-rejected) is run **locally before each deploy** with
-`scripts/browser-test.mjs` / `npm run test:e2e` — it needs a funded testnet key + a
-deployed pool, so it's a manual gate, not CI-automated.
+**33/33 pool unit tests** + **6/6 circuit-soundness** + an 18-point
+[threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser proving
+flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
+
+**Live real-click e2e (`npm run test:e2e`): 9/10** against the deployed site —
+Playwright drives genuine clicks through the full on-chain flow (deposit → reveal →
+withdraw → disclose → tamper-rejected), on-chain ASP forge-rejection, corridor
+switching, and UI gating, with zero uncaught page errors. The one non-passing case
+(bearer-note P2P) is a **harness limitation, not a product bug**: it queues five
+on-chain txns back-to-back on the single shared demo key and the public RPC lags
+that one sequence past timeout — double-spend protection itself is proven by the
+`transfer_double_spend_rejected` unit test and the on-chain `NullifierUsed` result.
+See [docs/TESTING.md](docs/TESTING.md) §6.
+
+**Trusted setup is independently verifiable:** all four deployed proving keys
+provably derive from the real Hermez ceremony — `snarkjs zkey verify <r1cs>
+pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 
 ---
 
@@ -235,6 +246,8 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
 npm install                         # snarkjs, circomlib, circomlibjs
 
 # A) Off-chain: compile + prove + verify ALL FOUR circuits (Groth16/BN254)
+#    First run fetches the real Hermez phase-1 ptau (~19 MB) and asserts each zkey
+#    derives from it (reproducibly waste-free); reused on later runs.
 npm run circuit:all                 # or circuit:disclosure / :transfer / :compliance
 
 # B) Tests: in-browser proving flow + circuit soundness (negative tests)

@@ -132,6 +132,11 @@ await tc("bearer note: export→reset→import→withdraw, then double-spend rej
   await page.locator("#sendBtn").click();
   await waitStatus(/registered on-chain ✓|registration failed|deposit failed/i);
   assert(/registered on-chain ✓/i.test(await statusText()), "bearer deposit didn't register");
+  // Let the freshly-registered leaf propagate to the public RPC before we reset and
+  // re-import: import reconstructs the tree from the on-chain leaves(), so it must
+  // see this deposit's leaf. (A real receiver on a second device imports minutes
+  // later; this 30s settle just simulates that propagation window in a back-to-back test.)
+  await settleKey();
   // export the spendable note as a bearer string
   await page.locator("#incoming [data-export]").first().click();
   await page.locator("#exportEsTxt").waitFor({ timeout: 8000 });
@@ -143,7 +148,9 @@ await tc("bearer note: export→reset→import→withdraw, then double-spend rej
   await connect();
   await page.locator("#importInput").fill(note);
   await page.getByRole("button", { name: /Import →/ }).click();
-  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 25000 });
+  // 60s like the suite's other on-chain waits — import reconstructs the whole tree
+  // from leaves(), the slowest read path; 25s was the inconsistent outlier here.
+  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 60000 });
   // withdraw the imported note on-chain
   await page.locator("#incoming [data-withdraw]").first().click();
   await waitStatus(/withdrawn on-chain ✓|withdraw failed/i);
@@ -152,7 +159,7 @@ await tc("bearer note: export→reset→import→withdraw, then double-spend rej
   await settleKey();
   await page.locator("#importInput").fill(note);
   await page.getByRole("button", { name: /Import →/ }).click();
-  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 25000 });
+  await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 60000 });
   await page.locator("#incoming [data-withdraw]").first().click();
   await waitStatus(/already spent|nullifier|withdraw failed/i, 120000);
   assert(/already spent|nullifier/i.test(await statusText()), `double-spend not caught: "${await statusText()}"`);
