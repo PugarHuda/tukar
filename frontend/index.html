@@ -4,19 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tukar — Confidential cross-border corridor on Stellar</title>
-  <meta name="description" content="Tukar is a confidential cross-border payment corridor on Stellar. USDC crosses with amounts and counterparties hidden on-chain, proven compliant with zero-knowledge at every edge and verified on-chain by a live Stellar BN254 Groth16 verifier.">
+  <meta name="description" content="Tukar is a confidential cross-border payment corridor on Stellar. USDC crosses in a shielded transfer that hides amounts and counterparties (deposits/withdrawals public at the edges), proven compliant with zero-knowledge and verified on-chain by a live Stellar BN254 Groth16 verifier.">
   <meta name="theme-color" content="#0a0705">
   <link rel="canonical" href="https://tukar-six.vercel.app/">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://tukar-six.vercel.app/">
   <meta property="og:title" content="Tukar — Private money, across borders.">
-  <meta property="og:description" content="Confidential cross-border payment corridors on Stellar — amounts hidden on-chain, compliance proven with ZK and verified on-chain.">
+  <meta property="og:description" content="Confidential cross-border payment corridors on Stellar — shielded transfers hide amounts and counterparties (edges public by design), compliance proven with ZK and verified on-chain.">
   <meta property="og:image" content="https://tukar-six.vercel.app/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Tukar — Private money, across borders.">
-  <meta name="twitter:description" content="Confidential cross-border payment corridors on Stellar — amounts hidden on-chain, compliance proven with ZK.">
+  <meta name="twitter:description" content="Confidential cross-border payment corridors on Stellar — shielded transfers hide amounts and counterparties (edges public by design), compliance proven with ZK.">
   <meta name="twitter:image" content="https://tukar-six.vercel.app/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -69,7 +69,7 @@
         </div>
       </div>
       <div class="hero-side">
-        <p>Fiat in → shielded USDC → fiat out. Amounts and counterparties stay hidden on-chain, proven compliant with zero-knowledge at every edge.</p>
+        <p>Fiat in → shielded USDC → fiat out. The corridor crossing is private — amounts and counterparties hidden — with deposits and withdrawals public at the edges, proven compliant with zero-knowledge.</p>
         <div class="hr-thin"></div>
         <div class="hero-stats">
           <span>STELLAR TESTNET</span>
@@ -93,7 +93,7 @@
           <div class="zk-big-body">
             <div class="tag red">Shielded ledger</div>
             <h3>Private<br>transfers</h3>
-            <p>Notes enter a Merkle tree as commitments. Spending reveals only nullifiers — never the amount or the counterparties.</p>
+            <p>Notes enter a Merkle tree as commitments. An in-corridor transfer reveals only nullifiers — never the amount or the counterparties.</p>
             <div class="bullets">
               <div class="bullet"><span class="dot"></span>No double-spend (verified on-chain)</div>
               <div class="bullet"><span class="dot"></span>Balance conservation in-circuit</div>
@@ -226,7 +226,7 @@
         </div>
         <div class="prove">
           <div class="prove-top"><span class="k">PRIVACY</span><span class="ok">✓ PROVEN</span></div>
-          <blockquote>“The payment graph stays hidden — amounts and counterparties never touch the chain.”</blockquote>
+          <blockquote>“The payment graph stays hidden — the in-corridor transfer reveals no amount or counterparty. Deposits and withdrawals are public at the edges, by design.”</blockquote>
           <div class="spacer-fill"></div>
           <div class="hr-card"></div>
           <div class="name">No graph leak</div>

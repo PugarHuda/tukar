@@ -36,8 +36,8 @@
   <!-- Corridor -->
   <rect x="384" y="108" width="252" height="112" rx="14" fill="#13100c" stroke="rgba(255,122,26,0.55)"/>
   <text x="402" y="136" fill="#f5f1ec" font-size="14" font-weight="700">🔒 Shielded corridor</text>
-  <text x="402" y="160" fill="#8a847e" font-size="12">Soroban pool · amounts + parties</text>
-  <text x="402" y="178" fill="#ffb070" font-size="12">hidden on-chain</text>
+  <text x="402" y="160" fill="#8a847e" font-size="12">Soroban pool · transfer amounts + parties</text>
+  <text x="402" y="178" fill="#ffb070" font-size="12">hidden on-chain (edges public)</text>
   <text x="402" y="200" fill="#8a847e" font-size="12">public: commitments · nullifiers</text>
 
   <line x1="636" y1="164" x2="776" y2="164" stroke="#37d67a" stroke-width="2" marker-end="url(#arg)"/>

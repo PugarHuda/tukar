@@ -60,7 +60,11 @@ and the proof fails. Every defense below rests on this.
 - **Demo signing key** — writes are signed by a **throwaway, non-admin testnet
   key** embedded in the frontend so anyone can try the demo with no wallet (free
   testnet XLM only). Optional **Freighter** lets a user sign with their own wallet.
-  Never reuse the embedded-key pattern for real funds.
+  Never reuse the embedded-key pattern for real funds. **Privacy caveat:** because
+  one key sits on *both* edges in the default demo (it deposits and, by default,
+  receives the withdrawal), **every demo payment is trivially self-linked on-chain** —
+  the demo exercises the proving/custody/compliance machinery, not the anonymity set
+  (which only exists with many independent users). See *Privacy model* below.
 
 ## Adversarial self-audit (findings + status)
 
@@ -117,11 +121,43 @@ Acted on:
   real funds, secrets must not touch `localStorage` and the `esm.sh` scripts should
   be SRI-pinned/self-hosted.
 
+## Privacy model & anonymity set (honest scope)
+
+Tukar follows the Privacy-Pools model: **visible deposits/withdrawals, private
+transfers**. It is important to be precise about what that does and does not hide.
+
+- **The in-corridor transfer leg is genuinely private.** `transfer` binds
+  `public_amount == 0` and emits only the root — the amount and counterparties of a
+  shielded transfer never touch the chain. This is the cryptographic core and it
+  holds.
+- **The deposit and withdraw EDGES are public — by design.** Real USDC custody moves
+  there, so `deposit` takes a cleartext `amount` and emits `(commitment, amount)`, and
+  `withdraw` emits `(recipient, amount)`. The amounts and the on/off-ramp addresses at
+  the edges are **not** hidden.
+- **Privacy is therefore *unlinkability of the graph*, and its strength = the
+  anonymity set** — the number of concurrent same-amount notes a deposit could
+  correspond to. A passive observer who sees a deposit of amount X and a withdrawal of
+  amount X can link them *unless* many other in-flight notes share that amount.
+- **Tukar uses arbitrary amounts, not fixed denominations.** Unlike Tornado / the
+  Privacy-Pools whitepaper (which use fixed buckets precisely to grow the anonymity
+  set), an arbitrary amount like `1,437.22 USDC` is a near-unique fingerprint, so the
+  effective anonymity set can be as small as **one**. The JoinSplit `transfer` *can*
+  re-denominate value between the edges to break the exact-amount match, but the demo
+  flow withdraws the full deposited amount and does not exercise that.
+- **The shared demo key collapses it to zero** (see the demo-key caveat above): one
+  key on both edges self-links every payment.
+
+**Production fix (the canonical one):** fixed-denomination notes + a split-on-deposit
+transfer so withdrawals are denomination-sized and mutually indistinguishable — the
+design the cited whitepaper specifies. Documented here rather than built because it's
+a meaningful design change beyond the demo's scope; the machinery (`transfer` JoinSplit)
+already supports it.
+
 ## Out of scope (this testnet build)
 
 - Not audited; no formal verification of the circuits.
-- Metadata/timing side-channels (e.g. tx timing, amounts at the *edges* where
-  disclosure is intentional) are not obfuscated.
+- Metadata/timing side-channels (tx timing; edge amounts/addresses — see *Privacy
+  model* above for the linkability consequence) are not obfuscated.
 - A very-long-lived production pool needs a TTL-maintenance job and an indexer
   (see the tree-scale note in the README); not required at demo scale.
 - Relayer/fee privacy (who pays the tx fee) is not addressed.

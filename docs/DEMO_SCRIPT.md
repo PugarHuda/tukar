@@ -25,9 +25,9 @@ cross-border globe, then click **Launch the live demo**.
 **Say:**
 > "Stellar exists to move real money across borders. Tukar makes that money
 > private — and keeps it compliant. USDC enters a corridor, crosses with its
-> amount and counterparties hidden on-chain, and exits as local fiat — with
-> zero-knowledge proofs verified inside Stellar smart contracts. Four circuits,
-> five live contracts, real testnet USDC. Let's run it."
+> amount and counterparties hidden on-chain in the shielded transfer, and exits as
+> local fiat — with zero-knowledge proofs verified inside Stellar smart contracts.
+> Four circuits, five live contracts, real testnet USDC. Let's run it."
 
 ## Scene 1 — The console + Country A · Sender (0:25–0:50)
 **Screen:** the **Corridor Console** — headline *"USDC in. Private crossing. Local

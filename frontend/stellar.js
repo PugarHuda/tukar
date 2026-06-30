@@ -140,10 +140,12 @@ export async function readPoolState() {
 /**
  * Recent corridor activity from on-chain events via RPC getEvents — the indexing
  * tier. The pool emits deposit/withdraw/transfer/root events; this reads them back so
- * the console can show a live feed sourced from chain, not local state. Privacy holds:
- * deposit/withdraw are the public on/off-ramp edges (real USDC moves to/from a public
- * address there); the SHIELDED middle leg is unlinkable, and an event feed never
- * reveals which deposit a withdrawal came from. NOTE: testnet public RPC ages events
+ * the console can show a live feed sourced from chain, not local state. Privacy scope:
+ * deposit/withdraw are the public on/off-ramp edges (real USDC + amount move to/from a
+ * public address there); the SHIELDED middle transfer leg is what's hidden. The event
+ * feed does NOT label which deposit a withdrawal came from, but equal amounts at both
+ * edges remain statistically correlatable — link-privacy = the anonymity set (see
+ * docs/SECURITY.md "Privacy model"). NOTE: testnet public RPC ages events
  * out (~latest-10k ledgers), so this is a RECENT view, not a source of truth — the
  * spendable tree is reconstructed from DURABLE state (loadLeavesFromChain), which has
  * no retention dependency. Returns [] on any error (feed is best-effort).

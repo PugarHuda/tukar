@@ -5,9 +5,11 @@
 
 Tukar is a **private cross-border remittance corridor**. Money enters in one
 country, moves across the corridor with its **amount and counterparties hidden
-on-chain**, and exits as local fiat in another country. At each **edge** of the
-corridor, zero-knowledge **compliance proofs** keep the system auditable without
-ever revealing the private payment graph.
+on-chain in the shielded transfer leg**, and exits as local fiat in another country.
+(Deposits and withdrawals are public at the edges — the Privacy-Pools model;
+link-privacy depends on the anonymity set, see [SECURITY.md](SECURITY.md).) At each
+**edge** of the corridor, zero-knowledge **compliance proofs** keep the system
+auditable without ever revealing the private payment graph.
 
 This directly implements the thesis of the Privacy Pools whitepaper (Buterin,
 Soleimani, et al.) and Stellar's stated privacy strategy: **deposits/withdrawals

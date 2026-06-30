@@ -6,7 +6,9 @@
 Tukar is a **private cross-border remittance corridor** built for the
 [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)
 hackathon. Money enters in one country, crosses the corridor with its **amount
-and counterparties hidden on-chain**, and exits as local fiat in another country.
+and counterparties hidden on-chain in the shielded transfer leg**, and exits as
+local fiat in another country. (Deposits and withdrawals are public at the edges, by
+Privacy-Pools design — see [the privacy model](docs/SECURITY.md#privacy-model--anonymity-set-honest-scope).)
 At each **edge**, zero-knowledge **compliance proofs** keep the corridor auditable
 without ever exposing the private payment graph.
 
@@ -24,8 +26,9 @@ compliance).
 ## TL;DR for judges
 
 - **What:** a private cross-border remittance corridor. Real testnet USDC enters,
-  crosses with amount + counterparties **hidden on-chain**, exits — with **ZK
-  compliance proofs at the edges** and **selective disclosure** to regulators.
+  crosses with amount + counterparties **hidden on-chain in the shielded transfer**
+  (deposit/withdraw edges public by design), exits — with **ZK compliance proofs at
+  the edges** and **selective disclosure** to regulators.
 - **ZK is load-bearing:** four Circom/Groth16/BN254 circuits do the real work
   (shielded transfer, ASP compliance, selective disclosure, trustless tree
   update). Without them the product does not exist.
