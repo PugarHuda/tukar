@@ -196,6 +196,19 @@ P2P-handoff feature from the e2e's *double-spend* stress step (§6 case 9), whic
 the only part that flakes under back-to-back shared-key contention — the handoff +
 withdraw itself works end-to-end every time.
 
+## 9. Landing page QA (Playwright real-click) ✅ 5/5 live
+
+`npm run test:landing` checks the page a judge sees first: H1 value-prop, **every**
+`stellar.expert` contract link points to a LIVE contract id (not a superseded one),
+footer links **deep-link** to the named doc/circuit (`/blob/main/docs/*.md`,
+`/blob/main/circuits/*.circom`) rather than the bare repo root, zero console
+errors / failed requests on load + scroll, and the primary CTA **real-click** lands
+in a working demo (prover reaches Ready).
+
+Verified 2026-06-30 on the live deploy: **5/5**, zero uncaught page errors. (Fixed
+this round: the footer links previously all pointed at the repo root, so "Architecture"
+didn't open ARCHITECTURE.md; now they deep-link.)
+
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the
   `merkleUpdate` proof — there is **no admin root backdoor**.
