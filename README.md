@@ -206,7 +206,7 @@ professionally audited — see the caveats below). What that means concretely:
   remaining caveat is that the *shared demo key's* secret is public — so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**36/36 pool unit tests** + **6/6 circuit-soundness** + an 18-point
+**36/36 pool unit tests** + **6/6 circuit-soundness** + a 19-point
 [threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser proving
 flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
 

@@ -125,6 +125,26 @@ export async function offrampQuoteTwap(symbol, usdcAmount, records = 5) {
   return isFinite(n) && n >= 0 ? n : null;
 }
 
+/**
+ * Read the pool's LIVE deny-list (the block-list "policy registry") so the compliance
+ * proof's non-membership public inputs are built from the CURRENT on-chain policy —
+ * honoring an admin `set_deny_list` without shipping a new frontend. Returns an array
+ * of decimal field-element strings (each 32-byte BytesN read big-endian), or null on
+ * any read failure (caller falls back to the witness snapshot).
+ */
+export async function readDenyList() {
+  const res = await simulate(POOL, "deny_list");
+  if (!res.ok || !Array.isArray(res.value)) return null;
+  try {
+    return res.value.map((b) => {
+      const u = b instanceof Uint8Array ? b : Uint8Array.from(b);
+      let n = 0n;
+      for (const x of u) n = (n << 8n) | BigInt(x);
+      return n.toString();
+    });
+  } catch { return null; }
+}
+
 /** Read the pool's live custody balance + commitment count from chain. */
 export async function readPoolState() {
   const [bal, count] = await Promise.all([
@@ -387,8 +407,15 @@ export async function depositOnChain(note, opts = {}) {
     } else if (!m) {
       return { ok: false, error: "this account is not an approved ASP source (only allow-listed keys can deposit)" };
     }
+    // Build the deny-list public inputs from the LIVE on-chain policy so an admin
+    // set_deny_list is honored without a frontend redeploy; fall back to the witness
+    // snapshot if the read fails. (aspRoot membership uses the witness tree; the
+    // deny-list only feeds the circuit's 4 non-membership checks, so swapping it here
+    // never touches the membership path.)
+    const liveDeny = await readDenyList();
+    const denyList = (liveDeny && liveDeny.length === asp.denyList.length) ? liveDeny : asp.denyList;
     const compInput = {
-      aspRoot: asp.aspRoot, denyList: asp.denyList, bindHash: note.commitment,
+      aspRoot: asp.aspRoot, denyList, bindHash: note.commitment,
       sourceKey: m.sourceKey, pathElements: m.pathElements, leafIndex: m.leafIndex,
     };
     const { proof: compProof } = await snarkjs.groth16.fullProve(
