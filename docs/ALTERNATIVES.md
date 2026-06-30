@@ -94,7 +94,42 @@ to authorize in this product without the SEP-24 ramp behind it.
 
 ---
 
+## 5. Stellar Confidential Tokens (OpenZeppelin) — parity & what Tukar adopts
+
+On 2026-06-30 Stellar shipped a **Confidential Tokens** developer preview
+(OpenZeppelin contract suite + Nethermind **UltraHonk** verifier, Noir circuits, on
+testnet). It's worth mapping honestly, because it overlaps Tukar's compliance surface.
+
+**Different tier, by Stellar's own framing.** Confidential Tokens hide *balances and
+amounts* but keep *sender/recipient visible* ("confidential, not anonymous"). The
+preview post explicitly puts privacy-pool designs (it names Stellar Private Payments)
+in a separate tier that "shields **both the parties and the amounts**." **Tukar is in
+that privacy-pool tier** — the shielded transfer leg hides amount *and* counterparties,
+which is the cross-border-remittance threat model. So this isn't an alternative we
+"should have used"; it's a different, less-private tier of the same stack.
+
+| Confidential Tokens primitive | Tukar |
+|---|---|
+| Selective disclosure | ✅ have it (disclosure circuit, verified on-chain) |
+| Compliance allow/deny policy | ✅ have it (ASP allow-list root + deny-list, on-chain) |
+| Auditor **view key** (passive read of amounts) | ◑ different model — Tukar uses holder-initiated disclosure proofs; a view key is a separate crypto design (encrypt amounts to an auditor key) |
+| **Configurable policy engine** (swappable allow/deny registry) | ◑ **adopting** — see below |
+| Per-account freeze (SAC passthrough) | 🚫 **not possible in this tier by design** — Tukar accounts are anonymous, so there's no visible account to freeze. The honest equivalent: because Tukar custodies **real USDC SAC**, the issuer's SAC controls still apply to the *pool's* balance as a whole (not per shielded note). Per-account freeze is the price of counterparty privacy. |
+| UltraHonk / Noir verifier | 🚫 a full rewrite; Tukar's Groth16/BN254 is mature and live-verified. Not worth re-targeting. (Note: this preview *does* make UltraHonk testnet-real, correcting the earlier "not yet feasible" read.) |
+
+**What we adopt:** the **configurable compliance policy** idea. Tukar's `aspRoot` +
+`denyList` were fixed at construction; we add admin setters (`set_asp_root`,
+`set_deny_list`) + read-back views (`asp_root`, `deny_list`) so the policy can be
+updated without redeploying the pool — the same "swap the allow/deny registry" property
+Confidential Tokens exposes, on the privacy-pool tier. The compliance *circuit* is
+unchanged (these are already public inputs the pool builds from storage); the frontend
+reads the live `deny_list` before proving so a policy change can't desync the proof.
+
+---
+
 **Bottom line:** the one opportunity with a clean native substitute that is also
 fully live-verifiable — gasless via fee-bump — is built and proven. The rest are
 either already obviated by a better design (Mercury) or genuinely gated on a human
-authenticator / KYC partner, with the buildable sub-parts noted honestly.
+authenticator / KYC partner, with the buildable sub-parts noted honestly. Against the
+new Confidential Tokens preview, Tukar sits in the more-private privacy-pool tier and
+adopts its one cleanly-applicable idea (configurable policy).
