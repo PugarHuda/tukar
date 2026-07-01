@@ -150,8 +150,10 @@ function showStep(n, push) {
     if (f) f.classList.toggle("active", on);
   }
   const prev = $("navPrev"), next = $("navNext"), lab = $("navLabel");
-  if (prev) prev.style.visibility = n > 0 ? "" : "hidden";
-  if (next) next.style.visibility = n < STEPS.length - 1 ? "" : "hidden";
+  // display (not visibility) so a hidden Back/Next leaves NO gap — keeps the pager a
+  // tight centered group instead of flinging Next to the far edge on the first step.
+  if (prev) prev.style.display = n > 0 ? "" : "none";
+  if (next) next.style.display = n < STEPS.length - 1 ? "" : "none";
   if (lab) lab.textContent = `Step ${n + 1} of ${STEPS.length} · ${STEPS[n].label}`;
   const want = "/demo/" + STEPS[n].slug;
   if (push && location.pathname !== want) history.pushState({ step: n }, "", want);

@@ -109,10 +109,11 @@ header.bar {
 /* ---- panels ---- */
 /* One step per page: a single centered panel (the corridor stage the URL points to). */
 .grid { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: stretch; max-width: 720px; margin: 0 auto; }
-/* Step pager (per-page Back/Next nav) */
-.pager { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 720px; margin: 18px auto 0; }
-.pager-label { font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: .04em; color: var(--muted, #8a847e); text-transform: uppercase; }
-.pager .btn-ghost, .pager .btn-primary { min-width: 110px; flex: 0 0 auto; }
+/* Step pager (per-page Back/Next nav) — a centered, compact group so the Next
+   button sits next to the step label instead of being flung to the far edge. */
+.pager { display: flex; align-items: center; justify-content: center; gap: 18px; max-width: 720px; margin: 20px auto 0; }
+.pager-label { font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: .04em; color: var(--muted, #8a847e); text-transform: uppercase; white-space: nowrap; }
+.pager .btn-ghost, .pager .btn-primary { min-width: 120px; flex: 0 0 auto; }
 /* One step per page: panels are HIDDEN by default and only the active step shows.
    This is set in CSS (not just JS) so the correct single panel paints immediately —
    without it, all four flash on first load until app.js init() runs showStep(). */
