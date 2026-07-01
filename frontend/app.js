@@ -33,6 +33,15 @@ const CORRIDORS = [
 let fxLive = false; // true once live FX rates have been applied
 const corridorByCode = (code) => CORRIDORS.find((c) => c.code === code) || CORRIDORS[0];
 const selectedCorridor = () => corridorByCode($("corridor") ? $("corridor").value : "MX");
+// The RECEIVER side (badge + rate) follows the most-recent arrival's corridor — a note
+// is bound to the corridor it was SENT to, so its off-ramp currency is fixed. This
+// stops the receiver panel from showing e.g. "PH / PHP" while an existing Mexico note
+// reveals MXN (the mismatch a user hit switching the sender dropdown after a payment).
+// Falls back to the sender's selected corridor as a preview when nothing has arrived.
+const receiverCorridor = () => {
+  const arr = notes.find((n) => n.spendable);
+  return arr ? corridorByCode(arr.corridor) : selectedCorridor();
+};
 const fmtRate = (r) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
 
 const $ = (id) => document.getElementById(id);
@@ -188,7 +197,7 @@ function populateCorridors() {
   sel.value = "MX";
 }
 function updateCorridorUI() {
-  const c = selectedCorridor();
+  const c = receiverCorridor(); // receiver badge/rate reflect what's being received
   if ($("rcvChip")) $("rcvChip").textContent = c.code;
   const src = c.source === "reflector" ? " · via Reflector oracle (on-chain)"
             : c.source === "fx-api" ? " · live"
@@ -500,6 +509,7 @@ const offramped = new Set();
 function renderReceiver() {
   const el = $("incoming");
   if (!el) return;
+  updateCorridorUI(); // keep the receiver badge + rate in sync with the arrival's corridor
   const arrivals = notes.filter((n) => n.spendable);
   if (!arrivals.length) {
     el.innerHTML = `<div class="empty"><div class="t">Nothing received yet.</div><div class="s" style="color:#6b645e;">Send a payment from Country A →</div></div>`;
