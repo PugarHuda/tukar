@@ -114,6 +114,10 @@ header.bar {
 .pager { display: flex; align-items: center; justify-content: center; gap: 18px; max-width: 720px; margin: 20px auto 0; }
 .pager-label { font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: .04em; color: var(--muted, #8a847e); text-transform: uppercase; white-space: nowrap; }
 .pager .btn-ghost, .pager .btn-primary { min-width: 120px; flex: 0 0 auto; }
+/* Per-arrival off-ramp corridor picker (convert the same note to another currency) */
+.offramp-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.offramp-lbl { font: 600 10px/1 "JetBrains Mono", monospace; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8a847e); white-space: nowrap; }
+.offramp-sel { flex: 1; min-width: 0; background: var(--surface-2, rgba(255,255,255,.03)); color: var(--text, #cfc8c1); border: 1px solid var(--border-input, #2a2622); border-radius: 8px; padding: 5px 8px; font: 500 11.5px "JetBrains Mono", monospace; cursor: pointer; }
 /* One step per page: panels are HIDDEN by default; the active step (from the URL,
    set as html[data-step] by an inline head script BEFORE first paint) is shown. This
    is CSS-driven, not JS-driven, so the correct single panel paints on the first frame

@@ -39,8 +39,8 @@ const selectedCorridor = () => corridorByCode($("corridor") ? $("corridor").valu
 // reveals MXN (the mismatch a user hit switching the sender dropdown after a payment).
 // Falls back to the sender's selected corridor as a preview when nothing has arrived.
 const receiverCorridor = () => {
-  const arr = notes.find((n) => n.spendable);
-  return arr ? corridorByCode(arr.corridor) : selectedCorridor();
+  const arr = notes.find((n) => n.spendable && (!n.withdrawn || n.justWithdrawn));
+  return arr ? corridorByCode(arr.offCorridor || arr.corridor) : selectedCorridor();
 };
 const fmtRate = (r) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
 
@@ -519,7 +519,9 @@ function renderReceiver() {
   const el = $("incoming");
   if (!el) return;
   updateCorridorUI(); // keep the receiver badge + rate in sync with the arrival's corridor
-  const arrivals = notes.filter((n) => n.spendable);
+  // Withdrawn notes auto-disappear from the list; the JUST-withdrawn one lingers briefly
+  // so its "withdrawn ✓ ↗" confirmation + tx link is visible before it clears.
+  const arrivals = notes.filter((n) => n.spendable && (!n.withdrawn || n.justWithdrawn));
   if (!arrivals.length) {
     el.innerHTML = `<div class="empty"><div class="t">Nothing received yet.</div><div class="s" style="color:#6b645e;">Send a payment from Country A →</div></div>`;
     return;
@@ -527,7 +529,9 @@ function renderReceiver() {
   el.innerHTML = arrivals.map((n) => {
     const opened = offramped.has(n.id);
     const usdc = fmtUsdc(BigInt(n.amount));
-    const cor = corridorByCode(n.corridor);
+    // Off-ramp corridor = the receiver's chosen local currency (defaults to the note's
+    // corridor, but the receiver can convert the SAME note to a different corridor).
+    const cor = corridorByCode(n.offCorridor || n.corridor);
     // Prefer the on-chain quote (pool read Reflector) when the reveal fetched one;
     // otherwise fall back to the client rate.
     const onchainQuote = typeof n.localQuote === "number";
@@ -535,6 +539,11 @@ function renderReceiver() {
     const localStr = local.toLocaleString("en-US", { maximumFractionDigits: local >= 1000 ? 0 : 2 });
     const chipColor = opened ? "#37d67a" : "#ffb070";
     const chipLabel = opened ? "Off-ramped" : "Shielded";
+
+    // Per-note off-ramp corridor picker (only while the note is still spendable).
+    const offSel = (n.spendable && !n.withdrawn)
+      ? `<div class="offramp-row"><span class="offramp-lbl">Off-ramp to</span><select class="offramp-sel" data-offsel="${n.id}" aria-label="Off-ramp corridor">${CORRIDORS.map((c) => `<option value="${c.code}"${c.code === (n.offCorridor || n.corridor) ? " selected" : ""}>${c.country} · ${c.currency}</option>`).join("")}</select></div>`
+      : "";
 
     let body;
     if (opened) {
@@ -559,6 +568,7 @@ function renderReceiver() {
 
     return `<div class="arrival${opened ? " done" : ""}">
       <div class="top"><span class="ref">${esc(n.ref)}${n.imported ? " · imported" : " · from US"}</span><span class="chip" style="color:${chipColor};">${chipLabel}</span></div>
+      ${offSel}
       <div class="body">${body}</div>
       ${wd}${exp}
     </div>`;
@@ -601,7 +611,7 @@ async function withdrawNote(note) {
     // have a fresh quote (oracle live); a null quote -> no gate, so a transient read
     // failure never blocks a withdraw.
     let offrampSym, minLocalOut;
-    const cor = corridorByCode(note.corridor);
+    const cor = corridorByCode(note.offCorridor || note.corridor);
     if (cor && cor.oracle) {
       // Quote the SAME whole-USDC unit the contract gate prices: it floors
       // amount/10^7, so we must too — else a fractional note (e.g. $20.50) makes the
@@ -675,6 +685,12 @@ async function withdrawNote(note) {
   } catch (e) {
     note.withdrawing = false;
     status.textContent = "Withdraw failed: " + ((e && e.message) || e);
+  }
+  // Withdrawn note auto-disappears: show the "withdrawn ✓ ↗" confirmation for a
+  // moment, then clear it from the arrivals list (the on-chain record persists).
+  if (note.withdrawn) {
+    note.justWithdrawn = true;
+    setTimeout(() => { note.justWithdrawn = false; renderReceiver(); saveSession(); }, 4500);
   }
   renderReceiver();
   saveSession();
@@ -995,7 +1011,7 @@ $("incoming").addEventListener("click", async (e) => {
     renderReceiver();
     saveSession();
     const n = notes.find((x) => x.id === id);
-    const cor = n ? corridorByCode(n.corridor) : null;
+    const cor = n ? corridorByCode(n.offCorridor || n.corridor) : null;
     const cur = cor ? cor.currency : "local fiat";
     status.textContent = `Off-ramp: amount revealed at the corridor edge to convert to ${cur}.`;
     // For a Reflector-backed corridor, get the figure the way production would: ask
@@ -1024,6 +1040,26 @@ $("incoming").addEventListener("click", async (e) => {
   if (wd) {
     const n = notes.find((x) => x.id === Number(wd.dataset.withdraw));
     if (n) withdrawNote(n);
+  }
+});
+// Off-ramp corridor change: convert the SAME note to a different local currency. The
+// on-chain USDC amount is unchanged — only the revealed local figure (and, for an
+// oracle corridor, the min-receive gate) follow the chosen corridor.
+$("incoming").addEventListener("change", async (e) => {
+  const sel = e.target.closest("[data-offsel]");
+  if (!sel) return;
+  const n = notes.find((x) => x.id === Number(sel.dataset.offsel));
+  if (!n) return;
+  n.offCorridor = sel.value;
+  n.localQuote = undefined; // force a re-quote for the new corridor
+  saveSession();
+  renderReceiver();
+  const cor = corridorByCode(n.offCorridor);
+  if (offramped.has(n.id) && cor && cor.oracle) {
+    try {
+      const q = await offrampQuote(cor.oracle, Number(fmtUsdc(BigInt(n.amount))));
+      if (q != null) { n.localQuote = q; saveSession(); renderReceiver(); }
+    } catch (_) { /* keep the client-rate figure */ }
   }
 });
 
