@@ -36,8 +36,11 @@ const waitStatus = (re, ms = 120000) => page.locator("#status").filter({ hasText
 // is preserved and the target panel becomes interactable.
 const goStep = async (i) => {
   await page.locator("#fn" + i).click();
-  await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 10000 });
-  await page.waitForTimeout(150);
+  await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 15000 });
+  // literal navigation reloads the page — wait for init() to finish (handlers wired,
+  // prover ready) before interacting, else clicks land on an un-wired page.
+  await page.locator("#status").filter({ hasText: /Ready/ }).waitFor({ timeout: 45000 }).catch(() => {});
+  await page.waitForTimeout(200);
 };
 const connect = async () => {
   if (await page.locator("#sendBtn").isEnabled().catch(() => false)) return; // already connected

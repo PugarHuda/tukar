@@ -244,19 +244,19 @@ async function init() {
   updateCorridorUI();
   loadFxRates(); // async, non-blocking
   try {
-    console.log(`[tukar ${BUILD}] loading Poseidon (circomlibjs)…`);
-    status.textContent = "Loading Poseidon hasher…";
-    poseidon = await buildPoseidon();
+    // Load ONLY what's needed to be interactive: Poseidon + vkey (both local/cached).
+    // The on-chain tree sync (an RPC read, the slow + variable part) is DEFERRED to the
+    // background so "Ready" shows fast on every literal page load — deposit/withdraw
+    // re-sync the tree from chain before they act anyway, so nothing is lost.
+    console.log(`[tukar ${BUILD}] loading prover (Poseidon + vkey)…`);
+    status.textContent = "Loading zero-knowledge prover…";
+    const [pos] = await Promise.all([
+      buildPoseidon(),
+      (async () => { vkey = await (await fetch(VKEY)).json(); })(),
+    ]);
+    poseidon = pos;
     F = poseidon.F;
     tree = makeTree(F, poseidon);
-    console.log(`[tukar ${BUILD}] Poseidon ready; loading verification key…`);
-    status.textContent = "Loading verification key…";
-    vkey = await (await fetch(VKEY)).json();
-    // Mirror the REAL on-chain Merkle tree so deposits/withdraws are correct even
-    // across reloads and other users' deposits (not just this browser session).
-    status.textContent = "Syncing the on-chain tree…";
-    const synced = await syncedLeaves();
-    if (synced) leaves = synced;
     loadSession(); // restore this browser's notes so withdraw survives a reload
     // Rehydrate the demo-key connection across page navigations / refresh (only the
     // built-in testnet key — a Freighter connection needs an explicit re-approval).
@@ -264,13 +264,18 @@ async function init() {
       walletDisconnect(); walletConn = null;
       showConnected(`<b>testnet key</b> · ${shortAddr(activeAddress())}`, null);
     }
-    console.log(`[tukar ${BUILD}] init complete — ${synced ? synced.length + " on-chain leaves synced" : "session-local tree"}, ${notes.length} saved note(s)`);
     status.textContent = notes.length
       ? `Ready · ${notes.length} saved payment(s) restored.`
       : "Ready · zero-knowledge prover loaded.";
     showStep(stepIndexFromPath(), false); // open the step the URL asks for
     render();
-    loadPoolState();
+    // Background: mirror the on-chain tree + pool state without blocking readiness.
+    (async () => {
+      const synced = await syncedLeaves();
+      if (synced) { leaves = synced; render(); }
+      console.log(`[tukar ${BUILD}] tree synced in background — ${synced ? synced.length + " leaves" : "session-local"}`);
+      loadPoolState();
+    })();
   } catch (e) {
     console.error("[tukar] init failed:", e);
     status.textContent = "Init error: " + ((e && e.message) || e) + " — open the console (F12) for details.";

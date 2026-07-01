@@ -32,6 +32,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://esm.sh" crossorigin />
   <link rel="dns-prefetch" href="https://soroban-testnet.stellar.org" />
+  <!-- Start fetching the heavy prover/SDK modules + the vkey in parallel, up front,
+       so each literal step-page load reaches "Ready" as fast as possible. -->
+  <link rel="modulepreload" href="https://esm.sh/circomlibjs@0.1.7" crossorigin />
+  <link rel="modulepreload" href="https://esm.sh/snarkjs@0.7.5" crossorigin />
+  <link rel="modulepreload" href="https://esm.sh/@stellar/stellar-sdk@14.6.1" crossorigin />
+  <link rel="preload" href="/circuit/verification_key.json" as="fetch" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css?v=4" />
 </head>
@@ -265,6 +271,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=60"></script>
+  <script type="module" src="./app.js?v=61"></script>
 </body>
 </html>
