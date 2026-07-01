@@ -234,6 +234,9 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   a [SEP-1 `stellar.toml`](frontend/.well-known/stellar.toml), and `npm run sep:anchor`
   authenticates (SEP-10 JWT) and opens a real interactive USDC on-ramp (SEP-24) against
   SDF's reference anchor, plus SEP-6/SEP-31 `/info` — **5/5 live** ([`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) §6).
+  It's also **wired into the demo UI** — a "Fund via a real anchor (SEP-24)" button on
+  the Sender step signs the SEP-10 challenge (demo key or Freighter) and opens the real
+  anchor deposit window (`npm run test:anchor` → 5/5 live).
   A production ramp needs a *licensed* KYC anchor (business, not code). The ASP
   allow/deny lists are seeded with a fixed witness; a single corridor A→B.
 - **Phase-2 of the trusted setup** is a single Tukar contribution (phase-1 is the
