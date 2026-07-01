@@ -114,14 +114,20 @@ header.bar {
 .pager { display: flex; align-items: center; justify-content: center; gap: 18px; max-width: 720px; margin: 20px auto 0; }
 .pager-label { font: 600 12px/1 "JetBrains Mono", monospace; letter-spacing: .04em; color: var(--muted, #8a847e); text-transform: uppercase; white-space: nowrap; }
 .pager .btn-ghost, .pager .btn-primary { min-width: 120px; flex: 0 0 auto; }
-/* One step per page: panels are HIDDEN by default and only the active step shows.
-   This is set in CSS (not just JS) so the correct single panel paints immediately —
-   without it, all four flash on first load until app.js init() runs showStep(). */
+/* One step per page: panels are HIDDEN by default; the active step (from the URL,
+   set as html[data-step] by an inline head script BEFORE first paint) is shown. This
+   is CSS-driven, not JS-driven, so the correct single panel paints on the first frame
+   of any route — no flash of all four, and no flash-through-Sender on a deep load. */
 .panel {
   position: relative; border: 1px solid var(--border); border-radius: 18px; background: var(--surface);
   padding: 24px; display: none; flex-direction: column; transition: box-shadow 0.4s;
 }
-.panel.active { display: flex; box-shadow: var(--ring); }
+html[data-step="0"] #panel0,
+html[data-step="1"] #panel1,
+html[data-step="2"] #panel2,
+html[data-step="3"] #panel3,
+html:not([data-step]) #panel0 { display: flex; }
+.panel.active { box-shadow: var(--ring); }
 .panel.alt { border-color: var(--border-input); background: linear-gradient(180deg, var(--surface-2), rgba(255, 255, 255, 0.012)); }
 .seq { position: absolute; top: 16px; right: 18px; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--orange); }
 .phead { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }

@@ -5,6 +5,16 @@
   <!-- Resolve all relative asset URLs from the site root so deep step routes
        (/demo/send, /demo/audit, …) load app.js / styles.css / circuit/* correctly. -->
   <base href="/" />
+  <!-- Set the active corridor step from the URL BEFORE first paint, so the correct
+       single panel shows immediately on any route (literal step-page loads included)
+       — no flash of all four, no flash-through-Sender on a deep load. -->
+  <script>
+    (function () {
+      var m = (location.pathname.match(/\/demo\/(send|corridor|receive|audit)/) || [])[1];
+      var s = { send: 0, corridor: 1, receive: 2, audit: 3 }[m];
+      document.documentElement.setAttribute("data-step", s == null ? 0 : s);
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tukar — Corridor Console (live demo)</title>
   <meta name="description" content="Run the Tukar corridor live on Stellar testnet: deposit real USDC with a zero-knowledge compliance proof, off-ramp to fiat, and audit with a selective-disclosure proof verified on-chain. No install, no wallet." />
@@ -23,7 +33,7 @@
   <link rel="preconnect" href="https://esm.sh" crossorigin />
   <link rel="dns-prefetch" href="https://soroban-testnet.stellar.org" />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=3" />
+  <link rel="stylesheet" href="./styles.css?v=4" />
 </head>
 <body>
 
@@ -87,9 +97,9 @@
     <!-- ===== 4 PANELS ===== -->
     <div class="grid">
 
-      <!-- PANEL 01: SENDER (active by default so the Sender step paints immediately
-           on /demo; app.js corrects to the URL's step on load for deep routes) -->
-      <div class="panel active" id="panel0">
+      <!-- PANEL 01: SENDER (visibility is driven by html[data-step], set from the URL
+           before first paint by the inline head script) -->
+      <div class="panel" id="panel0">
         <div class="seq">01</div>
         <div class="phead">
           <span class="chip-cc us">US</span>
@@ -255,6 +265,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=59"></script>
+  <script type="module" src="./app.js?v=60"></script>
 </body>
 </html>

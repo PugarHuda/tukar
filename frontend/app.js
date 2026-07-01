@@ -151,10 +151,14 @@ function stepIndexFromPath() {
 }
 function showStep(n, push) {
   n = Math.max(0, Math.min(STEPS.length - 1, n));
+  // Panel visibility is driven by html[data-step] in CSS (also set by an inline
+  // head script before first paint, so any route — incl. literal step-page loads —
+  // shows the correct single panel with no flash). Here we just keep it in sync.
+  document.documentElement.setAttribute("data-step", String(n));
   for (let i = 0; i < 4; i++) {
     const on = i === n;
     const p = $("panel" + i);
-    if (p) { p.style.display = on ? "" : "none"; p.classList.toggle("active", on); }
+    if (p) p.classList.toggle("active", on);
     const f = $("fn" + i);
     if (f) f.classList.toggle("active", on);
   }
@@ -1133,17 +1137,26 @@ if ($("anchorBtn")) $("anchorBtn").addEventListener("click", async () => {
   }
 });
 
-// Per-step navigation: Back/Next pager + the flow strip nodes are links to each step.
-if ($("navPrev")) $("navPrev").addEventListener("click", () => setActiveStep(stepIndexFromPath() - 1));
-if ($("navNext")) $("navNext").addEventListener("click", () => setActiveStep(stepIndexFromPath() + 1));
+// Per-step navigation = LITERAL page changes. Clicking the flow strip or Back/Next
+// does a real browser navigation (full page load) to /demo/<slug> — each corridor
+// step is genuinely its own page, not a client-side panel swap. (Auto-advance from
+// mid-transaction code still uses setActiveStep/pushState, since a full reload there
+// would abort the in-flight deposit/withdraw.) State survives via localStorage.
+function navigateToStep(i) {
+  i = Math.max(0, Math.min(STEPS.length - 1, i));
+  const target = "/demo/" + STEPS[i].slug;
+  if (location.pathname !== target) location.assign(target); // real navigation
+}
+if ($("navPrev")) $("navPrev").addEventListener("click", () => navigateToStep(stepIndexFromPath() - 1));
+if ($("navNext")) $("navNext").addEventListener("click", () => navigateToStep(stepIndexFromPath() + 1));
 for (let i = 0; i < 4; i++) {
   const f = $("fn" + i);
   if (!f) continue;
   f.style.cursor = "pointer";
   f.setAttribute("role", "link");
   f.setAttribute("tabindex", "0");
-  f.addEventListener("click", () => setActiveStep(i));
-  f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveStep(i); } });
+  f.addEventListener("click", () => navigateToStep(i));
+  f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigateToStep(i); } });
 }
 
 showDisconnected();

@@ -33,19 +33,22 @@ await ready();
 chk(await vis("#panel0") && !(await vis("#panel1")) && !(await vis("#panel2")) && !(await vis("#panel3")),
   "load /demo → only the Sender panel is shown");
 
+// Navigation is a LITERAL page change (full load), so wait for the real navigation.
 await page.locator("#fn2").click();
-await page.waitForTimeout(300);
-chk(/\/demo\/receive$/.test(pathOf()), "click the Receiver flow node → URL /demo/receive");
+await page.waitForURL(/\/demo\/receive$/, { timeout: 15000 }).catch(() => {});
+await page.locator("#panel2").waitFor({ state: "visible", timeout: 15000 });
+chk(/\/demo\/receive$/.test(pathOf()), "click the Receiver flow node → LITERALLY navigates to /demo/receive");
 chk(await vis("#panel2") && !(await vis("#panel0")), "→ Receiver panel shown, Sender hidden");
 
 await page.locator("#navPrev").click();
-await page.waitForTimeout(300);
-chk(/\/demo\/corridor$/.test(pathOf()), "pager Back → URL /demo/corridor");
+await page.waitForURL(/\/demo\/corridor$/, { timeout: 15000 }).catch(() => {});
+await page.locator("#panel1").waitFor({ state: "visible", timeout: 15000 });
+chk(/\/demo\/corridor$/.test(pathOf()), "pager Back → LITERALLY navigates to /demo/corridor");
 chk(await vis("#panel1"), "→ Corridor panel shown");
 
 await page.goBack();
-await page.waitForTimeout(300);
-chk(/\/demo\/receive$/.test(pathOf()), "browser Back button → /demo/receive (popstate)");
+await page.waitForURL(/\/demo\/receive$/, { timeout: 15000 }).catch(() => {});
+chk(/\/demo\/receive$/.test(pathOf()), "browser Back button → /demo/receive");
 
 await page.goto(BASE + "/demo/audit", { waitUntil: "domcontentloaded" });
 await ready();
