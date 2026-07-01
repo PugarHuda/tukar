@@ -28,6 +28,10 @@ jobs:
         with:
           node-version: "20"
       - run: npm ci
+      # Frontend unit tests — the client Merkle tree (frontend/tree.js): empty root
+      # must equal the deployed genesis, inclusion proofs must reconstruct. Pure,
+      # deterministic, no browser/network.
+      - run: node scripts/test-unit.mjs
       # Uses the committed disclosure circuit artifacts (frontend/circuit/*) —
       # no circom needed. Validates valid / tampered / false-witness behaviour.
       - run: node scripts/test-fullprove.mjs

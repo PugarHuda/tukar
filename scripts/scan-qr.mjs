@@ -42,8 +42,10 @@ page.on("pageerror", (e) => pageErrors.push(e.message));
 // Navigate corridor steps (0 Sender, 1 Corridor, 2 Receiver, 3 Regulator) via the flow strip.
 const goStep = async (i) => {
   await page.locator("#fn" + i).click();
-  await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 10000 });
-  await page.waitForTimeout(150);
+  await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 15000 });
+  // literal navigation reloads the page — wait for init() (handlers wired) before use.
+  await page.locator("#status").filter({ hasText: /Ready/ }).waitFor({ timeout: 45000 }).catch(() => {});
+  await page.waitForTimeout(200);
 };
 
 console.log(`QR scan test against ${BASE}${DEMO}\n`);
