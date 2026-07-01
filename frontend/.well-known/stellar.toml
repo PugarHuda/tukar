@@ -1,0 +1,50 @@
+# Tukar — SEP-1 stellar.toml
+# Discovery metadata for the Tukar confidential cross-border corridor on Stellar.
+#
+# HONEST SCOPE: Tukar is NOT a fiat anchor. It is the private on-chain *settlement
+# rail* that sits between anchors — the confidential cross-border leg. It therefore
+# does NOT publish TRANSFER_SERVER / WEB_AUTH_ENDPOINT / KYC_SERVER (those belong to
+# a real KYC'd anchor; the fiat on/off-ramp edges are honestly mocked in the demo).
+# What this file does publish is real: the network, the operating account, org info,
+# and the live Soroban contracts so the corridor is discoverable per SEP-1. Where
+# Tukar fits the anchor stack is SEP-31 (cross-border payments): a sending and a
+# receiving anchor would handle fiat + KYC at the edges, and Tukar provides the
+# amount-and-counterparty-private settlement in between.
+
+VERSION="2.7.0"
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+ACCOUNTS=["GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"]
+
+[DOCUMENTATION]
+ORG_NAME="Tukar"
+ORG_DESCRIPTION="Confidential cross-border payment corridors on Stellar. USDC in, shielded transfer (amount + counterparties hidden on-chain), local fiat out — with zero-knowledge compliance proofs and selective disclosure, verified on-chain. A Privacy-Pools design; the fiat edges are public by design and assume existing anchors."
+ORG_URL="https://tukar-six.vercel.app"
+ORG_GITHUB="PugarHuda/tukar"
+
+# Soroban contracts that make up the corridor (testnet). Discoverable + verifiable on
+# stellar.expert. Settlement asset is Circle/SDF testnet USDC (issuer GC7SWGHR…), via
+# its SAC — Tukar does NOT issue an asset, so no [[CURRENCIES]] block is claimed here.
+[[CONTRACTS]]
+name="pool"
+description="Corridor pool — orchestrates the 4 ZK verifiers, custodies real testnet USDC, root/nullifier/commitment sets, configurable ASP compliance policy, on-chain Reflector off-ramp quote + min-receive settlement gate."
+id="CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ"
+
+[[CONTRACTS]]
+name="transfer_verifier"
+description="Groth16/BN254 verifier — shielded 2-in/2-out JoinSplit (amount + counterparties hidden)."
+id="CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N"
+
+[[CONTRACTS]]
+name="compliance_verifier"
+description="Groth16/BN254 verifier — ASP allow-list membership + deny-list non-membership, key-bound to the authenticated depositor."
+id="CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO"
+
+[[CONTRACTS]]
+name="disclosure_verifier"
+description="Groth16/BN254 verifier — selective disclosure of one fact (the amount) to a regulator; nothing else revealed."
+id="CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3"
+
+[[CONTRACTS]]
+name="merkleUpdate_verifier"
+description="Groth16/BN254 verifier — trustless single-leaf Merkle root advance (no admin root backdoor)."
+id="CBQB4AJ4HU3YVFE2DCNUSBXH3WJD5IFR6NMOH42RQM3HZDO5TBM7EP5Z"

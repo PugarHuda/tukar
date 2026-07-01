@@ -127,6 +127,28 @@ reads the live `deny_list` before proving so a policy change can't desync the pr
 
 ---
 
+## 6. The anchor SEP stack (SEP-1 / 6 / 10 / 24 / 31) — what's real vs KYC-gated
+
+Community feedback (Stellar Discord): *"simulated anchor… you should integrate
+SEP-1, SEP-6, SEP-10, SEP-24 and SEP-31 if you are making your anchor."* Correct
+list — for **building an anchor**. But Tukar isn't an anchor: it's the confidential
+on-chain **settlement rail that sits between anchors**. So the honest mapping is:
+
+| SEP | What it is | Tukar |
+|---|---|---|
+| **SEP-1** (`stellar.toml`) | org/asset/contract discovery | ✅ **published** — [`/.well-known/stellar.toml`](../frontend/.well-known/stellar.toml) declares the org + the live Soroban contracts (pool + 4 verifiers), network, and operating account. Honest: it deliberately omits `TRANSFER_SERVER`/`WEB_AUTH_ENDPOINT` (those are an anchor's), and claims no `[[CURRENCIES]]` (Tukar issues no asset — it settles in Circle/SDF USDC). |
+| **SEP-10** (web-auth) | challenge → sign → JWT | ◑ buildable against the public SDF testanchor (`testanchor.stellar.org`), but the JWT authorizes nothing without SEP-6/24 behind it, so it's an isolated handshake here (see §4). |
+| **SEP-6 / SEP-24** (deposit/withdraw) | programmatic / interactive fiat ramp | 🚫 need a **KYC'd anchor backend** (business + legal + banking) — this is exactly the honestly-mocked fiat edge. Not code you can ship in a hackathon without a partner. |
+| **SEP-31** (cross-border payments) | sending-anchor → receiving-anchor remittance | 🎯 **where Tukar actually fits.** A SEP-31 pair handles fiat + KYC (SEP-12) + quotes (SEP-38) at each edge; Tukar is the amount-and-counterparty-**private** settlement leg in between — the confidential middle a plain SEP-31 corridor lacks. Needs two anchor partners, so it's roadmap/positioning, not code. |
+
+So the one cleanly-buildable, non-faked SEP is **SEP-1**, and it's shipped. The rest
+are honestly gated on a KYC anchor partner — and the peer's premise ("if you're
+making your anchor") doesn't quite apply: Tukar plugs *into* anchors via SEP-31
+rather than being one. Claiming a live SEP-6/24 ramp without a partner would be the
+kind of fake the project's no-fakes rule forbids.
+
+---
+
 **Bottom line:** the one opportunity with a clean native substitute that is also
 fully live-verifiable — gasless via fee-bump — is built and proven. The rest are
 either already obviated by a better design (Mercury) or genuinely gated on a human
