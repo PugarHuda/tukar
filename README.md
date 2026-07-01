@@ -229,7 +229,12 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 
 ## Still honestly simplified
 
-- **Fiat anchors are mocked** (assume testnet USDC at the edges); the ASP
+- **Fiat anchors are mocked in the demo flow** (the corridor assumes testnet USDC at
+  the edges). But the anchor **SEP protocols are really integrated** — Tukar publishes
+  a [SEP-1 `stellar.toml`](frontend/.well-known/stellar.toml), and `npm run sep:anchor`
+  authenticates (SEP-10 JWT) and opens a real interactive USDC on-ramp (SEP-24) against
+  SDF's reference anchor, plus SEP-6/SEP-31 `/info` — **5/5 live** ([`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) §6).
+  A production ramp needs a *licensed* KYC anchor (business, not code). The ASP
   allow/deny lists are seeded with a fixed witness; a single corridor A→B.
 - **Phase-2 of the trusted setup** is a single Tukar contribution (phase-1 is the
   real Hermez ceremony). Production wants a multi-party phase-2 too.

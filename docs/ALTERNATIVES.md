@@ -134,18 +134,24 @@ SEP-1, SEP-6, SEP-10, SEP-24 and SEP-31 if you are making your anchor."* Correct
 list — for **building an anchor**. But Tukar isn't an anchor: it's the confidential
 on-chain **settlement rail that sits between anchors**. So the honest mapping is:
 
+**`npm run sep:anchor`** exercises the client/wallet side of the whole stack **live
+against SDF's public reference anchor** (`testanchor.stellar.org`) — real HTTP, real
+signatures, no mocks (**5/5 steps pass**):
+
 | SEP | What it is | Tukar |
 |---|---|---|
-| **SEP-1** (`stellar.toml`) | org/asset/contract discovery | ✅ **published** — [`/.well-known/stellar.toml`](../frontend/.well-known/stellar.toml) declares the org + the live Soroban contracts (pool + 4 verifiers), network, and operating account. Honest: it deliberately omits `TRANSFER_SERVER`/`WEB_AUTH_ENDPOINT` (those are an anchor's), and claims no `[[CURRENCIES]]` (Tukar issues no asset — it settles in Circle/SDF USDC). |
-| **SEP-10** (web-auth) | challenge → sign → JWT | ◑ buildable against the public SDF testanchor (`testanchor.stellar.org`), but the JWT authorizes nothing without SEP-6/24 behind it, so it's an isolated handshake here (see §4). |
-| **SEP-6 / SEP-24** (deposit/withdraw) | programmatic / interactive fiat ramp | 🚫 need a **KYC'd anchor backend** (business + legal + banking) — this is exactly the honestly-mocked fiat edge. Not code you can ship in a hackathon without a partner. |
-| **SEP-31** (cross-border payments) | sending-anchor → receiving-anchor remittance | 🎯 **where Tukar actually fits.** A SEP-31 pair handles fiat + KYC (SEP-12) + quotes (SEP-38) at each edge; Tukar is the amount-and-counterparty-**private** settlement leg in between — the confidential middle a plain SEP-31 corridor lacks. Needs two anchor partners, so it's roadmap/positioning, not code. |
+| **SEP-1** (`stellar.toml`) | org/asset/contract discovery | ✅ **published** — [`/.well-known/stellar.toml`](../frontend/.well-known/stellar.toml) declares the org + the live Soroban contracts (pool + 4 verifiers), network, operating account. Deliberately omits anchor endpoints and claims no `[[CURRENCIES]]` (Tukar issues no asset — settles in Circle/SDF USDC). Also **consumed**: `sep:anchor` reads the anchor's toml to discover its endpoints. |
+| **SEP-10** (web-auth) | challenge → sign → JWT | ✅ **real JWT obtained** — fetches the anchor's challenge tx, signs it with the demo key, POSTs it back, gets a valid ~400-char JWT. Genuine anchor authentication, not a stub. |
+| **SEP-6** (programmatic) | non-interactive deposit/withdraw | ✅ **authenticated `/info`** read live (anchor supports USDC/SRT/native deposit + withdraw). |
+| **SEP-24** (interactive) | hosted deposit/withdraw | ✅ **real interactive URL** — an authenticated `POST …/transactions/deposit/interactive` for **USDC** returns a live hosted ramp URL (`anchor-ref-ui-testanchor.stellar.org?transaction_id=…&token=…`) + a transaction id. This is a genuine fiat-on-ramp session against a real anchor. |
+| **SEP-31** (cross-border) | sending-anchor → receiving-anchor | ◑ `/info` reached live (the anchor advertises the SEP-31 endpoint; the testnet reference anchor has no receive assets configured). **This is where Tukar fits**: a SEP-31 pair handles fiat + KYC (SEP-12) + quotes (SEP-38) at each edge, and Tukar is the amount-and-counterparty-**private** settlement leg between them — the confidential middle a plain SEP-31 corridor lacks. |
 
-So the one cleanly-buildable, non-faked SEP is **SEP-1**, and it's shipped. The rest
-are honestly gated on a KYC anchor partner — and the peer's premise ("if you're
-making your anchor") doesn't quite apply: Tukar plugs *into* anchors via SEP-31
-rather than being one. Claiming a live SEP-6/24 ramp without a partner would be the
-kind of fake the project's no-fakes rule forbids.
+So the protocol wiring is **real and verifiable**, not mocked: Tukar authenticates
+and opens an interactive USDC on-ramp against a real anchor. **Honest scope:** SDF's
+testanchor is a *reference* anchor (no real KYC on testnet); a production deploy
+points these at a *licensed* anchor issuing the corridor's asset — that last mile is
+business/legal (a partner + KYC), not code. Claiming Tukar *operates* a KYC'd anchor
+would be a fake; integrating against one (as a wallet does) is real, and shipped.
 
 ---
 
