@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, offrampQuoteTwap, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, offrampQuoteTwap, anchorOnramp, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -1111,6 +1111,27 @@ async function onWalletClick() {
 }
 $("walletBtn").addEventListener("click", onWalletClick);
 $("demoKeyBtn").addEventListener("click", onDemoKeyClick);
+
+// Real anchor on-ramp: SEP-10 auth + SEP-24 interactive USDC deposit (no mock).
+if ($("anchorBtn")) $("anchorBtn").addEventListener("click", async () => {
+  const btn = $("anchorBtn");
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Opening anchor…";
+  status.innerHTML = `<span class="spin">◠</span> Anchor: authenticating (SEP-10) + opening a USDC deposit (SEP-24)…`;
+  try {
+    const { url, id, asset } = await anchorOnramp();
+    const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
+    status.innerHTML = w
+      ? `Anchor on-ramp opened for <b>${asset}</b> — complete the deposit in the anchor window (real SEP-24 session · tx ${esc(String(id).slice(0, 8))}…).`
+      : `Anchor session ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">deposit ↗</a>`;
+  } catch (e) {
+    status.textContent = "Anchor on-ramp failed: " + ((e && e.message) || e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
 
 // Per-step navigation: Back/Next pager + the flow strip nodes are links to each step.
 if ($("navPrev")) $("navPrev").addEventListener("click", () => setActiveStep(stepIndexFromPath() - 1));

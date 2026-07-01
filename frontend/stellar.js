@@ -281,6 +281,51 @@ export function setWalletSigner(w) { _wallet = w; _poolWrite = null; }
 export function activeAddress() { return _wallet ? _wallet.address : DEMO_ADDRESS; }
 export function usingWallet() { return !!_wallet; }
 
+// ---- SEP anchor on-ramp (REAL, no mock) ----
+// Fund the active account with USDC through a real Stellar anchor: discover it
+// (SEP-1), authenticate the active account (SEP-10 — the challenge is signed by the
+// connected Freighter wallet, or the built-in demo key), then open a genuine
+// interactive USDC deposit session (SEP-24) hosted by the anchor. Returns
+// { url, id, asset, address }. Uses SDF's public REFERENCE anchor on testnet (no KYC);
+// a production deploy would point ANCHOR at a licensed anchor issuing the corridor's
+// asset — that last mile is a partner + KYC, not code.
+const ANCHOR = "https://testanchor.stellar.org";
+export async function anchorOnramp() {
+  const address = activeAddress();
+  const toml = await (await fetch(`${ANCHOR}/.well-known/stellar.toml`)).text();
+  const grab = (k) => (toml.match(new RegExp(`^${k}\\s*=\\s*"([^"]+)"`, "m")) || [])[1];
+  const WEB_AUTH = grab("WEB_AUTH_ENDPOINT"), SEP24 = grab("TRANSFER_SERVER_SEP0024");
+  if (!WEB_AUTH || !SEP24) throw new Error("anchor stellar.toml is missing endpoints");
+  // SEP-10: fetch the challenge tx, add our signature, exchange it for a JWT.
+  const chal = await (await fetch(`${WEB_AUTH}?account=${address}&home_domain=testanchor.stellar.org`)).json();
+  if (!chal.transaction) throw new Error("SEP-10 challenge failed: " + (chal.error || "no transaction"));
+  const netPass = chal.network_passphrase || PASSPHRASE;
+  let signedXdr;
+  if (_wallet && _wallet.signTransaction) {
+    const res = await _wallet.signTransaction(chal.transaction, { networkPassphrase: netPass, address });
+    signedXdr = res.signedTxXdr || res;
+  } else {
+    const tx = new Sdk.Transaction(chal.transaction, netPass);
+    tx.sign(Sdk.Keypair.fromSecret(DEMO_SECRET));
+    signedXdr = tx.toXDR();
+  }
+  const jwtRes = await (await fetch(WEB_AUTH, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction: signedXdr }),
+  })).json();
+  if (!jwtRes.token) throw new Error("SEP-10 auth failed: " + (jwtRes.error || "no token"));
+  const bearer = { Authorization: `Bearer ${jwtRes.token}` };
+  // SEP-24: pick USDC (fallback to whatever the anchor supports) and open the session.
+  const info = await (await fetch(`${SEP24}/info`, { headers: bearer })).json();
+  const assets = Object.keys(info.deposit || {});
+  const asset = assets.includes("USDC") ? "USDC" : (assets[0] || "USDC");
+  const intr = await (await fetch(`${SEP24}/transactions/deposit/interactive`, {
+    method: "POST", headers: { ...bearer, "Content-Type": "application/json" },
+    body: JSON.stringify({ asset_code: asset, account: address }),
+  })).json();
+  if (!intr.url) throw new Error("SEP-24 interactive deposit failed: " + (intr.error || "no url"));
+  return { url: intr.url, id: intr.id, asset, address };
+}
+
 let _poolWrite;
 async function poolWriteClient() {
   if (!_poolWrite) {
