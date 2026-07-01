@@ -12,7 +12,8 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 | **Unit** — circuit soundness | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
 | **Proving** | valid / tampered / false-witness | `npm run test:proving` | pass |
 | **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×4 | **4/4 ZKey Ok** |
-| **Integration** — routing | per-page nav + no-flash + reload | `npm run test:pages` | **10/11**→**10/10** |
+| **Integration** — routing | per-page nav + no-flash + reload | `npm run test:pages` | **10/10** |
+| **Integration** — receiver UI | withdrawn-note auto-hide + off-ramp to another corridor | `npm run test:offramp` | **9/9** |
 | **Integration** — full flow | deposit→reveal→withdraw→disclose→tamper | `npm run test:e2e` | **10/11**¹ |
 | **Integration** — bearer P2P | export→wipe→import→withdraw | `npm run test:bearer` | **4/4** |
 | **Integration** — QR | decode bearer + request QR | `npm run test:qr` | **2/2** |
