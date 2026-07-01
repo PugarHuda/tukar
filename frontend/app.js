@@ -75,7 +75,9 @@ function loadSession() {
   try {
     const d = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
     if (!d) return;
-    if (Array.isArray(d.notes)) notes = d.notes.map((n) => ({ ...n, withdrawing: false }));
+    // withdrawing/justWithdrawn are transient UI flags — reset on load so a withdrawn
+    // note stays hidden (never reappears) and no "spinning" state survives a reload.
+    if (Array.isArray(d.notes)) notes = d.notes.map((n) => ({ ...n, withdrawing: false, justWithdrawn: false }));
     if (Array.isArray(d.offramped)) d.offramped.forEach((id) => offramped.add(id));
     if (typeof d.seq === "number") seq = d.seq;
   } catch (_) { /* corrupt store — ignore */ }
