@@ -197,8 +197,9 @@ await tc("bearer note: export→reset→import→withdraw, then double-spend rej
 // 10) disconnect re-gates Send (Sender step)
 await tc("disconnect re-gates Send", async () => {
   await goStep(0);
-  await page.getByRole("button", { name: /Disconnect|Use testnet key/i }).first().click();
-  await page.locator("#sendBtn[disabled]").waitFor({ timeout: 5000 });
+  await connect(); // establish the connected state first (a literal reload may have reset it)
+  await page.getByRole("button", { name: /^Disconnect$/i }).first().click();
+  await page.locator("#sendBtn[disabled]").waitFor({ timeout: 8000 });
 });
 
 console.log(`\nUncaught page errors during run: ${pageErrors.length ? JSON.stringify(pageErrors) : "none"}`);
