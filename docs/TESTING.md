@@ -222,6 +222,27 @@ path (a 404 the routing test caught before ship). Verified 8/8 on the live deplo
 client state (notes, demo-key connection) persists across steps via localStorage, so
 a refresh or shared step link rehydrates.
 
+## 11. Anchor SEP integration (real, live) ✅
+
+The fiat-edge anchor protocols are integrated against SDF's public **reference**
+anchor (`testanchor.stellar.org`), no mocks:
+
+- `npm run sep:anchor` (`scripts/sep-anchor.mjs`) — **5/5 live**: SEP-1 discovery →
+  SEP-10 (sign the challenge → real JWT) → SEP-6 `/info` → SEP-24 interactive deposit
+  (a real hosted USDC on-ramp URL) → SEP-31 `/info`.
+- `npm run test:anchor` (`scripts/test-anchor.mjs`) — **5/5 live**, a real Playwright
+  click of the demo's **"Try a real anchor USDC on-ramp"** button: it authenticates
+  (SEP-10, signed by the demo key or Freighter) and opens a genuine SEP-24 deposit
+  session at the anchor's hosted UI, from the browser.
+
+Honest scope: SDF's testanchor is a *reference* anchor (no real KYC on testnet) and
+it issues **Circle testnet USDC** (issuer `GBBD47IF…`), whereas the corridor demo is
+pre-funded with a project USDC SAC (issuer `GC7SWGHR…`) — so the on-ramp demonstrates
+the live SEP flow, it is **not** the corridor's deposit source. A production deploy
+would align the corridor's settlement asset to a *licensed* anchor's USDC (a partner +
+KYC step, not code). Tukar also **publishes** its own SEP-1 `stellar.toml`
+(`/.well-known/stellar.toml`, served with the SEP-1 CORS header).
+
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the
   `merkleUpdate` proof — there is **no admin root backdoor**.
