@@ -356,14 +356,20 @@ async function poolWriteClient() {
   return _poolWrite;
 }
 
-// signAndSend with a refetch-and-retry on txBadSeq. The shared embedded demo key can
-// race its own sequence number when txns fire back-to-back (multiple tabs, or one
-// flow's deposit→register→withdraw in quick succession). `buildAt` rebuilds the
+// signAndSend with a rebuild-and-retry on TRANSIENT faults. `buildAt` rebuilds the
 // AssembledTransaction, which re-simulates and refetches the source sequence, so a
-// retry self-heals. ponytail: bounded to 4 tries; a real per-user wallet never races.
+// retry self-heals both a sequence race on the shared embedded demo key (deposit→
+// register→withdraw fired back-to-back, or multiple tabs) AND the load-shedding the
+// public testnet throws under contention: TRY_AGAIN_LATER, timeouts, txTooLate,
+// 429/5xx. A contract revert (Error(Contract,#N)) is DETERMINISTIC — never retried,
+// so a genuine double-spend (#2) or slippage block (#12) surfaces immediately.
+// ponytail: bounded to 5 tries; a real per-user wallet rarely needs more than one.
 const _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const _isBadSeq = (e) => /txbadseq|tx_bad_seq|bad_seq/i.test(String(e?.message ?? e ?? ""));
-async function sendTx(buildAt, attempts = 4) {
+const _msg = (e) => String(e?.message ?? e ?? "");
+const _isContractRevert = (e) => /Error\(Contract,\s*#\d+\)/.test(_msg(e));
+const _isTransient = (e) => !_isContractRevert(e) &&
+  /txbadseq|tx_bad_seq|bad_seq|try_again_later|timed?\s?out|timeout|txtoolate|\b(?:429|50\d)\b|failed to (?:send|submit)|network|fetch/i.test(_msg(e));
+async function sendTx(buildAt, attempts = 5) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -371,7 +377,7 @@ async function sendTx(buildAt, attempts = 4) {
       return await at.signAndSend();
     } catch (e) {
       lastErr = e;
-      if (i < attempts && _isBadSeq(e)) { await _sleep(1200 + i * 900); continue; }
+      if (i < attempts && _isTransient(e)) { await _sleep(1200 + i * 900); continue; }
       throw e;
     }
   }

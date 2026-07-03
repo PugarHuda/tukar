@@ -188,7 +188,15 @@ await tc("bearer note: export→reset→import→withdraw, then double-spend rej
   await page.locator("#incoming [data-withdraw]").first().click();
   await waitStatus(/withdrawn on-chain ✓|withdraw failed/i);
   assert(/withdrawn on-chain ✓/i.test(await statusText()), `imported withdraw failed: "${await statusText()}"`);
+  // Double-spend = a SECOND holder of the same bearer string (a different device).
+  // Re-importing into THIS wallet is (correctly) refused as a duplicate, so simulate
+  // the other holder by clearing the session first, then re-import and try to withdraw
+  // the already-spent note — the on-chain nullifier rejects it (#2).
   await settleKey();
+  await page.locator("#resetBtn").click();
+  await waitStatus(/session cleared/i, 8000);
+  await goStep(0); await connect();
+  await goStep(2);
   await page.locator("#importInput").fill(note);
   await page.getByRole("button", { name: /Import →/ }).click();
   await page.locator("#incoming [data-withdraw]").first().waitFor({ timeout: 60000 });

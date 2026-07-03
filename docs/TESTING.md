@@ -14,16 +14,15 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 | **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×4 | **4/4 ZKey Ok** |
 | **Integration** — routing | per-page nav + no-flash + reload | `npm run test:pages` | **10/10** |
 | **Integration** — receiver UI | withdrawn-note auto-hide + off-ramp to another corridor | `npm run test:offramp` | **9/9** |
-| **Integration** — full flow | deposit→reveal→withdraw→disclose→tamper | `npm run test:e2e` | **10/11**¹ |
+| **Integration** — full flow | deposit→reveal→withdraw→disclose→tamper | `npm run test:e2e` | **11/11** |
 | **Integration** — bearer P2P | export→wipe→import→withdraw | `npm run test:bearer` | **4/4** |
 | **Integration** — QR | decode bearer + request QR | `npm run test:qr` | **2/2** |
 | **Integration** — landing | links/CTA/no-errors | `npm run test:landing` | **5/5** |
 | **Integration** — anchor UI | in-UI SEP-10+24 on-ramp | `npm run test:anchor` | **5/5** |
 | **Integration** — anchor SEPs | SEP-1/10/6/24/31 | `npm run sep:anchor` | **5/5** |
 
-¹ The one non-pass across the whole matrix is the **e2e bearer-note** case — a
-test-harness shared-key contention timeout, not a product bug (§6). Everything else
-is green. Regression pass: all of the above were re-run together after each change.
+Every suite in the matrix is green. Regression pass: all of the above were re-run
+together after each change.
 CI (`.github/workflows/ci.yml`) automates the deterministic ones (unit, proving,
 soundness) on every push; the live Playwright suites are manual pre-deploy gates
 (they need a funded testnet key + the deployed site).
@@ -172,28 +171,35 @@ this exact ptau and run the same assertion, so a stale local-ptau key can never
 silently replace a deployed one. Honest caveat: **phase-2** is a single Tukar
 contribution (a production deploy wants a multi-party phase-2 too).
 
-## 6. End-to-end UI (Playwright real-click) ✅ 10/11 live
+## 6. End-to-end UI (Playwright real-click) ✅ 11/11 live
 
-`npm run test:e2e` drives the **live** site (`tukar-six.vercel.app/demo`) with
-genuine clicks/typing/selects (not `evaluate`-injection) over system Chrome. Eleven
-cases: prover-load, Send-gating pre-connect, payment-request round-trip, connect,
-invalid-amount fuzzing (no crash), **junk typed into Load/Import handled gracefully**
-(no crash — covers a real user mistyping into those boxes), all 7 corridors (3
-on-chain Reflector / 4 FX-API), the full happy path (deposit → reveal → withdraw →
-disclose → tamper), on-chain ASP forge-rejection (and that the forge toggle
+`npm run test:e2e` drives the site (`tukar-six.vercel.app/demo`, or a local
+`npm run serve`) with genuine clicks/typing/selects (not `evaluate`-injection) over
+system Chrome. Eleven cases: prover-load, Send-gating pre-connect, payment-request
+round-trip, connect, invalid-amount fuzzing (no crash), **junk typed into Load/Import
+handled gracefully** (no crash — covers a real user mistyping into those boxes), all 7
+corridors (3 on-chain Reflector / 4 FX-API), the full happy path (deposit → reveal →
+withdraw → disclose → tamper), on-chain ASP forge-rejection (and that the forge toggle
 **auto-clears** after the rejection, so a real send isn't trapped re-forging),
-bearer-note P2P + double-spend, and disconnect re-gating.
+bearer-note P2P + **cross-wallet double-spend**, and disconnect re-gating.
 
-Verified 2026-06-30 against the live deploy: **10/11**, zero uncaught page errors.
-The 10 product-critical flows pass, including both heavy on-chain flows (happy path
-+ ASP forge-rejection). The one failing case (bearer-note) is a **test-harness
-limitation, not a product bug**: it chains *five* on-chain operations back-to-back
-on the single shared demo key — deposit, export, import+withdraw, re-import,
-double-spend — and the public testnet RPC serializes/lags that one key past the
-timeout on the final step. A real user signs with their own key and never queues
-five txns on one sequence. The double-spend *protection* itself is proven
-independently by the unit test `transfer_double_spend_rejected` and the on-chain
-`NullifierUsed` result in §4 — not by this UI race.
+Verified 2026-07-03: **11/11**, zero uncaught page errors — including both heavy
+on-chain flows (happy path + ASP forge-rejection) and the double-spend case. Two
+fixes closed the last gap:
+
+- **Product:** the shared submit path (`stellar.js` `sendTx`) now rebuilds-and-retries
+  on *transient* testnet faults — sequence races on the shared demo key, plus the
+  load-shedding the public testnet throws (`TRY_AGAIN_LATER`, timeouts, 429/5xx). A
+  contract revert (`Error(Contract,#N)`) is deterministic and is **never** retried, so
+  a genuine double-spend `#2` or slippage block `#12` still surfaces at once. Real users
+  on a flaky testnet benefit from this too, not just the harness.
+- **Test:** the double-spend case now models the *real* threat — a **second holder** of
+  the same bearer string on a different device. Re-importing into the wallet that
+  already holds the note is (correctly) refused as a duplicate, so the case resets the
+  session first (simulating the other device), re-imports, and attempts the withdraw —
+  the on-chain `NullifierUsed` (`#2`) rejects it. This exercises the on-chain
+  double-spend protection through the UI, matching the unit test
+  `transfer_double_spend_rejected` and the on-chain result in §4.
 
 ## 7. QR codes actually scan ✅ 2/2 live
 
@@ -217,9 +223,9 @@ the local session** and import the bare string as a fresh holder (the pool
 reconstructs the tree from chain), (4) withdraw it — real tokens released on-chain.
 
 Verified 2026-06-30: **4/4**, zero uncaught page errors. This isolates the genuine
-P2P-handoff feature from the e2e's *double-spend* stress step (§6 case 9), which is
-the only part that flakes under back-to-back shared-key contention — the handoff +
-withdraw itself works end-to-end every time.
+P2P-handoff feature from the e2e's *cross-wallet double-spend* step (§6 case 9); both
+now pass — the transient-retry fix in `sendTx` removed the shared-key contention that
+used to make the back-to-back on-chain step flake.
 
 ## 9. Landing page QA (Playwright real-click) ✅ 5/5 live
 

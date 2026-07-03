@@ -96,10 +96,13 @@ tier, with its ZK verified live on testnet.
   another). See [`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) for how each
   externally-gated integration (Launchtube, Mercury, passkeys, SEP-24) maps to a
   native alternative and what's verifiable here.
-- **Demo video:** _add link here_ — generate fresh footage of the **live** flow with
-  `npm run record:demo` (records landing → connect → on-chain deposit → off-ramp →
-  withdraw → disclosure → tamper into `tukar-demo.webm`), then narrate over it using the
-  shot-by-shot script in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+- **Demo video:** _add link here_ — a **narrated** walkthrough of the **live** flow is
+  generated end-to-end by `npm run video`: a natural neural voiceover (`edge-tts`) per
+  scene, a Playwright recording of the real on-chain run (landing → connect → on-chain
+  deposit → off-ramp → withdraw → disclosure → tamper), and an ffmpeg mux that places
+  each VO clip at its scene start. `scripts/tight-cut.py` then auto-trims the real
+  on-chain wait stretches for a ~1:40 cut (`build-video/tukar-tight.mp4`). The
+  shot-by-shot script lives in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 ## What the ZK is doing (load-bearing)
 
@@ -210,16 +213,17 @@ professionally audited — see the caveats below). What that means concretely:
 [threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser proving
 flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
 
-**Live real-click e2e (`npm run test:e2e`): 10/11** against the deployed site —
-Playwright drives genuine clicks through the full on-chain flow (deposit → reveal →
-withdraw → disclose → tamper-rejected), on-chain ASP forge-rejection, corridor
-switching, graceful junk-input handling, and UI gating, with zero uncaught page
-errors. The one non-passing case
-(bearer-note P2P) is a **harness limitation, not a product bug**: it queues five
-on-chain txns back-to-back on the single shared demo key and the public RPC lags
-that one sequence past timeout — double-spend protection itself is proven by the
-`transfer_double_spend_rejected` unit test and the on-chain `NullifierUsed` result.
-See [docs/TESTING.md](docs/TESTING.md) §6.
+**Live real-click e2e (`npm run test:e2e`): 11/11** against the deployed site (or a
+local `npm run serve`) — Playwright drives genuine clicks through the full on-chain
+flow (deposit → reveal → withdraw → disclose → tamper-rejected), on-chain ASP
+forge-rejection, corridor switching, graceful junk-input handling, UI gating, and a
+**cross-wallet double-spend**: export a bearer note, reset to a second holder, import,
+and the on-chain `NullifierUsed` (`#2`) rejects the second spend — all with zero
+uncaught page errors. Back-to-back txns on the shared demo key ride a
+rebuild-and-retry that self-heals transient testnet faults (sequence races,
+`TRY_AGAIN_LATER`, RPC 5xx); a contract revert like that double-spend `#2` is
+deterministic and is never retried, so it surfaces immediately. See
+[docs/TESTING.md](docs/TESTING.md) §6.
 
 **Trusted setup is independently verifiable:** all four deployed proving keys
 provably derive from the real Hermez ceremony — `snarkjs zkey verify <r1cs>
