@@ -1,9 +1,18 @@
 # Tukar — demo video script
 
-> **Two cuts below.** The **2:00 fast cut** (this section) is the one to record if
-> you want a tight, skimmable judge video. The **full 2.5–3 min walkthrough**
-> (after the divider) has every beat + optional scenes for a longer cut. Same live
-> site, same recorder beats — the fast cut just trims the narration.
+> **Two ways to make the video.**
+> - **Automated (`npm run video`)** — no recording by hand: a natural neural voiceover
+>   (`edge-tts`, per scene) + a Playwright recording of the **real live on-chain run**
+>   (landing → connect → deposit → off-ramp → withdraw → disclosure → tamper) + an
+>   ffmpeg mux that places each VO clip at its scene start → `build-video/tukar-narrated.mp4`.
+>   `npm run video:tight` (auto-run at the end of `npm run video`) then trims the real
+>   on-chain wait stretches and re-syncs the VO → **`build-video/tukar-tight.mp4` (~1:40)**,
+>   the cut to submit. (`build-video/` is gitignored — upload the mp4 and paste the link
+>   into the README's *Demo video* slot.) The VO lines live in `scripts/make-vo.py`.
+> - **Manual** — record the live site yourself and narrate with the shot-by-shot script
+>   below. Two cuts: the **2:00 fast cut** (next section) for a tight judge video, and
+>   the **full 2.5–3 min walkthrough** (after the divider) with every beat + optional
+>   scenes. Same live site, same beats — the fast cut just trims the narration.
 
 ---
 

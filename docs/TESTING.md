@@ -3,7 +3,7 @@
 A full QA pass covering repo hygiene, circuit soundness, contract unit tests, and
 on-chain behaviour (positive + negative) on Stellar testnet.
 
-## Test matrix — every suite, last full run (all green bar the documented ceiling)
+## Test matrix — every suite, last full run (all green)
 
 | Type | Suite | Command | Result |
 |---|---|---|---|
