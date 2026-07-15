@@ -113,11 +113,14 @@ await tc("junk in Load/Import handled gracefully (no crash)", async () => {
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 
-// 6) all 7 corridors switch; MXN/BRL/ARS read on-chain, others on FX-API fallback (Sender step)
-await tc("corridor switching + labels (3 on-chain, 4 fallback)", async () => {
+// 6) all 10 corridors switch; MXN/BRL/ARS read on-chain, others on FX-API fallback (Sender step)
+await tc("corridor switching + labels (3 on-chain, 7 fallback)", async () => {
   await goStep(0);
   await page.waitForTimeout(4000);
-  const want = { MX: /Reflector oracle \(on-chain\)/, BR: /Reflector oracle \(on-chain\)/, AR: /Reflector oracle \(on-chain\)/, PH: /· live/, IN: /· live/, NG: /· live/, CO: /· live/ };
+  const want = {
+    MX: /Reflector oracle \(on-chain\)/, BR: /Reflector oracle \(on-chain\)/, AR: /Reflector oracle \(on-chain\)/,
+    PH: /· live/, ID: /· live/, VN: /· live/, TH: /· live/, IN: /· live/, NG: /· live/, CO: /· live/,
+  };
   for (const [code, re] of Object.entries(want)) {
     await page.locator("#corridor").selectOption(code);
     await page.waitForTimeout(150);

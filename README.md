@@ -89,8 +89,9 @@ tier, with its ZK verified live on testnet.
   live Stellar verifier**. **No install needed** — one click on **Use testnet key**
   activates a real built-in testnet key (or **connect Freighter** to sign with your
   own). On-chain actions are gated on that explicit connection — no silent signing.
-  Pick a **destination corridor** (Mexico/Brazil/Argentina/Philippines/India/
-  Nigeria/Colombia) and the off-ramp converts at a **live** USD→local exchange rate.
+  Pick a **destination corridor** — 10 of them: Indonesia, Philippines, Vietnam,
+  Thailand, India, Mexico, Brazil, Argentina, Nigeria, Colombia — and the off-ramp
+  converts at a **live** USD→local exchange rate.
   For **Mexico, Brazil and Argentina**, the receiver's revealed fiat figure is
   computed **on-chain by the pool contract itself**, which cross-contract-reads
   [Reflector](https://reflector.network) — Stellar's decentralized SEP-40 FX oracle

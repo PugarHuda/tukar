@@ -97,7 +97,7 @@ cross-border globe, then click **Launch the live demo**.
 headline *"USDC in. Private crossing. Local fiat out."* and the
 **SENDER → CORRIDOR → RECEIVER → REGULATOR** flow strip (also the step nav).
 Amount = 500 USDC; pick a **destination corridor** (e.g. Mexico · MXN — or switch
-to Brazil/Argentina/Philippines/India/Nigeria/Colombia; the recipient + off-ramp
+to Indonesia/Philippines/Vietnam/Thailand/India/Brazil/Argentina/Nigeria/Colombia; the recipient + off-ramp
 currency update, with **live** USD→local FX — for Mexico/Brazil/Argentina that rate
 is read **on-chain from the Reflector oracle by the pool contract**). Click **Send
 into corridor →** (the button shows "Building compliance proof…").

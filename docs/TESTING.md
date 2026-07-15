@@ -177,8 +177,8 @@ contribution (a production deploy wants a multi-party phase-2 too).
 `npm run serve`) with genuine clicks/typing/selects (not `evaluate`-injection) over
 system Chrome. Eleven cases: prover-load, Send-gating pre-connect, payment-request
 round-trip, connect, invalid-amount fuzzing (no crash), **junk typed into Load/Import
-handled gracefully** (no crash — covers a real user mistyping into those boxes), all 7
-corridors (3 on-chain Reflector / 4 FX-API), the full happy path (deposit → reveal →
+handled gracefully** (no crash — covers a real user mistyping into those boxes), all 10
+corridors (3 on-chain Reflector / 7 FX-API), the full happy path (deposit → reveal →
 withdraw → disclose → tamper), on-chain ASP forge-rejection (and that the forge toggle
 **auto-clears** after the rejection, so a real send isn't trapped re-forging),
 bearer-note P2P + **cross-wallet double-spend**, and disconnect re-gating.
