@@ -27,7 +27,7 @@ def srt(cues, path):
     """cues: [{startMs, ms, text}] -> an SRT, wrapped to 2 readable lines."""
     out = []
     for n, c in enumerate(cues, 1):
-        body = "\n".join(textwrap.wrap(c["text"], 62)[:3])
+        body = "\n".join(textwrap.wrap(c["text"], 78)[:3])
         out.append(f"{n}\n{ts(c['startMs'])} --> {ts(c['startMs'] + c['ms'])}\n{body}\n")
     open(path, "w", encoding="utf-8").write("\n".join(out))
     return path
@@ -42,9 +42,10 @@ def run(cmd, what):
     if r.returncode:
         print(r.stderr[-2500:]); raise SystemExit(f"ffmpeg failed: {what}")
 
-# libass style: readable on the dark deck, matches the brand orange.
-STYLE = ("FontName=Segoe UI,Fontsize=17,PrimaryColour=&H00E9F2F2,OutlineColour=&H00050705,"
-         "BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=26,Bold=1")
+# libass style: legible over both the dark deck and the live UI, without covering
+# the content being narrated — hence the small size + opaque box + tight bottom margin.
+STYLE = ("FontName=Segoe UI,Fontsize=11,PrimaryColour=&H00E9F2F2,OutlineColour=&HC0050705,"
+         "BorderStyle=3,Outline=4,Shadow=0,Alignment=2,MarginV=14,Bold=1")
 def subfilter(p):  # ffmpeg needs escaped drive-colons inside a filter arg
     return "subtitles=" + p.replace("\\", "/").replace(":", "\\:") + f":force_style='{STYLE}'"
 
