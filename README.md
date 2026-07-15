@@ -66,6 +66,20 @@ tier, with its ZK verified live on testnet.
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
   | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CBQB4AJ4HU3YVFE2DCNUSBXH3WJD5IFR6NMOH42RQM3HZDO5TBM7EP5Z) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
 
+  **Contract addresses (Stellar testnet)** — copy-paste form of the table above:
+
+  ```
+  pool                 CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ
+  transfer verifier    CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N
+  compliance verifier  CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO
+  disclosure verifier  CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3
+  merkleUpdate verifier CBQB4AJ4HU3YVFE2DCNUSBXH3WJD5IFR6NMOH42RQM3HZDO5TBM7EP5Z
+  USDC (SAC, testnet)  CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2
+  ```
+
+  Network: **Stellar testnet** (`Test SDF Network ; September 2015`). The same ids
+  live in [`deployments/testnet.json`](deployments/testnet.json).
+
 - **🌐 Live site:** **https://tukar-six.vercel.app** — a landing page; hit
   **Launch the live demo** (or go straight to
   [`/demo`](https://tukar-six.vercel.app/demo)). There, **Send** builds compliance
