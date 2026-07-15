@@ -68,6 +68,16 @@ if r.returncode:
     print(r.stderr[-2500:]); raise SystemExit("ffmpeg tight-cut failed")
 
 trimmed = sum(ct - cf for cf, ct in cuts if ct < recMs)
+
+# Post-trim VO offsets, so build-final.py can subtitle this cut in sync.
+json.dump({
+    "video": out,
+    "durMs": shifted(recMs),
+    "scenes": [{"i": s["i"], "startMs": int(shifted(s["startMs"])),
+                "ms": voms.get(s["i"], 0), "text": next(m["text"] for m in vo if m["i"] == s["i"])}
+               for s in scenes],
+}, open("build-video/tight.json", "w"))
+
 p = subprocess.run([FFMPEG, "-i", out], capture_output=True, text=True)
 m = re.search(r"Duration: (\d+:\d+:\d+\.\d+)", p.stderr)
 print(f"TIGHT OK -> {out}")
