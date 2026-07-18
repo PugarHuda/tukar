@@ -8,7 +8,7 @@ import imageio_ffmpeg
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 VOICE = "id-ID-GadisNeural"   # suara neural Indonesia yang natural (perempuan)
-RATE = "+4%"
+RATE = "+15%"                 # brisk — pace pitch yang lincah, masih natural
 OUT = "build-video"
 os.makedirs(OUT, exist_ok=True)
 
