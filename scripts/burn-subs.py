@@ -23,8 +23,12 @@ with open(srt, "w", encoding="utf-8") as f:
         body = "\n".join(textwrap.wrap(c["text"], 78)[:3])
         f.write(f"{n}\n{ts(c['startMs'])} --> {ts(c['startMs'] + c['ms'])}\n{body}\n\n")
 
+# Top-center band (this libass build reads Alignment in the legacy SSA convention, so
+# 6 = top-center). MarginV pushes it down BELOW the header row into the static headline
+# zone — above the on-chain result status line and well above the interactive panel, so
+# the live interaction (counters, reveal, buttons, proof result) is never covered.
 STYLE = ("FontName=Segoe UI,Fontsize=11,PrimaryColour=&H00E9F2F2,OutlineColour=&HC0050705,"
-         "BorderStyle=3,Outline=4,Shadow=0,Alignment=2,MarginV=14,Bold=1")
+         "BorderStyle=3,Outline=4,Shadow=0,Alignment=6,MarginV=150,Bold=1")
 subfilter = "subtitles=" + srt.replace("\\", "/").replace(":", "\\:") + f":force_style='{STYLE}'"
 
 cmd = [FFMPEG, "-y", "-i", video, "-vf", subfilter,
