@@ -108,6 +108,7 @@
     display:flex;align-items:center;justify-content:center}
   #chrome button:hover{background:var(--orange);color:#120802;border-color:var(--orange)}
   #chrome button:disabled{opacity:.3;cursor:default}
+  #chrome button.on{background:var(--orange);color:#120802;border-color:var(--orange)}
   #dots{display:flex;gap:7px}
   #dots b{width:7px;height:7px;border-radius:50%;background:#3a2c21;cursor:pointer;transition:.2s}
   #dots b.on{background:var(--orange);transform:scale(1.4)}
@@ -351,6 +352,7 @@
   <div id="dots"></div>
   <span id="num"></span>
   <button id="next" aria-label="Next slide">›</button>
+  <button id="fs" aria-label="Toggle fullscreen (F)" title="Fullscreen (F)">⛶</button>
 </div>
 
 <script>
@@ -383,11 +385,27 @@
   prev.onclick = () => go(cur - 1);
   next.onclick = () => go(cur + 1);
 
+  // Native Fullscreen API — present the deck edge-to-edge with no browser chrome.
+  const fs = document.getElementById("fs");
+  const isFs = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function toggleFs() {
+    if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else {
+      const el = document.documentElement;
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {});
+    }
+  }
+  fs.onclick = toggleFs;
+  const syncFs = () => { fs.textContent = isFs() ? "⛶" : "⛶"; fs.classList.toggle("on", !!isFs()); };
+  document.addEventListener("fullscreenchange", syncFs);
+  document.addEventListener("webkitfullscreenchange", syncFs);
+
   addEventListener("keydown", (e) => {
     if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); go(cur + 1); }
     if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); go(cur - 1); }
     if (e.key === "Home") go(0);
     if (e.key === "End") go(slides.length - 1);
+    if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleFs(); }
   });
   // keep the dots honest if someone swipes/trackpad-scrolls the rail directly
   let t;
