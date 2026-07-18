@@ -11,7 +11,7 @@ vo = json.load(open("build-video/vo.json"))
 sc = json.load(open("build-video/scenes.json"))
 video, scenes, recMs = sc["video"], sc["scenes"], sc["recMs"]
 
-BEAT, TAIL, LEAD, MIN_GAP = 700, 2800, 1800, 6000  # ms
+BEAT, TAIL, LEAD, MIN_GAP = 400, 600, 400, 2000  # ms — rapat: jeda tersisa ~1.4s
 voms = {m["i"]: m["ms"] for m in vo}
 
 # For each scene, the moment its narration is done playing.
