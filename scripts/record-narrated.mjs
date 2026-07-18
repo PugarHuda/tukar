@@ -22,7 +22,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const safe = (fn) => fn.catch(() => {});
 const click = (sel) => safe(page.locator(sel).first().click({ timeout: 8000 }));
 const ready = () => page.locator("#status").filter({ hasText: /Ready/ }).waitFor({ timeout: 45000 }).catch(() => {});
-const goStep = async (i) => { await click("#fn" + i); await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 15000 }).catch(() => {}); await ready(); await sleep(300); };
+// After a (literal) step navigation, glide straight to the interaction CARD so the
+// headline is scrolled off — go to what matters, keeping the flow strip near the top.
+const focusPanel = (n) => page.evaluate(async (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const want = Math.max(0, el.getBoundingClientRect().top + scrollY - 118);
+  const from = scrollY, dist = want - from;
+  if (Math.abs(dist) <= 8) return;
+  const steps = 38;
+  for (let i = 1; i <= steps; i++) { scrollTo(0, from + dist * (i / steps)); await new Promise((r) => setTimeout(r, 13)); }
+}, "panel" + n).catch(() => {});
+const goStep = async (i) => { await click("#fn" + i); await page.locator("#panel" + i).waitFor({ state: "visible", timeout: 15000 }).catch(() => {}); await ready(); await sleep(250); await focusPanel(i); await sleep(250); };
 // Smoothly glide the page so the bottom of `sel` is comfortably in view — used when the
 // thing being narrated (counter, withdraw button, proof result) sits below the fold, so
 // it reads as a gentle scroll instead of a hard jump ("patah-patah").
@@ -62,7 +73,8 @@ try {
   await ready();
   await scene(1, async () => {
     await click("#demoKeyBtn");
-    await sleep(700);
+    await sleep(500);
+    await focusPanel(0); // scroll to the sender card (skip the headline)
     await page.locator("#corridor").selectOption("MX").catch(() => {});
     await page.locator("#amount").fill("500").catch(() => {});
     await sleep(600);

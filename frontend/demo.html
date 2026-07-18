@@ -15,6 +15,15 @@
       document.documentElement.setAttribute("data-step", s == null ? 0 : s);
     })();
   </script>
+  <!-- Kill the white flash on each literal step-page load: paint the dark bg
+       immediately, then fade the content in from it so reloads read as a smooth
+       cross-fade rather than a hard flash. Honors reduced-motion. -->
+  <style>
+    html { background: #0a0705; }
+    @keyframes tukarPageIn { from { opacity: 0 } to { opacity: 1 } }
+    body { animation: tukarPageIn .34s ease both; }
+    @media (prefers-reduced-motion: reduce) { body { animation: none; } }
+  </style>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tukar — Corridor Console (live demo)</title>
   <meta name="description" content="Run the Tukar corridor live on Stellar testnet: deposit real USDC with a zero-knowledge compliance proof, off-ramp to fiat, and audit with a selective-disclosure proof verified on-chain. No install, no wallet." />
