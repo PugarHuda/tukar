@@ -95,6 +95,9 @@
     background:rgba(255,176,112,.05);border-radius:0 8px 8px 0}
   .note p{font-size:14px;color:var(--dim);line-height:1.5}
 
+  .demovid{width:min(70vw,880px);max-height:60vh;margin-top:6px;border:1px solid var(--line);
+    border-radius:12px;background:#000;box-shadow:0 12px 44px rgba(0,0,0,.55)}
+
   /* --- slide chrome: dots + arrows (bottom centre) --- */
   #chrome{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;
     display:flex;align-items:center;gap:14px;
@@ -309,8 +312,23 @@
   </ul>
 </section>
 
-<!-- 10 — close -->
-<section class="s hero" data-n="10">
+<!-- 10 — watch it run (live demo video) -->
+<section class="s" data-n="10">
+  <div class="kicker">Watch it run — live on Stellar testnet</div>
+  <h2 style="margin-bottom:14px">The whole flow, on-chain, in 1:43.</h2>
+  <video class="demovid" controls playsinline preload="metadata" poster="/og-image.png">
+    <source src="/demo-id.mp4" type="video/mp4">
+    Your browser can't play this video — <a href="/demo-id.mp4">download it</a>.
+  </video>
+  <p class="lead" style="margin-top:12px">
+    Real testnet USDC: deposit → shielded crossing → off-ramp to local fiat → on-chain
+    withdraw → a disclosure proof <span class="ok">verified on-chain</span> → a tampered
+    claim <span class="ok">rejected on-chain</span>. Narasi &amp; subtitle Bahasa Indonesia.
+  </p>
+</section>
+
+<!-- 11 — close -->
+<section class="s hero" data-n="11">
   <div class="streaks"><i style="top:30%;opacity:.3"></i><i style="top:70%;opacity:.4"></i></div>
   <div class="kicker">Try it — no install</div>
   <h2 style="font-size:clamp(28px,4.6vw,60px)">Real-world money.<br>Private. Kept compliant.<br>On Stellar.</h2>
