@@ -34,7 +34,7 @@
     "video:final": "python scripts/build-final.py",
     "video:full": "python scripts/deck-vo.py && node scripts/record-deck.mjs https://tukar-six.vercel.app && python scripts/build-final.py",
     "video:vo-id": "python scripts/make-vo-id.py",
-    "video:demo-id": "python scripts/make-vo-id.py && node scripts/record-narrated.mjs https://tukar-six.vercel.app && python scripts/mux-video.py && python scripts/tight-cut.py && python scripts/burn-subs.py build-video/tukar-demo-id.mp4"
+    "video:demo-id": "python scripts/make-vo-id.py && node scripts/record-narrated.mjs https://tukar-six.vercel.app && python scripts/mux-video.py && python scripts/tight-cut.py && node -e \"require('fs').copyFileSync('build-video/tukar-tight.mp4','build-video/tukar-demo-id.mp4')\""
   },
   "devDependencies": {
     "circomlib": "^2.0.5",
