@@ -55,6 +55,8 @@ shot.png
 
 *.webm
 *.mp4
+# ...except the demo video embedded in the deck (self-contained, served by Vercel)
+!frontend/demo-id.mp4
 
 # demo video build artifacts (media — regenerate with npm run video)
 build-video/
