@@ -98,6 +98,14 @@
   .demovid{width:min(70vw,880px);max-height:60vh;margin-top:6px;border:1px solid var(--line);
     border-radius:12px;background:#000;box-shadow:0 12px 44px rgba(0,0,0,.55)}
 
+  /* per-feature clip pinned bottom-right of a content slide (picture-in-slide) */
+  .clip{position:absolute;right:3.4vw;bottom:8.5vh;width:clamp(230px,24vw,320px);margin:0;z-index:5}
+  .clip figcaption{font:700 9.5px var(--mono);letter-spacing:1px;color:var(--hot);
+    text-transform:uppercase;margin-bottom:6px;text-align:right}
+  .clip video{width:100%;border:1px solid var(--line);border-radius:10px;background:#000;
+    box-shadow:0 10px 34px rgba(0,0,0,.55);display:block}
+  @media (max-width:940px){ .clip{display:none} }  /* full video lives on slide 10 */
+
   /* --- slide chrome: dots + arrows (bottom centre) --- */
   #chrome{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;
     display:flex;align-items:center;gap:14px;
@@ -168,6 +176,8 @@
 <!-- 3 — solution / flow -->
 <section class="s" data-n="03">
   <div class="kicker">The solution</div>
+  <figure class="clip"><figcaption>▶ Kirim privat + deposit on-chain</figcaption>
+    <video controls playsinline preload="none" poster="/og-image.png"><source src="/clips/01-kirim-privat.mp4" type="video/mp4"></video></figure>
   <h2>Private in the middle, accountable at the edges.</h2>
   <div class="flow">
     <div class="step">
@@ -200,6 +210,8 @@
 <!-- 4 — ZK load-bearing -->
 <section class="s" data-n="04">
   <div class="kicker">ZK is load-bearing — not namechecked</div>
+  <figure class="clip"><figcaption>▶ Selective disclosure, verified on-chain</figcaption>
+    <video controls playsinline preload="none" poster="/og-image.png"><source src="/clips/04-disclosure-audit.mp4" type="video/mp4"></video></figure>
   <h2>Four circuits do the actual work.</h2>
   <div class="grid g4">
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
@@ -240,6 +252,8 @@
 <!-- 6 — ecosystem integration -->
 <section class="s" data-n="06">
   <div class="kicker">Ecosystem integration — real, not decorative</div>
+  <figure class="clip"><figcaption>▶ Off-ramp — rate read on-chain (Reflector)</figcaption>
+    <video controls playsinline preload="none" poster="/og-image.png"><source src="/clips/02-offramp-reflector.mp4" type="video/mp4"></video></figure>
   <h2>The oracle moves funds. The anchors are live.</h2>
   <div class="grid g2">
     <div class="card"><span class="mono">Reflector · SEP-40 FX oracle</span>
@@ -269,6 +283,8 @@
 <!-- 7 — what's real -->
 <section class="s" data-n="07">
   <div class="kicker">What's real (not mocked)</div>
+  <figure class="clip"><figcaption>▶ Withdraw on-chain (nullifier spent)</figcaption>
+    <video controls playsinline preload="none" poster="/og-image.png"><source src="/clips/03-withdraw-onchain.mp4" type="video/mp4"></video></figure>
   <h2>Real USDC. Real custody. Real setup.</h2>
   <ul>
     <li><b>Real testnet USDC custody</b> <span>— <code>deposit</code> moves the actual amount you type; <code>withdraw</code> releases it.</span></li>
@@ -283,6 +299,8 @@
 <!-- 8 — proof it works -->
 <section class="s" data-n="08">
   <div class="kicker">Proof it works</div>
+  <figure class="clip"><figcaption>▶ False claim rejected on-chain</figcaption>
+    <video controls playsinline preload="none" poster="/og-image.png"><source src="/clips/05-tamper-ditolak.mp4" type="video/mp4"></video></figure>
   <h2>Verified live, not asserted.</h2>
   <div class="grid g4">
     <div class="card"><div class="stat">36/36<small>Contract unit tests</small></div></div>
