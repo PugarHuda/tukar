@@ -64,7 +64,10 @@ private-payment or encryption-infra work:
    manipulated rate. No pure-privacy project ties settlement to an on-chain oracle.
 
 Put together: a **privacy-pool remittance corridor with ASP compliance and selective
-disclosure** — a combination with no catalog equivalent.
+disclosure** — a combination with no catalog equivalent. For an honest map of the
+neighbours (Confidential Tokens, LumenShade, Moonlight, Fairblock) and exactly where
+Tukar differs and where it stays composable, see
+[`docs/COMPETITIVE.md`](docs/COMPETITIVE.md).
 
 ---
 
@@ -115,7 +118,8 @@ disclosure** — a combination with no catalog equivalent.
   Pick a **destination corridor** — 10 of them: Indonesia, Philippines, Vietnam,
   Thailand, India, Mexico, Brazil, Argentina, Nigeria, Colombia — and the off-ramp
   converts at a **live** USD→local exchange rate.
-  For **Mexico, Brazil and Argentina**, the receiver's revealed fiat figure is
+  For **Mexico, Brazil, Argentina and Thailand** (the first SEA corridor with an
+  on-chain FX oracle), the receiver's revealed fiat figure is
   computed **on-chain by the pool contract itself**, which cross-contract-reads
   [Reflector](https://reflector.network) — Stellar's decentralized SEP-40 FX oracle
   (`pool.offramp_quote` → Reflector `lastprice`) — so the number comes from our

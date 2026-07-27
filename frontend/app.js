@@ -28,7 +28,7 @@ const CORRIDORS = [
   { code: "PH", country: "Philippines", recipient: "Andrea · Manila",      currency: "PHP", symbol: "₱",  rate: 58.5 },
   { code: "ID", country: "Indonesia",   recipient: "Dewi · Jakarta",       currency: "IDR", symbol: "Rp", rate: 18080 },
   { code: "VN", country: "Vietnam",     recipient: "Linh · Ho Chi Minh",   currency: "VND", symbol: "₫",  rate: 26206 },
-  { code: "TH", country: "Thailand",    recipient: "Malee · Bangkok",      currency: "THB", symbol: "฿",  rate: 33.5 },
+  { code: "TH", country: "Thailand",    recipient: "Malee · Bangkok",      currency: "THB", symbol: "฿",  rate: 33.5, oracle: "THB" },
   { code: "IN", country: "India",       recipient: "Rohan · Mumbai",       currency: "INR", symbol: "₹",  rate: 83.4 },
   { code: "NG", country: "Nigeria",     recipient: "Chidi · Lagos",        currency: "NGN", symbol: "₦",  rate: 1570 },
   { code: "CO", country: "Colombia",    recipient: "Camila · Bogotá",      currency: "COP", symbol: "$",  rate: 3950 },

@@ -113,13 +113,14 @@ await tc("junk in Load/Import handled gracefully (no crash)", async () => {
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 
-// 6) all 10 corridors switch; MXN/BRL/ARS read on-chain, others on FX-API fallback (Sender step)
-await tc("corridor switching + labels (3 on-chain, 7 fallback)", async () => {
+// 6) all 10 corridors switch; MXN/BRL/ARS/THB read on-chain from Reflector, others FX-API fallback (Sender step)
+await tc("corridor switching + labels (4 on-chain, 6 fallback)", async () => {
   await goStep(0);
   await page.waitForTimeout(4000);
   const want = {
     MX: /Reflector oracle \(on-chain\)/, BR: /Reflector oracle \(on-chain\)/, AR: /Reflector oracle \(on-chain\)/,
-    PH: /· live/, ID: /· live/, VN: /· live/, TH: /· live/, IN: /· live/, NG: /· live/, CO: /· live/,
+    TH: /Reflector oracle \(on-chain\)/, // Thailand: first SEA corridor with an on-chain FX oracle + settlement gate
+    PH: /· live/, ID: /· live/, VN: /· live/, IN: /· live/, NG: /· live/, CO: /· live/,
   };
   for (const [code, re] of Object.entries(want)) {
     await page.locator("#corridor").selectOption(code);
