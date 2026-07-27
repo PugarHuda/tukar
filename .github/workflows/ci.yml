@@ -39,3 +39,7 @@ jobs:
       # rejected. Falls back to the committed frontend/circuit/* artifacts, so it
       # runs here without a fresh circom build.
       - run: node scripts/test-negative.mjs
+      # Widened-ASP soundness: a multi-member allow-list built from real accounts —
+      # a non-demo member proves + verifies, non-member / deny-listed are rejected,
+      # and the demo-only build still reproduces the deployed root (non-breaking).
+      - run: node scripts/test-asp-widened.mjs

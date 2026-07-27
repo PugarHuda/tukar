@@ -10,6 +10,7 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 | **Unit** — contract | pool (Rust) | `cargo test` | **36/36** |
 | **Unit** — frontend | client Merkle tree | `npm run test:unit` | **15/15** |
 | **Unit** — circuit soundness | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
+| **Soundness** — widened ASP | multi-member allow-list, real proofs | `npm run test:asp` | **4/4** |
 | **Proving** | valid / tampered / false-witness | `npm run test:proving` | pass |
 | **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×4 | **4/4 ZKey Ok** |
 | **Integration** — routing | per-page nav + no-flash + reload | `npm run test:pages` | **10/10** |
@@ -277,7 +278,9 @@ KYC step, not code). Tukar also **publishes** its own SEP-1 `stellar.toml`
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the
   `merkleUpdate` proof — there is **no admin root backdoor**.
-- Fiat anchor on/off-ramps mocked; ASP lists seeded manually; single corridor A→B.
+- Fiat anchor on/off-ramps mocked. The ASP allow-list is now a real configurable
+  policy (`scripts/build-asp.mjs` from approved accounts + admin `set_asp_root`),
+  soundness-tested by `npm run test:asp` (4/4); 10 corridors.
 - Phase-2 of the trusted setup is a single contribution (phase-1 is the real
   Hermez ceremony).
 - Contracts are **not audited** — testnet only, no real assets.

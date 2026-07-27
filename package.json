@@ -36,7 +36,9 @@
     "video:vo-id": "python scripts/make-vo-id.py",
     "video:demo-id": "python scripts/make-vo-id.py && node scripts/record-narrated.mjs https://tukar-six.vercel.app && python scripts/mux-video.py && python scripts/tight-cut.py && node -e \"require('fs').copyFileSync('build-video/tukar-tight.mp4','build-video/tukar-demo-id.mp4')\"",
     "video:clips": "python scripts/split-clips.py",
-    "video:clips-scenes": "python scripts/split-clips.py scenes"
+    "video:clips-scenes": "python scripts/split-clips.py scenes",
+    "asp:build": "node scripts/build-asp.mjs",
+    "test:asp": "node scripts/test-asp-widened.mjs"
   },
   "devDependencies": {
     "circomlib": "^2.0.5",

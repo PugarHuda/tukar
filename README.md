@@ -259,8 +259,16 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   It's also **wired into the demo UI** — a "Fund via a real anchor (SEP-24)" button on
   the Sender step signs the SEP-10 challenge (demo key or Freighter) and opens the real
   anchor deposit window (`npm run test:anchor` → 5/5 live).
-  A production ramp needs a *licensed* KYC anchor (business, not code). The ASP
-  allow/deny lists are seeded with a fixed witness; a single corridor A→B.
+  A production ramp needs a *licensed* KYC anchor (business, not code). The **ASP
+  allow-list is a real, configurable policy**, not a single seeded witness:
+  [`scripts/build-asp.mjs`](scripts/build-asp.mjs) builds it from a list of approved
+  Stellar accounts (`field(addr) = keccak256(addr XDR) mod r`, the exact value the
+  pool pins as `field(from)`), and the admin re-points the live policy with
+  `set_asp_root` — no redeploy. `npm run test:asp` proves the widening is sound
+  (**4/4**): a non-demo approved account produces a real compliance proof that
+  verifies and is bound to its key, while a non-member and a deny-listed account are
+  rejected by the circuit itself; the demo-only build still reproduces the deployed
+  root (non-breaking). Corridors span 10 destinations.
 - **Phase-2 of the trusted setup** is a single Tukar contribution (phase-1 is the
   real Hermez ceremony). Production wants a multi-party phase-2 too.
 - The off-chain Merkle **witness** (path) is computed in the browser; on-chain
