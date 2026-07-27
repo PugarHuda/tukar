@@ -896,3 +896,9 @@ a.fact:hover { border-color: rgba(255, 122, 26, 0.4); }
 
 /* keyboard focus visibility (accessibility) */
 :focus-visible { outline: 2px solid #ff7a1a; outline-offset: 2px; border-radius: 6px; }
+
+/* ---- polish pass (system consistency w/ the console) ---- */
+.card, .cta-card { transition: border-color .18s ease, box-shadow .18s ease, transform .12s ease; }
+.card:hover, .cta-card:hover { border-color: rgba(255, 122, 26, .28); box-shadow: 0 10px 30px rgba(0, 0, 0, .28); }
+.btn-cta, .btn-primary, .btn-ghost, .btn-launch { transition: background-color .18s ease, border-color .18s ease, transform .12s ease; }
+.btn-cta:active, .btn-primary:active, .btn-ghost:active, .btn-launch:active { transform: translateY(1px); }
