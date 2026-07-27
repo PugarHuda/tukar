@@ -293,6 +293,17 @@ async function loadPoolState() {
   try {
     const { commitments } = await readPoolState();
     $("poolCount").textContent = commitments;
+    // The anonymity set IS the commitment set — every note in the pool is a candidate
+    // for any withdrawal, so the bigger it is, the harder the deposit↔withdraw link.
+    // We state this honestly rather than hide the demo-scale caveat.
+    const n = parseInt(commitments, 10);
+    if ($("anonCount")) $("anonCount").textContent = Number.isFinite(n) ? "1 in " + n : commitments;
+    if ($("anonSet")) {
+      const strong = Number.isFinite(n) && n >= 20;
+      $("anonSet").innerHTML =
+        `${icon("shield", 11, "#8a847e")} Your withdrawal hides among <b style="color:#cfc8c1;">${commitments}</b> shielded notes. ` +
+        `Unlinkability <b style="color:${strong ? "#5fe3a0" : "#ff9c52"};">scales with pool usage</b> — every deposit grows everyone's anonymity set (demo-scale today, by design).`;
+    }
   } catch (_) { /* network — leave as-is */ }
   loadActivity();
 }
@@ -859,6 +870,34 @@ function renderProof(state, data = {}) {
     ${state === "proving" ? `<div class="proofbar"><i></i></div>` : ""}`;
 }
 
+// A portable audit receipt for the last on-chain-verified disclosure: the proof, its
+// public inputs, and the verifier — so a regulator can re-check it offline/independently
+// (snarkjs.groth16.verify or the on-chain disclosure verifier) without any trust in us.
+let lastDisclosure = null;
+function renderReceiptButton() {
+  const box = $("result");
+  if (!box || box.querySelector("[data-receipt]")) return;
+  const btn = document.createElement("button");
+  btn.className = "btn-export";
+  btn.setAttribute("data-receipt", "");
+  btn.style.marginTop = "10px";
+  btn.innerHTML = `${icon("link", 11, "#8a847e")} Export audit receipt (JSON)`;
+  btn.addEventListener("click", exportAuditReceipt);
+  box.appendChild(btn);
+}
+function exportAuditReceipt() {
+  if (!lastDisclosure) return;
+  const receipt = { ...lastDisclosure, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `tukar-audit-receipt-${short(lastDisclosure.commitment).replace(/[^\w]/g, "")}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  status.textContent = "Audit receipt exported — the regulator can re-verify the proof independently.";
+}
+
 // Regulator: holder generates a disclosure proof; regulator verifies on-chain.
 async function proveAndVerify() {
   const id = Number($("auditSelect").value);
@@ -911,6 +950,17 @@ async function proveAndVerify() {
         // Only now upgrade the headline from "Proof verified" to the on-chain claim.
         const pt = $("result").querySelector(".pt");
         if (pt) pt.textContent = "Verified on-chain";
+        // Keep the verified disclosure so the regulator can export a portable, re-checkable
+        // audit receipt (the proof + public inputs + verifier), turning selective disclosure
+        // into a usable compliance artifact rather than a one-off screen.
+        lastDisclosure = {
+          kind: "tukar-audit-receipt", version: 1,
+          disclosedAmountUsdc: fmtUsdc(claimed[1]), commitment: note.commitment,
+          auditContext: $("auditCtx").value, auditContextHash,
+          verifiedOnChain: true, network: "Test SDF Network ; September 2015",
+          disclosureVerifier: DISCLOSURE_VERIFIER, publicSignals: claimed, proof,
+        };
+        renderReceiptButton();
         status.textContent = "Disclosure verified — in your browser AND on Stellar. Privacy preserved, compliance satisfied.";
       } else if (!ok && !oc.verified) {
         if (el) el.innerHTML = `⛓ The live Stellar verifier ${link} <b style="color:#ff8a72;">also rejected it</b> (InvalidProof).`;
