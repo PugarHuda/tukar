@@ -111,13 +111,16 @@ tier, with its ZK verified live on testnet.
   another). See [`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) for how each
   externally-gated integration (Launchtube, Mercury, passkeys, SEP-24) maps to a
   native alternative and what's verifiable here.
-- **Demo video:** _add link here_ — a **narrated** walkthrough of the **live** flow is
-  generated end-to-end by `npm run video`: a natural neural voiceover (`edge-tts`) per
-  scene, a Playwright recording of the real on-chain run (landing → connect → on-chain
-  deposit → off-ramp → withdraw → disclosure → tamper), and an ffmpeg mux that places
-  each VO clip at its scene start. `scripts/tight-cut.py` then auto-trims the real
-  on-chain wait stretches for a ~1:40 cut (`build-video/tukar-tight.mp4`). The
-  shot-by-shot script lives in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+- **Demo video (self-hosted, always available):**
+  **▶ [Watch the narrated walkthrough](https://tukar-six.vercel.app/deck)** — it plays on
+  **slide 10** of the pitch deck, or open the raw file directly at
+  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~1:24 recording of the
+  **real on-chain flow** (landing → connect → on-chain deposit → off-ramp via Reflector →
+  withdraw → disclosure verified on-chain → tampered claim rejected on-chain), narrated.
+  It's regenerated end-to-end by `npm run video:demo-id` (Playwright records the live run,
+  `edge-tts` narrates, ffmpeg muxes, `scripts/tight-cut.py` trims the on-chain waits). The
+  shot-by-shot script lives in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md); a
+  read-aloud narration in [`docs/DEMO_NARRATION.md`](docs/DEMO_NARRATION.md).
 
 ## What the ZK is doing (load-bearing)
 
