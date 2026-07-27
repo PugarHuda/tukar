@@ -582,7 +582,7 @@ function renderReceiver() {
     let body;
     if (opened) {
       const lbl = onchainQuote
-        ? `$${usdc} USDC revealed · rate read on-chain by the pool from Reflector`
+        ? `$${usdc} USDC revealed · rate = median of 5 Reflector records, read on-chain (the same basis the settlement gate enforces)`
         : `$${usdc} USDC revealed`;
       body = `<div class="mxn"><span class="amt">+ ${cor.symbol}${localStr} ${cor.currency}</span><span class="lbl">${lbl}</span></div>`;
     } else {
@@ -1092,12 +1092,15 @@ $("incoming").addEventListener("click", async (e) => {
     if (n && cor && cor.oracle) {
       try {
         const usdc = Number(fmtUsdc(BigInt(n.amount)));
-        const q = await offrampQuote(cor.oracle, usdc);
+        // Show the figure on the SAME manipulation-resistant basis the settlement gate
+        // enforces: the MEDIAN of the last 5 Reflector records, not a single spot — so a
+        // transient spot outlier can't move the number the user sees or the gate accepts.
+        const q = await offrampQuoteTwap(cor.oracle, usdc, 5);
         if (q != null) {
           n.localQuote = q;
           renderReceiver();
           saveSession();
-          console.log(`[tukar] off-ramp quote ${cor.currency} computed on-chain by the pool (reads Reflector): ${q}`);
+          console.log(`[tukar] off-ramp quote ${cor.currency} computed on-chain by the pool (median of 5 Reflector records): ${q}`);
         }
       } catch (_) { /* keep the client-rate figure */ }
     }

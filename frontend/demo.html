@@ -28,6 +28,12 @@
   <title>Tukar — Corridor Console (live demo)</title>
   <meta name="description" content="Run the Tukar corridor live on Stellar testnet: deposit real USDC with a zero-knowledge compliance proof, off-ramp to fiat, and audit with a selective-disclosure proof verified on-chain. No install, no wallet." />
   <meta name="theme-color" content="#0a0705" />
+  <!-- Installable (add-to-home) — manifest only, no service worker, so nothing caches
+       and can serve a stale app.js?v=N. -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="canonical" href="https://tukar-six.vercel.app/demo" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://tukar-six.vercel.app/demo" />
@@ -284,6 +290,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=67"></script>
+  <script type="module" src="./app.js?v=68"></script>
 </body>
 </html>
