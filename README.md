@@ -43,6 +43,29 @@ independently during the hackathon. Honest scope: Confidential Tokens is an offi
 audit-in-progress preview; Tukar is a hackathon implementation of the privacy-pool
 tier, with its ZK verified live on testnet.
 
+### What makes Tukar different
+
+Most on-chain privacy projects stop at *"hide the payment."* Tukar is built for one
+specific job — **cross-border remittance** — and three things set it apart from generic
+private-payment or encryption-infra work:
+
+1. **Compliant privacy, not just privacy.** Private in the middle, *accountable at the
+   edges*. Every deposit carries an ASP compliance proof that **authenticates the
+   depositor** (`sourceKey` pinned to `field(from)` — you can't deposit as someone
+   else), and a holder can prove **one fact** to a regulator via selective disclosure,
+   verified on-chain. A corridor a regulator can audit is a corridor a licensed anchor
+   can actually run — that's the wedge a pure mixer doesn't have.
+2. **Remittance end-to-end, not a generic shield.** Fiat-in → shielded crossing →
+   fiat-out to **local currency**, across **10 corridors**. The privacy serves the
+   payment; the payment isn't an afterthought to the privacy.
+3. **Oracle-gated settlement.** The off-ramp rate is read **on-chain from Reflector**
+   and *gates fund release* (min-receive on the median of 5 records, **fail-closed**).
+   The privacy layer is bound to real-world FX — funds never move on a stale or
+   manipulated rate. No pure-privacy project ties settlement to an on-chain oracle.
+
+Put together: a **privacy-pool remittance corridor with ASP compliance and selective
+disclosure** — a combination with no catalog equivalent.
+
 ---
 
 ![Tukar architecture](docs/architecture.svg)
