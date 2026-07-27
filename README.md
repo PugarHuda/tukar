@@ -269,8 +269,15 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   verifies and is bound to its key, while a non-member and a deny-listed account are
   rejected by the circuit itself; the demo-only build still reproduces the deployed
   root (non-breaking). Corridors span 10 destinations.
-- **Phase-2 of the trusted setup** is a single Tukar contribution (phase-1 is the
-  real Hermez ceremony). Production wants a multi-party phase-2 too.
+- **Phase-2 of the trusted setup:** the *deployed* keys use a single contribution
+  (phase-1 is the real Hermez ceremony). A runnable **multi-party phase-2 ceremony**
+  now ships — `npm run ceremony` (or [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh))
+  runs 3 independent contributions + a public random beacon and verifies the result
+  (`ZKey Ok!`); see the committed transcript at
+  [`ceremony/compliance/TRANSCRIPT.txt`](ceremony/compliance/TRANSCRIPT.txt) and
+  [`docs/CEREMONY.md`](docs/CEREMONY.md) for the production (independent-party) flow.
+  Adopting a ceremony key on mainnet is a deliberate redeploy step (it changes the
+  verifier contracts), so the demo keeps the current single-contribution keys.
 - The off-chain Merkle **witness** (path) is computed in the browser; on-chain
   *integrity* is enforced by the `merkleUpdate` proof.
 - **Tree scale:** the accumulator now **paginates** (`leaf_range`), **bumps TTL**

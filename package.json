@@ -38,7 +38,8 @@
     "video:clips": "python scripts/split-clips.py",
     "video:clips-scenes": "python scripts/split-clips.py scenes",
     "asp:build": "node scripts/build-asp.mjs",
-    "test:asp": "node scripts/test-asp-widened.mjs"
+    "test:asp": "node scripts/test-asp-widened.mjs",
+    "ceremony": "bash scripts/ceremony-phase2.sh compliance"
   },
   "devDependencies": {
     "circomlib": "^2.0.5",

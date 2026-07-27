@@ -61,3 +61,4 @@ shot.png
 # demo video build artifacts (media — regenerate with npm run video)
 build-video/
 tukar-logo-480.png
+ceremony/**/verify.log
