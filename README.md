@@ -173,11 +173,13 @@ this further: it proves a payment is **at most a reporting threshold without rev
 the exact amount** — the predicate real reporting rules actually want. It's compiled and
 soundness-tested (`npm run test:threshold` → **4/4**: under/at-threshold proves with the
 amount kept private; over-threshold and a mismatched commitment are unprovable), its zkey
-derives from the same Hermez phase-1 (`ZKey Ok!`). It's **wired into the live demo** — the
-Regulator step has a *"≤ Threshold · amount hidden"* mode that proves + verifies the range
-in-browser (verified live: `≤ $1000` proves with the amount hidden; `≤ $100` on a $500
-payment is honestly shown unprovable). Its **on-chain** verifier is not deployed yet —
-a deliberate redeploy step (it changes contract ids).
+derives from the same Hermez phase-1 (`ZKey Ok!`). It's **wired into the live demo AND
+verified on-chain** — the Regulator step has a *"≤ Threshold · amount hidden"* mode that
+proves the range in the browser and confirms it on a **deployed standalone verifier**
+([`CCZLFV2P…53PY`](https://stellar.expert/explorer/testnet/contract/CCZLFV2P4MMU2AKP3NDNW7NE5SA4PR7KMZCLGYOCAJPA46SVSPQA53PY),
+a 6th contract deployed **additively** — the 5 core contracts are unchanged). Verified live:
+`≤ $1000` proves with the amount hidden and passes on-chain; `≤ $100` on a $500 payment is
+honestly shown unprovable.
 
 ---
 

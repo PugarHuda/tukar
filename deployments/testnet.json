@@ -39,6 +39,17 @@
       "publicInputs": 4,
       "verifyResult": "true",
       "note": "proves inserting newLeaf at leafIndex of oldRoot yields newRoot; leafIndex is PUBLIC and the pool pins it to its own LeafCount, so the proven insertion index must equal the slot the contract stores the leaf in (prevents desyncing leaves() from current_root)"
+    },
+    "thresholdDisclosure": {
+      "id": "CCZLFV2P4MMU2AKP3NDNW7NE5SA4PR7KMZCLGYOCAJPA46SVSPQA53PY",
+      "wasmHash": "5fa715373dcfeb2e40d5262b3a01ef1f79c960961dd93c8ba0f7f7a8aba8765b",
+      "circuit": "thresholdDisclosure.circom",
+      "publicInputs": [
+        "commitment",
+        "threshold",
+        "auditContextHash"
+      ],
+      "note": "Standalone BN254 verifier for the threshold (range) disclosure circuit — prove amount <= threshold WITHOUT revealing the amount. Deployed ADDITIVELY (deployer = demo key, non-admin; the 5 core contracts are unchanged). Soundness: npm run test:threshold 4/4; zkey derives from Hermez phase-1 (ZKey Ok!). Live-verified: a real range proof verifies true on-chain, a tampered public input is rejected."
     }
   },
   "pool": {
@@ -46,7 +57,18 @@
     "supersedes": "CDLWFTEEQRA7Q7U5WHZTNDV5ZSFXYE57XXARDG66B5MRU5YQHVUJTJCB -> redeployed to add CONFIGURABLE COMPLIANCE POLICY (mirrors Stellar Confidential Tokens' policy engine on the privacy-pool tier): admin-only set_asp_root + set_deny_list re-point the allow-list root / deny-list (block-list registry) WITHOUT redeploying, plus asp_root()/deny_list() views so a client proves against the LIVE policy. Compliance circuit unchanged (aspRoot/denyList already public inputs the pool builds from storage). 36/36 unit tests (adds set_asp_root_updates_view, set_deny_list_updates_view, set_deny_list_rejects_wrong_len). Constructor UNCHANGED (10 args), wasm hash 34e9d2230a40fa3b0b06a9cffb7236528c00d194bdc628f73861b809ac52cd26. Live-verified end-to-end on this pool: all 4 views match the constructor args; set_deny_list set deny0 to a sentinel (tx 8c31a6633cd6399471aecebed4a0059856f3fa383858fc86c2a1dbd0096b9683) then RESTORED the original 4 (tx e1f38d46998e67c7c9b262dfb33409e63a4e377fee906e9f1170a4f681905d45) — read-back confirmed both. Prior lineage: CD3752Q…RX4A7 -> redeployed after a deep-QA round hardened `offramp_quote` against a malicious/buggy oracle: it now bounds usdc_amount to the 64-bit deposit range (InvalidAmount #5) and uses checked_pow/checked_mul so an oversized `decimals` or an overflow yields a typed FxUnavailable (#11) instead of a VM trap. Still strictly display-only (no state writes; a bad oracle can never affect custody/withdraw/nullifiers/tree). Lineage: CCZ7CCGA…BDYX (orig) -> CBK5V32Z…STX4 (unbacked-leaf drain fix) -> CBR56NAU…DY6Z (leafIndex bind + dup-commit + TTL) -> CAFPJLO7…T25K (hardened transfer verifier) -> CBI35CN…E3IVM (transfer-mint + nullifier-TTL fix) -> CD3752Q…RX4A7 (on-chain Reflector off-ramp quote) -> CARIJYGV…X653 (offramp_quote edge-case hardening) -> CBQFYHX…76T5P (MIN-RECEIVE SETTLEMENT GATE: withdraw gains optional offramp_symbol + min_local_out; when set, the pool re-reads Reflector ON-CHAIN at settlement and refuses to release below the floor (SlippageExceeded #12) — turning the oracle from display-only into load-bearing for fund movement) -> this (AUDIT ROUND 5 fixes: quote_local now also rejects a STALE feed, not just an absent one — env.ledger().timestamp() - price.timestamp must be <= 3600s, else FxUnavailable #11, so the documented fail-closed-on-stale guarantee is now actually true; the frontend gate min is computed from the same FLOORED whole-USDC unit the contract uses, fixing a lockout of fractional-USDC withdrawals on oracle corridors); wasm 2765a978… -> CB57S6X…3KI5GZY was that round-5 pool -> this (AUDIT ROUND 7 CRITICAL double-spend fix: a ZK-circuit audit found transfer/withdraw never pinned how many of the flat verifier public-input vector were nullifiers vs. commitments — a caller could shift the boundary (1 nullifier + 3 commitments instead of 2+2), the flat 7-element vector is identical so the SAME proof verifies, but only 1 nullifier is spent -> the 2nd input note stays unspent and is double-spendable -> pool drain. FIXED: transfer_inputs now pins nullifiers.len()==2 && out_commitments.len()==2 (TRANSFER_NINS/NOUTS) -> BadIoCount #13, at the chokepoint both transfer and withdraw route through. Regression tests transfer_rejects_shifted_io_split + withdraw_rejects_shifted_io_split) -> CDSRAC2D…DP6R4 was that round-7 pool -> this (AUDIT ROUND 9 out-of-the-box: MANIPULATION-RESISTANT SETTLEMENT GATE. The withdraw gate now prices against the MEDIAN of the last 5 Reflector records (cross-contract `prices(asset, records)`), not a single spot `lastprice` — so a transient manipulation/glitch of one record can't lower the floor (median of N is robust to an outlier). Newest record must be fresh (<=3600s) so a stalled feed still fails closed; feed must return >= FX_MIN_RECORDS=3 else FxUnavailable. New public view offramp_quote_twap(symbol, usdc, records) exposes the median so the frontend computes its floor on the SAME basis the gate enforces. Display offramp_quote stays on spot. Verified live: offramp_quote=8748 and offramp_quote_twap(records=5)=8748 (identical on a stable feed); unit test withdraw_oracle_gate_median_ignores_spot_outlier proves a manipulated spot outlier is ignored). Constructor unchanged (10 args); wasm hash f725263ad5e7494cf1e824ff182f401de6773fba8be3c04f32999cfe1a0bd5f2.",
     "wasm": "contracts/pool/",
     "description": "Hardened corridor pool with token custody + FULLY TRUSTLESS tree updates (no admin root backdoor — the only way to advance the root is a merkleUpdate proof). Builds the verifier public inputs from typed signals so nullifiers/commitments/root/amount are BOUND to the proof; root registry + nullifier set + commitment set (idempotent, no double-count) + pinned ASP allow/deny; pulls/releases real tokens on deposit/withdraw.",
-    "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[4]", "fxOracle"],
+    "constructor": [
+      "admin",
+      "token",
+      "transferVerifier",
+      "complianceVerifier",
+      "disclosureVerifier",
+      "updateVerifier",
+      "initialRoot",
+      "aspRoot",
+      "denyList[4]",
+      "fxOracle"
+    ],
     "fxOracle": {
       "address": "CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU5NV4W",
       "partner": "Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD)",
@@ -99,7 +121,12 @@
     "phase1": "Hermez perpetual powers-of-tau ceremony (powersOfTau28_hez_final_14.ptau) — a real multi-party ceremony, so phase-1 has no locally-known toxic waste",
     "phase2": "per-circuit Groth16 setup + a Tukar phase-2 contribution; all four proving keys and the on-chain verifiers were regenerated together from this ptau so they stay in sync",
     "maxConstraints": 16384,
-    "circuitConstraints": { "disclosure": 671, "compliance": 5220, "merkleUpdate": 10411, "transfer": 15884 }
+    "circuitConstraints": {
+      "disclosure": 671,
+      "compliance": 5220,
+      "merkleUpdate": 10411,
+      "transfer": 15884
+    }
   },
   "protocol": "Stellar Protocol 25/26 (X-Ray / Yardstick) native BN254 host functions"
 }
