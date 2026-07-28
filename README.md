@@ -167,6 +167,15 @@ The **disclosure** circuit is Tukar's differentiator: the selective-disclosure
 layer that turns "private payments" into *compliant* private payments. See
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
+A fifth circuit, **threshold (range) disclosure**
+([`circuits/thresholdDisclosure.circom`](circuits/thresholdDisclosure.circom)), takes
+this further: it proves a payment is **at most a reporting threshold without revealing
+the exact amount** — the predicate real reporting rules actually want. It's compiled and
+soundness-tested (`npm run test:threshold` → **4/4**: under/at-threshold proves with the
+amount kept private; over-threshold and a mismatched commitment are unprovable), its zkey
+derives from the same Hermez phase-1 (`ZKey Ok!`). Its on-chain verifier is not deployed
+yet — that's a deliberate redeploy step (it changes contract ids).
+
 ---
 
 ## What's real (not mocked)

@@ -39,7 +39,9 @@
     "video:clips-scenes": "python scripts/split-clips.py scenes",
     "asp:build": "node scripts/build-asp.mjs",
     "test:asp": "node scripts/test-asp-widened.mjs",
-    "ceremony": "bash scripts/ceremony-phase2.sh compliance"
+    "ceremony": "bash scripts/ceremony-phase2.sh compliance",
+    "circuit:threshold": "./tools/bin/circom.exe circuits/thresholdDisclosure.circom --r1cs --wasm --sym -l node_modules -o circuits/build && npx --no-install snarkjs groth16 setup circuits/build/thresholdDisclosure.r1cs circuits/build/pot14_hez.ptau circuits/build/thresholdDisclosure_0.zkey && npx --no-install snarkjs zkey contribute circuits/build/thresholdDisclosure_0.zkey circuits/build/thresholdDisclosure_final.zkey --name=k1 -e=\"threshold key\"",
+    "test:threshold": "node scripts/test-threshold.mjs"
   },
   "devDependencies": {
     "circomlib": "^2.0.5",

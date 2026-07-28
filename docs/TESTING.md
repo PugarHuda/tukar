@@ -11,6 +11,7 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 | **Unit** — frontend | client Merkle tree | `npm run test:unit` | **15/15** |
 | **Unit** — circuit soundness | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
 | **Soundness** — widened ASP | multi-member allow-list, real proofs | `npm run test:asp` | **4/4** |
+| **Soundness** — threshold disclosure | prove amount ≤ threshold w/o revealing amount | `npm run test:threshold`¹ | **4/4** |
 | **Proving** | valid / tampered / false-witness | `npm run test:proving` | pass |
 | **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×4 | **4/4 ZKey Ok** |
 | **Integration** — routing | per-page nav + no-flash + reload | `npm run test:pages` | **10/10** |
@@ -24,6 +25,11 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 
 Every suite in the matrix is green. Regression pass: all of the above were re-run
 together after each change.
+
+¹ `test:threshold` runs against locally-built artifacts (`npm run circuit:threshold`
+first) — the threshold-disclosure circuit is compiled + soundness-tested but its
+on-chain verifier is not deployed yet (a deliberate redeploy step). ZKey derives from
+the same Hermez phase-1 (`snarkjs zkey verify` → ZKey Ok!).
 CI (`.github/workflows/ci.yml`) automates the deterministic ones (unit, proving,
 soundness) on every push; the live Playwright suites are manual pre-deploy gates
 (they need a funded testnet key + the deployed site).
