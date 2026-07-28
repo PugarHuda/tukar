@@ -312,13 +312,14 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   root (non-breaking). Corridors span 10 destinations.
 - **Phase-2 of the trusted setup:** the *deployed* keys use a single contribution
   (phase-1 is the real Hermez ceremony). A runnable **multi-party phase-2 ceremony**
-  now ships — `npm run ceremony` (or [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh))
-  runs 3 independent contributions + a public random beacon and verifies the result
-  (`ZKey Ok!`); see the committed transcript at
-  [`ceremony/compliance/TRANSCRIPT.txt`](ceremony/compliance/TRANSCRIPT.txt) and
-  [`docs/CEREMONY.md`](docs/CEREMONY.md) for the production (independent-party) flow.
-  Adopting a ceremony key on mainnet is a deliberate redeploy step (it changes the
-  verifier contracts), so the demo keeps the current single-contribution keys.
+  ships and has been **run + verified for all four circuits** — `npm run ceremony` (or
+  [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh)) does 3 independent
+  contributions + a public random beacon and `snarkjs zkey verify` → `ZKey Ok!`;
+  committed transcripts at [`ceremony/<circuit>/TRANSCRIPT.txt`](ceremony/) (transfer,
+  compliance, disclosure, merkleUpdate) and [`docs/CEREMONY.md`](docs/CEREMONY.md) for
+  the production (independent-party) flow. Adopting these keys on the *live* contracts is
+  a deliberate 5-contract redeploy (new verifier + pool ids); the demo keeps the current
+  single-contribution keys until then.
 - The off-chain Merkle **witness** (path) is computed in the browser; on-chain
   *integrity* is enforced by the `merkleUpdate` proof.
 - **Tree scale:** the accumulator now **paginates** (`leaf_range`), **bumps TTL**
