@@ -12,6 +12,13 @@ const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONT
 const WASM = "./circuit/disclosure.wasm";
 const ZKEY = "./circuit/disclosure_final.zkey";
 const VKEY = "./circuit/verification_key.json";
+// Threshold (range) disclosure — prove "amount ≤ threshold" WITHOUT revealing the amount.
+// Its on-chain verifier isn't deployed yet, so this path proves + verifies IN-BROWSER
+// (soundness is proven off-chain — npm run test:threshold, ZKey Ok!).
+const T_WASM = "./circuit/thresholdDisclosure.wasm";
+const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey";
+const T_VKEY = "./circuit/thresholdDisclosure_vk.json";
+let disclosureMode = "exact", tVkey = null;
 // BN254 scalar field modulus
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
@@ -898,14 +905,60 @@ function exportAuditReceipt() {
   status.textContent = "Audit receipt exported — the regulator can re-verify the proof independently.";
 }
 
+// Threshold (range) disclosure: prove "amount ≤ threshold" WITHOUT revealing the amount.
+// The on-chain verifier isn't deployed yet, so this proves + verifies in-browser (the
+// circuit's soundness is proven off-chain: npm run test:threshold, ZKey Ok!).
+async function proveThreshold(note, auditContextHash) {
+  const thrUsdc = Math.max(1, Math.floor(Number($("threshVal").value) || 0));
+  const thrStroops = BigInt(thrUsdc) * STROOPS;
+  const tamper = $("tamper").checked;
+  // Tamper = claim a threshold BELOW the real amount → the predicate is false → unprovable.
+  const claimThr = tamper ? (BigInt(note.amount) - 1n) : thrStroops;
+  $("proveBtn").disabled = true; $("proveBtn").classList.add("busy"); $("proveBtn").textContent = "Proving…";
+  setActiveStep(3); renderProof("proving");
+  status.innerHTML = '<span class="spin">◠</span> Proving “amount ≤ threshold” in your browser…';
+  try {
+    if (!tVkey) tVkey = await (await fetch(T_VKEY)).json();
+    const input = {
+      commitment: note.commitment, threshold: claimThr.toString(), auditContextHash,
+      amount: note.amount, pubKey: note.pubKey, blinding: note.blinding,
+    };
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, T_WASM, T_ZKEY);
+    const ok = await snarkjs.groth16.verify(tVkey, publicSignals, proof);
+    if (ok) {
+      renderProof("verified", {
+        body: `Proven: this payment is <b style="color:#5fe3a0;">≤ $${fmtUsdc(claimThr)} USDC</b> — the exact amount was <b>never revealed</b>. The regulator learns only that the threshold is met.`,
+        mono: `commitment ${short(note.commitment)} · threshold $${fmtUsdc(claimThr)} · amount hidden`,
+        onchain: "⛓ on-chain verifier for threshold disclosure: deploy pending — soundness proven off-chain (ZKey Ok!).",
+      });
+      const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Range proof verified";
+      status.textContent = "Threshold disclosure verified in your browser — the exact amount stays private.";
+    } else {
+      renderProof("rejected", { body: "In-browser verification failed unexpectedly." });
+    }
+  } catch (e) {
+    // fullProve throws when amount > threshold (predicate unsatisfiable) — the honest case.
+    renderProof("rejected", {
+      body: tamper
+        ? `Can't prove a threshold <b style="color:#ff8a72;">below the real amount</b> — "amount ≤ threshold" is false, so no proof exists. Soundness holds.`
+        : `This payment is <b style="color:#ff8a72;">above $${fmtUsdc(thrStroops)} USDC</b>, so "amount ≤ threshold" cannot be proven. Raise the threshold to disclose it's under.`,
+    });
+    status.textContent = "Threshold not satisfiable — no false proof is possible.";
+  } finally {
+    $("proveBtn").disabled = false; $("proveBtn").classList.remove("busy"); $("proveBtn").textContent = "Generate & verify disclosure proof";
+  }
+}
+
 // Regulator: holder generates a disclosure proof; regulator verifies on-chain.
 async function proveAndVerify() {
   const id = Number($("auditSelect").value);
   const note = notes.find((n) => n.id === id);
   if (!note) { status.textContent = "Select a confidential payment to audit first."; return; }
 
-  const tamper = $("tamper").checked;
   const auditContextHash = contextToField($("auditCtx").value).toString();
+  if (disclosureMode === "threshold") return proveThreshold(note, auditContextHash);
+
+  const tamper = $("tamper").checked;
   $("proveBtn").disabled = true;
   $("proveBtn").classList.add("busy");
   $("proveBtn").textContent = "Proving…";
@@ -1032,6 +1085,18 @@ function toggleTamper() {
   $("tamperLabel").classList.toggle("on", cb.checked);
   $("tamperLabel").setAttribute("aria-checked", cb.checked ? "true" : "false");
 }
+// Disclosure-type toggle: exact amount (deployed on-chain verifier) vs threshold/range
+// (prove amount ≤ a reporting threshold, amount hidden; in-browser verify for now).
+function setDiscMode(mode) {
+  disclosureMode = mode;
+  const isT = mode === "threshold";
+  const row = $("threshRow"); if (row) row.style.display = isT ? "block" : "none";
+  const mark = (el, active) => { if (!el) return; el.style.borderColor = active ? "rgba(255,122,26,0.6)" : ""; el.style.color = active ? "var(--tp)" : ""; };
+  mark($("discExact"), !isT); mark($("discThresh"), isT);
+}
+if ($("discExact")) $("discExact").addEventListener("click", () => setDiscMode("exact"));
+if ($("discThresh")) $("discThresh").addEventListener("click", () => setDiscMode("threshold"));
+setDiscMode("exact");
 $("tamperLabel").addEventListener("click", toggleTamper);
 $("tamperLabel").addEventListener("keydown", (e) => {
   if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleTamper(); }

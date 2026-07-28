@@ -243,6 +243,17 @@
         <label class="fld mt">AUDIT CONTEXT (PERIOD · REGULATOR ID)</label>
         <input id="auditCtx" class="tk-input" type="text" value="2026-Q2 · CNBV" />
 
+        <label class="fld mt">DISCLOSURE TYPE</label>
+        <div class="import-row" style="gap:8px;margin-top:7px;">
+          <button id="discExact" class="btn-wd" style="margin-top:0;flex:1;">Exact amount</button>
+          <button id="discThresh" class="btn-wd" style="margin-top:0;flex:1;">≤ Threshold · amount hidden</button>
+        </div>
+        <div id="threshRow" style="display:none;">
+          <label class="fld mt">REPORTING THRESHOLD (USDC)</label>
+          <input id="threshVal" class="tk-input" type="number" min="1" value="1000" />
+          <div class="foot-note" style="margin-top:6px;">Prove the payment is under this figure without revealing the exact amount (verifier deploy pending — proven in-browser).</div>
+        </div>
+
         <label id="tamperLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false">
           <span class="box" aria-hidden="true"></span>
           <span class="txt">Tamper: claim a false amount <span>(watch it get rejected on-chain)</span></span>
@@ -290,6 +301,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=68"></script>
+  <script type="module" src="./app.js?v=69"></script>
 </body>
 </html>
