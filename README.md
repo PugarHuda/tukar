@@ -173,8 +173,11 @@ this further: it proves a payment is **at most a reporting threshold without rev
 the exact amount** — the predicate real reporting rules actually want. It's compiled and
 soundness-tested (`npm run test:threshold` → **4/4**: under/at-threshold proves with the
 amount kept private; over-threshold and a mismatched commitment are unprovable), its zkey
-derives from the same Hermez phase-1 (`ZKey Ok!`). Its on-chain verifier is not deployed
-yet — that's a deliberate redeploy step (it changes contract ids).
+derives from the same Hermez phase-1 (`ZKey Ok!`). It's **wired into the live demo** — the
+Regulator step has a *"≤ Threshold · amount hidden"* mode that proves + verifies the range
+in-browser (verified live: `≤ $1000` proves with the amount hidden; `≤ $100` on a $500
+payment is honestly shown unprovable). Its **on-chain** verifier is not deployed yet —
+a deliberate redeploy step (it changes contract ids).
 
 ---
 
