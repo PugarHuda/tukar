@@ -86,20 +86,20 @@ Tukar differs and where it stays composable, see
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
-  | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
-  | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N) | shielded JoinSplit | `verify` → `true` |
-  | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO) | ASP allow/deny | `verify` → `true` |
-  | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CBQB4AJ4HU3YVFE2DCNUSBXH3WJD5IFR6NMOH42RQM3HZDO5TBM7EP5Z) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
+  | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE) | shielded JoinSplit | `verify` → `true` |
+  | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2) | ASP allow/deny | `verify` → `true` |
+  | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
 
   **Contract addresses (Stellar testnet)** — copy-paste form of the table above:
 
   ```
-  pool                 CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ
-  transfer verifier    CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N
-  compliance verifier  CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO
-  disclosure verifier  CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3
-  merkleUpdate verifier CBQB4AJ4HU3YVFE2DCNUSBXH3WJD5IFR6NMOH42RQM3HZDO5TBM7EP5Z
+  pool                 CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON
+  transfer verifier    CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE
+  compliance verifier  CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2
+  disclosure verifier  CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V
+  merkleUpdate verifier CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H
   USDC (SAC, testnet)  CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2
   ```
 
@@ -310,16 +310,18 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   verifies and is bound to its key, while a non-member and a deny-listed account are
   rejected by the circuit itself; the demo-only build still reproduces the deployed
   root (non-breaking). Corridors span 10 destinations.
-- **Phase-2 of the trusted setup:** the *deployed* keys use a single contribution
-  (phase-1 is the real Hermez ceremony). A runnable **multi-party phase-2 ceremony**
-  ships and has been **run + verified for all four circuits** — `npm run ceremony` (or
-  [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh)) does 3 independent
-  contributions + a public random beacon and `snarkjs zkey verify` → `ZKey Ok!`;
-  committed transcripts at [`ceremony/<circuit>/TRANSCRIPT.txt`](ceremony/) (transfer,
-  compliance, disclosure, merkleUpdate) and [`docs/CEREMONY.md`](docs/CEREMONY.md) for
-  the production (independent-party) flow. Adopting these keys on the *live* contracts is
-  a deliberate 5-contract redeploy (new verifier + pool ids); the demo keeps the current
-  single-contribution keys until then.
+- **Phase-2 of the trusted setup — multi-party, and now the *live* keys.** A runnable
+  **multi-party phase-2 ceremony** ships and has been **run + verified for all four
+  circuits** — `npm run ceremony` (or [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh))
+  does 3 independent contributions + a public random beacon and `snarkjs zkey verify`
+  → `ZKey Ok!`; committed transcripts at [`ceremony/<circuit>/TRANSCRIPT.txt`](ceremony/)
+  (transfer, compliance, disclosure, merkleUpdate) and [`docs/CEREMONY.md`](docs/CEREMONY.md)
+  for the production (independent-party) flow. **These ceremony keys are now the deployed
+  keys** — the four live `frontend/circuit/*_final.zkey` are byte-identical to the
+  ceremony output and the on-chain verifiers embed the matching VKs (a deliberate
+  5-contract redeploy). Honest caveat: the demo ran all rounds on one machine to prove
+  the *process*; the one-honest-party soundness guarantee needs genuinely independent
+  contributors, which a production ceremony provides.
 - The off-chain Merkle **witness** (path) is computed in the browser; on-chain
   *integrity* is enforced by the `merkleUpdate` proof.
 - **Tree scale:** the accumulator now **paginates** (`leaf_range`), **bumps TTL**

@@ -63,4 +63,4 @@ template Compliance(levels, nDeny) {
     bindSq <== bindHash * bindHash;
 }
 
-component main { public [ aspRoot, denyList, sourceKey, bindHash ] } = Compliance(10, 4);
+component main { public [ aspRoot, denyList, sourceKey, bindHash ] } = Compliance(10, 8);

@@ -254,11 +254,11 @@
   <h2>5 Soroban contracts, live on testnet.</h2>
   <p class="big">A pool custodies real USDC and orchestrates four on-chain BN254 verifiers,
   using Stellar's <strong>Protocol 25 / 26</strong> host functions.</p>
-  <pre><code><b>pool</b>                  CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ
-<b>transfer verifier</b>     CCRCRVFVKK3RCPB5OVYBZL2YC6WD2EHGEQXMNU2AZ6OS4OUZMFQI6K3N
-<b>compliance verifier</b>   CAGBZGFMWGUIQ5EMA5QEIFKHUQ543V6IP4TB6P2T26PMEZFBX7FXIJQO
-<b>disclosure verifier</b>   CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3
-<b>merkleUpdate verifier</b> CBQB4AJ4HU3YVFE2DCNUSBXH3WJD5IFR6NMOH42RQM3HZDO5TBM7EP5Z</code></pre>
+  <pre><code><b>pool</b>                  CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON
+<b>transfer verifier</b>     CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE
+<b>compliance verifier</b>   CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2
+<b>disclosure verifier</b>   CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V
+<b>merkleUpdate verifier</b> CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H</code></pre>
   <p class="lead">Network: <code>Test SDF Network ; September 2015</code>. Every contract is
   exercised live — deposit, withdraw, disclose, and a double-spend <span class="ok">rejected on-chain</span>.</p>
 </section>
@@ -333,7 +333,7 @@
   use with real assets.</strong></p>
   <ul>
     <li><b>Fiat anchors</b> <span>— the SEP protocols are really integrated against SDF's reference anchor, but a production ramp needs a <em>licensed KYC anchor</em>. A business problem, not a code problem.</span></li>
-    <li><b>Trusted setup phase-2</b> <span>— a single contribution (phase-1 is the real Hermez ceremony). Production wants a multi-party phase-2 too.</span></li>
+    <li><b>Trusted setup phase-2</b> <span>— the live keys are the output of a multi-party ceremony (3 contributions + beacon), byte-identical to the committed transcripts. We ran the rounds on one machine to prove the process; full one-honest-party soundness needs genuinely independent contributors.</span></li>
     <li><b>Anonymity set</b> <span>— privacy scales with pool usage. A demo-scale pool has a small set; that's inherent to the model, and we say so.</span></li>
     <li><b>The shared demo key is public</b> <span>— so the no-install demo isn't access-controlled. The design is correct for real wallets (connect Freighter and it is).</span></li>
   </ul>
@@ -366,7 +366,7 @@
     <a class="btn p" href="https://tukar-six.vercel.app/demo">Launch the live demo →</a>
     <a class="btn" href="https://tukar-six.vercel.app">Landing page</a>
     <a class="btn" href="https://github.com/PugarHuda/tukar">GitHub — full source</a>
-    <a class="btn" href="https://stellar.expert/explorer/testnet/contract/CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ">Pool on stellar.expert ↗</a>
+    <a class="btn" href="https://stellar.expert/explorer/testnet/contract/CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON">Pool on stellar.expert ↗</a>
   </div>
   <div class="tag" style="margin-top:26px">Tukar · USDC in · private crossing · local fiat out</div>
 </section>

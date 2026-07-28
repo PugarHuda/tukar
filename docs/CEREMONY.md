@@ -5,11 +5,15 @@ Tukar's proving keys are Groth16 over BN254, which needs a two-phase trusted set
 - **Phase 1 (universal):** the **real Hermez `powersOfTau28_hez_final_14`** ceremony —
   already multi-party, and reproducibly waste-free (`snarkjs zkey verify` binds every
   deployed key to it). Nothing to redo here.
-- **Phase 2 (per-circuit):** the deployed keys were finalized with a **single** Tukar
-  contribution. Production wants **multiple independent contributors** so that as long
-  as *one* is honest, the toxic waste is unrecoverable.
+- **Phase 2 (per-circuit):** the deployed keys are now the output of a **multi-party**
+  phase-2 ceremony (3 independent contributions + a public random beacon) — the four
+  live `frontend/circuit/*_final.zkey` are byte-identical to `ceremony/<circuit>/*_final.zkey`
+  and the on-chain verifiers embed the matching VKs. Production wants **multiple
+  independent contributors** so that as long as *one* is honest, the toxic waste is
+  unrecoverable; the demo ran all rounds on one machine to prove the *process*, so the
+  one-honest-party guarantee holds fully only with genuinely independent parties.
 
-This repo now ships a runnable multi-party phase-2 ceremony.
+This repo ships that runnable multi-party phase-2 ceremony.
 
 ## Run it
 

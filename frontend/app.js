@@ -10,8 +10,8 @@ import { makeTree } from "./tree.js";
 const VERIFIER_CONTRACT = DISCLOSURE_VERIFIER;
 const VERIFIER_URL = `https://lab.stellar.org/r/testnet/contract/${VERIFIER_CONTRACT}`;
 const WASM = "./circuit/disclosure.wasm";
-const ZKEY = "./circuit/disclosure_final.zkey";
-const VKEY = "./circuit/verification_key.json";
+const ZKEY = "./circuit/disclosure_final.zkey?v=3";
+const VKEY = "./circuit/verification_key.json?v=3";
 // Threshold (range) disclosure — prove "amount ≤ threshold" WITHOUT revealing the amount.
 // Its on-chain verifier isn't deployed yet, so this path proves + verifies IN-BROWSER
 // (soundness is proven off-chain — npm run test:threshold, ZKey Ok!).
@@ -699,7 +699,7 @@ async function withdrawNote(note) {
       };
       // ?v bumped when the transfer circuit changes so a returning visitor never proves
       // with a stale circuit the new verifier rejects.
-      const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm?v=2", "./circuit/transfer_final.zkey?v=2");
+      const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm?v=2", "./circuit/transfer_final.zkey?v=3");
       status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
       res = await withdrawSubmit(proof, publicSignals, recipient, W, offrampSym, minLocalOut);
       if (res.ok) break;

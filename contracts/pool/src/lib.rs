@@ -27,7 +27,7 @@ mod poseidon;
 mod poseidon_constants;
 
 const VERIFY: Symbol = symbol_short!("verify");
-const DENY_LEN: u32 = 4;
+const DENY_LEN: u32 = 8;
 // Persistent-state TTL bounds: when a tree leaf / root entry's remaining TTL falls
 // below the threshold (~1 day), extend it to ~31 days, so a long-lived accumulator
 // keeps its leaves/roots readable without per-entry maintenance from the caller.

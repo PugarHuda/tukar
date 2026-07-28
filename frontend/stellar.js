@@ -20,8 +20,8 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ";
-export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
+export const POOL = "CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON";
+export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
 // Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
 // contract, deployed additively (the 5 core contracts are unchanged).
 export const THRESHOLD_VERIFIER = "CCZLFV2P4MMU2AKP3NDNW7NE5SA4PR7KMZCLGYOCAJPA46SVSPQA53PY";
@@ -487,7 +487,7 @@ export async function depositOnChain(note, opts = {}) {
       sourceKey: m.sourceKey, pathElements: m.pathElements, leafIndex: m.leafIndex,
     };
     const { proof: compProof } = await snarkjs.groth16.fullProve(
-      compInput, "./circuit/compliance.wasm", "./circuit/compliance_final.zkey",
+      compInput, "./circuit/compliance.wasm?v=3", "./circuit/compliance_final.zkey?v=3",
     );
     // 2. binding proof (disclosure): commitment opens to exactly `amount`, ctx=7
     const bindInput = {
@@ -495,7 +495,7 @@ export async function depositOnChain(note, opts = {}) {
       amount: note.amount, pubKey: note.pubKey, blinding: note.blinding,
     };
     const { proof: bindProof } = await snarkjs.groth16.fullProve(
-      bindInput, "./circuit/disclosure.wasm", "./circuit/disclosure_final.zkey",
+      bindInput, "./circuit/disclosure.wasm", "./circuit/disclosure_final.zkey?v=3",
     );
     // 3. signed deposit moving the REAL token amount
     const client = await poolWriteClient();
@@ -527,7 +527,7 @@ export async function registerRootOnChain(oldRootDec, newLeafDec, newRootDec, le
     const { proof } = await snarkjs.groth16.fullProve(
       // ?v bumped when the circuit changes (leafIndex is now a public input) so a
       // returning visitor never proves with a stale circuit the verifier rejects.
-      input, "./circuit/merkleUpdate.wasm?v=2", "./circuit/merkleUpdate_final.zkey?v=2",
+      input, "./circuit/merkleUpdate.wasm?v=2", "./circuit/merkleUpdate_final.zkey?v=3",
     );
     const client = await poolWriteClient();
     const res = await sendTx(() => client.register_root_verified({
