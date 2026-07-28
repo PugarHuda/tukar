@@ -220,7 +220,7 @@ fn setup(env: &Env) -> Ctx {
     let token_addr = sac.address();
     StellarAssetClient::new(env, &token_addr).mint(&user, &1_000);
 
-    let deny: Vec<BytesN<32>> = vec![env, b32(env, 91), b32(env, 92), b32(env, 93), b32(env, 94)];
+    let deny: Vec<BytesN<32>> = vec![env, b32(env, 91), b32(env, 92), b32(env, 93), b32(env, 94), b32(env, 95), b32(env, 96), b32(env, 97), b32(env, 98)];
     let id = env.register(
         Pool,
         (
@@ -303,7 +303,7 @@ fn set_asp_root_updates_view() {
 fn set_deny_list_updates_view() {
     let env = Env::default();
     let c = setup(&env);
-    let new: Vec<BytesN<32>> = vec![&env, b32(&env, 81), b32(&env, 82), b32(&env, 83), b32(&env, 84)];
+    let new: Vec<BytesN<32>> = vec![&env, b32(&env, 81), b32(&env, 82), b32(&env, 83), b32(&env, 84), b32(&env, 85), b32(&env, 86), b32(&env, 87), b32(&env, 88)];
     c.pool.set_deny_list(&new);
     assert_eq!(c.pool.deny_list(), new);
 }
@@ -313,7 +313,7 @@ fn set_deny_list_updates_view() {
 fn set_deny_list_rejects_wrong_len() {
     let env = Env::default();
     let c = setup(&env);
-    // 3 entries != DENY_LEN (4) — must reject so the deny-list always matches the
+    // 3 entries != DENY_LEN (8) — must reject so the deny-list always matches the
     // circuit's fixed public-input count.
     let bad: Vec<BytesN<32>> = vec![&env, b32(&env, 81), b32(&env, 82), b32(&env, 83)];
     c.pool.set_deny_list(&bad);

@@ -63,7 +63,7 @@ function complianceInput() {
   const { pathElements, leafIndex } = tree.proof(5);
   return {
     aspRoot: tree.root.toString(),
-    denyList: [h1(9001n), h1(9002n), h1(9003n), h1(9004n)].map((d) => d.toString()),
+    denyList: [h1(9001n), h1(9002n), h1(9003n), h1(9004n), h1(9005n), h1(9006n), h1(9007n), h1(9008n)].map((d) => d.toString()),
     bindHash: "987654321", sourceKey: sourceKey.toString(),
     pathElements: pathElements.map((x) => x.toString()), leafIndex: leafIndex.toString(),
   };

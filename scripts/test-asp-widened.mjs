@@ -33,7 +33,7 @@ const approved = [0xa1, 0xa2, 0xa3, 0xa4, 0xa5].map(pub);
 const sources = approved.map(field);
 for (let i = sources.length; i < N; i++) sources.push(h1(BigInt(2000 + i)));
 const tree = buildTree(h2, sources, LEVELS);
-const denyFields = [0x91, 0x92, 0x93, 0x94].map((b) => field(pub(b)));
+const denyFields = [0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98].map((b) => field(pub(b)));
 
 const inputFor = (idx, deny = denyFields, keyOverride = null) => {
   const { pathElements, leafIndex } = tree.proof(idx);
@@ -51,8 +51,8 @@ await (async () => {
   try {
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(inputFor(3), WASM, ZKEY);
     const verified = await snarkjs.groth16.verify(vKey, publicSignals, proof);
-    // public order: [aspRoot, denyList x4, sourceKey, bindHash] -> sourceKey at index 5
-    const boundKey = publicSignals[5] === sources[3].toString();
+    // public order: [aspRoot, denyList x8, sourceKey, bindHash] -> sourceKey at index 9
+    const boundKey = publicSignals[9] === sources[3].toString();
     if (verified && boundKey) ok(`approved member #3 (${approved[3].slice(0, 8)}…) proves membership + verifies, bound to its key`);
     else bad("approved member #3", `verified=${verified} boundKey=${boundKey}`);
   } catch (e) { bad("approved member #3", e.message.split("\n")[0]); }
@@ -69,7 +69,7 @@ await (async () => {
 
 // 3) a deny-listed approved account is rejected even though it's in the allow-list
 await (async () => {
-  const denyWithMember = [sources[2], denyFields[1], denyFields[2], denyFields[3]];
+  const denyWithMember = [sources[2], denyFields[1], denyFields[2], denyFields[3], denyFields[4], denyFields[5], denyFields[6], denyFields[7]];
   try {
     await snarkjs.groth16.fullProve(inputFor(2, denyWithMember), WASM, ZKEY);
     bad("deny-listed member rejected", "a proof was generated for a deny-listed account");
