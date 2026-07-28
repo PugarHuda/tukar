@@ -22,6 +22,9 @@ const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
 export const POOL = "CABRLZHDU4JVMZ6LEF7RLN3VN5ZXGGI54LGB54QZSLTDMPM2AA7FEXPJ";
 export const DISCLOSURE_VERIFIER = "CACVDX243MADPXZ6C5DPVH65BHNY2D6MR2357JLP4XUYCHY2EHIAAOD3";
+// Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
+// contract, deployed additively (the 5 core contracts are unchanged).
+export const THRESHOLD_VERIFIER = "CCZLFV2P4MMU2AKP3NDNW7NE5SA4PR7KMZCLGYOCAJPA46SVSPQA53PY";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.
 export const REFLECTOR_FX = "CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU5NV4W";
@@ -247,34 +250,36 @@ const buf = (hex) => Uint8Array.from(hex.match(/.{2}/g).map((b) => parseInt(b, 1
  * Verify a disclosure proof ON-CHAIN by simulating the deployed verifier's
  * `verify(proof, public_inputs)`. Returns { verified, error }.
  */
-let _client;
-async function disclosureClient() {
-  if (!_client) {
-    _client = await Sdk.contract.Client.from({
-      contractId: DISCLOSURE_VERIFIER,
-      networkPassphrase: PASSPHRASE,
-      rpcUrl: RPC,
-    });
+// Verify a Groth16 proof ON-CHAIN against any deployed circom-groth16 verifier by
+// simulating verify(proof, public_inputs). Read-only: an invalid proof traps in
+// simulation, which is a (correct) rejection.
+const _clients = {};
+async function verifierClient(contractId) {
+  if (!_clients[contractId]) {
+    _clients[contractId] = await Sdk.contract.Client.from({ contractId, networkPassphrase: PASSPHRASE, rpcUrl: RPC });
   }
-  return _client;
+  return _clients[contractId];
 }
-
-export async function verifyDisclosureOnChain(proof, publicSignals) {
+async function verifyOnChain(contractId, proof, publicSignals) {
   try {
-    const client = await disclosureClient();
+    const client = await verifierClient(contractId);
     const at = await client.verify({
       proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
       public_inputs: publicSignals.map((s) => BigInt(s)),
     });
-    // read-only: at.result is the parsed return value (Result<bool,_> -> {value:true})
     const r = at.result;
     const ok = r === true || r?.value === true || r?.tag === "Ok";
-    if (ok) return { verified: true };
-    return { verified: false, error: "verifier returned false" };
+    return ok ? { verified: true } : { verified: false, error: "verifier returned false" };
   } catch (e) {
-    // an invalid proof traps -> simulation throws; that's a (correct) rejection
     return { verified: false, error: (e && e.message) || String(e) };
   }
+}
+
+export function verifyDisclosureOnChain(proof, publicSignals) {
+  return verifyOnChain(DISCLOSURE_VERIFIER, proof, publicSignals);
+}
+export function verifyThresholdOnChain(proof, publicSignals) {
+  return verifyOnChain(THRESHOLD_VERIFIER, proof, publicSignals);
 }
 
 const buf32 = (dec) => buf(BigInt(dec).toString(16).padStart(64, "0"));

@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, offrampQuoteTwap, anchorOnramp, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, verifyThresholdOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, offrampQuoteTwap, anchorOnramp, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -926,13 +926,29 @@ async function proveThreshold(note, auditContextHash) {
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, T_WASM, T_ZKEY);
     const ok = await snarkjs.groth16.verify(tVkey, publicSignals, proof);
     if (ok) {
+      const tlink = `<a href="${explorer(THRESHOLD_VERIFIER)}" target="_blank" rel="noreferrer">${short(THRESHOLD_VERIFIER)} ↗</a>`;
       renderProof("verified", {
         body: `Proven: this payment is <b style="color:#5fe3a0;">≤ $${fmtUsdc(claimThr)} USDC</b> — the exact amount was <b>never revealed</b>. The regulator learns only that the threshold is met.`,
         mono: `commitment ${short(note.commitment)} · threshold $${fmtUsdc(claimThr)} · amount hidden`,
-        onchain: "⛓ on-chain verifier for threshold disclosure: deploy pending — soundness proven off-chain (ZKey Ok!).",
+        onchain: "⛓ confirming on the live Stellar threshold verifier…",
       });
       const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Range proof verified";
-      status.textContent = "Threshold disclosure verified in your browser — the exact amount stays private.";
+      status.textContent = "Threshold disclosure verified in your browser — confirming on Stellar…";
+      // Verify the SAME range proof on-chain against the deployed threshold verifier.
+      try {
+        const oc = await verifyThresholdOnChain(proof, publicSignals);
+        const el = $("result").querySelector("[data-onchain]");
+        if (oc.verified) {
+          if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> too — by the live Stellar threshold verifier ${tlink}`;
+          if (pt) pt.textContent = "Range proof verified on-chain";
+          status.textContent = "Threshold disclosure verified — in your browser AND on Stellar. Exact amount never revealed.";
+        } else if (el) {
+          el.textContent = "⛓ on-chain check unavailable (network).";
+        }
+      } catch (_) {
+        const el = $("result").querySelector("[data-onchain]");
+        if (el) el.textContent = "⛓ on-chain check unavailable (network).";
+      }
     } else {
       renderProof("rejected", { body: "In-browser verification failed unexpectedly." });
     }
