@@ -17,7 +17,7 @@ const assert = (c, m) => { if (!c) throw new Error(m); };
 // the live deployment (deployments/testnet.json) — every stellar.expert contract
 // link on the landing must point at one of these, never a superseded id.
 const LIVE = new Set([
-  "CAHNYPRHRS66KJPOYQ64Q64XBWJA5VYKJY7KDGRMDNG6DRCHVHJQFG7U", // pool
+  "CAOEC4KVEAMPXSQG2TZE2G5WKUWT6I5CPCA6BIOC4HFTUISB6MYVNIBJ", // pool
   "CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE", // transfer
   "CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2", // compliance
   "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V", // disclosure

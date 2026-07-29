@@ -71,7 +71,7 @@ pub enum PoolError {
 // input note stays unspent -> double-spendable. Pinning the counts closes that.
 const TRANSFER_NINS: u32 = 2;
 const TRANSFER_NOUTS: u32 = 2;
-const AGG_N: u32 = 3; // notes aggregated by the portfolio-disclosure circuit
+const AGG_N: u32 = 5; // MAX notes aggregated by the variable-count portfolio-disclosure circuit
 
 // USDC SAC has 7 decimals, so 1 whole USDC = 10^7 stroops. The off-ramp quote works
 // in whole-USDC units (what the receiver sees), so the withdraw gate converts the
@@ -695,36 +695,53 @@ impl Pool {
         true
     }
 
-    /// Verify an AGGREGATE (portfolio) disclosure proof: prove the SUM of N confidential
-    /// payments is <= `cap` WITHOUT revealing any individual amount. EVERY commitment must
-    /// be one the pool actually knows, so the report is bound to real on-chain deposits.
-    /// The aggregate circuit's public inputs are [commitments[0..N], cap, auditContextHash]
-    /// (N = 3). Requires the admin to have set the aggregate verifier.
+    /// Verify a VARIABLE-COUNT AGGREGATE (portfolio) disclosure proof: prove the SUM of the
+    /// ACTIVE payments (1..AGG_N of them) is <= `cap` WITHOUT revealing any amount. Each slot
+    /// has a public `active` flag (0/1); only ACTIVE slots must be commitments the pool knows,
+    /// so the report is bound to real on-chain deposits while the count varies. The circuit's
+    /// public inputs are [commitments[0..N], active[0..N], cap, auditContextHash] (N = AGG_N).
+    /// Requires the admin to have set the aggregate verifier.
     pub fn disclose_aggregate(
         env: Env,
         proof: Groth16Proof,
         commitments: Vec<BytesN<32>>,
+        active: Vec<u32>,
         cap: BytesN<32>,
         audit_context: BytesN<32>,
     ) -> bool {
-        if commitments.len() != AGG_N {
+        if commitments.len() != AGG_N || active.len() != AGG_N {
             soroban_sdk::panic_with_error!(&env, PoolError::BadIoCount);
         }
         if !env.storage().instance().has(&DataKey::AggregateVerifier) {
             soroban_sdk::panic_with_error!(&env, PoolError::ProofRejected);
         }
-        // NOTE: commitments need not be distinct here. A repeated commitment only INFLATES
-        // the proven sum (3*amount(c) <= cap), i.e. the fail-safe direction for a "total <=
-        // cap" report — it can never hide an over-cap total. The frontend always passes three
-        // distinct deposited notes (deposit rejects duplicate commitments, #10), so a
-        // duplicate is only reachable by a hand-crafted call and is harmless if it happens.
+        // Public-input order = [commitments(N), active(N), cap, ctx]. All commitments are
+        // canonicalised; only ACTIVE slots must be known deposits (inactive slots are padding
+        // the circuit ignores). At least one slot must be active — a zero-payment report is
+        // meaningless. (Duplicates among active slots only INFLATE the proven sum, the fail-safe
+        // direction; deposit rejects duplicate commitments so the frontend passes distinct ones.)
         let mut pi = vec![&env];
         for c in commitments.iter() {
             Self::require_canonical(&env, &c);
-            if !env.storage().persistent().has(&DataKey::Commitment(c.clone())) {
-                soroban_sdk::panic_with_error!(&env, PoolError::UnknownCommitment);
-            }
             pi.push_back(Self::fr(&env, &c));
+        }
+        let mut any_active = false;
+        for i in 0..AGG_N {
+            let a = active.get(i).unwrap();
+            if a != 0 && a != 1 {
+                soroban_sdk::panic_with_error!(&env, PoolError::BadIoCount);
+            }
+            if a == 1 {
+                any_active = true;
+                let c = commitments.get(i).unwrap();
+                if !env.storage().persistent().has(&DataKey::Commitment(c)) {
+                    soroban_sdk::panic_with_error!(&env, PoolError::UnknownCommitment);
+                }
+            }
+            pi.push_back(Self::fr(&env, &Self::amount_bytes(&env, a as i128)));
+        }
+        if !any_active {
+            soroban_sdk::panic_with_error!(&env, PoolError::BadIoCount);
         }
         Self::require_canonical(&env, &cap);
         pi.push_back(Self::fr(&env, &cap));

@@ -20,10 +20,10 @@ const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey?v=4";
 const T_VKEY = "./circuit/thresholdDisclosure_vk.json?v=4";
 // Aggregate (portfolio) disclosure — prove the SUM of the last 3 payments ≤ a cap,
 // without revealing any single amount. Bound to known deposits via pool.disclose_aggregate.
-const A_WASM = "./circuit/aggregateDisclosure.wasm?v=3";
-const A_ZKEY = "./circuit/aggregateDisclosure_final.zkey?v=4";
-const A_VKEY = "./circuit/aggregateDisclosure_vk.json?v=4";
-const AGG_N = 3;
+const A_WASM = "./circuit/aggregateDisclosure.wasm?v=5";
+const A_ZKEY = "./circuit/aggregateDisclosure_final.zkey?v=5";
+const A_VKEY = "./circuit/aggregateDisclosure_vk.json?v=5";
+const AGG_N = 5; // max slots in the variable-count aggregate circuit
 // Two-sided range (band) disclosure — prove lower ≤ amount ≤ upper, amount hidden.
 const R_WASM = "./circuit/rangeDisclosure.wasm?v=1";
 const R_ZKEY = "./circuit/rangeDisclosure_final.zkey?v=1";
@@ -1125,39 +1125,41 @@ async function proveThreshold(note, auditContextHash) {
 // ≤ a reporting cap, revealing no single amount. Bound to known deposits via the pool.
 async function proveAggregate(auditContextHash) {
   const known = notes.filter((n) => n.onchain && n.commitment && n.amount != null && n.pubKey != null && n.blinding != null);
-  if (known.length < AGG_N) {
-    renderProof("rejected", { body: `Portfolio disclosure aggregates <b>${AGG_N} on-chain payments</b> — you have <b>${known.length}</b>. Send a few payments into the corridor first, then aggregate.` });
-    status.textContent = `Deposit at least ${AGG_N} payments to prove a portfolio total.`;
+  if (known.length < 1) {
+    renderProof("rejected", { body: `Portfolio disclosure aggregates your on-chain payments (up to <b>${AGG_N}</b>) — you have <b>none</b> yet. Send a payment into the corridor first, then aggregate.` });
+    status.textContent = "Deposit at least one payment to prove a portfolio total.";
     return;
   }
-  const sel = known.slice(0, AGG_N);
+  const sel = known.slice(0, AGG_N); // 1..AGG_N active payments
+  const nActive = sel.length;
   // Blank/invalid cap defaults to the placeholder (5000), not a 1-stroop cap that would
   // reject every real total.
   const capStroops = BigInt(Math.max(1, Math.floor(Number($("aggCap").value) || 5000))) * STROOPS;
   const total = sel.reduce((s, n) => s + BigInt(n.amount), 0n);
   $("proveBtn").disabled = true; $("proveBtn").classList.add("busy"); $("proveBtn").textContent = "Proving…";
   setActiveStep(3); renderProof("proving");
-  status.innerHTML = `<span class="spin">◠</span> Proving “sum of ${AGG_N} payments ≤ cap” in your browser…`;
+  status.innerHTML = `<span class="spin">◠</span> Proving “sum of ${nActive} payment(s) ≤ cap” in your browser…`;
   try {
     if (total > capStroops) {
-      renderProof("rejected", { body: `The total of your last ${AGG_N} payments is <b style="color:#ff8a72;">above $${fmtUsdc(capStroops)} USDC</b>, so “sum ≤ cap” cannot be proven. Raise the cap to disclose the total is under it.` });
+      renderProof("rejected", { body: `The total of your ${nActive} payment(s) is <b style="color:#ff8a72;">above $${fmtUsdc(capStroops)} USDC</b>, so “sum ≤ cap” cannot be proven. Raise the cap to disclose the total is under it.` });
       status.textContent = "Aggregate over cap — no false proof is possible.";
       return;
     }
     if (!aVkey) aVkey = await (await fetch(A_VKEY)).json();
-    const input = {
-      commitments: sel.map((n) => n.commitment),
-      cap: capStroops.toString(), auditContextHash,
-      amounts: sel.map((n) => String(n.amount)),
-      pubKeys: sel.map((n) => String(n.pubKey)),
-      blindings: sel.map((n) => String(n.blinding)),
-    };
+    // Variable count: fill AGG_N slots — active payments first, then zero padding the circuit ignores.
+    const commitments = [], active = [], amounts = [], pubKeys = [], blindings = [];
+    for (let i = 0; i < AGG_N; i++) {
+      const n = sel[i];
+      commitments.push(n ? n.commitment : "0"); active.push(n ? "1" : "0");
+      amounts.push(n ? String(n.amount) : "0"); pubKeys.push(n ? String(n.pubKey) : "0"); blindings.push(n ? String(n.blinding) : "0");
+    }
+    const input = { commitments, active, cap: capStroops.toString(), auditContextHash, amounts, pubKeys, blindings };
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, A_WASM, A_ZKEY);
     const ok = await snarkjs.groth16.verify(aVkey, publicSignals, proof);
     if (!ok) { renderProof("rejected", { body: "In-browser verification failed unexpectedly." }); return; }
     renderProof("verified", {
-      body: `Proven: the <b style="color:#5fe3a0;">sum of your last ${AGG_N} payments is ≤ $${fmtUsdc(capStroops)} USDC</b> — no individual amount was revealed. This is a periodic (CTR-style) report, in zero-knowledge.`,
-      mono: `${AGG_N} commitments · cap $${fmtUsdc(capStroops)} · individual amounts hidden`,
+      body: `Proven: the <b style="color:#5fe3a0;">sum of your ${nActive} payment(s) is ≤ $${fmtUsdc(capStroops)} USDC</b> — no individual amount was revealed. This is a periodic (CTR-style) report, in zero-knowledge.`,
+      mono: `${nActive} of ${AGG_N} slots active · cap $${fmtUsdc(capStroops)} · individual amounts hidden`,
       onchain: "⛓ confirming on the pool (bound to known deposits)…",
     });
     const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Aggregate proof verified";

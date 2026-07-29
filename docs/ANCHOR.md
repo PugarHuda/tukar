@@ -65,10 +65,26 @@ contract code.
 ### Path A — MoneyGram Ramps (recommended, cash-out 170+ countries)
 
 1. **Register / request allowlisting.** Read the integration guide
-   (https://developer.moneygram.com/moneygram-developer/docs/integrate-moneygram-ramps) and
-   email MoneyGram to allowlist your Stellar signing key. For the non-custodial (wallet)
-   model you share the SIGNING_KEY from your `stellar.toml`; MoneyGram whitelists it so its
-   sandbox accepts your SEP-10 auth.
+   (https://developer.moneygram.com/moneygram-developer/docs/integrate-moneygram-ramps),
+   create a developer account there, then request sandbox access so MoneyGram whitelists
+   your Stellar key. **What to prepare before emailing:**
+   - Your `stellar.toml` **`SIGNING_KEY`** (the public `G...` key that signs SEP-10
+     challenges — for the non-custodial/wallet model). This is the ONLY key they need to
+     allowlist; never send a secret.
+   - Integration model: **non-custodial** (the user's wallet / your SEP-10 key signs).
+   - The asset + network: **USDC on Stellar** (testnet first).
+
+   **Email template** (to your MoneyGram developer contact / the portal's access request):
+   > Subject: Sandbox allowlisting request — MoneyGram Ramps (Stellar SEP-24)
+   >
+   > Hi MoneyGram team, we're building **Tukar**, a Stellar-based cross-border remittance
+   > corridor, and want to integrate MoneyGram Ramps as our USDC→cash off-ramp via SEP-10 +
+   > SEP-24. Please allowlist our testnet SEP-10 **SIGNING_KEY**: `G...`
+   > (non-custodial model). We'd like sandbox access to test `withdraw/interactive` before a
+   > production-preview request. Home domain / stellar.toml: `<your-domain>`. Thanks!
+
+   MoneyGram whitelists the key → its sandbox accepts your SEP-10 auth. (You keep the licenses
+   with MoneyGram; you're not a money transmitter.)
 2. **Fund a testnet USDC account.** Use MoneyGram's testnet USDC issuer
    `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` (add the trustline, get test
    USDC). The demo key already handles trustlines (`addUsdcTrustline`).
