@@ -2,7 +2,7 @@
 extern crate std;
 use super::*;
 use soroban_sdk::{
-    contract, contractimpl,
+    contract, contractimpl, symbol_short,
     testutils::{Address as _, Ledger as _},
     token::{StellarAssetClient, TokenClient},
     vec, Address, BytesN, Env, Vec,
@@ -17,6 +17,28 @@ pub struct MockVerifier;
 impl MockVerifier {
     pub fn verify(_e: Env, _p: Groth16Proof, _pi: Vec<Bn254Fr>) -> bool {
         true
+    }
+}
+
+// Capturing verifier: accepts every proof but RECORDS the public-input vector it was
+// handed (as canonical bytes) so a test can assert the pool built exactly the right
+// vector, in the right order. This is what makes the "pool binds typed signals into the
+// verifier inputs" security claim actually testable (MockVerifier alone can't see it).
+#[contract]
+pub struct CapturingVerifier;
+
+#[contractimpl]
+impl CapturingVerifier {
+    pub fn verify(e: Env, _p: Groth16Proof, pi: Vec<Bn254Fr>) -> bool {
+        let mut bytes: Vec<BytesN<32>> = vec![&e];
+        for x in pi.iter() {
+            bytes.push_back(x.to_bytes());
+        }
+        e.storage().instance().set(&symbol_short!("PI"), &bytes);
+        true
+    }
+    pub fn captured(e: Env) -> Vec<BytesN<32>> {
+        e.storage().instance().get(&symbol_short!("PI")).unwrap()
     }
 }
 
@@ -774,4 +796,135 @@ fn leaf_range_paginates_and_clamps() {
     let tail = c.pool.leaf_range(&2, &99); // count past the end is clamped
     assert_eq!(tail.len(), 1);
     assert_eq!(tail.get(0).unwrap(), b32(&env, 52));
+}
+
+// ---- binding-order: the pool builds EXACTLY the right verifier public-input vector ----
+// MockVerifier can't see its inputs, so this uses CapturingVerifier as the COMPLIANCE
+// verifier to assert the pool pins [aspRoot, deny0..7, sourceKey=field(from), commitment]
+// in that order. This is the core "typed signals are bound into the proof inputs" claim.
+#[test]
+fn compliance_public_inputs_are_bound_in_order() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let cap = env.register(CapturingVerifier, ());
+    let mock = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
+    let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_addr = sac.address();
+    StellarAssetClient::new(&env, &token_addr).mint(&user, &1_000);
+    let deny: Vec<BytesN<32>> = vec![
+        &env, b32(&env, 91), b32(&env, 92), b32(&env, 93), b32(&env, 94),
+        b32(&env, 95), b32(&env, 96), b32(&env, 97), b32(&env, 98),
+    ];
+    let id = env.register(
+        Pool,
+        (
+            admin, token_addr.clone(),
+            mock.clone(),   // transfer
+            cap.clone(),    // compliance = capturing verifier
+            mock.clone(),   // disclosure
+            mock.clone(),   // update
+            b32(&env, 0), b32(&env, 100), deny.clone(), oracle,
+        ),
+    );
+    let pool = PoolClient::new(&env, &id);
+    let commitment = b32(&env, 1);
+    pool.deposit(&user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+
+    let pi = CapturingVerifierClient::new(&env, &cap).captured();
+    assert_eq!(pi.len(), 11); // aspRoot + 8 deny + sourceKey + bindHash
+    assert_eq!(pi.get(0).unwrap(), b32(&env, 100)); // aspRoot
+    for i in 0..8u32 {
+        assert_eq!(pi.get(1 + i).unwrap(), deny.get(i).unwrap()); // deny0..7
+    }
+    assert_eq!(pi.get(9).unwrap(), pool.source_key_of(&user)); // sourceKey == field(from)
+    assert_eq!(pi.get(10).unwrap(), commitment); // bindHash == commitment
+}
+
+// Admin-gated setters must actually require the admin's auth (not just be documented so).
+#[test]
+#[should_panic]
+fn set_asp_root_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]); // switch off blanket auth: now nothing is authorized
+    c.pool.set_asp_root(&b32(&env, 200));
+}
+
+// M1: threshold (range) disclosure is bound to a KNOWN pool commitment, like disclose().
+#[test]
+fn disclose_threshold_binds_known_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_threshold_verifier(&v);
+    assert!(c.pool.disclose_threshold(&dummy_proof(&env), &commitment, &b32(&env, 50), &b32(&env, 7)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn disclose_threshold_rejects_unknown_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let v = env.register(MockVerifier, ());
+    c.pool.set_threshold_verifier(&v);
+    c.pool.disclose_threshold(&dummy_proof(&env), &b32(&env, 77), &b32(&env, 50), &b32(&env, 7));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")] // ProofRejected: verifier not configured
+fn disclose_threshold_requires_verifier_set() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.disclose_threshold(&dummy_proof(&env), &commitment, &b32(&env, 50), &b32(&env, 7));
+}
+
+// B2: aggregate (portfolio) disclosure is bound to KNOWN pool commitments — every
+// commitment in the sum must be a real on-chain deposit.
+#[test]
+fn disclose_aggregate_binds_known_commitments() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1); let c1 = b32(&env, 2); let c2 = b32(&env, 3);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c2, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    let commits: Vec<BytesN<32>> = vec![&env, c0, c1, c2];
+    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &b32(&env, 50), &b32(&env, 7)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn disclose_aggregate_rejects_unknown_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1); let c1 = b32(&env, 2);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    // c2 (b32(9)) was never deposited
+    let commits: Vec<BytesN<32>> = vec![&env, c0, c1, b32(&env, 9)];
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &b32(&env, 50), &b32(&env, 7));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")] // BadIoCount (wrong number of commitments)
+fn disclose_aggregate_rejects_wrong_count() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    let commits: Vec<BytesN<32>> = vec![&env, c0]; // 1 != AGG_N (3)
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &b32(&env, 50), &b32(&env, 7));
 }

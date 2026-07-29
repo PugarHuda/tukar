@@ -71,6 +71,7 @@ pub enum PoolError {
 // input note stays unspent -> double-spendable. Pinning the counts closes that.
 const TRANSFER_NINS: u32 = 2;
 const TRANSFER_NOUTS: u32 = 2;
+const AGG_N: u32 = 3; // notes aggregated by the portfolio-disclosure circuit
 
 // USDC SAC has 7 decimals, so 1 whole USDC = 10^7 stroops. The off-ramp quote works
 // in whole-USDC units (what the receiver sees), so the withdraw gate converts the
@@ -109,6 +110,8 @@ enum DataKey {
     Nullifier(BytesN<32>),
     Commitment(BytesN<32>),
     FxOracle,         // Reflector SEP-40 oracle address (USD-base FX feed)
+    ThresholdVerifier, // BN254 verifier for the threshold (range) disclosure circuit
+    AggregateVerifier, // BN254 verifier for the aggregate (portfolio) disclosure circuit
 }
 
 // ---- Reflector SEP-40 oracle interface (the subset the pool calls) ----
@@ -175,6 +178,33 @@ impl Pool {
     /// The Reflector FX oracle this pool reads for off-ramp quotes.
     pub fn fx_oracle(env: Env) -> Address {
         env.storage().instance().get(&DataKey::FxOracle).unwrap()
+    }
+
+    /// Admin-only: set (or replace) the threshold (range) disclosure verifier. Kept a
+    /// setter rather than a constructor arg so the range-disclosure feature can be
+    /// enabled additively on an already-deployed pool without changing constructor arity.
+    pub fn set_threshold_verifier(env: Env, verifier: Address) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::ThresholdVerifier, &verifier);
+    }
+
+    /// The threshold (range) disclosure verifier, if one has been set.
+    pub fn threshold_verifier(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::ThresholdVerifier)
+    }
+
+    /// Admin-only: set (or replace) the aggregate (portfolio) disclosure verifier.
+    /// Additive, like the threshold verifier — no constructor-arity change.
+    pub fn set_aggregate_verifier(env: Env, verifier: Address) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::AggregateVerifier, &verifier);
+    }
+
+    /// The aggregate (portfolio) disclosure verifier, if one has been set.
+    pub fn aggregate_verifier(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::AggregateVerifier)
     }
 
     /// Admin-only: replace the ASP allow-list root (the allow-list "policy
@@ -287,11 +317,15 @@ impl Pool {
             Some(v) if v.len() >= FX_MIN_RECORDS => v,
             _ => soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable),
         };
-        // Newest record (index 0) must be fresh, else a stalled feed could settle a gate.
+        // EVERY record must be fresh (not just the newest): otherwise an oracle could
+        // return one fresh record plus stale-but-positive interior records that still
+        // enter the median. Requiring each record <= FX_MAX_STALENESS closes that gap
+        // (honest feeds return contiguous recent records, all well within the window).
         let now = env.ledger().timestamp();
-        let newest = pv.get(0).unwrap();
-        if newest.timestamp == 0 || now.saturating_sub(newest.timestamp) > FX_MAX_STALENESS {
-            soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable);
+        for p in pv.iter() {
+            if p.timestamp == 0 || now.saturating_sub(p.timestamp) > FX_MAX_STALENESS {
+                soroban_sdk::panic_with_error!(env, PoolError::FxUnavailable);
+            }
         }
         let median = Self::median_price(env, &pv);
         Self::price_to_local(env, &oracle, usdc_amount, median)
@@ -496,6 +530,14 @@ impl Pool {
         poseidon::hash2(&env, &a, &b)
     }
 
+    /// field(addr) = keccak256(addr ScVal XDR) reduced mod r — the exact value the pool
+    /// pins as the compliance `sourceKey` public input for a depositor. Exposed as a view
+    /// so a client (or judge) can confirm the browser's field(addr) matches the contract's
+    /// on-chain derivation, i.e. the allow-list membership really authenticates `from`.
+    pub fn source_key_of(env: Env, addr: Address) -> BytesN<32> {
+        Self::addr_field(&env, &addr).to_bytes()
+    }
+
     /// Trustless private transfer (JoinSplit). Inputs are built from the typed
     /// signals so the spent nullifiers and recorded commitments are exactly the
     /// ones the proof attests.
@@ -607,6 +649,69 @@ impl Pool {
             Self::fr(&env, &audit_context),
         ];
         Self::verify(&env, DataKey::DisclosureVerifier, &proof, &pi);
+        true
+    }
+
+    /// Verify a THRESHOLD (range) selective-disclosure proof for a regulator: prove the
+    /// payment behind `commitment` is <= `threshold` WITHOUT revealing the exact amount.
+    /// Like `disclose`, the commitment MUST be one the pool actually knows — so the
+    /// attestation is bound to a real on-chain deposit, not a free-floating proof. The
+    /// threshold circuit's public inputs are [commitment, threshold, auditContextHash].
+    /// Requires the admin to have set the threshold verifier (set_threshold_verifier).
+    pub fn disclose_threshold(
+        env: Env,
+        proof: Groth16Proof,
+        commitment: BytesN<32>,
+        threshold: BytesN<32>,
+        audit_context: BytesN<32>,
+    ) -> bool {
+        Self::require_canonical(&env, &commitment);
+        if !env.storage().persistent().has(&DataKey::Commitment(commitment.clone())) {
+            soroban_sdk::panic_with_error!(&env, PoolError::UnknownCommitment);
+        }
+        if !env.storage().instance().has(&DataKey::ThresholdVerifier) {
+            soroban_sdk::panic_with_error!(&env, PoolError::ProofRejected);
+        }
+        let pi = vec![
+            &env,
+            Self::fr(&env, &commitment),
+            Self::fr(&env, &threshold),
+            Self::fr(&env, &audit_context),
+        ];
+        Self::verify(&env, DataKey::ThresholdVerifier, &proof, &pi);
+        true
+    }
+
+    /// Verify an AGGREGATE (portfolio) disclosure proof: prove the SUM of N confidential
+    /// payments is <= `cap` WITHOUT revealing any individual amount. EVERY commitment must
+    /// be one the pool actually knows, so the report is bound to real on-chain deposits.
+    /// The aggregate circuit's public inputs are [commitments[0..N], cap, auditContextHash]
+    /// (N = 3). Requires the admin to have set the aggregate verifier.
+    pub fn disclose_aggregate(
+        env: Env,
+        proof: Groth16Proof,
+        commitments: Vec<BytesN<32>>,
+        cap: BytesN<32>,
+        audit_context: BytesN<32>,
+    ) -> bool {
+        if commitments.len() != AGG_N {
+            soroban_sdk::panic_with_error!(&env, PoolError::BadIoCount);
+        }
+        if !env.storage().instance().has(&DataKey::AggregateVerifier) {
+            soroban_sdk::panic_with_error!(&env, PoolError::ProofRejected);
+        }
+        let mut pi = vec![&env];
+        for c in commitments.iter() {
+            Self::require_canonical(&env, &c);
+            if !env.storage().persistent().has(&DataKey::Commitment(c.clone())) {
+                soroban_sdk::panic_with_error!(&env, PoolError::UnknownCommitment);
+            }
+            pi.push_back(Self::fr(&env, &c));
+        }
+        Self::require_canonical(&env, &cap);
+        pi.push_back(Self::fr(&env, &cap));
+        pi.push_back(Self::fr(&env, &audit_context));
+        Self::verify(&env, DataKey::AggregateVerifier, &proof, &pi);
         true
     }
 

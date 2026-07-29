@@ -47,6 +47,44 @@ export async function connect() {
   return { address, signTransaction: signer.signTransaction };
 }
 
+/**
+ * SILENTLY re-establish a Freighter session on page load — no approval popup. Freighter
+ * remembers per-origin access, so if the user already granted this site, `isAllowed()` is
+ * true and `getAddress()` returns the address without prompting. Used on boot (and after
+ * each step navigation, which is a full reload) so a connected wallet survives navigation
+ * instead of silently dropping back to the demo key. Returns { address } or null.
+ */
+export async function reconnect() {
+  try {
+    const f = await withTimeout(freighter(), 8000, "load").catch(() => null);
+    if (!f) return null;
+    const conn = await withTimeout(f.isConnected(), 2500, "detect").catch(() => null);
+    if (!(conn && (conn.isConnected ?? conn))) return null;
+    const allowed = await withTimeout(f.isAllowed(), 2500, "allowed").catch(() => null);
+    if (!(allowed && (allowed.isAllowed ?? allowed))) return null; // not yet granted — don't prompt
+    const got = await withTimeout(f.getAddress(), 3000, "address").catch(() => null);
+    const address = got && (got.address || (typeof got === "string" ? got : null));
+    if (!address) return null;
+    const signer = {
+      address,
+      signTransaction: async (xdr, opts) => {
+        const res = await f.signTransaction(xdr, { networkPassphrase: PASSPHRASE, address, ...(opts || {}) });
+        if (res && res.error) throw new Error(res.error);
+        return { signedTxXdr: res.signedTxXdr, signerAddress: res.signerAddress || address };
+      },
+      signAuthEntry: async (xdr, opts) => {
+        const res = await f.signAuthEntry(xdr, { address, ...(opts || {}) });
+        if (res && res.error) throw new Error(res.error);
+        return { signedAuthEntry: res.signedAuthEntry, signerAddress: res.signerAddress || address };
+      },
+    };
+    setWalletSigner(signer);
+    return { address, signTransaction: signer.signTransaction };
+  } catch (_) {
+    return null;
+  }
+}
+
 export function disconnect() { setWalletSigner(null); }
 
 /** One-click testnet setup so a fresh wallet can actually deposit: fund XLM

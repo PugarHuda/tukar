@@ -20,11 +20,14 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CA7CROOPCHIXJKMXJ7PZM33HRJUFWK4J7MGEHZKJVWZ7ZNH2OCRFTX7W";
+export const POOL = "CA3HLJADFMCWVGPSMJ6M5NURW657B4HOX43FXA6XRHQMGJN5XSARJYUO";
 export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
 // Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
 // contract, deployed additively (the 5 core contracts are unchanged).
 export const THRESHOLD_VERIFIER = "CCZLFV2P4MMU2AKP3NDNW7NE5SA4PR7KMZCLGYOCAJPA46SVSPQA53PY";
+// Standalone BN254 verifier for the aggregate (portfolio) disclosure circuit — the pool's
+// disclose_aggregate routes proofs to it (set via set_aggregate_verifier).
+export const AGGREGATE_VERIFIER = "CDDGYNDYHQ7TAEYIQLGEPK476NQIVK2R55HER4VVLCKJHGGBDCDSTRVR";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.
 export const REFLECTOR_FX = "CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU5NV4W";
@@ -84,6 +87,39 @@ export async function readReflectorFx(symbol) {
     // 1000x the off-ramp figure. No real fiat trades above ~1e7 per USD; reject out-of-band.
     if (!isFinite(rate) || rate <= 0 || rate > 1e7) return null;
     return { rate, timestamp: ts };
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Read the last `records` raw Reflector price records for a symbol (newest first) so the
+ * UI can SHOW the depth behind the median settlement basis — the actual N data points and
+ * how fresh each is — instead of a single opaque number. Returns
+ * { records: [{ rate, ageSec }], decimals } (rate = local units per 1 USD), or null.
+ */
+export async function readReflectorRecords(symbol, records = 5) {
+  try {
+    if (_fxDecimals === null) {
+      const d = await simulate(REFLECTOR_FX, "decimals");
+      _fxDecimals = d.ok ? Number(d.value) : 14;
+    }
+    const asset = Sdk.xdr.ScVal.scvVec([
+      Sdk.xdr.ScVal.scvSymbol("Other"),
+      Sdk.xdr.ScVal.scvSymbol(symbol),
+    ]);
+    const res = await simulate(REFLECTOR_FX, "prices", asset, Sdk.nativeToScVal(records, { type: "u32" }));
+    if (!res.ok || !Array.isArray(res.value) || res.value.length === 0) return null;
+    const scale = 10n ** BigInt(_fxDecimals);
+    const now = Date.now() / 1000;
+    const out = [];
+    for (const r of res.value) {
+      const price = BigInt(r.price);
+      if (price <= 0n) continue;
+      const ts = Number(r.timestamp);
+      out.push({ rate: Number(scale) / Number(price), ageSec: ts > 0 ? Math.max(0, Math.round(now - ts)) : null });
+    }
+    return out.length ? { records: out, decimals: _fxDecimals } : null;
   } catch (_) {
     return null;
   }
@@ -282,6 +318,54 @@ export function verifyThresholdOnChain(proof, publicSignals) {
   return verifyOnChain(THRESHOLD_VERIFIER, proof, publicSignals);
 }
 
+/**
+ * Threshold (range) disclosure verified THROUGH THE POOL, not the bare verifier: the
+ * pool's `disclose_threshold` checks the commitment is a KNOWN on-chain deposit before
+ * verifying the range proof — so the regulator's "amount <= threshold" attestation is
+ * bound to a real pool commitment, not a free-floating proof. Read-only simulation
+ * (returns bool, no state write), so it needs no signature. publicSignals order is
+ * [commitment, threshold, auditContextHash].
+ */
+export async function discloseThresholdViaPool(proof, publicSignals) {
+  try {
+    const client = await verifierClient(POOL);
+    const at = await client.disclose_threshold({
+      proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
+      commitment: buf32(publicSignals[0]),
+      threshold: buf32(publicSignals[1]),
+      audit_context: buf32(publicSignals[2]),
+    });
+    const r = at.result;
+    const ok = r === true || r?.value === true || r?.tag === "Ok";
+    return ok ? { verified: true } : { verified: false, error: "pool returned false" };
+  } catch (e) {
+    return { verified: false, error: (e && e.message) || String(e) };
+  }
+}
+
+/**
+ * Aggregate (portfolio) disclosure verified THROUGH THE POOL: `disclose_aggregate` checks
+ * EVERY commitment in the sum is a known on-chain deposit before verifying the proof, so
+ * "total <= cap" is bound to real deposits. Read-only simulation (no signature).
+ * publicSignals order is [commitment0, commitment1, commitment2, cap, auditContextHash].
+ */
+export async function discloseAggregateViaPool(proof, publicSignals) {
+  try {
+    const client = await verifierClient(POOL);
+    const at = await client.disclose_aggregate({
+      proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
+      commitments: [buf32(publicSignals[0]), buf32(publicSignals[1]), buf32(publicSignals[2])],
+      cap: buf32(publicSignals[3]),
+      audit_context: buf32(publicSignals[4]),
+    });
+    const r = at.result;
+    const ok = r === true || r?.value === true || r?.tag === "Ok";
+    return ok ? { verified: true } : { verified: false, error: "pool returned false" };
+  } catch (e) {
+    return { verified: false, error: (e && e.message) || String(e) };
+  }
+}
+
 const buf32 = (dec) => buf(BigInt(dec).toString(16).padStart(64, "0"));
 
 let _asp;
@@ -476,6 +560,25 @@ export async function depositOnChain(note, opts = {}) {
       m = members.find((x) => x.sourceKey !== src) || members[1] || members[0];
     } else if (!m) {
       return { ok: false, error: "this account is not an approved ASP source (only allow-listed keys can deposit)" };
+    }
+    if (opts.denySource) {
+      // Demonstrate the DENY-LIST (non-membership) half of compliance: try to prove for a
+      // source that is an allow-list member BUT sits on the sanctions deny-list. The circuit
+      // enforces sourceKey NOT-IN denyList, so the witness is unsatisfiable and NO valid
+      // proof can be produced — the prover literally cannot lie. (Client-side by design:
+      // it fails before anything reaches the chain.)
+      const self = m || members[0];
+      const denyWithSelf = [self.sourceKey, ...asp.denyList.slice(1)];
+      try {
+        await snarkjs.groth16.fullProve(
+          { aspRoot: asp.aspRoot, denyList: denyWithSelf, bindHash: note.commitment,
+            sourceKey: self.sourceKey, pathElements: self.pathElements, leafIndex: self.leafIndex },
+          "./circuit/compliance.wasm?v=3", "./circuit/compliance_final.zkey?v=3",
+        );
+        return { ok: false, error: "unexpected: a deny-listed source produced a proof" };
+      } catch (_) {
+        return { ok: false, denyRejected: true, error: "Compliance circuit refused to prove — this source is on the sanctions deny-list, so its non-membership constraint is unsatisfiable and no valid deposit proof can exist." };
+      }
     }
     // Build the deny-list public inputs from the LIVE on-chain policy so an admin
     // set_deny_list is honored without a frontend redeploy; fall back to the witness

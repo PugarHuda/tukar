@@ -3,8 +3,8 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, verifyThresholdOnChain, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, offrampQuote, offrampQuoteTwap, anchorOnramp, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
-import { connect as walletConnect, disconnect as walletDisconnect, setupTestnetFunds } from "./wallet.js";
+import { verifyDisclosureOnChain, verifyThresholdOnChain, discloseThresholdViaPool, discloseAggregateViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
+import { connect as walletConnect, disconnect as walletDisconnect, reconnect as walletReconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
 const VERIFIER_CONTRACT = DISCLOSURE_VERIFIER;
@@ -18,7 +18,13 @@ const VKEY = "./circuit/verification_key.json?v=3";
 const T_WASM = "./circuit/thresholdDisclosure.wasm?v=3";
 const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey?v=3";
 const T_VKEY = "./circuit/thresholdDisclosure_vk.json?v=3";
-let disclosureMode = "exact", tVkey = null;
+// Aggregate (portfolio) disclosure — prove the SUM of the last 3 payments ≤ a cap,
+// without revealing any single amount. Bound to known deposits via pool.disclose_aggregate.
+const A_WASM = "./circuit/aggregateDisclosure.wasm?v=3";
+const A_ZKEY = "./circuit/aggregateDisclosure_final.zkey?v=3";
+const A_VKEY = "./circuit/aggregateDisclosure_vk.json?v=3";
+const AGG_N = 3;
+let disclosureMode = "exact", tVkey = null, aVkey = null;
 // BN254 scalar field modulus
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
@@ -270,11 +276,22 @@ async function init() {
     F = poseidon.F;
     tree = makeTree(F, poseidon);
     loadSession(); // restore this browser's notes so withdraw survives a reload
-    // Rehydrate the demo-key connection across page navigations / refresh (only the
-    // built-in testnet key — a Freighter connection needs an explicit re-approval).
-    if (localStorage.getItem("tukar:conn") === "demo") {
+    // Rehydrate the connection across page navigations / refresh. The demo key restores
+    // instantly; a Freighter session is re-established SILENTLY (no popup) if the user
+    // already granted this origin — so a connected wallet survives the full-page reload
+    // that each step navigation does, instead of dropping back to the demo key.
+    const savedConn = localStorage.getItem("tukar:conn");
+    if (savedConn === "demo") {
       walletDisconnect(); walletConn = null;
       showConnected(`<b>testnet key</b> · ${shortAddr(activeAddress())}`, null);
+    } else if (savedConn === "freighter") {
+      (async () => {
+        const r = await walletReconnect();
+        if (r && r.address) {
+          walletConn = { address: r.address };
+          showConnected(`<b>${shortAddr(r.address)}</b>`, null);
+        }
+      })();
     }
     status.textContent = notes.length
       ? `Ready · ${notes.length} saved payment(s) restored.`
@@ -420,8 +437,18 @@ async function createPayment() {
 
   // 1) Real on-chain deposit: compliance + amount-binding proofs -> signed pool.deposit.
   const forge = !!($("compTamper") && $("compTamper").checked);
-  const dep = await depositOnChain(note, { forgeSource: forge });
+  const denyDemo = !!($("denyTamper") && $("denyTamper").checked);
+  const dep = await depositOnChain(note, { forgeSource: forge, denySource: denyDemo });
   if (!dep.ok) {
+    if (dep.denyRejected) {
+      // Expected: the compliance circuit refused to prove a deny-listed (sanctioned) source.
+      notes.shift();
+      if ($("denyTamper")) { $("denyTamper").checked = false; $("denyTamperLabel").classList.remove("on"); $("denyTamperLabel").setAttribute("aria-checked", "false"); }
+      setActiveStep(0);
+      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit BLOCKED — source on the sanctions deny-list</b> — the compliance circuit couldn't produce a proof (its non-membership constraint is unsatisfiable), so no deposit is possible. This is the deny-list half of compliance, enforced by the math itself. <b>Sanctions demo is now off</b> — press <i>Send into corridor →</i> again for a normal deposit.`;
+      render(); loadPoolState();
+      return;
+    }
     if (forge) {
       // Expected: the ASP rejected a forged-source deposit on-chain.
       notes.shift(); // drop the rejected attempt from the ledger
@@ -592,6 +619,27 @@ function renderReceiver() {
         ? `$${usdc} USDC revealed · rate = median of 5 Reflector records, read on-chain (the same basis the settlement gate enforces)`
         : `$${usdc} USDC revealed`;
       body = `<div class="mxn"><span class="amt">+ ${cor.symbol}${localStr} ${cor.currency}</span><span class="lbl">${lbl}</span></div>`;
+      // B4: show the DEPTH behind the median — the actual Reflector records + freshness +
+      // rate spread, so a judge sees the on-chain oracle is real and outlier-resistant.
+      if (Array.isArray(n.oracleDepth) && n.oracleDepth.length) {
+        const rates = n.oracleDepth.map((r) => r.rate).filter((x) => isFinite(x));
+        const sorted = [...rates].sort((a, b) => a - b);
+        const med = sorted[Math.floor(sorted.length / 2)];
+        const fresh = n.oracleDepth.map((r) => r.ageSec).filter((x) => x != null);
+        const freshest = fresh.length ? Math.min(...fresh) : null;
+        const fmtAge = (s) => (s == null ? "—" : s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`);
+        const fmtRate = (x) => x.toLocaleString("en-US", { maximumFractionDigits: 2 });
+        const bars = n.oracleDepth.map((r) => {
+          const dev = med > 0 ? Math.abs(r.rate - med) / med : 0;
+          const col = dev > 0.03 ? "#d9793f" : "#5fe3a0"; // flag an outlier record
+          return `<span title="${fmtRate(r.rate)} · ${fmtAge(r.ageSec)} ago" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${col};margin-right:3px;opacity:.85"></span>`;
+        }).join("");
+        body += `<div class="oracle-depth" style="margin-top:8px;padding:8px 10px;border:1px solid #241d17;border-radius:8px;background:#0d0a07;font-size:11px;color:#9a9089;line-height:1.5">`
+          + `<div>${icon("shield", 11, "#c9a36a")} <b style="color:#c9a36a">Reflector depth</b> — ${n.oracleDepth.length} records read on-chain · freshest ${fmtAge(freshest)} ago</div>`
+          + `<div style="margin-top:5px">${bars} <span style="margin-left:6px">median <b style="color:#cfc8c1">${cor.symbol}${fmtRate(med)}</b> · spread ${fmtRate(sorted[0])}–${fmtRate(sorted[sorted.length - 1])}</span></div>`
+          + `<div style="margin-top:4px;opacity:.8">A single outlier record (orange) can't move the median the gate enforces.</div>`
+          + `</div>`;
+      }
     } else {
       body = `<button class="btn-reveal" data-reveal="${n.id}">Reveal &amp; off-ramp →</button>`;
     }
@@ -905,6 +953,35 @@ function exportAuditReceipt() {
   status.textContent = "Audit receipt exported — the regulator can re-verify the proof independently.";
 }
 
+// B3: independently re-verify a pasted audit receipt — Groth16 verify in-browser AND on
+// the live Stellar verifier. Proves to a skeptic the disclosure is real with zero trust
+// in Tukar (the whole point of a portable compliance artifact).
+let receiptVkey = null;
+async function verifyReceipt() {
+  const out = $("receiptResult");
+  if (!out) return;
+  let r;
+  try { r = JSON.parse(($("receiptInput").value || "").trim()); }
+  catch { out.innerHTML = '<span style="color:#ff8a72">Not valid JSON.</span>'; return; }
+  if (!r || !r.proof || !Array.isArray(r.publicSignals) || r.publicSignals.length < 3) {
+    out.innerHTML = '<span style="color:#ff8a72">Missing <code>proof</code> / <code>publicSignals</code> — paste a full Tukar receipt.</span>';
+    return;
+  }
+  out.innerHTML = '<span class="spin">◠</span> re-verifying in your browser and on Stellar…';
+  try {
+    if (!receiptVkey) receiptVkey = await (await fetch(VKEY)).json();
+    const sigs = r.publicSignals.map(String);
+    const local = await snarkjs.groth16.verify(receiptVkey, sigs, r.proof).catch(() => false);
+    const oc = await verifyDisclosureOnChain(r.proof, sigs);
+    const mark = (b) => (b ? '<b style="color:#5fe3a0;">✓ valid</b>' : '<b style="color:#ff8a72;">✗ invalid</b>');
+    const cmt = r.commitment || sigs[0];
+    out.innerHTML = `In your browser: ${mark(local)} &nbsp;·&nbsp; On the live Stellar verifier: ${mark(oc.verified)}`
+      + `<div style="opacity:.7;margin-top:4px">commitment ${esc(short(cmt))}${r.disclosedAmountUsdc ? " · discloses $" + esc(String(r.disclosedAmountUsdc)) + " USDC" : ""} — the exact amount isn't needed to verify the proof.</div>`;
+  } catch (e) {
+    out.innerHTML = '<span style="color:#ff8a72">Verification error: ' + esc((e && e.message) || String(e)) + "</span>";
+  }
+}
+
 // Threshold (range) disclosure: prove "amount ≤ threshold" WITHOUT revealing the amount.
 // Verifies in-browser first, then confirms the SAME proof on the live Stellar threshold
 // verifier (circuit soundness also checked off-chain: npm run test:threshold, ZKey Ok!).
@@ -934,14 +1011,15 @@ async function proveThreshold(note, auditContextHash) {
       });
       const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Range proof verified";
       status.textContent = "Threshold disclosure verified in your browser — confirming on Stellar…";
-      // Verify the SAME range proof on-chain against the deployed threshold verifier.
+      // Confirm the SAME range proof THROUGH THE POOL: disclose_threshold also checks the
+      // commitment is a known on-chain deposit, so the attestation is bound to a real note.
       try {
-        const oc = await verifyThresholdOnChain(proof, publicSignals);
+        const oc = await discloseThresholdViaPool(proof, publicSignals);
         const el = $("result").querySelector("[data-onchain]");
         if (oc.verified) {
-          if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> too — by the live Stellar threshold verifier ${tlink}`;
-          if (pt) pt.textContent = "Range proof verified on-chain";
-          status.textContent = "Threshold disclosure verified — in your browser AND on Stellar. Exact amount never revealed.";
+          if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the range proof against a known deposit (verifier ${tlink})`;
+          if (pt) pt.textContent = "Range proof verified on-chain (bound to a known deposit)";
+          status.textContent = "Threshold disclosure verified — in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
         } else if (el) {
           el.textContent = "⛓ on-chain check unavailable (network).";
         }
@@ -965,13 +1043,74 @@ async function proveThreshold(note, auditContextHash) {
   }
 }
 
+// Aggregate (portfolio) disclosure: prove the SUM of the last AGG_N on-chain payments is
+// ≤ a reporting cap, revealing no single amount. Bound to known deposits via the pool.
+async function proveAggregate(auditContextHash) {
+  const known = notes.filter((n) => n.onchain && n.commitment && n.amount != null && n.pubKey != null && n.blinding != null);
+  if (known.length < AGG_N) {
+    renderProof("rejected", { body: `Portfolio disclosure aggregates <b>${AGG_N} on-chain payments</b> — you have <b>${known.length}</b>. Send a few payments into the corridor first, then aggregate.` });
+    status.textContent = `Deposit at least ${AGG_N} payments to prove a portfolio total.`;
+    return;
+  }
+  const sel = known.slice(0, AGG_N);
+  const capStroops = BigInt(Math.max(1, Math.floor(Number($("aggCap").value) || 0))) * STROOPS;
+  const total = sel.reduce((s, n) => s + BigInt(n.amount), 0n);
+  $("proveBtn").disabled = true; $("proveBtn").classList.add("busy"); $("proveBtn").textContent = "Proving…";
+  setActiveStep(3); renderProof("proving");
+  status.innerHTML = `<span class="spin">◠</span> Proving “sum of ${AGG_N} payments ≤ cap” in your browser…`;
+  try {
+    if (total > capStroops) {
+      renderProof("rejected", { body: `The total of your last ${AGG_N} payments is <b style="color:#ff8a72;">above $${fmtUsdc(capStroops)} USDC</b>, so “sum ≤ cap” cannot be proven. Raise the cap to disclose the total is under it.` });
+      status.textContent = "Aggregate over cap — no false proof is possible.";
+      return;
+    }
+    if (!aVkey) aVkey = await (await fetch(A_VKEY)).json();
+    const input = {
+      commitments: sel.map((n) => n.commitment),
+      cap: capStroops.toString(), auditContextHash,
+      amounts: sel.map((n) => String(n.amount)),
+      pubKeys: sel.map((n) => String(n.pubKey)),
+      blindings: sel.map((n) => String(n.blinding)),
+    };
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, A_WASM, A_ZKEY);
+    const ok = await snarkjs.groth16.verify(aVkey, publicSignals, proof);
+    if (!ok) { renderProof("rejected", { body: "In-browser verification failed unexpectedly." }); return; }
+    renderProof("verified", {
+      body: `Proven: the <b style="color:#5fe3a0;">sum of your last ${AGG_N} payments is ≤ $${fmtUsdc(capStroops)} USDC</b> — no individual amount was revealed. This is a periodic (CTR-style) report, in zero-knowledge.`,
+      mono: `${AGG_N} commitments · cap $${fmtUsdc(capStroops)} · individual amounts hidden`,
+      onchain: "⛓ confirming on the pool (bound to known deposits)…",
+    });
+    const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Aggregate proof verified";
+    status.textContent = "Aggregate disclosure verified in your browser — confirming on Stellar…";
+    try {
+      const oc = await discloseAggregateViaPool(proof, publicSignals);
+      const el = $("result").querySelector("[data-onchain]");
+      if (oc.verified) {
+        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the aggregate proof against ${AGG_N} known deposits`;
+        if (pt) pt.textContent = "Aggregate proof verified on-chain (bound to known deposits)";
+        status.textContent = "Portfolio disclosure verified — in your browser AND on Stellar, bound to real deposits. No individual amount revealed.";
+      } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
+    } catch (_) {
+      const el = $("result").querySelector("[data-onchain]"); if (el) el.textContent = "⛓ on-chain check unavailable (network).";
+    }
+  } catch (e) {
+    renderProof("rejected", { body: "Couldn't generate the aggregate proof: " + esc((e && e.message) || String(e)) });
+    status.textContent = "Aggregate proof failed.";
+  } finally {
+    $("proveBtn").disabled = false; $("proveBtn").classList.remove("busy"); $("proveBtn").textContent = "Generate & verify disclosure proof";
+  }
+}
+
 // Regulator: holder generates a disclosure proof; regulator verifies on-chain.
 async function proveAndVerify() {
+  const auditContextHash = contextToField($("auditCtx").value).toString();
+  // Aggregate is over the whole portfolio, not one selected note.
+  if (disclosureMode === "aggregate") return proveAggregate(auditContextHash);
+
   const id = Number($("auditSelect").value);
   const note = notes.find((n) => n.id === id);
   if (!note) { status.textContent = "Select a confidential payment to audit first."; return; }
 
-  const auditContextHash = contextToField($("auditCtx").value).toString();
   if (disclosureMode === "threshold") return proveThreshold(note, auditContextHash);
 
   const tamper = $("tamper").checked;
@@ -1069,6 +1208,7 @@ function resetUI() {
   $("compTamper").checked = false;
   $("compTamperLabel").classList.remove("on");
   $("compTamperLabel").setAttribute("aria-checked", "false");
+  if ($("denyTamper")) { $("denyTamper").checked = false; $("denyTamperLabel").classList.remove("on"); $("denyTamperLabel").setAttribute("aria-checked", "false"); }
   $("importInput").value = "";
   $("exportBox").style.display = "none";
   $("reqLoadInput").value = "";
@@ -1106,29 +1246,47 @@ function toggleTamper() {
 // threshold, amount hidden). Both have a live on-chain verifier and confirm there.
 function setDiscMode(mode) {
   disclosureMode = mode;
-  const isT = mode === "threshold";
-  const row = $("threshRow"); if (row) row.style.display = isT ? "block" : "none";
+  const isT = mode === "threshold", isA = mode === "aggregate";
+  const tr = $("threshRow"); if (tr) tr.style.display = isT ? "block" : "none";
+  const ar = $("aggRow"); if (ar) ar.style.display = isA ? "block" : "none";
   const mark = (el, active) => { if (!el) return; el.style.borderColor = active ? "rgba(255,122,26,0.6)" : ""; el.style.color = active ? "var(--tp)" : ""; };
-  mark($("discExact"), !isT); mark($("discThresh"), isT);
+  mark($("discExact"), !isT && !isA); mark($("discThresh"), isT); mark($("discAgg"), isA);
 }
 if ($("discExact")) $("discExact").addEventListener("click", () => setDiscMode("exact"));
 if ($("discThresh")) $("discThresh").addEventListener("click", () => setDiscMode("threshold"));
+if ($("discAgg")) $("discAgg").addEventListener("click", () => setDiscMode("aggregate"));
 setDiscMode("exact");
 $("tamperLabel").addEventListener("click", toggleTamper);
 $("tamperLabel").addEventListener("keydown", (e) => {
   if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleTamper(); }
 });
-// Compliance "forge source" toggle (Sender panel) — a custom keyboard checkbox.
+// Compliance demo toggles (Sender panel) — custom keyboard checkboxes. The two are
+// mutually exclusive (they demonstrate opposite halves of compliance).
+function setTamperToggle(id, on) {
+  const cb = $(id); if (!cb) return;
+  cb.checked = on;
+  $(id + "Label").classList.toggle("on", on);
+  $(id + "Label").setAttribute("aria-checked", on ? "true" : "false");
+}
 function toggleCompTamper() {
-  const cb = $("compTamper");
-  cb.checked = !cb.checked;
-  $("compTamperLabel").classList.toggle("on", cb.checked);
-  $("compTamperLabel").setAttribute("aria-checked", cb.checked ? "true" : "false");
+  const on = !$("compTamper").checked;
+  setTamperToggle("compTamper", on);
+  if (on) setTamperToggle("denyTamper", false); // membership-forge and deny demo are exclusive
+}
+function toggleDenyTamper() {
+  const on = !$("denyTamper").checked;
+  setTamperToggle("denyTamper", on);
+  if (on) setTamperToggle("compTamper", false);
 }
 $("compTamperLabel").addEventListener("click", toggleCompTamper);
 $("compTamperLabel").addEventListener("keydown", (e) => {
   if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleCompTamper(); }
 });
+$("denyTamperLabel").addEventListener("click", toggleDenyTamper);
+$("denyTamperLabel").addEventListener("keydown", (e) => {
+  if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleDenyTamper(); }
+});
+if ($("verifyReceiptBtn")) $("verifyReceiptBtn").addEventListener("click", verifyReceipt);
 $("resetBtn").addEventListener("click", resetUI);
 $("importBtn").addEventListener("click", importNote);
 $("importInput").addEventListener("keydown", (e) => { if (e.key === "Enter") importNote(); });
@@ -1184,6 +1342,12 @@ $("incoming").addEventListener("click", async (e) => {
           saveSession();
           console.log(`[tukar] off-ramp quote ${cor.currency} computed on-chain by the pool (median of 5 Reflector records): ${q}`);
         }
+        // Surface the DEPTH behind that median: the actual Reflector records + freshness,
+        // so the "real on-chain oracle" claim is visible, not a single opaque number.
+        try {
+          const depth = await readReflectorRecords(cor.oracle, 5);
+          if (depth && depth.records.length) { n.oracleDepth = depth.records; renderReceiver(); saveSession(); }
+        } catch (_) { /* depth is a nice-to-have; never block the reveal */ }
       } catch (_) { /* keep the client-rate figure */ }
     }
     return;
@@ -1287,7 +1451,7 @@ async function onWalletClick() {
   try {
     const { address, signTransaction } = await walletConnect();
     walletConn = { address };
-    localStorage.removeItem("tukar:conn"); // a Freighter session isn't auto-restored (needs re-approval)
+    localStorage.setItem("tukar:conn", "freighter"); // silently re-established on reload via isAllowed()
     showConnected(`<b>${shortAddr(address)}</b>`, `Wallet connected (${shortAddr(address)}) — transactions signed by Freighter.`);
     // Funding (friendbot XLM + USDC trustline + faucet) is best-effort: the wallet
     // is already connected, so a transient faucet failure must NOT drop it.
