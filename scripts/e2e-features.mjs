@@ -211,6 +211,31 @@ await tc("real anchor off-ramp (SEP-24 withdraw) reaches a definitive outcome", 
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 
+// L2: receipts are portable across disclosure TYPES — a RANGE receipt exports and re-verifies
+// (in-browser + on-chain) via the per-type verifier routing, not just exact disclosures.
+await tc("range receipt exports + re-verifies (per-type routing)", async () => {
+  await goStep(3);
+  await page.locator("#auditSelect").selectOption({ index: 1 }).catch(() => {});
+  await page.locator("#discRange").click();
+  await page.locator("#rangeLo").fill("1");
+  await page.locator("#rangeHi").fill("5000");
+  await page.locator("#proveBtn").click();
+  await page.locator("#result [data-onchain]").filter({ hasText: /Verified on-chain/i }).waitFor({ timeout: 60000 });
+  const [dl] = await Promise.all([
+    page.waitForEvent("download", { timeout: 15000 }),
+    page.locator("[data-receipt]").click(),
+  ]);
+  const stream = await dl.createReadStream();
+  let content = ""; for await (const chunk of stream) content += chunk.toString();
+  assert(/"type"\s*:\s*"range"/.test(content), "range receipt missing type:range");
+  await page.locator(".verify-receipt").evaluate((el) => { el.open = true; });
+  await page.locator("#receiptInput").fill(content);
+  await page.locator("#verifyReceiptBtn").click();
+  await page.locator("#receiptResult").filter({ hasText: /range[\s\S]*disclosure/i }).waitFor({ timeout: 30000 });
+  const txt = await page.locator("#receiptResult").innerText();
+  assert(/browser:[\s\S]*valid/i.test(txt) && /Stellar[\s\S]*valid/i.test(txt), `range receipt not both-valid: "${txt}"`);
+});
+
 // C5 Path B: Onramper — fetch a REAL live sell quote from licensed providers + open the widget.
 await tc("Onramper off-ramp fetches a live quote / opens the widget", async () => {
   await goStep(2); await connect();

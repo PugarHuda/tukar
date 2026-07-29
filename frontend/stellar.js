@@ -320,6 +320,11 @@ export function verifyDisclosureOnChain(proof, publicSignals) {
 export function verifyThresholdOnChain(proof, publicSignals) {
   return verifyOnChain(THRESHOLD_VERIFIER, proof, publicSignals);
 }
+/** Generic BN254 on-chain verify against any verifier contract — used to re-verify an
+ *  exported audit receipt of any disclosure type (exact/threshold/aggregate/range). */
+export function verifyProofOnChain(verifierId, proof, publicSignals) {
+  return verifyOnChain(verifierId, proof, publicSignals);
+}
 
 /**
  * Threshold (range) disclosure verified THROUGH THE POOL, not the bare verifier: the
@@ -483,8 +488,13 @@ export async function onramperQuote(usdc, fiat) {
     });
     const arr = await r.json();
     if (!Array.isArray(arr)) return null;
-    const best = arr.find((q) => q && typeof q.payout === "number" && !q.errors);
-    return best ? { payout: best.payout, rate: best.rate, fee: best.transactionFee, ramp: best.ramp } : null;
+    // Keep only real, positive quotes (an error entry has payout null/absent, and a quote may
+    // carry an EMPTY errors array which is truthy in JS), then pick the actual BEST payout —
+    // don't assume the API pre-sorts.
+    const best = arr
+      .filter((q) => q && typeof q.payout === "number" && q.payout > 0 && (!q.errors || q.errors.length === 0))
+      .sort((a, b) => b.payout - a.payout)[0];
+    return best ? { payout: best.payout, rate: best.rate, fee: best.transactionFee, ramp: best.ramp || "a licensed provider" } : null;
   } catch (_) {
     return null;
   }

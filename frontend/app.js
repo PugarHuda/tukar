@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, verifyThresholdOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, onramperQuote, onramperOfframpUrl, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, verifyThresholdOnChain, verifyProofOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, onramperQuote, onramperOfframpUrl, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, reconnect as walletReconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -938,6 +938,18 @@ function renderProof(state, data = {}) {
 // public inputs, and the verifier — so a regulator can re-check it offline/independently
 // (snarkjs.groth16.verify or the on-chain disclosure verifier) without any trust in us.
 let lastDisclosure = null;
+// Receipts are portable across ALL disclosure types. Map each to its in-browser vkey + the
+// on-chain verifier so a pasted receipt re-verifies regardless of type.
+const RECEIPT_VK = { exact: VKEY, threshold: T_VKEY, aggregate: A_VKEY, range: R_VKEY };
+const RECEIPT_VERIFIER = { exact: DISCLOSURE_VERIFIER, threshold: THRESHOLD_VERIFIER, aggregate: AGGREGATE_VERIFIER, range: RANGE_VERIFIER };
+function setDisclosureReceipt(type, fields, proof, publicSignals) {
+  lastDisclosure = {
+    kind: "tukar-audit-receipt", version: 1, type, ...fields,
+    verifiedOnChain: true, network: "Test SDF Network ; September 2015",
+    verifier: RECEIPT_VERIFIER[type], publicSignals, proof,
+  };
+  renderReceiptButton();
+}
 function renderReceiptButton() {
   const box = $("result");
   if (!box || box.querySelector("[data-receipt]")) return;
@@ -989,7 +1001,8 @@ function exportAuditReceipt() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `tukar-audit-receipt-${short(lastDisclosure.commitment).replace(/[^\w]/g, "")}.json`;
+  const cmtForName = lastDisclosure.commitment || (lastDisclosure.commitments && lastDisclosure.commitments[0]) || (lastDisclosure.publicSignals && lastDisclosure.publicSignals[0]) || "receipt";
+  a.download = `tukar-audit-receipt-${lastDisclosure.type || "exact"}-${short(String(cmtForName)).replace(/[^\w]/g, "")}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   status.textContent = "Audit receipt exported — the regulator can re-verify the proof independently.";
@@ -998,7 +1011,7 @@ function exportAuditReceipt() {
 // B3: independently re-verify a pasted audit receipt — Groth16 verify in-browser AND on
 // the live Stellar verifier. Proves to a skeptic the disclosure is real with zero trust
 // in Tukar (the whole point of a portable compliance artifact).
-let receiptVkey = null;
+const receiptVkeys = {};
 async function verifyReceipt() {
   const out = $("receiptResult");
   if (!out) return;
@@ -1011,10 +1024,15 @@ async function verifyReceipt() {
   }
   out.innerHTML = '<span class="spin">◠</span> re-verifying in your browser and on Stellar…';
   try {
-    if (!receiptVkey) receiptVkey = await (await fetch(VKEY)).json();
+    // Route to the right vkey + on-chain verifier for the receipt's disclosure type (old
+    // receipts have no `type` → exact). Works for exact/threshold/aggregate/range receipts.
+    const type = r.type || "exact";
+    const vkPath = RECEIPT_VK[type] || VKEY;
+    const verifier = RECEIPT_VERIFIER[type] || DISCLOSURE_VERIFIER;
+    if (!receiptVkeys[vkPath]) receiptVkeys[vkPath] = await (await fetch(vkPath)).json();
     const sigs = r.publicSignals.map(String);
-    const local = await snarkjs.groth16.verify(receiptVkey, sigs, r.proof).catch(() => false);
-    const oc = await verifyDisclosureOnChain(r.proof, sigs);
+    const local = await snarkjs.groth16.verify(receiptVkeys[vkPath], sigs, r.proof).catch(() => false);
+    const oc = await verifyProofOnChain(verifier, r.proof, sigs);
     const mark = (b) => (b ? '<b style="color:#5fe3a0;">✓ valid</b>' : '<b style="color:#ff8a72;">✗ invalid</b>');
     const cmt = r.commitment || sigs[0];
     let anchorLine = "";
@@ -1027,8 +1045,14 @@ async function verifyReceipt() {
       const tl = r.anchor.txHash ? `<a href="${txExplorer(r.anchor.txHash)}" target="_blank" rel="noreferrer" style="color:#5fe3a0">${esc(short(r.anchor.txHash))} ↗</a>` : "(no tx)";
       anchorLine = `<div style="margin-top:4px">On-chain anchor: ${matches ? '<b style="color:#5fe3a0;">✓ content matches</b> the timestamped hash' : '<b style="color:#ff8a72;">✗ content does NOT match</b> the anchored hash'} · ${tl}</div>`;
     }
-    out.innerHTML = `In your browser: ${mark(local)} &nbsp;·&nbsp; On the live Stellar verifier: ${mark(oc.verified)}`
-      + `<div style="opacity:.7;margin-top:4px">commitment ${esc(short(cmt))}${r.disclosedAmountUsdc ? " · discloses $" + esc(String(r.disclosedAmountUsdc)) + " USDC" : ""} — the exact amount isn't needed to verify the proof.</div>`
+    // Human-readable summary of what this receipt discloses (varies by type).
+    const disc = r.disclosedAmountUsdc ? `discloses $${esc(String(r.disclosedAmountUsdc))} USDC`
+      : r.thresholdUsdc ? `proves ≤ $${esc(String(r.thresholdUsdc))} USDC (amount hidden)`
+      : r.bandUsdc ? `proves in band ${esc(String(r.bandUsdc))} USDC (amount hidden)`
+      : r.capUsdc ? `proves portfolio ≤ $${esc(String(r.capUsdc))} USDC (individual amounts hidden)`
+      : "amount hidden";
+    out.innerHTML = `<b>${esc(type)}</b> disclosure · In your browser: ${mark(local)} &nbsp;·&nbsp; On the live Stellar verifier: ${mark(oc.verified)}`
+      + `<div style="opacity:.7;margin-top:4px">commitment ${esc(short(cmt))} · ${disc}</div>`
       + anchorLine;
   } catch (e) {
     out.innerHTML = '<span style="color:#ff8a72">Verification error: ' + esc((e && e.message) || String(e)) + "</span>";
@@ -1073,6 +1097,7 @@ async function proveThreshold(note, auditContextHash) {
           if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the range proof against a known deposit (verifier ${tlink})`;
           if (pt) pt.textContent = "Range proof verified on-chain (bound to a known deposit)";
           status.textContent = "Threshold disclosure verified — in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
+          setDisclosureReceipt("threshold", { thresholdUsdc: fmtUsdc(claimThr), commitment: note.commitment, auditContext: $("auditCtx").value, auditContextHash }, proof, publicSignals);
         } else if (el) {
           el.textContent = "⛓ on-chain check unavailable (network).";
         }
@@ -1144,6 +1169,7 @@ async function proveAggregate(auditContextHash) {
         if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the aggregate proof against ${AGG_N} known deposits`;
         if (pt) pt.textContent = "Aggregate proof verified on-chain (bound to known deposits)";
         status.textContent = "Portfolio disclosure verified — in your browser AND on Stellar, bound to real deposits. No individual amount revealed.";
+        setDisclosureReceipt("aggregate", { capUsdc: fmtUsdc(capStroops), commitments: sel.map((n) => n.commitment), auditContext: $("auditCtx").value, auditContextHash }, proof, publicSignals);
       } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
     } catch (_) {
       const el = $("result").querySelector("[data-onchain]"); if (el) el.textContent = "⛓ on-chain check unavailable (network).";
@@ -1190,6 +1216,7 @@ async function proveRange(note, auditContextHash) {
         if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the band proof against a known deposit`;
         if (pt) pt.textContent = "Range proof verified on-chain (bound to a known deposit)";
         status.textContent = "Range disclosure verified — in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
+        setDisclosureReceipt("range", { bandUsdc: `$${fmtUsdc(lo)}-$${fmtUsdc(hi)}`, commitment: note.commitment, auditContext: $("auditCtx").value, auditContextHash }, proof, publicSignals);
       } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
     } catch (_) {
       const el = $("result").querySelector("[data-onchain]"); if (el) el.textContent = "⛓ on-chain check unavailable (network).";
@@ -1263,14 +1290,11 @@ async function proveAndVerify() {
         // Keep the verified disclosure so the regulator can export a portable, re-checkable
         // audit receipt (the proof + public inputs + verifier), turning selective disclosure
         // into a usable compliance artifact rather than a one-off screen.
-        lastDisclosure = {
-          kind: "tukar-audit-receipt", version: 1,
+        setDisclosureReceipt("exact", {
           disclosedAmountUsdc: fmtUsdc(claimed[1]), commitment: note.commitment,
           auditContext: $("auditCtx").value, auditContextHash,
-          verifiedOnChain: true, network: "Test SDF Network ; September 2015",
-          disclosureVerifier: DISCLOSURE_VERIFIER, publicSignals: claimed, proof,
-        };
-        renderReceiptButton();
+          disclosureVerifier: DISCLOSURE_VERIFIER,
+        }, proof, claimed);
         status.textContent = "Disclosure verified — in your browser AND on Stellar. Privacy preserved, compliance satisfied.";
       } else if (!ok && !oc.verified) {
         if (el) el.innerHTML = `⛓ The live Stellar verifier ${link} <b style="color:#ff8a72;">also rejected it</b> (InvalidProof).`;
