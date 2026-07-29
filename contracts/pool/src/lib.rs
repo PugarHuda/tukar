@@ -699,8 +699,12 @@ impl Pool {
     /// ACTIVE payments (1..AGG_N of them) is <= `cap` WITHOUT revealing any amount. Each slot
     /// has a public `active` flag (0/1); only ACTIVE slots must be commitments the pool knows,
     /// so the report is bound to real on-chain deposits while the count varies. The circuit's
-    /// public inputs are [commitments[0..N], active[0..N], cap, auditContextHash] (N = AGG_N).
-    /// Requires the admin to have set the aggregate verifier.
+    /// public inputs are [commitments[0..N], active[0..N], cap, auditContextHash, ctxNonce], and
+    /// the circuit enforces auditContextHash == Poseidon(ctxNonce, commitments, active) so the
+    /// report is bound to a specific audit-request hash. (Completeness — that the request covers
+    /// ALL of a holder's payments — is the regulator's OFF-CHAIN step: issue the hash for the
+    /// full set and check the proof used it. The pool does not enforce that.) Requires the admin
+    /// to have set the aggregate verifier.
     pub fn disclose_aggregate(
         env: Env,
         proof: Groth16Proof,
@@ -716,7 +720,7 @@ impl Pool {
         if !env.storage().instance().has(&DataKey::AggregateVerifier) {
             soroban_sdk::panic_with_error!(&env, PoolError::ProofRejected);
         }
-        // Public-input order = [commitments(N), active(N), cap, ctx]. All commitments are
+        // Public-input order = [commitments(N), active(N), cap, auditContextHash, ctxNonce]. All commitments are
         // canonicalised; only ACTIVE slots must be known deposits (inactive slots are padding
         // the circuit ignores). At least one slot must be active — a zero-payment report is
         // meaningless. (Duplicates among active slots only INFLATE the proven sum, the fail-safe

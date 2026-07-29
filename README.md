@@ -329,12 +329,16 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   beyond demo scale (bounded only by the tree capacity, 2¹⁰ = 1024 leaves). A
   very-long-lived production pool would still want a periodic TTL-maintenance job
   and an indexer for fast reads.
-- **Aggregate (portfolio) disclosure is holder-selected.** The variable-count aggregate
-  proves the sum of the payments the holder *marks active* is under the cap — soundly, over
-  that selected set. It does **not** prove the holder included *every* payment in the period
-  (deposits are unlinkable, so the pool can't enumerate a full shielded set). A *complete*
-  CTR-style report would have the audit request pin the required commitment set (or a
-  period-scoped enumeration); that's a policy layer on top, not a change to the ZK.
+- **Aggregate (portfolio) disclosure — audit-bound, completeness is the regulator's step.**
+  The variable-count aggregate proves the sum of the active payments is under the cap, and the
+  circuit **binds the report to an audit-request hash** (`auditContextHash = Poseidon(ctxNonce,
+  commitments, active)`), so a report can't be *trimmed* relative to a request — proving a
+  different (smaller) set against a given request is unprovable. What it does **not** do on-chain
+  is enforce that the request covers *every* payment: the pool doesn't store/compare a
+  regulator-issued hash, so **full completeness is the regulator's off-chain step** (issue the
+  hash for the holder's full deposit set, then check the proof used exactly that hash). The demo
+  simulates that issuance in-browser. Making it on-chain is a small policy layer (a registry of
+  regulator-issued audit requests) on top of the existing ZK.
 - **Not audited — do not use with real assets.**
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26

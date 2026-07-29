@@ -137,9 +137,10 @@ await tc("aggregate wrong path: sum over cap is unprovable", async () => {
   await page.locator("#result").filter({ hasText: /above|cannot be proven|over cap/i }).waitFor({ timeout: 45000 });
 });
 
-// C4 completeness: the audit request is bound to the FULL payment set, so omitting a payment
-// (cherry-picking) is unprovable — the completeness hash won't match.
-await tc("aggregate completeness: omitting a payment is unprovable", async () => {
+// C4: the report is bound to the audit-request hash over the exact set, so proving a TRIMMED
+// set against a given request is unprovable (a holder can't silently drop a payment from a
+// request a regulator issued; full-coverage enforcement is the regulator's off-chain step).
+await tc("aggregate binding: a trimmed report against the request is unprovable", async () => {
   await goStep(3);
   await page.locator("#discAgg").click();
   await page.locator("#aggCap").fill("5000");

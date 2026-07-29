@@ -355,7 +355,7 @@ export async function discloseThresholdViaPool(proof, publicSignals) {
  * Aggregate (portfolio) disclosure verified THROUGH THE POOL: `disclose_aggregate` checks
  * EVERY commitment in the sum is a known on-chain deposit before verifying the proof, so
  * "total <= cap" is bound to real deposits. Read-only simulation (no signature).
- * publicSignals order is [commitment0, commitment1, commitment2, cap, auditContextHash].
+ * publicSignals order is [commitments(5), active(5), cap, auditContextHash, ctxNonce].
  */
 export async function discloseAggregateViaPool(proof, publicSignals) {
   try {

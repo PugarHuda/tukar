@@ -1181,15 +1181,15 @@ async function proveAggregate(auditContextHash) {
         if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the aggregate proof against ${AGG_N} known deposits`;
         if (pt) pt.textContent = "Aggregate proof verified on-chain (bound to known deposits)";
         status.textContent = "Portfolio disclosure verified — in your browser AND on Stellar, bound to real deposits. No individual amount revealed.";
-        setDisclosureReceipt("aggregate", { capUsdc: fmtUsdc(capStroops), commitments: sel.map((n) => n.commitment), auditContext: $("auditCtx").value, auditContextHash }, proof, publicSignals);
+        setDisclosureReceipt("aggregate", { capUsdc: fmtUsdc(capStroops), commitments: sel.map((n) => n.commitment), auditContext: $("auditCtx").value, auditContextHash: issuedHash, ctxNonce: String(ctxNonce) }, proof, publicSignals);
       } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
     } catch (_) {
       const el = $("result").querySelector("[data-onchain]"); if (el) el.textContent = "⛓ on-chain check unavailable (network).";
     }
   } catch (e) {
     if ($("aggOmit") && $("aggOmit").checked) {
-      renderProof("rejected", { body: `Can't prove an <b style="color:#ff8a72;">incomplete</b> report — the audit request is bound to your <b>full</b> payment set, so omitting one makes the completeness hash mismatch. No cherry-picking is possible.` });
-      status.textContent = "Completeness enforced — an incomplete report is unprovable.";
+      renderProof("rejected", { body: `<b style="color:#ff8a72;">Unprovable</b> — this report is bound to the audit request's hash (over the full set), so proving a <b>trimmed</b> set against it fails. A holder can't silently drop a payment from a request a regulator issued. (Whether the request covers <em>all</em> payments is the regulator's to pin off-chain.)` });
+      status.textContent = "Bound to the audit request — a trimmed report is unprovable.";
     } else {
       renderProof("rejected", { body: "Couldn't generate the aggregate proof: " + esc((e && e.message) || String(e)) });
       status.textContent = "Aggregate proof failed.";
