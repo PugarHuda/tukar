@@ -137,6 +137,18 @@ await tc("aggregate wrong path: sum over cap is unprovable", async () => {
   await page.locator("#result").filter({ hasText: /above|cannot be proven|over cap/i }).waitFor({ timeout: 45000 });
 });
 
+// C4 completeness: the audit request is bound to the FULL payment set, so omitting a payment
+// (cherry-picking) is unprovable — the completeness hash won't match.
+await tc("aggregate completeness: omitting a payment is unprovable", async () => {
+  await goStep(3);
+  await page.locator("#discAgg").click();
+  await page.locator("#aggCap").fill("5000");
+  await page.locator("#aggOmitLabel").click(); // omit a required payment
+  await page.locator("#proveBtn").click();
+  await page.locator("#result").filter({ hasText: /incomplete|completeness|cherry|unprovable/i }).waitFor({ timeout: 45000 });
+  await page.locator("#aggOmitLabel").click(); // reset the toggle
+});
+
 // C2 range (band) disclosure via the pool — HAPPY: amount inside [1, 5000] verifies on-chain.
 await tc("range disclosure in-band verified on-chain (via pool)", async () => {
   await goStep(3);

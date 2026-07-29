@@ -28,7 +28,8 @@ template AggregateDisclosure(N) {
     signal input commitments[N];      // the N slot commitments (active ones are real deposits)
     signal input active[N];           // per-slot flag: 1 = real payment, 0 = padding
     signal input cap;                 // the reporting cap the total is tested against (public)
-    signal input auditContextHash;    // binds proof to one audit request (period, regulator id)
+    signal input auditContextHash;    // = Poseidon(ctxNonce, commitments, active) — see below
+    signal input ctxNonce;            // the audit request's period/regulator id (public)
 
     // ---- PRIVATE INPUTS (holder secrets) ----
     signal input amounts[N];
@@ -74,9 +75,19 @@ template AggregateDisclosure(N) {
     le.in[1] <== cap;
     le.out === 1;
 
-    // Bind the audit context so a report for one request can't be replayed for another.
-    signal ctxSq;
-    ctxSq <== auditContextHash * auditContextHash;
+    // COMPLETENESS BINDING: the audit request (auditContextHash) commits to the EXACT required
+    // set — the commitments AND active flags — plus a nonce (period/regulator id). The regulator
+    // ISSUES this hash for the full required set (enumerated from the depositor's on-chain
+    // deposits). A holder who tries to omit a payment (flip an active flag or swap a commitment)
+    // recomputes a DIFFERENT hash than the one issued, so `auditContextHash === ctxHasher.out`
+    // fails and no proof exists. This closes the cherry-picking gap: the report is COMPLETE.
+    component ctxHasher = Poseidon(2 * N + 1);
+    ctxHasher.inputs[0] <== ctxNonce;
+    for (var i = 0; i < N; i++) {
+        ctxHasher.inputs[1 + i] <== commitments[i];
+        ctxHasher.inputs[1 + N + i] <== active[i];
+    }
+    auditContextHash === ctxHasher.out;
 }
 
-component main { public [ commitments, active, cap, auditContextHash ] } = AggregateDisclosure(5);
+component main { public [ commitments, active, cap, auditContextHash, ctxNonce ] } = AggregateDisclosure(5);

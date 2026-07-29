@@ -20,9 +20,9 @@ const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey?v=4";
 const T_VKEY = "./circuit/thresholdDisclosure_vk.json?v=4";
 // Aggregate (portfolio) disclosure — prove the SUM of the last 3 payments ≤ a cap,
 // without revealing any single amount. Bound to known deposits via pool.disclose_aggregate.
-const A_WASM = "./circuit/aggregateDisclosure.wasm?v=5";
-const A_ZKEY = "./circuit/aggregateDisclosure_final.zkey?v=5";
-const A_VKEY = "./circuit/aggregateDisclosure_vk.json?v=5";
+const A_WASM = "./circuit/aggregateDisclosure.wasm?v=6";
+const A_ZKEY = "./circuit/aggregateDisclosure_final.zkey?v=6";
+const A_VKEY = "./circuit/aggregateDisclosure_vk.json?v=6";
 const AGG_N = 5; // max slots in the variable-count aggregate circuit
 // Two-sided range (band) disclosure — prove lower ≤ amount ≤ upper, amount hidden.
 const R_WASM = "./circuit/rangeDisclosure.wasm?v=1";
@@ -1146,14 +1146,24 @@ async function proveAggregate(auditContextHash) {
       return;
     }
     if (!aVkey) aVkey = await (await fetch(A_VKEY)).json();
-    // Variable count: fill AGG_N slots — active payments first, then zero padding the circuit ignores.
+    const ctxNonce = auditContextHash; // the audit request's period/regulator id (a field element)
+    const omit = !!($("aggOmit") && $("aggOmit").checked); // "omit a payment" completeness test
+    const provenN = omit ? Math.max(0, nActive - 1) : nActive;
+    // Fill AGG_N slots. `req*` = the FULL required set the audit request is ISSUED for (every
+    // known payment active). The PROVEN set omits the last payment when the completeness test is on.
     const commitments = [], active = [], amounts = [], pubKeys = [], blindings = [];
+    const reqCommitments = [], reqActive = [];
     for (let i = 0; i < AGG_N; i++) {
       const n = sel[i];
-      commitments.push(n ? n.commitment : "0"); active.push(n ? "1" : "0");
+      reqCommitments.push(n ? n.commitment : "0"); reqActive.push(n ? "1" : "0");
+      const on = !!n && i < provenN;
+      commitments.push(n ? n.commitment : "0"); active.push(on ? "1" : "0");
       amounts.push(n ? String(n.amount) : "0"); pubKeys.push(n ? String(n.pubKey) : "0"); blindings.push(n ? String(n.blinding) : "0");
     }
-    const input = { commitments, active, cap: capStroops.toString(), auditContextHash, amounts, pubKeys, blindings };
+    // COMPLETENESS: the audit hash the regulator issued = Poseidon(ctxNonce, requiredSet). The
+    // circuit recomputes it from the PROVEN set, so omitting a payment -> mismatch -> unprovable.
+    const issuedHash = F.toObject(poseidon([BigInt(ctxNonce), ...reqCommitments.map((c) => BigInt(c)), ...reqActive.map((a) => BigInt(a))])).toString();
+    const input = { commitments, active, cap: capStroops.toString(), auditContextHash: issuedHash, ctxNonce: String(ctxNonce), amounts, pubKeys, blindings };
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, A_WASM, A_ZKEY);
     const ok = await snarkjs.groth16.verify(aVkey, publicSignals, proof);
     if (!ok) { renderProof("rejected", { body: "In-browser verification failed unexpectedly." }); return; }
@@ -1177,8 +1187,13 @@ async function proveAggregate(auditContextHash) {
       const el = $("result").querySelector("[data-onchain]"); if (el) el.textContent = "⛓ on-chain check unavailable (network).";
     }
   } catch (e) {
-    renderProof("rejected", { body: "Couldn't generate the aggregate proof: " + esc((e && e.message) || String(e)) });
-    status.textContent = "Aggregate proof failed.";
+    if ($("aggOmit") && $("aggOmit").checked) {
+      renderProof("rejected", { body: `Can't prove an <b style="color:#ff8a72;">incomplete</b> report — the audit request is bound to your <b>full</b> payment set, so omitting one makes the completeness hash mismatch. No cherry-picking is possible.` });
+      status.textContent = "Completeness enforced — an incomplete report is unprovable.";
+    } else {
+      renderProof("rejected", { body: "Couldn't generate the aggregate proof: " + esc((e && e.message) || String(e)) });
+      status.textContent = "Aggregate proof failed.";
+    }
   } finally {
     $("proveBtn").disabled = false; $("proveBtn").classList.remove("busy"); $("proveBtn").textContent = "Generate & verify disclosure proof";
   }
@@ -1332,6 +1347,7 @@ function resetUI() {
   $("auditCtx").value = "2026-Q2 · CNBV";
   $("tamper").checked = false;
   $("tamperLabel").classList.remove("on");
+  if ($("aggOmit")) { $("aggOmit").checked = false; $("aggOmitLabel").classList.remove("on"); $("aggOmitLabel").setAttribute("aria-checked", "false"); }
   setDiscMode("exact"); // don't leave the regulator panel stuck in threshold mode
   $("compTamper").checked = false;
   $("compTamperLabel").classList.remove("on");
@@ -1369,6 +1385,16 @@ function toggleTamper() {
   cb.checked = !cb.checked;
   $("tamperLabel").classList.toggle("on", cb.checked);
   $("tamperLabel").setAttribute("aria-checked", cb.checked ? "true" : "false");
+}
+function toggleAggOmit() {
+  const cb = $("aggOmit"); if (!cb) return;
+  cb.checked = !cb.checked;
+  $("aggOmitLabel").classList.toggle("on", cb.checked);
+  $("aggOmitLabel").setAttribute("aria-checked", cb.checked ? "true" : "false");
+}
+if ($("aggOmitLabel")) {
+  $("aggOmitLabel").addEventListener("click", toggleAggOmit);
+  $("aggOmitLabel").addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleAggOmit(); } });
 }
 // Disclosure-type toggle: exact amount vs threshold/range (prove amount ≤ a reporting
 // threshold, amount hidden). Both have a live on-chain verifier and confirm there.

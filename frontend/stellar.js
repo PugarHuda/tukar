@@ -20,14 +20,14 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CAOEC4KVEAMPXSQG2TZE2G5WKUWT6I5CPCA6BIOC4HFTUISB6MYVNIBJ";
+export const POOL = "CBVRMBQ6CRFQA2TYWYTQ7KOQRPFXJBFVDMMSND4RPVCJOEK3CPSHZLC5";
 export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
 // Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
 // contract, deployed additively (the 5 core contracts are unchanged).
 export const THRESHOLD_VERIFIER = "CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR";
 // Standalone BN254 verifier for the aggregate (portfolio) disclosure circuit — the pool's
 // disclose_aggregate routes proofs to it (set via set_aggregate_verifier).
-export const AGGREGATE_VERIFIER = "CDQBRHMET2XPZARAT2HRBR62B2LS3GDWAPHXRQYJ4Q3W6IQLC5QZQTG5";
+export const AGGREGATE_VERIFIER = "CCTN437J4BX6S4JDMGUZFS2IEHV4ECHHK4ZLMM3N6VU5IIX2777AZJYA";
 // BN254 verifier for the two-sided range (band) disclosure circuit — pool.disclose_range
 // routes proofs to it (set via set_range_verifier).
 export const RANGE_VERIFIER = "CDUONEVPPH7WI7EPSXZE3YXEF4FHHJM7HFJOTZBCJNJSUG26UMENUPQW";
@@ -360,13 +360,14 @@ export async function discloseThresholdViaPool(proof, publicSignals) {
 export async function discloseAggregateViaPool(proof, publicSignals) {
   try {
     const client = await verifierClient(POOL);
-    // Variable-count aggregate: public signals = [commitments(5), active(5), cap, ctx].
+    // Complete aggregate: public signals = [commitments(5), active(5), cap, auditContextHash, ctxNonce].
     const at = await client.disclose_aggregate({
       proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
       commitments: [0, 1, 2, 3, 4].map((i) => buf32(publicSignals[i])),
       active: [5, 6, 7, 8, 9].map((i) => Number(publicSignals[i])),
       cap: buf32(publicSignals[10]),
       audit_context: buf32(publicSignals[11]),
+      ctx_nonce: buf32(publicSignals[12]),
     });
     const r = at.result;
     const ok = r === true || r?.value === true || r?.tag === "Ok";

@@ -900,7 +900,7 @@ fn disclose_aggregate_binds_known_commitments() {
     // 3 active + 2 inactive padding slots (padding commitments need not be known).
     let commits: Vec<BytesN<32>> = vec![&env, c0, c1, c2, b32(&env, 90), b32(&env, 91)];
     let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
-    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7)));
+    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8)));
 }
 
 // Variable count: a single active payment (the rest padding) is a valid aggregate.
@@ -914,7 +914,7 @@ fn disclose_aggregate_variable_count_one_active() {
     c.pool.set_aggregate_verifier(&v);
     let commits: Vec<BytesN<32>> = vec![&env, c0, b32(&env, 90), b32(&env, 91), b32(&env, 92), b32(&env, 93)];
     let active: Vec<u32> = vec![&env, 1, 0, 0, 0, 0];
-    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7)));
+    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8)));
 }
 
 #[test]
@@ -930,7 +930,7 @@ fn disclose_aggregate_rejects_unknown_commitment() {
     // slot 2 is ACTIVE but b32(9) was never deposited
     let commits: Vec<BytesN<32>> = vec![&env, c0, c1, b32(&env, 9), b32(&env, 90), b32(&env, 91)];
     let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
-    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7));
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
 }
 
 #[test]
@@ -944,7 +944,7 @@ fn disclose_aggregate_rejects_wrong_count() {
     c.pool.set_aggregate_verifier(&v);
     let commits: Vec<BytesN<32>> = vec![&env, c0]; // 1 != AGG_N (5)
     let active: Vec<u32> = vec![&env, 1];
-    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7));
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
 }
 
 // C2: two-sided range (band) disclosure is bound to a KNOWN pool commitment.

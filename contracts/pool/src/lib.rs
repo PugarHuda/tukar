@@ -708,6 +708,7 @@ impl Pool {
         active: Vec<u32>,
         cap: BytesN<32>,
         audit_context: BytesN<32>,
+        ctx_nonce: BytesN<32>,
     ) -> bool {
         if commitments.len() != AGG_N || active.len() != AGG_N {
             soroban_sdk::panic_with_error!(&env, PoolError::BadIoCount);
@@ -745,7 +746,10 @@ impl Pool {
         }
         Self::require_canonical(&env, &cap);
         pi.push_back(Self::fr(&env, &cap));
+        // pi order = [commitments(5), active(5), cap, auditContextHash, ctxNonce] — the circuit
+        // enforces auditContextHash == Poseidon(ctxNonce, commitments, active) (completeness).
         pi.push_back(Self::fr(&env, &audit_context));
+        pi.push_back(Self::fr(&env, &ctx_nonce));
         Self::verify(&env, DataKey::AggregateVerifier, &proof, &pi);
         true
     }
