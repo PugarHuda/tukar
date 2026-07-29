@@ -8,7 +8,11 @@ pragma circom 2.1.6;
 //     the allow-list tree, root public),
 //   * NON-MEMBERSHIP: the source key is not any of the publicly known
 //     sanctioned/deny-listed keys.
-// Bound to a transfer so the compliance proof cannot be detached and reused.
+// `bindHash` is a public signal the POOL pins to the deposit commitment (it appears
+// in-circuit only as a squaring so the optimizer can't drop it — it is NOT bound to
+// sourceKey/path inside the circuit). Detach-resistance in the deposit flow comes from
+// two other places: the pool pins sourceKey == field(from) with require_auth(from), and
+// a separate disclosure/binding proof ties commitment <-> amount.
 //
 // This is the direct on-chain realization of the Privacy Pools whitepaper's
 // "association set" model (Buterin, Soleimani, et al.).
@@ -31,7 +35,7 @@ template Compliance(levels, nDeny) {
     signal input aspRoot;            // allow-list Merkle root
     signal input denyList[nDeny];    // publicly known sanctioned keys
     signal input sourceKey;          // the depositor's source key (= field(from))
-    signal input bindHash;           // binds this proof to a specific transfer
+    signal input bindHash;           // public signal the POOL pins to the commitment (see header)
 
     // ---- PRIVATE ----
     signal input pathElements[levels];
@@ -58,7 +62,8 @@ template Compliance(levels, nDeny) {
         eq[j].out === 0;   // must NOT equal any sanctioned key
     }
 
-    // bind to the transfer
+    // Keep bindHash as a live public signal (a squaring the optimizer can't drop). The
+    // actual binding is the pool pinning bindHash == commitment as a public input.
     signal bindSq;
     bindSq <== bindHash * bindHash;
 }

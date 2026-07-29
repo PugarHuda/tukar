@@ -20,7 +20,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON";
+export const POOL = "CA7CROOPCHIXJKMXJ7PZM33HRJUFWK4J7MGEHZKJVWZ7ZNH2OCRFTX7W";
 export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
 // Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
 // contract, deployed additively (the 5 core contracts are unchanged).
@@ -286,7 +286,9 @@ const buf32 = (dec) => buf(BigInt(dec).toString(16).padStart(64, "0"));
 
 let _asp;
 async function aspWitness() {
-  if (!_asp) _asp = await (await fetch("./circuit/asp-witness.json")).json();
+  // ?v bumped whenever the allow/deny policy changes (mirrors mutable on-chain policy),
+  // so a returning browser never builds compliance inputs from a stale witness.
+  if (!_asp) _asp = await (await fetch("./circuit/asp-witness.json?v=3")).json();
   return _asp;
 }
 

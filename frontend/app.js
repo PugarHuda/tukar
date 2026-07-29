@@ -13,11 +13,11 @@ const WASM = "./circuit/disclosure.wasm";
 const ZKEY = "./circuit/disclosure_final.zkey?v=3";
 const VKEY = "./circuit/verification_key.json?v=3";
 // Threshold (range) disclosure — prove "amount ≤ threshold" WITHOUT revealing the amount.
-// Its on-chain verifier isn't deployed yet, so this path proves + verifies IN-BROWSER
-// (soundness is proven off-chain — npm run test:threshold, ZKey Ok!).
-const T_WASM = "./circuit/thresholdDisclosure.wasm";
-const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey";
-const T_VKEY = "./circuit/thresholdDisclosure_vk.json";
+// Proves + verifies in-browser AND on the live Stellar threshold verifier (THRESHOLD_VERIFIER,
+// deployed additively); soundness also checked off-chain — npm run test:threshold, ZKey Ok!.
+const T_WASM = "./circuit/thresholdDisclosure.wasm?v=3";
+const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey?v=3";
+const T_VKEY = "./circuit/thresholdDisclosure_vk.json?v=3";
 let disclosureMode = "exact", tVkey = null;
 // BN254 scalar field modulus
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
@@ -254,7 +254,7 @@ async function loadFxRates() {
 async function init() {
   populateCorridors();
   updateCorridorUI();
-  loadFxRates(); // async, non-blocking
+  loadFxRates().catch(() => {}); // async, non-blocking; never leak an unhandled rejection
   try {
     // Load ONLY what's needed to be interactive: Poseidon + vkey (both local/cached).
     // The on-chain tree sync (an RPC read, the slow + variable part) is DEFERRED to the
@@ -906,8 +906,8 @@ function exportAuditReceipt() {
 }
 
 // Threshold (range) disclosure: prove "amount ≤ threshold" WITHOUT revealing the amount.
-// The on-chain verifier isn't deployed yet, so this proves + verifies in-browser (the
-// circuit's soundness is proven off-chain: npm run test:threshold, ZKey Ok!).
+// Verifies in-browser first, then confirms the SAME proof on the live Stellar threshold
+// verifier (circuit soundness also checked off-chain: npm run test:threshold, ZKey Ok!).
 async function proveThreshold(note, auditContextHash) {
   const thrUsdc = Math.max(1, Math.floor(Number($("threshVal").value) || 0));
   const thrStroops = BigInt(thrUsdc) * STROOPS;
@@ -1065,6 +1065,7 @@ function resetUI() {
   $("auditCtx").value = "2026-Q2 · CNBV";
   $("tamper").checked = false;
   $("tamperLabel").classList.remove("on");
+  setDiscMode("exact"); // don't leave the regulator panel stuck in threshold mode
   $("compTamper").checked = false;
   $("compTamperLabel").classList.remove("on");
   $("compTamperLabel").setAttribute("aria-checked", "false");
@@ -1101,8 +1102,8 @@ function toggleTamper() {
   $("tamperLabel").classList.toggle("on", cb.checked);
   $("tamperLabel").setAttribute("aria-checked", cb.checked ? "true" : "false");
 }
-// Disclosure-type toggle: exact amount (deployed on-chain verifier) vs threshold/range
-// (prove amount ≤ a reporting threshold, amount hidden; in-browser verify for now).
+// Disclosure-type toggle: exact amount vs threshold/range (prove amount ≤ a reporting
+// threshold, amount hidden). Both have a live on-chain verifier and confirm there.
 function setDiscMode(mode) {
   disclosureMode = mode;
   const isT = mode === "threshold";

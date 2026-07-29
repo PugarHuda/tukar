@@ -86,7 +86,7 @@ Tukar differs and where it stays composable, see
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CA7CROOPCHIXJKMXJ7PZM33HRJUFWK4J7MGEHZKJVWZ7ZNH2OCRFTX7W) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2) | ASP allow/deny | `verify` → `true` |
@@ -95,7 +95,7 @@ Tukar differs and where it stays composable, see
   **Contract addresses (Stellar testnet)** — copy-paste form of the table above:
 
   ```
-  pool                 CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON
+  pool                 CA7CROOPCHIXJKMXJ7PZM33HRJUFWK4J7MGEHZKJVWZ7ZNH2OCRFTX7W
   transfer verifier    CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE
   compliance verifier  CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2
   disclosure verifier  CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V

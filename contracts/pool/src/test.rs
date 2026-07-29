@@ -115,7 +115,11 @@ impl MockOracleEmpty {
 }
 
 fn b32(env: &Env, k: u8) -> BytesN<32> {
-    BytesN::from_array(env, &[k; 32])
+    // Distinct per k, but a canonical BN254 field element (top byte 0 => value < 2^248 < r).
+    // The pool rejects non-canonical field inputs (>= r), so test fixtures must be < r.
+    let mut a = [k; 32];
+    a[0] = 0;
+    BytesN::from_array(env, &a)
 }
 
 // big-endian 32-byte encoding of a small integer (a valid BN254 field element).
@@ -383,6 +387,37 @@ fn withdraw_amount_must_match_public_amount() {
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 50),
         &nulls, &outs, &recipient, &120, &None, &None,
     );
+}
+
+// C1 regression: `Bn254Fr::from_bytes` reduces mod r, so a nullifier `n` and its
+// re-encoding `n+r` feed the SAME verifier input and satisfy the SAME proof — but they
+// are different 32-byte storage keys. If accepted, a spent note could be replayed as
+// `n+r` (a key the double-spend guard never finds) to drain the pool. The pool now
+// rejects any non-canonical field input (bytes >= r) up front. 0xFF..FF = 2^256-1 >= r.
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")] // NonCanonicalField
+fn withdraw_rejects_noncanonical_nullifier() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let noncanon = BytesN::from_array(&env, &[0xFFu8; 32]);
+    let nulls: Vec<BytesN<32>> = vec![&env, noncanon, b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
+
+// C1 regression (deposit path): a non-canonical commitment can't back a leaf.
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")] // NonCanonicalField
+fn deposit_rejects_noncanonical_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let noncanon = BytesN::from_array(&env, &[0xFFu8; 32]);
+    c.pool.deposit(&c.user, &300, &noncanon, &dummy_proof(&env), &dummy_proof(&env));
 }
 
 // The min-receive settlement gate: when a withdraw asks for off-ramp slippage

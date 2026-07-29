@@ -136,15 +136,15 @@
         <label class="fld">AMOUNT (USDC)</label>
         <div class="amount-box">
           <span class="cur">$</span>
-          <input id="amount" type="number" min="1" step="0.01" value="500" />
+          <input id="amount" type="number" min="1" step="0.01" value="500" aria-label="Amount to send in USDC" />
           <span class="unit">USDC</span>
         </div>
 
         <label class="fld mt">DESTINATION CORRIDOR</label>
-        <select id="corridor" class="tk-select"></select>
+        <select id="corridor" class="tk-select" aria-label="Destination corridor"></select>
 
         <label class="fld mt">RECIPIENT (COUNTRY B)</label>
-        <input id="recipient" class="tk-input" type="text" value="María · Mexico City" />
+        <input id="recipient" class="tk-input" type="text" value="María · Mexico City" aria-label="Recipient name and location" />
 
         <label id="compTamperLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false">
           <span class="box" aria-hidden="true"></span>
@@ -241,7 +241,7 @@
         <select id="auditSelect" class="tk-select"><option value="">— none —</option></select>
 
         <label class="fld mt">AUDIT CONTEXT (PERIOD · REGULATOR ID)</label>
-        <input id="auditCtx" class="tk-input" type="text" value="2026-Q2 · CNBV" />
+        <input id="auditCtx" class="tk-input" type="text" value="2026-Q2 · CNBV" aria-label="Audit context (reporting period and regulator)" />
 
         <label class="fld mt">DISCLOSURE TYPE</label>
         <div class="import-row" style="gap:8px;margin-top:7px;">
@@ -250,8 +250,8 @@
         </div>
         <div id="threshRow" style="display:none;">
           <label class="fld mt">REPORTING THRESHOLD (USDC)</label>
-          <input id="threshVal" class="tk-input" type="number" min="1" value="1000" />
-          <div class="foot-note" style="margin-top:6px;">Prove the payment is under this figure without revealing the exact amount (verifier deploy pending — proven in-browser).</div>
+          <input id="threshVal" class="tk-input" type="number" min="1" value="1000" aria-label="Disclosure threshold in USDC" />
+          <div class="foot-note" style="margin-top:6px;">Prove the payment is under this figure without revealing the exact amount — verified in your browser and on the live Stellar threshold verifier.</div>
         </div>
 
         <label id="tamperLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false">
@@ -292,7 +292,7 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
           disclosure verifier ↗
         </a>
-        <a class="fchip" href="https://stellar.expert/explorer/testnet/contract/CAQ7CQWYYJQTNDXIBI4CU7FHABN767TYSSN3TLIY6YY3275SYKQJU6ON" target="_blank" rel="noreferrer">
+        <a class="fchip" href="https://stellar.expert/explorer/testnet/contract/CA7CROOPCHIXJKMXJ7PZM33HRJUFWK4J7MGEHZKJVWZ7ZNH2OCRFTX7W" target="_blank" rel="noreferrer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
           pool contract ↗
         </a>

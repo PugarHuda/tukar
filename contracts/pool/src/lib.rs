@@ -60,6 +60,7 @@ pub enum PoolError {
     FxUnavailable = 11,
     SlippageExceeded = 12,
     BadIoCount = 13,
+    NonCanonicalField = 14,
 }
 
 // The transfer/withdraw JoinSplit is fixed at 2 inputs and 2 outputs (Transfer(10,2,2)).
@@ -363,6 +364,11 @@ impl Pool {
         new_leaf: BytesN<32>,
         new_root: BytesN<32>,
     ) {
+        // Canonical encodings only, so a leaf/root can't be re-encoded (x+r) to dodge a
+        // storage-key check while still satisfying the mod-r-reduced proof input.
+        Self::require_canonical(&env, &old_root);
+        Self::require_canonical(&env, &new_leaf);
+        Self::require_canonical(&env, &new_root);
         let cur: BytesN<32> = env.storage().instance().get(&DataKey::CurrentRoot).unwrap();
         if old_root != cur {
             soroban_sdk::panic_with_error!(&env, PoolError::UnknownRoot);
@@ -430,6 +436,9 @@ impl Pool {
         if amount <= 0 || amount >= (1i128 << 64) {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
         }
+        // Canonical commitment only — a non-canonical re-encoding would key the backing
+        // record under a different byte string than its reduced proof/tree value.
+        Self::require_canonical(&env, &commitment);
         // Reject a duplicate commitment up front: a second deposit to the same
         // commitment would move tokens in but could never become a second spendable
         // leaf (insert-once), permanently locking those tokens. Fail before any
@@ -445,7 +454,7 @@ impl Pool {
         // itself as field(from) = keccak256(from XDR) mod r and sets it as the
         // compliance public input — so the proof shows *this* depositor is approved
         // (it can't be forged with someone else's public membership witness).
-        // public inputs: [aspRoot, deny0..3, sourceKey=field(from), bindHash=commitment]
+        // public inputs: [aspRoot, deny0..7, sourceKey=field(from), bindHash=commitment]
         let asp_root: BytesN<32> = env.storage().instance().get(&DataKey::AspRoot).unwrap();
         let deny: Vec<BytesN<32>> = env.storage().instance().get(&DataKey::DenyList).unwrap();
         let mut pi = vec![&env, Self::fr(&env, &asp_root)];
@@ -587,6 +596,7 @@ impl Pool {
         disclosed_amount: BytesN<32>,
         audit_context: BytesN<32>,
     ) -> bool {
+        Self::require_canonical(&env, &commitment);
         if !env.storage().persistent().has(&DataKey::Commitment(commitment.clone())) {
             soroban_sdk::panic_with_error!(&env, PoolError::UnknownCommitment);
         }
@@ -653,6 +663,20 @@ impl Pool {
     }
     fn fr(env: &Env, b: &BytesN<32>) -> Bn254Fr {
         Bn254Fr::from_bytes(b.clone())
+    }
+
+    /// Reject a caller-supplied field element whose 32 bytes are NOT the canonical
+    /// (reduced-mod-r) encoding. `Bn254Fr::from_bytes` silently reduces mod r, so
+    /// `n`, `n+r`, `n+2r`, … all feed the SAME public input to the verifier and satisfy
+    /// the SAME proof — but they are DISTINCT 32-byte storage keys. Without this guard a
+    /// spent nullifier could be replayed as `n+r` (a different `DataKey::Nullifier` key
+    /// that the double-spend check never finds) to drain the pool. Requiring the raw
+    /// bytes to equal their own reduction makes every stored key canonical, so equivalent
+    /// encodings can't diverge. `fr(b).to_bytes()` is the canonical form of `b`.
+    fn require_canonical(env: &Env, b: &BytesN<32>) {
+        if Self::fr(env, b).to_bytes() != *b {
+            soroban_sdk::panic_with_error!(env, PoolError::NonCanonicalField);
+        }
     }
 
     /// 32-byte big-endian field-element encoding of a positive i128.
@@ -733,6 +757,12 @@ impl Pool {
         if nullifiers.len() != TRANSFER_NINS || out_commitments.len() != TRANSFER_NOUTS {
             soroban_sdk::panic_with_error!(env, PoolError::BadIoCount);
         }
+        // Caller-supplied field elements MUST be canonical: nullifiers double as storage
+        // keys, so a non-canonical re-encoding (n+r) would verify the same proof yet miss
+        // the double-spend guard. root/out_commitments guarded too for consistency.
+        // (public_amount is pool-set — 0 for transfer, on-chain neg for withdraw — and
+        // ext_data_hash is recomputed on-chain, so neither is attacker-controlled.)
+        Self::require_canonical(env, root);
         let mut pi = vec![
             env,
             Self::fr(env, root),
@@ -740,9 +770,11 @@ impl Pool {
             Self::fr(env, ext_data_hash),
         ];
         for n in nullifiers.iter() {
+            Self::require_canonical(env, &n);
             pi.push_back(Self::fr(env, &n));
         }
         for c in out_commitments.iter() {
+            Self::require_canonical(env, &c);
             pi.push_back(Self::fr(env, &c));
         }
         pi

@@ -1,4 +1,4 @@
-// Sample input for compliance.circom (levels=10, nDeny=4).
+// Sample input for compliance.circom (levels=10, nDeny=8).
 import { makePoseidon, buildTree } from "./merkle.mjs";
 
 const LEVELS = 10;
@@ -16,7 +16,7 @@ const tree = buildTree(h2, leaves, LEVELS);
 const { pathElements, leafIndex } = tree.proof(5);
 
 // Deny-list: four sanctioned keys, none equal to the source key.
-const denyList = [h1(9001n), h1(9002n), h1(9003n), h1(9004n)];
+const denyList = [h1(9001n), h1(9002n), h1(9003n), h1(9004n), h1(9005n), h1(9006n), h1(9007n), h1(9008n)];
 
 const input = {
   aspRoot: tree.root.toString(),
