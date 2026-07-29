@@ -329,6 +329,12 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   beyond demo scale (bounded only by the tree capacity, 2¹⁰ = 1024 leaves). A
   very-long-lived production pool would still want a periodic TTL-maintenance job
   and an indexer for fast reads.
+- **Aggregate (portfolio) disclosure is holder-selected.** The variable-count aggregate
+  proves the sum of the payments the holder *marks active* is under the cap — soundly, over
+  that selected set. It does **not** prove the holder included *every* payment in the period
+  (deposits are unlinkable, so the pool can't enumerate a full shielded set). A *complete*
+  CTR-style report would have the audit request pin the required commitment set (or a
+  period-scoped enumeration); that's a policy layer on top, not a change to the ZK.
 - **Not audited — do not use with real assets.**
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
