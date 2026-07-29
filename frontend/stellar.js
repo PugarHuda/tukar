@@ -468,7 +468,7 @@ export async function anchorOnramp() {
     body: JSON.stringify({ asset_code: asset, account: address }),
   })).json();
   if (!intr.url) throw new Error("SEP-24 interactive deposit failed: " + (intr.error || "no url"));
-  return { url: intr.url, id: intr.id, asset, address };
+  return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer };
 }
 
 // Onramper — a licensed off-ramp AGGREGATOR (routes to MoonPay / Transak / Alchemy Pay, who

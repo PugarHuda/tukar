@@ -1617,11 +1617,12 @@ if ($("anchorBtn")) $("anchorBtn").addEventListener("click", async () => {
   btn.textContent = "Opening anchor…";
   status.innerHTML = `<span class="spin">◠</span> Anchor: authenticating (SEP-10) + opening a USDC deposit (SEP-24)…`;
   try {
-    const { url, id, asset } = await anchorOnramp();
+    const { url, id, asset, sep24, bearer } = await anchorOnramp();
     const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
     status.innerHTML = w
       ? `Anchor on-ramp opened for <b>${asset}</b> — complete the deposit in the anchor window (real SEP-24 session · tx ${esc(String(id).slice(0, 8))}…).`
       : `Anchor session ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">deposit ↗</a>`;
+    pollAnchorStatus(sep24, bearer, id).catch(() => {}); // track the SEP-24 deposit lifecycle
   } catch (e) {
     status.textContent = "Anchor on-ramp failed: " + ((e && e.message) || e);
   } finally {
@@ -1669,7 +1670,7 @@ async function pollAnchorStatus(sep24, bearer, id) {
     const t = await anchorTxStatus(sep24, bearer, id);
     if (!t) continue;
     const more = t.moreInfoUrl ? ` · <a href="${t.moreInfoUrl}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">details ↗</a>` : "";
-    status.innerHTML = `⛓ SEP-24 withdraw <b>${esc(String(id).slice(0, 8))}…</b> — status: <b style="color:#c9a36a;">${esc(pretty(t.status))}</b>${t.amountOut ? ` · you receive ${esc(String(t.amountOut))}` : ""}${more}`;
+    status.innerHTML = `⛓ SEP-24 transfer <b>${esc(String(id).slice(0, 8))}…</b> — status: <b style="color:#c9a36a;">${esc(pretty(t.status))}</b>${t.amountOut ? ` · you receive ${esc(String(t.amountOut))}` : ""}${more}`;
     if (terminal.test(t.status)) return;
   }
 }
