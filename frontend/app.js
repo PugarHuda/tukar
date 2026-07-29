@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, verifyThresholdOnChain, discloseThresholdViaPool, discloseAggregateViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, verifyThresholdOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, reconnect as walletReconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -16,15 +16,19 @@ const VKEY = "./circuit/verification_key.json?v=3";
 // Proves + verifies in-browser AND on the live Stellar threshold verifier (THRESHOLD_VERIFIER,
 // deployed additively); soundness also checked off-chain — npm run test:threshold, ZKey Ok!.
 const T_WASM = "./circuit/thresholdDisclosure.wasm?v=3";
-const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey?v=3";
-const T_VKEY = "./circuit/thresholdDisclosure_vk.json?v=3";
+const T_ZKEY = "./circuit/thresholdDisclosure_final.zkey?v=4";
+const T_VKEY = "./circuit/thresholdDisclosure_vk.json?v=4";
 // Aggregate (portfolio) disclosure — prove the SUM of the last 3 payments ≤ a cap,
 // without revealing any single amount. Bound to known deposits via pool.disclose_aggregate.
 const A_WASM = "./circuit/aggregateDisclosure.wasm?v=3";
-const A_ZKEY = "./circuit/aggregateDisclosure_final.zkey?v=3";
-const A_VKEY = "./circuit/aggregateDisclosure_vk.json?v=3";
+const A_ZKEY = "./circuit/aggregateDisclosure_final.zkey?v=4";
+const A_VKEY = "./circuit/aggregateDisclosure_vk.json?v=4";
 const AGG_N = 3;
-let disclosureMode = "exact", tVkey = null, aVkey = null;
+// Two-sided range (band) disclosure — prove lower ≤ amount ≤ upper, amount hidden.
+const R_WASM = "./circuit/rangeDisclosure.wasm?v=1";
+const R_ZKEY = "./circuit/rangeDisclosure_final.zkey?v=1";
+const R_VKEY = "./circuit/rangeDisclosure_vk.json?v=1";
+let disclosureMode = "exact", tVkey = null, aVkey = null, rVkey = null;
 // BN254 scalar field modulus
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const STROOPS = 10_000_000n; // USDC has 7 decimals on Stellar
@@ -944,6 +948,39 @@ function renderReceiptButton() {
   btn.innerHTML = `${icon("link", 11, "#8a847e")} Export audit receipt (JSON)`;
   btn.addEventListener("click", exportAuditReceipt);
   box.appendChild(btn);
+  // C3: anchor the receipt hash on-chain (tamper-evident + timestamped by the ledger).
+  const anc = document.createElement("button");
+  anc.className = "btn-export";
+  anc.setAttribute("data-anchor", "");
+  anc.style.marginTop = "8px";
+  anc.innerHTML = `${icon("shield", 11, "#8a847e")} Anchor receipt on-chain (timestamp)`;
+  anc.addEventListener("click", anchorReceiptOnChain);
+  box.appendChild(anc);
+}
+
+// C3: SHA-256 the receipt's canonical bytes (WITHOUT the anchor field) and commit that hash
+// to the ledger via a MemoHash tx, so the exact receipt is tamper-evident + timestamped.
+function receiptCanonical(r) {
+  // Hash only the attestation (proof + public inputs + verifier), not volatile metadata:
+  // `anchor` is added after hashing, and `exportedAt` is stamped at download time — so both
+  // must be excluded or the anchored hash and the re-verify hash would never match.
+  const { anchor, exportedAt, ...rest } = r;
+  return JSON.stringify(rest);
+}
+async function anchorReceiptOnChain() {
+  if (!lastDisclosure) return;
+  const btn = $("result").querySelector("[data-anchor]");
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spin">◠</span> anchoring on Stellar…`; }
+  status.textContent = "Anchoring the receipt hash on-chain…";
+  try {
+    const { txHash, sha256 } = await anchorReceipt(receiptCanonical(lastDisclosure));
+    lastDisclosure.anchor = { txHash, sha256, network: "Test SDF Network ; September 2015" };
+    if (btn) btn.innerHTML = `${icon("sealCheck", 11, "#5fe3a0")} Anchored — <a href="${txExplorer(txHash)}" target="_blank" rel="noreferrer" style="color:#5fe3a0">${short(txHash)} ↗</a>`;
+    status.textContent = "Receipt anchored on-chain — the export now carries a tamper-evident, timestamped proof.";
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = `${icon("shield", 11, "#8a847e")} Anchor receipt on-chain (timestamp)`; }
+    status.textContent = "Anchoring failed: " + ((e && e.message) || e);
+  }
 }
 function exportAuditReceipt() {
   if (!lastDisclosure) return;
@@ -980,8 +1017,19 @@ async function verifyReceipt() {
     const oc = await verifyDisclosureOnChain(r.proof, sigs);
     const mark = (b) => (b ? '<b style="color:#5fe3a0;">✓ valid</b>' : '<b style="color:#ff8a72;">✗ invalid</b>');
     const cmt = r.commitment || sigs[0];
+    let anchorLine = "";
+    if (r.anchor && r.anchor.sha256) {
+      // Recompute the receipt hash (minus the anchor field) and compare to the on-chain memo,
+      // confirming this exact receipt is the one timestamped on the ledger.
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(receiptCanonical(r))));
+      const h = [...digest].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const matches = h === r.anchor.sha256;
+      const tl = r.anchor.txHash ? `<a href="${txExplorer(r.anchor.txHash)}" target="_blank" rel="noreferrer" style="color:#5fe3a0">${esc(short(r.anchor.txHash))} ↗</a>` : "(no tx)";
+      anchorLine = `<div style="margin-top:4px">On-chain anchor: ${matches ? '<b style="color:#5fe3a0;">✓ content matches</b> the timestamped hash' : '<b style="color:#ff8a72;">✗ content does NOT match</b> the anchored hash'} · ${tl}</div>`;
+    }
     out.innerHTML = `In your browser: ${mark(local)} &nbsp;·&nbsp; On the live Stellar verifier: ${mark(oc.verified)}`
-      + `<div style="opacity:.7;margin-top:4px">commitment ${esc(short(cmt))}${r.disclosedAmountUsdc ? " · discloses $" + esc(String(r.disclosedAmountUsdc)) + " USDC" : ""} — the exact amount isn't needed to verify the proof.</div>`;
+      + `<div style="opacity:.7;margin-top:4px">commitment ${esc(short(cmt))}${r.disclosedAmountUsdc ? " · discloses $" + esc(String(r.disclosedAmountUsdc)) + " USDC" : ""} — the exact amount isn't needed to verify the proof.</div>`
+      + anchorLine;
   } catch (e) {
     out.innerHTML = '<span style="color:#ff8a72">Verification error: ' + esc((e && e.message) || String(e)) + "</span>";
   }
@@ -1108,6 +1156,52 @@ async function proveAggregate(auditContextHash) {
   }
 }
 
+// Two-sided range (band) disclosure: prove lower ≤ amount ≤ upper, amount hidden. Bound to
+// a known deposit via the pool (disclose_range).
+async function proveRange(note, auditContextHash) {
+  const lo = BigInt(Math.max(0, Math.floor(Number($("rangeLo").value) || 0))) * STROOPS;
+  const hi = BigInt(Math.max(1, Math.floor(Number($("rangeHi").value) || 1000))) * STROOPS;
+  $("proveBtn").disabled = true; $("proveBtn").classList.add("busy"); $("proveBtn").textContent = "Proving…";
+  setActiveStep(3); renderProof("proving");
+  status.innerHTML = '<span class="spin">◠</span> Proving “lower ≤ amount ≤ upper” in your browser…';
+  try {
+    const amt = BigInt(note.amount);
+    if (amt < lo || amt > hi) {
+      renderProof("rejected", { body: `This payment is <b style="color:#ff8a72;">outside $${fmtUsdc(lo)}–$${fmtUsdc(hi)} USDC</b>, so “in band” cannot be proven. Widen the band to disclose it's inside.` });
+      status.textContent = "Amount outside the band — no false proof is possible.";
+      return;
+    }
+    if (!rVkey) rVkey = await (await fetch(R_VKEY)).json();
+    const input = { commitment: note.commitment, lower: lo.toString(), upper: hi.toString(), auditContextHash, amount: note.amount, pubKey: note.pubKey, blinding: note.blinding };
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, R_WASM, R_ZKEY);
+    const ok = await snarkjs.groth16.verify(rVkey, publicSignals, proof);
+    if (!ok) { renderProof("rejected", { body: "In-browser verification failed unexpectedly." }); return; }
+    renderProof("verified", {
+      body: `Proven: this payment is <b style="color:#5fe3a0;">between $${fmtUsdc(lo)} and $${fmtUsdc(hi)} USDC</b> — the exact amount was <b>never revealed</b>. The regulator learns only that it's in the band.`,
+      mono: `commitment ${short(note.commitment)} · band $${fmtUsdc(lo)}–$${fmtUsdc(hi)} · amount hidden`,
+      onchain: "⛓ confirming on the pool (bound to a known deposit)…",
+    });
+    const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Range proof verified";
+    status.textContent = "Range disclosure verified in your browser — confirming on Stellar…";
+    try {
+      const oc = await discloseRangeViaPool(proof, publicSignals);
+      const el = $("result").querySelector("[data-onchain]");
+      if (oc.verified) {
+        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the band proof against a known deposit`;
+        if (pt) pt.textContent = "Range proof verified on-chain (bound to a known deposit)";
+        status.textContent = "Range disclosure verified — in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
+      } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
+    } catch (_) {
+      const el = $("result").querySelector("[data-onchain]"); if (el) el.textContent = "⛓ on-chain check unavailable (network).";
+    }
+  } catch (e) {
+    renderProof("rejected", { body: "Couldn't generate the range proof: " + esc((e && e.message) || String(e)) });
+    status.textContent = "Range proof failed.";
+  } finally {
+    $("proveBtn").disabled = false; $("proveBtn").classList.remove("busy"); $("proveBtn").textContent = "Generate & verify disclosure proof";
+  }
+}
+
 // Regulator: holder generates a disclosure proof; regulator verifies on-chain.
 async function proveAndVerify() {
   const auditContextHash = contextToField($("auditCtx").value).toString();
@@ -1119,6 +1213,7 @@ async function proveAndVerify() {
   if (!note) { status.textContent = "Select a confidential payment to audit first."; return; }
 
   if (disclosureMode === "threshold") return proveThreshold(note, auditContextHash);
+  if (disclosureMode === "range") return proveRange(note, auditContextHash);
 
   const tamper = $("tamper").checked;
   $("proveBtn").disabled = true;
@@ -1253,15 +1348,17 @@ function toggleTamper() {
 // threshold, amount hidden). Both have a live on-chain verifier and confirm there.
 function setDiscMode(mode) {
   disclosureMode = mode;
-  const isT = mode === "threshold", isA = mode === "aggregate";
+  const isT = mode === "threshold", isA = mode === "aggregate", isR = mode === "range";
   const tr = $("threshRow"); if (tr) tr.style.display = isT ? "block" : "none";
   const ar = $("aggRow"); if (ar) ar.style.display = isA ? "block" : "none";
+  const rr = $("rangeRow"); if (rr) rr.style.display = isR ? "block" : "none";
   const mark = (el, active) => { if (!el) return; el.style.borderColor = active ? "rgba(255,122,26,0.6)" : ""; el.style.color = active ? "var(--tp)" : ""; };
-  mark($("discExact"), !isT && !isA); mark($("discThresh"), isT); mark($("discAgg"), isA);
+  mark($("discExact"), !isT && !isA && !isR); mark($("discThresh"), isT); mark($("discAgg"), isA); mark($("discRange"), isR);
 }
 if ($("discExact")) $("discExact").addEventListener("click", () => setDiscMode("exact"));
 if ($("discThresh")) $("discThresh").addEventListener("click", () => setDiscMode("threshold"));
 if ($("discAgg")) $("discAgg").addEventListener("click", () => setDiscMode("aggregate"));
+if ($("discRange")) $("discRange").addEventListener("click", () => setDiscMode("range"));
 setDiscMode("exact");
 $("tamperLabel").addEventListener("click", toggleTamper);
 $("tamperLabel").addEventListener("keydown", (e) => {
@@ -1501,6 +1598,30 @@ if ($("anchorBtn")) $("anchorBtn").addEventListener("click", async () => {
       : `Anchor session ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">deposit ↗</a>`;
   } catch (e) {
     status.textContent = "Anchor on-ramp failed: " + ((e && e.message) || e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+// Real anchor OFF-ramp: SEP-10 auth + SEP-24 interactive USDC WITHDRAW — the exact protocol
+// call the receiving edge uses to turn USDC into local fiat. Against SDF's reference anchor
+// (no KYC on testnet); in production this same call points at a licensed off-ramp
+// (e.g. MoneyGram Ramps cash-out, also SEP-10/24). See docs/ANCHOR.md.
+if ($("offrampBtn")) $("offrampBtn").addEventListener("click", async () => {
+  const btn = $("offrampBtn");
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Opening anchor…";
+  status.innerHTML = `<span class="spin">◠</span> Anchor: authenticating (SEP-10) + opening a USDC withdraw (SEP-24)…`;
+  try {
+    const { url, id, asset } = await anchorOfframp();
+    const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
+    status.innerHTML = w
+      ? `Anchor off-ramp opened for <b>${asset}</b> — complete the cash-out in the anchor window (real SEP-24 withdraw · tx ${esc(String(id).slice(0, 8))}…).`
+      : `Anchor withdraw ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">withdraw ↗</a>`;
+  } catch (e) {
+    status.textContent = "Anchor off-ramp failed: " + ((e && e.message) || e);
   } finally {
     btn.disabled = false;
     btn.textContent = orig;

@@ -20,14 +20,17 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CA3HLJADFMCWVGPSMJ6M5NURW657B4HOX43FXA6XRHQMGJN5XSARJYUO";
+export const POOL = "CAHNYPRHRS66KJPOYQ64Q64XBWJA5VYKJY7KDGRMDNG6DRCHVHJQFG7U";
 export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
 // Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
 // contract, deployed additively (the 5 core contracts are unchanged).
-export const THRESHOLD_VERIFIER = "CCZLFV2P4MMU2AKP3NDNW7NE5SA4PR7KMZCLGYOCAJPA46SVSPQA53PY";
+export const THRESHOLD_VERIFIER = "CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR";
 // Standalone BN254 verifier for the aggregate (portfolio) disclosure circuit — the pool's
 // disclose_aggregate routes proofs to it (set via set_aggregate_verifier).
-export const AGGREGATE_VERIFIER = "CDDGYNDYHQ7TAEYIQLGEPK476NQIVK2R55HER4VVLCKJHGGBDCDSTRVR";
+export const AGGREGATE_VERIFIER = "CCHQODX4LGBUHJVDRPSG7DDPSXBLPNRQ5UYSBCSPYZV3K2R5LJHOCKBQ";
+// BN254 verifier for the two-sided range (band) disclosure circuit — pool.disclose_range
+// routes proofs to it (set via set_range_verifier).
+export const RANGE_VERIFIER = "CDUONEVPPH7WI7EPSXZE3YXEF4FHHJM7HFJOTZBCJNJSUG26UMENUPQW";
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 // We read USD->local rates from this live contract for the off-ramp figure.
 export const REFLECTOR_FX = "CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU5NV4W";
@@ -366,6 +369,29 @@ export async function discloseAggregateViaPool(proof, publicSignals) {
   }
 }
 
+/**
+ * Two-sided range (band) disclosure verified THROUGH THE POOL: disclose_range checks the
+ * commitment is a known on-chain deposit, then verifies lower <= amount <= upper. Read-only
+ * simulation. publicSignals order is [commitment, lower, upper, auditContextHash].
+ */
+export async function discloseRangeViaPool(proof, publicSignals) {
+  try {
+    const client = await verifierClient(POOL);
+    const at = await client.disclose_range({
+      proof: { a: buf(g1(proof.pi_a)), b: buf(g2(proof.pi_b)), c: buf(g1(proof.pi_c)) },
+      commitment: buf32(publicSignals[0]),
+      lower: buf32(publicSignals[1]),
+      upper: buf32(publicSignals[2]),
+      audit_context: buf32(publicSignals[3]),
+    });
+    const r = at.result;
+    const ok = r === true || r?.value === true || r?.tag === "Ok";
+    return ok ? { verified: true } : { verified: false, error: "pool returned false" };
+  } catch (e) {
+    return { verified: false, error: (e && e.message) || String(e) };
+  }
+}
+
 const buf32 = (dec) => buf(BigInt(dec).toString(16).padStart(64, "0"));
 
 let _asp;
@@ -393,13 +419,14 @@ export function usingWallet() { return !!_wallet; }
 // a production deploy would point ANCHOR at a licensed anchor issuing the corridor's
 // asset — that last mile is a partner + KYC, not code.
 const ANCHOR = "https://testanchor.stellar.org";
-export async function anchorOnramp() {
+// SEP-1 discovery + SEP-10 web-auth against the anchor: returns an authenticated bearer
+// JWT + the SEP-24 transfer server. Shared by the on-ramp (deposit) and off-ramp (withdraw).
+async function anchorAuth() {
   const address = activeAddress();
   const toml = await (await fetch(`${ANCHOR}/.well-known/stellar.toml`)).text();
   const grab = (k) => (toml.match(new RegExp(`^${k}\\s*=\\s*"([^"]+)"`, "m")) || [])[1];
   const WEB_AUTH = grab("WEB_AUTH_ENDPOINT"), SEP24 = grab("TRANSFER_SERVER_SEP0024");
   if (!WEB_AUTH || !SEP24) throw new Error("anchor stellar.toml is missing endpoints");
-  // SEP-10: fetch the challenge tx, add our signature, exchange it for a JWT.
   const chal = await (await fetch(`${WEB_AUTH}?account=${address}&home_domain=testanchor.stellar.org`)).json();
   if (!chal.transaction) throw new Error("SEP-10 challenge failed: " + (chal.error || "no transaction"));
   const netPass = chal.network_passphrase || PASSPHRASE;
@@ -416,8 +443,11 @@ export async function anchorOnramp() {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction: signedXdr }),
   })).json();
   if (!jwtRes.token) throw new Error("SEP-10 auth failed: " + (jwtRes.error || "no token"));
-  const bearer = { Authorization: `Bearer ${jwtRes.token}` };
-  // SEP-24: pick USDC (fallback to whatever the anchor supports) and open the session.
+  return { bearer: { Authorization: `Bearer ${jwtRes.token}` }, SEP24, address };
+}
+
+export async function anchorOnramp() {
+  const { bearer, SEP24, address } = await anchorAuth();
   const info = await (await fetch(`${SEP24}/info`, { headers: bearer })).json();
   const assets = Object.keys(info.deposit || {});
   const asset = assets.includes("USDC") ? "USDC" : (assets[0] || "USDC");
@@ -426,6 +456,28 @@ export async function anchorOnramp() {
     body: JSON.stringify({ asset_code: asset, account: address }),
   })).json();
   if (!intr.url) throw new Error("SEP-24 interactive deposit failed: " + (intr.error || "no url"));
+  return { url: intr.url, id: intr.id, asset, address };
+}
+
+/**
+ * REAL off-ramp (SEP-24 WITHDRAW): the exact protocol call a corridor uses to turn USDC
+ * into local fiat at the RECEIVING edge — same SEP-10 auth, then a genuine hosted
+ * withdraw session. Against SDF's reference anchor on testnet (no KYC). In production this
+ * IDENTICAL call points at a licensed off-ramp home_domain — e.g. MoneyGram Ramps for
+ * cash-out in 170+ countries (also SEP-10/24), or an Alchemy Pay / Transak style ramp —
+ * which holds the money-transmitter licenses and runs KYC inside its own webview, so Tukar
+ * never becomes a transmitter. Returns { url, id, asset, address }.
+ */
+export async function anchorOfframp() {
+  const { bearer, SEP24, address } = await anchorAuth();
+  const info = await (await fetch(`${SEP24}/info`, { headers: bearer })).json();
+  const assets = Object.keys(info.withdraw || {});
+  const asset = assets.includes("USDC") ? "USDC" : (assets[0] || "USDC");
+  const intr = await (await fetch(`${SEP24}/transactions/withdraw/interactive`, {
+    method: "POST", headers: { ...bearer, "Content-Type": "application/json" },
+    body: JSON.stringify({ asset_code: asset, account: address }),
+  })).json();
+  if (!intr.url) throw new Error("SEP-24 interactive withdraw failed: " + (intr.error || "no url"));
   return { url: intr.url, id: intr.id, asset, address };
 }
 
@@ -522,6 +574,28 @@ export async function addUsdcTrustline(address, signTransaction) {
   const { signedTxXdr } = await signTransaction(tx.toXDR(), { networkPassphrase: PASSPHRASE, address });
   const signed = Sdk.TransactionBuilder.fromXDR(signedTxXdr, PASSPHRASE);
   return submitClassic(signed);
+}
+
+/**
+ * Anchor an audit receipt on-chain: submit a MemoHash transaction whose memo is the
+ * SHA-256 of the receipt's canonical bytes. The ledger then holds a tamper-evident,
+ * TIMESTAMPED commitment to that exact receipt — anyone can later confirm the receipt
+ * they hold hashes to the memo of this tx, at the tx's ledger close time. Signed by the
+ * demo key (a 1e-7 XLM self-payment carries the memo). Returns { txHash, sha256 }.
+ */
+export async function anchorReceipt(canonicalString) {
+  const kp = Sdk.Keypair.fromSecret(DEMO_SECRET);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalString)));
+  const sha256 = [...digest].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const acct = await server.getAccount(kp.publicKey());
+  const tx = new Sdk.TransactionBuilder(acct, { fee: Sdk.BASE_FEE, networkPassphrase: PASSPHRASE })
+    .addOperation(Sdk.Operation.payment({ destination: kp.publicKey(), asset: Sdk.Asset.native(), amount: "0.0000001" }))
+    .addMemo(Sdk.Memo.hash(sha256))
+    .setTimeout(120)
+    .build();
+  tx.sign(kp);
+  const txHash = await submitClassic(tx);
+  return { txHash, sha256 };
 }
 
 /** Faucet: the demo key sends `amount` USDC to `address` (needs a trustline). */

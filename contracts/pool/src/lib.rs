@@ -112,6 +112,7 @@ enum DataKey {
     FxOracle,         // Reflector SEP-40 oracle address (USD-base FX feed)
     ThresholdVerifier, // BN254 verifier for the threshold (range) disclosure circuit
     AggregateVerifier, // BN254 verifier for the aggregate (portfolio) disclosure circuit
+    RangeVerifier,     // BN254 verifier for the two-sided range (band) disclosure circuit
 }
 
 // ---- Reflector SEP-40 oracle interface (the subset the pool calls) ----
@@ -205,6 +206,18 @@ impl Pool {
     /// The aggregate (portfolio) disclosure verifier, if one has been set.
     pub fn aggregate_verifier(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::AggregateVerifier)
+    }
+
+    /// Admin-only: set (or replace) the two-sided range (band) disclosure verifier.
+    pub fn set_range_verifier(env: Env, verifier: Address) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::RangeVerifier, &verifier);
+    }
+
+    /// The two-sided range (band) disclosure verifier, if one has been set.
+    pub fn range_verifier(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::RangeVerifier)
     }
 
     /// Admin-only: replace the ASP allow-list root (the allow-list "policy
@@ -717,6 +730,37 @@ impl Pool {
         pi.push_back(Self::fr(&env, &cap));
         pi.push_back(Self::fr(&env, &audit_context));
         Self::verify(&env, DataKey::AggregateVerifier, &proof, &pi);
+        true
+    }
+
+    /// Verify a two-sided RANGE (band) disclosure proof: prove the payment behind
+    /// `commitment` satisfies lower <= amount <= upper WITHOUT revealing the amount. Like
+    /// the other disclosures, the commitment must be a known on-chain deposit. The range
+    /// circuit's public inputs are [commitment, lower, upper, auditContextHash]. Requires
+    /// the admin to have set the range verifier (set_range_verifier).
+    pub fn disclose_range(
+        env: Env,
+        proof: Groth16Proof,
+        commitment: BytesN<32>,
+        lower: BytesN<32>,
+        upper: BytesN<32>,
+        audit_context: BytesN<32>,
+    ) -> bool {
+        Self::require_canonical(&env, &commitment);
+        if !env.storage().persistent().has(&DataKey::Commitment(commitment.clone())) {
+            soroban_sdk::panic_with_error!(&env, PoolError::UnknownCommitment);
+        }
+        if !env.storage().instance().has(&DataKey::RangeVerifier) {
+            soroban_sdk::panic_with_error!(&env, PoolError::ProofRejected);
+        }
+        let pi = vec![
+            &env,
+            Self::fr(&env, &commitment),
+            Self::fr(&env, &lower),
+            Self::fr(&env, &upper),
+            Self::fr(&env, &audit_context),
+        ];
+        Self::verify(&env, DataKey::RangeVerifier, &proof, &pi);
         true
     }
 

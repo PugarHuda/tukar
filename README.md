@@ -86,7 +86,7 @@ Tukar differs and where it stays composable, see
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CA3HLJADFMCWVGPSMJ6M5NURW657B4HOX43FXA6XRHQMGJN5XSARJYUO) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CAHNYPRHRS66KJPOYQ64Q64XBWJA5VYKJY7KDGRMDNG6DRCHVHJQFG7U) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2) | ASP allow/deny | `verify` → `true` |
@@ -95,7 +95,7 @@ Tukar differs and where it stays composable, see
   **Contract addresses (Stellar testnet)** — copy-paste form of the table above:
 
   ```
-  pool                 CA3HLJADFMCWVGPSMJ6M5NURW657B4HOX43FXA6XRHQMGJN5XSARJYUO
+  pool                 CAHNYPRHRS66KJPOYQ64Q64XBWJA5VYKJY7KDGRMDNG6DRCHVHJQFG7U
   transfer verifier    CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE
   compliance verifier  CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2
   disclosure verifier  CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V
@@ -176,7 +176,7 @@ amount kept private; over-threshold and a mismatched commitment are unprovable),
 derives from the same Hermez phase-1 (`ZKey Ok!`). It's **wired into the live demo AND
 verified on-chain** — the Regulator step has a *"≤ Threshold · amount hidden"* mode that
 proves the range in the browser and confirms it on a **deployed standalone verifier**
-([`CCZLFV2P…53PY`](https://stellar.expert/explorer/testnet/contract/CCZLFV2P4MMU2AKP3NDNW7NE5SA4PR7KMZCLGYOCAJPA46SVSPQA53PY),
+([`CCZLFV2P…53PY`](https://stellar.expert/explorer/testnet/contract/CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR),
 a 6th contract deployed **additively** — the 5 core contracts are unchanged). Verified live:
 `≤ $1000` proves with the amount hidden and passes on-chain; `≤ $100` on a $500 payment is
 honestly shown unprovable.

@@ -137,6 +137,28 @@ await tc("aggregate wrong path: sum over cap is unprovable", async () => {
   await page.locator("#result").filter({ hasText: /above|cannot be proven|over cap/i }).waitFor({ timeout: 45000 });
 });
 
+// C2 range (band) disclosure via the pool — HAPPY: amount inside [1, 5000] verifies on-chain.
+await tc("range disclosure in-band verified on-chain (via pool)", async () => {
+  await goStep(3);
+  await page.locator("#auditSelect").selectOption({ index: 1 }).catch(() => {});
+  await page.locator("#discRange").click();
+  await page.locator("#rangeLo").fill("1");
+  await page.locator("#rangeHi").fill("5000");
+  await page.locator("#proveBtn").click();
+  await page.locator("#result [data-onchain]").filter({ hasText: /Verified on-chain/i }).waitFor({ timeout: 60000 });
+});
+
+// Range — WRONG: an amount outside the band can't be proven (soundness).
+await tc("range wrong path: amount outside the band is unprovable", async () => {
+  await goStep(3);
+  await page.locator("#auditSelect").selectOption({ index: 1 }).catch(() => {});
+  await page.locator("#discRange").click();
+  await page.locator("#rangeLo").fill("1000"); // 20 USDC note is below 1000
+  await page.locator("#rangeHi").fill("5000");
+  await page.locator("#proveBtn").click();
+  await page.locator("#result").filter({ hasText: /outside|cannot be proven|no false proof/i }).waitFor({ timeout: 45000 });
+});
+
 // Receipt re-verify — HAPPY: export a REAL receipt from an exact disclosure, paste it back,
 // and confirm it re-verifies both in-browser and on the live Stellar verifier.
 await tc("receipt verify: real exported receipt re-verifies in-browser + on-chain", async () => {
@@ -157,6 +179,36 @@ await tc("receipt verify: real exported receipt re-verifies in-browser + on-chai
   await page.locator("#receiptResult").filter({ hasText: /valid/i }).waitFor({ timeout: 30000 });
   const txt = await page.locator("#receiptResult").innerText();
   assert(/browser:[\s\S]*valid/i.test(txt) && /Stellar[\s\S]*valid/i.test(txt), `receipt not both-valid: "${txt}"`);
+});
+
+// C3: anchor the receipt hash on-chain (MemoHash tx), then confirm a re-exported receipt
+// carries the anchor and its content matches the timestamped hash.
+await tc("receipt anchoring: on-chain timestamp + content-match re-verify", async () => {
+  await goStep(3);
+  await page.locator("[data-anchor]").click();
+  await page.locator("[data-anchor]").filter({ hasText: /Anchored/i }).waitFor({ timeout: 90000 });
+  const [dl] = await Promise.all([
+    page.waitForEvent("download", { timeout: 15000 }),
+    page.locator("[data-receipt]").click(),
+  ]);
+  const stream = await dl.createReadStream();
+  let content = ""; for await (const chunk of stream) content += chunk.toString();
+  assert(/"anchor"/.test(content), "re-exported receipt is missing the anchor field");
+  await page.locator(".verify-receipt").evaluate((el) => { el.open = true; });
+  await page.locator("#receiptInput").fill(content);
+  await page.locator("#verifyReceiptBtn").click();
+  await page.locator("#receiptResult").filter({ hasText: /content matches/i }).waitFor({ timeout: 60000 });
+});
+
+// C5: real off-ramp — the SEP-24 WITHDRAW button runs SEP-10 auth + opens a genuine hosted
+// withdraw session against the reference anchor (or surfaces a handled error). Real external
+// call, so assert the handler reached a definitive outcome without crashing.
+await tc("real anchor off-ramp (SEP-24 withdraw) reaches a definitive outcome", async () => {
+  await goStep(2); await connect();
+  const before = pageErrors.length;
+  await page.locator("#offrampBtn").click();
+  await page.locator("#status").filter({ hasText: /off-ramp opened|withdraw ↗|SEP-24 withdraw|off-ramp failed/i }).waitFor({ timeout: 45000 });
+  assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 
 console.log(`\nUncaught page errors during run: ${pageErrors.length ? JSON.stringify(pageErrors) : "none"}`);

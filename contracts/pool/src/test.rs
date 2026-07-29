@@ -928,3 +928,35 @@ fn disclose_aggregate_rejects_wrong_count() {
     let commits: Vec<BytesN<32>> = vec![&env, c0]; // 1 != AGG_N (3)
     c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &b32(&env, 50), &b32(&env, 7));
 }
+
+// C2: two-sided range (band) disclosure is bound to a KNOWN pool commitment.
+#[test]
+fn disclose_range_binds_known_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_range_verifier(&v);
+    assert!(c.pool.disclose_range(&dummy_proof(&env), &commitment, &b32(&env, 10), &b32(&env, 90), &b32(&env, 7)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn disclose_range_rejects_unknown_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let v = env.register(MockVerifier, ());
+    c.pool.set_range_verifier(&v);
+    c.pool.disclose_range(&dummy_proof(&env), &b32(&env, 77), &b32(&env, 10), &b32(&env, 90), &b32(&env, 7));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")] // ProofRejected: verifier not configured
+fn disclose_range_requires_verifier_set() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.disclose_range(&dummy_proof(&env), &commitment, &b32(&env, 10), &b32(&env, 90), &b32(&env, 7));
+}

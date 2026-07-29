@@ -225,6 +225,7 @@
         <div id="incoming" class="list">
           <div class="empty"><div class="t">Nothing received yet.</div><div class="s" style="color:#6b645e;">Send a payment from Country A →</div></div>
         </div>
+        <button id="offrampBtn" class="btn-ghost" style="margin-top:10px;width:100%;font-size:11.5px;">↗ Cash out to fiat via a real anchor (SEP-10 + SEP-24 withdraw)</button>
         <div class="spacer"></div>
         <div class="foot-note">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b645e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20H20"/><path d="M12 4V9.5"/><path d="M9 12 12 9 15 12 12 15Z"/><path d="M12 15V19.5"/><path d="M9.6 17.6 12 20 14.4 17.6"/></svg>
@@ -254,6 +255,7 @@
           <button id="discExact" class="btn-wd" style="margin-top:0;flex:1;min-width:110px;">Exact amount</button>
           <button id="discThresh" class="btn-wd" style="margin-top:0;flex:1;min-width:110px;">≤ Threshold · amount hidden</button>
           <button id="discAgg" class="btn-wd" style="margin-top:0;flex:1;min-width:110px;">Σ Portfolio ≤ cap</button>
+          <button id="discRange" class="btn-wd" style="margin-top:0;flex:1;min-width:110px;">Band X–Y · amount hidden</button>
         </div>
         <div id="threshRow" style="display:none;">
           <label class="fld mt">REPORTING THRESHOLD (USDC)</label>
@@ -264,6 +266,14 @@
           <label class="fld mt">REPORTING CAP (USDC · total of last 3 payments)</label>
           <input id="aggCap" class="tk-input" type="number" min="1" value="5000" aria-label="Aggregate reporting cap in USDC" />
           <div class="foot-note" style="margin-top:6px;">Prove the <b>sum of your last 3 on-chain payments</b> is under this cap without revealing any single amount — the shape of a real periodic (CTR) report. Bound to known deposits and verified on the live Stellar aggregate verifier.</div>
+        </div>
+        <div id="rangeRow" style="display:none;">
+          <label class="fld mt">REPORTING BAND (USDC · lower – upper)</label>
+          <div class="import-row" style="gap:8px;margin-top:7px;">
+            <input id="rangeLo" class="tk-input" type="number" min="0" value="100" aria-label="Band lower bound in USDC" style="flex:1;" />
+            <input id="rangeHi" class="tk-input" type="number" min="1" value="1000" aria-label="Band upper bound in USDC" style="flex:1;" />
+          </div>
+          <div class="foot-note" style="margin-top:6px;">Prove the payment is <b>inside this band</b> (lower ≤ amount ≤ upper) without revealing the exact amount — "in the reportable bracket". Bound to a known deposit and verified on the live Stellar range verifier.</div>
         </div>
 
         <label id="tamperLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false">
@@ -314,7 +324,7 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
           disclosure verifier ↗
         </a>
-        <a class="fchip" href="https://stellar.expert/explorer/testnet/contract/CA3HLJADFMCWVGPSMJ6M5NURW657B4HOX43FXA6XRHQMGJN5XSARJYUO" target="_blank" rel="noreferrer">
+        <a class="fchip" href="https://stellar.expert/explorer/testnet/contract/CAHNYPRHRS66KJPOYQ64Q64XBWJA5VYKJY7KDGRMDNG6DRCHVHJQFG7U" target="_blank" rel="noreferrer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
           pool contract ↗
         </a>
