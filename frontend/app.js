@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, verifyThresholdOnChain, verifyProofOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, onramperQuote, onramperOfframpUrl, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, verifyThresholdOnChain, verifyProofOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, anchorTxStatus, onramperQuote, onramperOfframpUrl, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, reconnect as walletReconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -1641,11 +1641,14 @@ if ($("offrampBtn")) $("offrampBtn").addEventListener("click", async () => {
   btn.textContent = "Opening anchor…";
   status.innerHTML = `<span class="spin">◠</span> Anchor: authenticating (SEP-10) + opening a USDC withdraw (SEP-24)…`;
   try {
-    const { url, id, asset } = await anchorOfframp();
+    const { url, id, asset, sep24, bearer } = await anchorOfframp();
     const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
     status.innerHTML = w
       ? `Anchor off-ramp opened for <b>${asset}</b> — complete the cash-out in the anchor window (real SEP-24 withdraw · tx ${esc(String(id).slice(0, 8))}…).`
       : `Anchor withdraw ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">withdraw ↗</a>`;
+    // Track the REAL SEP-24 lifecycle: poll the anchor's transaction status (it advances as
+    // the user completes KYC + transfer in the anchor window).
+    pollAnchorStatus(sep24, bearer, id).catch(() => {});
   } catch (e) {
     status.textContent = "Anchor off-ramp failed: " + ((e && e.message) || e);
   } finally {
@@ -1653,6 +1656,23 @@ if ($("offrampBtn")) $("offrampBtn").addEventListener("click", async () => {
     btn.textContent = orig;
   }
 });
+
+// Poll a SEP-24 transaction's status a handful of times and surface the anchor lifecycle in
+// the status line (pending_user_transfer_start → … → completed). Best-effort; stops on a
+// terminal status or after a few tries so it never spins forever.
+async function pollAnchorStatus(sep24, bearer, id) {
+  if (!sep24 || !bearer || !id) return;
+  const pretty = (s) => String(s).replace(/_/g, " ");
+  const terminal = /completed|refunded|error|expired|no_market/i;
+  for (let i = 0; i < 6; i++) {
+    await new Promise((r) => setTimeout(r, 4000));
+    const t = await anchorTxStatus(sep24, bearer, id);
+    if (!t) continue;
+    const more = t.moreInfoUrl ? ` · <a href="${t.moreInfoUrl}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">details ↗</a>` : "";
+    status.innerHTML = `⛓ SEP-24 withdraw <b>${esc(String(id).slice(0, 8))}…</b> — status: <b style="color:#c9a36a;">${esc(pretty(t.status))}</b>${t.amountOut ? ` · you receive ${esc(String(t.amountOut))}` : ""}${more}`;
+    if (terminal.test(t.status)) return;
+  }
+}
 
 // Off-ramp via Onramper (licensed aggregator: MoonPay / Transak / Alchemy Pay). Self-serve —
 // fetch a REAL live sell quote, then open the hosted widget where the provider does KYC + fiat

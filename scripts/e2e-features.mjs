@@ -203,11 +203,16 @@ await tc("receipt anchoring: on-chain timestamp + content-match re-verify", asyn
 // C5: real off-ramp — the SEP-24 WITHDRAW button runs SEP-10 auth + opens a genuine hosted
 // withdraw session against the reference anchor (or surfaces a handled error). Real external
 // call, so assert the handler reached a definitive outcome without crashing.
-await tc("real anchor off-ramp (SEP-24 withdraw) reaches a definitive outcome", async () => {
+await tc("real anchor off-ramp (SEP-24 withdraw) + status polling reaches a definitive outcome", async () => {
   await goStep(2); await connect();
   const before = pageErrors.length;
   await page.locator("#offrampBtn").click();
   await page.locator("#status").filter({ hasText: /off-ramp opened|withdraw ↗|SEP-24 withdraw|off-ramp failed/i }).waitFor({ timeout: 45000 });
+  // The status poller then advances the line to the anchor's real SEP-24 status (or the
+  // opened line persists if the anchor RPC is slow) — either way, no crash.
+  await page.waitForTimeout(9000);
+  const txt = await statusText();
+  assert(/status:|off-ramp opened|withdraw ↗/i.test(txt), `unexpected status after poll: "${txt}"`);
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 

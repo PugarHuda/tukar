@@ -535,7 +535,25 @@ export async function anchorOfframp() {
     body: JSON.stringify({ asset_code: asset, account: address }),
   })).json();
   if (!intr.url) throw new Error("SEP-24 interactive withdraw failed: " + (intr.error || "no url"));
-  return { url: intr.url, id: intr.id, asset, address };
+  // Return the SEP-24 server + bearer so the caller can POLL the transaction's status
+  // (the anchor lifecycle: pending_user_transfer_start -> ... -> completed).
+  return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer };
+}
+
+/**
+ * Poll a SEP-24 transaction's status (the anchor's real lifecycle) — GET {sep24}/transaction?id=.
+ * Returns { status, message, moreInfoUrl, amountOut } or null. Standard SEP-24, so it works
+ * against the reference anchor now and any licensed anchor in production unchanged.
+ */
+export async function anchorTxStatus(sep24, bearer, id) {
+  try {
+    const res = await (await fetch(`${sep24}/transaction?id=${encodeURIComponent(id)}`, { headers: bearer })).json();
+    const t = res && (res.transaction || res);
+    if (!t || !t.status) return null;
+    return { status: t.status, message: t.message || "", moreInfoUrl: t.more_info_url || "", amountOut: t.amount_out || "" };
+  } catch (_) {
+    return null;
+  }
 }
 
 let _poolWrite;
