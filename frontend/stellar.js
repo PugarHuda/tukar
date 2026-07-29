@@ -418,16 +418,21 @@ export function usingWallet() { return !!_wallet; }
 // { url, id, asset, address }. Uses SDF's public REFERENCE anchor on testnet (no KYC);
 // a production deploy would point ANCHOR at a licensed anchor issuing the corridor's
 // asset — that last mile is a partner + KYC, not code.
-const ANCHOR = "https://testanchor.stellar.org";
+// Anchor config = the fiat on/off-ramp's SEP home. Swapping this ONE object to a licensed
+// anchor is the entire change to go from the SDF testnet reference anchor to a production
+// off-ramp — the SEP-10/24 flow below is byte-for-byte identical. See docs/ANCHOR.md §Go-live.
+//   Production (MoneyGram Ramps, after the one-time allowlisting email — set to MoneyGram's
+//   published home_domain): const ANCHOR = { base: "https://<mgi-home>", home: "<mgi-home>" };
+const ANCHOR = { base: "https://testanchor.stellar.org", home: "testanchor.stellar.org" };
 // SEP-1 discovery + SEP-10 web-auth against the anchor: returns an authenticated bearer
 // JWT + the SEP-24 transfer server. Shared by the on-ramp (deposit) and off-ramp (withdraw).
 async function anchorAuth() {
   const address = activeAddress();
-  const toml = await (await fetch(`${ANCHOR}/.well-known/stellar.toml`)).text();
+  const toml = await (await fetch(`${ANCHOR.base}/.well-known/stellar.toml`)).text();
   const grab = (k) => (toml.match(new RegExp(`^${k}\\s*=\\s*"([^"]+)"`, "m")) || [])[1];
   const WEB_AUTH = grab("WEB_AUTH_ENDPOINT"), SEP24 = grab("TRANSFER_SERVER_SEP0024");
   if (!WEB_AUTH || !SEP24) throw new Error("anchor stellar.toml is missing endpoints");
-  const chal = await (await fetch(`${WEB_AUTH}?account=${address}&home_domain=testanchor.stellar.org`)).json();
+  const chal = await (await fetch(`${WEB_AUTH}?account=${address}&home_domain=${ANCHOR.home}`)).json();
   if (!chal.transaction) throw new Error("SEP-10 challenge failed: " + (chal.error || "no transaction"));
   const netPass = chal.network_passphrase || PASSPHRASE;
   let signedXdr;

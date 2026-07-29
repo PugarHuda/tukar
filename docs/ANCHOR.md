@@ -56,6 +56,49 @@ transmitter, and (4) covers nearly every corridor via cash pickup.
 routing to Alchemy Pay / Transak, both of which off-ramp Stellar-native USDC under their
 own licenses.
 
+## Go-live — step by step
+
+The demo already speaks the full protocol against SDF's reference anchor. To make the
+off-ramp pay **real fiat**, only these steps remain — none of them change Tukar's ZK or
+contract code.
+
+### Path A — MoneyGram Ramps (recommended, cash-out 170+ countries)
+
+1. **Register / request allowlisting.** Read the integration guide
+   (https://developer.moneygram.com/moneygram-developer/docs/integrate-moneygram-ramps) and
+   email MoneyGram to allowlist your Stellar signing key. For the non-custodial (wallet)
+   model you share the SIGNING_KEY from your `stellar.toml`; MoneyGram whitelists it so its
+   sandbox accepts your SEP-10 auth.
+2. **Fund a testnet USDC account.** Use MoneyGram's testnet USDC issuer
+   `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` (add the trustline, get test
+   USDC). The demo key already handles trustlines (`addUsdcTrustline`).
+3. **Dry-run with the public Postman collection**
+   (https://www.postman.com/sdf-eng/sdf-public-workspace/collection/ossy3ql/moneygram-stellar-api)
+   — confirm SEP-10 auth + SEP-24 `withdraw/interactive` return a hosted URL for your key.
+4. **Flip one line** in `frontend/stellar.js`:
+   ```js
+   const ANCHOR = { base: "https://<moneygram-home>", home: "<moneygram-home>" };
+   ```
+   That's it — `anchorOfframp()` (SEP-10 + `/transactions/withdraw/interactive`) is unchanged;
+   the "Cash out to fiat" button now opens MoneyGram's KYC + cash-pickup webview.
+5. **Production preview** (optional, mainnet): MoneyGram's preview caps apply (5 USDC min /
+   2,500 max per tx). KYC + fiat payout happen inside MoneyGram — Tukar never custodies fiat
+   and is not a money transmitter.
+
+### Path B — Onramper (self-serve sandbox, zero business relationship, for a live click-through)
+
+1. Get a staging key at https://docs.onramper.com/docs/integration-steps-1 (no contract).
+2. Call the sell/off-ramp quote on `https://api-stg.onramper.com/` for USDC-on-Stellar →
+   local fiat (routes to Alchemy Pay / Transak, who hold the licenses + embed KYC).
+3. Open their hosted widget URL from the Receiver step (same button, different provider).
+   Useful when you want a *self-serve* demo without MoneyGram's allowlisting email.
+
+### What stays the same regardless of anchor
+
+The ZK privacy layer, the compliance proofs, the on-chain oracle **settlement gate**
+(min-receive floor, `withdraw(offramp_symbol, min_local_out)`), and selective disclosure are
+all unchanged — the anchor only closes the fiat last mile.
+
 ### Honest caveat for the pitch
 
 SEA **bank-deposit** off-ramp (IDR/THB/VND) has **no live Stellar-native anchor** today.
