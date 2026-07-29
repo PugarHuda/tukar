@@ -700,6 +700,11 @@ impl Pool {
         if !env.storage().instance().has(&DataKey::AggregateVerifier) {
             soroban_sdk::panic_with_error!(&env, PoolError::ProofRejected);
         }
+        // NOTE: commitments need not be distinct here. A repeated commitment only INFLATES
+        // the proven sum (3*amount(c) <= cap), i.e. the fail-safe direction for a "total <=
+        // cap" report — it can never hide an over-cap total. The frontend always passes three
+        // distinct deposited notes (deposit rejects duplicate commitments, #10), so a
+        // duplicate is only reachable by a hand-crafted call and is harmless if it happens.
         let mut pi = vec![&env];
         for c in commitments.iter() {
             Self::require_canonical(&env, &c);

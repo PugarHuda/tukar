@@ -290,6 +290,11 @@ async function init() {
         if (r && r.address) {
           walletConn = { address: r.address };
           showConnected(`<b>${shortAddr(r.address)}</b>`, null);
+        } else {
+          // Was connected before, but Freighter is now locked/denied on reload. Don't
+          // silently fall back to the demo key — prompt an explicit reconnect (Send stays
+          // gated until then, so nothing transacts under the wrong signer).
+          $("walletTag").innerHTML = '<span style="opacity:.75;font-size:11px;color:#c9a36a">Freighter session expired — click “Connect wallet”</span>';
         }
       })();
     }
@@ -1053,7 +1058,9 @@ async function proveAggregate(auditContextHash) {
     return;
   }
   const sel = known.slice(0, AGG_N);
-  const capStroops = BigInt(Math.max(1, Math.floor(Number($("aggCap").value) || 0))) * STROOPS;
+  // Blank/invalid cap defaults to the placeholder (5000), not a 1-stroop cap that would
+  // reject every real total.
+  const capStroops = BigInt(Math.max(1, Math.floor(Number($("aggCap").value) || 5000))) * STROOPS;
   const total = sel.reduce((s, n) => s + BigInt(n.amount), 0n);
   $("proveBtn").disabled = true; $("proveBtn").classList.add("busy"); $("proveBtn").textContent = "Proving…";
   setActiveStep(3); renderProof("proving");
