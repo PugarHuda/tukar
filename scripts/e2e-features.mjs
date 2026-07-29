@@ -211,6 +211,15 @@ await tc("real anchor off-ramp (SEP-24 withdraw) reaches a definitive outcome", 
   assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
 });
 
+// C5 Path B: Onramper — fetch a REAL live sell quote from licensed providers + open the widget.
+await tc("Onramper off-ramp fetches a live quote / opens the widget", async () => {
+  await goStep(2); await connect();
+  const before = pageErrors.length;
+  await page.locator("#onramperBtn").click();
+  await page.locator("#status").filter({ hasText: /Onramper off-ramp opened|Onramper ready|via <b|off-ramp failed|no live/i }).waitFor({ timeout: 45000 });
+  assert(pageErrors.length === before, `uncaught: ${pageErrors.slice(before).join("; ")}`);
+});
+
 console.log(`\nUncaught page errors during run: ${pageErrors.length ? JSON.stringify(pageErrors) : "none"}`);
 const passed = results.filter((r) => r[0]).length;
 console.log(`\n=== ${passed}/${results.length} feature cases passed ===`);

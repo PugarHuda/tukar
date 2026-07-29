@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, verifyThresholdOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, verifyThresholdOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, onramperQuote, onramperOfframpUrl, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, reconnect as walletReconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -1622,6 +1622,37 @@ if ($("offrampBtn")) $("offrampBtn").addEventListener("click", async () => {
       : `Anchor withdraw ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">withdraw ↗</a>`;
   } catch (e) {
     status.textContent = "Anchor off-ramp failed: " + ((e && e.message) || e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+// Off-ramp via Onramper (licensed aggregator: MoonPay / Transak / Alchemy Pay). Self-serve —
+// fetch a REAL live sell quote, then open the hosted widget where the provider does KYC + fiat
+// payout. USDC-on-Stellar is native; no SEP allowlisting needed. See docs/ANCHOR.md.
+if ($("onramperBtn")) $("onramperBtn").addEventListener("click", async () => {
+  const btn = $("onramperBtn");
+  const orig = btn.textContent;
+  const n = notes.find((x) => x.spendable && !x.withdrawn) || notes[0];
+  const cor = n ? corridorByCode(n.offCorridor || n.corridor) : selectedCorridor();
+  const usdc = n ? Number(fmtUsdc(BigInt(n.amount))) : 100;
+  const fiat = (cor && cor.currency) || "USD";
+  btn.disabled = true;
+  btn.textContent = "Fetching live quote…";
+  status.innerHTML = `<span class="spin">◠</span> Onramper: live off-ramp quote for ${usdc} USDC → ${esc(fiat)}…`;
+  try {
+    const q = await onramperQuote(usdc, fiat);
+    const url = onramperOfframpUrl(usdc, fiat);
+    const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=760");
+    const quoteTxt = q
+      ? `≈ <b style="color:#5fe3a0;">${q.payout.toLocaleString("en-US")} ${esc(fiat)}</b> via <b>${esc(q.ramp)}</b> (real provider quote · KYC by the provider)`
+      : `(no live ${esc(fiat)} quote right now — the widget prices it live)`;
+    status.innerHTML = w
+      ? `Onramper off-ramp opened for <b>${usdc} USDC</b> → ${quoteTxt}. Finish KYC + payout in the provider window.`
+      : `Onramper ready — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">off-ramp ↗</a> · ${quoteTxt}`;
+  } catch (e) {
+    status.textContent = "Onramper off-ramp failed: " + ((e && e.message) || e);
   } finally {
     btn.disabled = false;
     btn.textContent = orig;

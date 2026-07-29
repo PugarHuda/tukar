@@ -464,6 +464,46 @@ export async function anchorOnramp() {
   return { url: intr.url, id: intr.id, asset, address };
 }
 
+// Onramper — a licensed off-ramp AGGREGATOR (routes to MoonPay / Transak / Alchemy Pay, who
+// hold the licenses + embed KYC). Self-serve: unlike a SEP anchor this needs no allowlisting,
+// just an API key. The key below is Onramper's PUBLIC docs key (fine for a demo/testnet);
+// swap ONRAMPER.apiKey for your own free dashboard key in production. See docs/ANCHOR.md.
+const ONRAMPER = { apiKey: "pk_prod_01HETEQF46GSK6BS5JWKDF31BT", api: "https://api.onramper.com", widget: "https://buy.onramper.com" };
+
+/**
+ * Live off-ramp SELL quote from Onramper's licensed providers: sell `usdc` (USDC on Stellar)
+ * for `fiat`. Returns the best real quote { payout, rate, fee, ramp } or null. This is a real
+ * partner-priced number (e.g. MoonPay), NOT a client estimate.
+ */
+export async function onramperQuote(usdc, fiat) {
+  try {
+    const amt = Math.max(1, Math.floor(Number(usdc) || 0));
+    const r = await fetch(`${ONRAMPER.api}/quotes/usdc_stellar/${String(fiat).toLowerCase()}?amount=${amt}&type=sell`, {
+      headers: { Authorization: ONRAMPER.apiKey },
+    });
+    const arr = await r.json();
+    if (!Array.isArray(arr)) return null;
+    const best = arr.find((q) => q && typeof q.payout === "number" && !q.errors);
+    return best ? { payout: best.payout, rate: best.rate, fee: best.transactionFee, ramp: best.ramp } : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Build the Onramper hosted SELL (off-ramp) widget URL for USDC-on-Stellar -> `fiat`. */
+export function onramperOfframpUrl(usdc, fiat) {
+  const amt = Math.max(1, Math.floor(Number(usdc) || 0));
+  const p = new URLSearchParams({
+    apiKey: ONRAMPER.apiKey,
+    mode: "sell",
+    sell_defaultCrypto: "USDC",
+    sell_onlyCryptoNetworks: "stellar",
+    sell_defaultFiat: String(fiat).toUpperCase(),
+    sell_defaultAmount: String(amt),
+  });
+  return `${ONRAMPER.widget}/?${p.toString()}`;
+}
+
 /**
  * REAL off-ramp (SEP-24 WITHDRAW): the exact protocol call a corridor uses to turn USDC
  * into local fiat at the RECEIVING edge — same SEP-10 auth, then a genuine hosted

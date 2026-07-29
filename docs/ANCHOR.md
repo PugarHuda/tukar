@@ -85,13 +85,22 @@ contract code.
    2,500 max per tx). KYC + fiat payout happen inside MoneyGram — Tukar never custodies fiat
    and is not a money transmitter.
 
-### Path B — Onramper (self-serve sandbox, zero business relationship, for a live click-through)
+### Path B — Onramper (self-serve, zero business relationship) — WIRED & LIVE
 
-1. Get a staging key at https://docs.onramper.com/docs/integration-steps-1 (no contract).
-2. Call the sell/off-ramp quote on `https://api-stg.onramper.com/` for USDC-on-Stellar →
-   local fiat (routes to Alchemy Pay / Transak, who hold the licenses + embed KYC).
-3. Open their hosted widget URL from the Receiver step (same button, different provider).
-   Useful when you want a *self-serve* demo without MoneyGram's allowlisting email.
+Implemented today (the "Off-ramp via Onramper" button on the Receiver step). No allowlisting:
+
+- `onramperQuote(usdc, fiat)` → `GET https://api.onramper.com/quotes/usdc_stellar/{fiat}?amount=&type=sell`
+  returns a REAL provider quote. Verified live: 100 USDC-on-Stellar sells for ~94.71 USD /
+  1,604 MXN / 475 BRL / 1.67M IDR via **MoonPay** (PHP had no provider → graceful fallback).
+- `onramperOfframpUrl(usdc, fiat)` → opens `https://buy.onramper.com/?mode=sell&sell_defaultCrypto=USDC&sell_onlyCryptoNetworks=stellar&sell_defaultFiat={fiat}&sell_defaultAmount={usdc}`
+  — the hosted sell widget where MoonPay / Transak / Alchemy Pay run KYC + fiat payout under
+  their own licenses.
+- Uses Onramper's **public docs API key** for the demo (`ONRAMPER.apiKey` in `frontend/stellar.js`).
+  For production, get your own free key at https://docs.onramper.com/docs/integration-steps-1
+  and swap that one constant.
+
+This is the fully self-serve path — real live quotes + a real hosted payout flow — with nothing
+to wait on. MoneyGram (Path A) remains the recommended production off-ramp for cash-out reach.
 
 ### What stays the same regardless of anchor
 
