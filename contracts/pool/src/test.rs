@@ -897,6 +897,7 @@ fn disclose_aggregate_binds_known_commitments() {
     c.pool.deposit(&c.user, &100, &c2, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
     // 3 active + 2 inactive padding slots (padding commitments need not be known).
     let commits: Vec<BytesN<32>> = vec![&env, c0, c1, c2, b32(&env, 90), b32(&env, 91)];
     let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
@@ -912,6 +913,7 @@ fn disclose_aggregate_variable_count_one_active() {
     c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
     let commits: Vec<BytesN<32>> = vec![&env, c0, b32(&env, 90), b32(&env, 91), b32(&env, 92), b32(&env, 93)];
     let active: Vec<u32> = vec![&env, 1, 0, 0, 0, 0];
     assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8)));
@@ -927,6 +929,7 @@ fn disclose_aggregate_rejects_unknown_commitment() {
     c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
     // slot 2 is ACTIVE but b32(9) was never deposited
     let commits: Vec<BytesN<32>> = vec![&env, c0, c1, b32(&env, 9), b32(&env, 90), b32(&env, 91)];
     let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
@@ -942,9 +945,39 @@ fn disclose_aggregate_rejects_wrong_count() {
     c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
     let commits: Vec<BytesN<32>> = vec![&env, c0]; // 1 != AGG_N (5)
     let active: Vec<u32> = vec![&env, 1];
     c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
+}
+
+// Registry: an aggregate proof whose auditContextHash was NOT registered by the auditor is
+// rejected on-chain — a holder can't mint their own request for a cherry-picked subset.
+#[test]
+#[should_panic(expected = "Error(Contract, #15)")] // UnknownAuditRequest
+fn disclose_aggregate_rejects_unregistered_request() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1); let c1 = b32(&env, 2); let c2 = b32(&env, 3);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c2, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    // NOTE: no register_audit_request — the audit_context b32(7) was never issued by the auditor.
+    let commits: Vec<BytesN<32>> = vec![&env, c0, c1, c2, b32(&env, 90), b32(&env, 91)];
+    let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
+}
+
+// The auditor role is admin-gated.
+#[test]
+#[should_panic]
+fn set_auditor_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]);
+    c.pool.set_auditor(&Address::generate(&env));
 }
 
 // C2: two-sided range (band) disclosure is bound to a KNOWN pool commitment.

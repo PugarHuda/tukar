@@ -8,7 +8,7 @@ import { chromium } from "playwright-core";
 
 const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const BASE = process.argv[2] || "http://localhost:8000";
-const POOL = "CBVRMBQ6CRFQA2TYWYTQ7KOQRPFXJBFVDMMSND4RPVCJOEK3CPSHZLC5";
+const POOL = "CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ";
 const STORE_KEY = `tukar:notes:${POOL}`;
 const results = [];
 const chk = (c, n) => { results.push([c, n]); console.log(`  ${c ? "✅" : "❌"} ${n}`); };

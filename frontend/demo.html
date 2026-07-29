@@ -266,7 +266,7 @@
         <div id="aggRow" style="display:none;">
           <label class="fld mt">REPORTING CAP (USDC · total of up to 5 payments)</label>
           <input id="aggCap" class="tk-input" type="number" min="1" value="5000" aria-label="Aggregate reporting cap in USDC" />
-          <div class="foot-note" style="margin-top:6px;">Prove the <b>sum of up to 5 of your on-chain payments</b> is under this cap without revealing any single amount — the shape of a periodic (CTR) report. The report is <b>bound to an audit-request hash</b> over the exact set (auditContextHash = Poseidon(nonce, commitments, active)), so it can't be <b>trimmed relative to a request a regulator issued</b> — proving a different set against that request is unprovable. (Whether the request covers ALL your payments is the regulator's off-chain step: issue the hash for the full set and check the proof used it. The pool doesn't enforce that.)</div>
+          <div class="foot-note" style="margin-top:6px;">Prove the <b>sum of up to 5 of your on-chain payments</b> is under this cap without revealing any single amount — the shape of a periodic (CTR) report. The auditor <b>registers the request on-chain</b> (over the full set: auditContextHash = Poseidon(nonce, commitments, active)), and the pool <b>rejects any unregistered hash</b> — so a holder can't mint their own request for a cherry-picked subset. Completeness is <b>enforced on-chain</b> when the auditor is an independent party. (In this demo the auditor role is the demo key, since every role is played by one person.)</div>
           <label id="aggOmitLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false" style="margin-top:8px;">
             <span class="box" aria-hidden="true"></span>
             <span class="txt">Try to omit a payment <span>(watch the completeness binding make it unprovable)</span></span>
@@ -330,7 +330,7 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
           disclosure verifier ↗
         </a>
-        <a class="fchip" href="https://stellar.expert/explorer/testnet/contract/CBVRMBQ6CRFQA2TYWYTQ7KOQRPFXJBFVDMMSND4RPVCJOEK3CPSHZLC5" target="_blank" rel="noreferrer">
+        <a class="fchip" href="https://stellar.expert/explorer/testnet/contract/CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ" target="_blank" rel="noreferrer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
           pool contract ↗
         </a>

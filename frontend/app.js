@@ -3,7 +3,7 @@
 // design handoff; all crypto/contract calls are real (see stellar.js).
 import * as snarkjs from "https://esm.sh/snarkjs@0.7.5";
 import { buildPoseidon } from "https://esm.sh/circomlibjs@0.1.7";
-import { verifyDisclosureOnChain, verifyThresholdOnChain, verifyProofOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, anchorTxStatus, onramperQuote, onramperOfframpUrl, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "./stellar.js";
+import { verifyDisclosureOnChain, verifyThresholdOnChain, verifyProofOnChain, discloseThresholdViaPool, discloseAggregateViaPool, discloseRangeViaPool, registerAuditRequest, readPoolState, readRecentActivity, loadLeavesFromChain, readCurrentRoot, depositOnChain, registerRootOnChain, withdrawSubmit, extDataHashFor, activeAddress, explorer, txExplorer, readReflectorFx, readReflectorRecords, offrampQuote, offrampQuoteTwap, anchorOnramp, anchorOfframp, anchorTxStatus, onramperQuote, onramperOfframpUrl, anchorReceipt, readAspRoot, readDenyList, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "./stellar.js";
 import { connect as walletConnect, disconnect as walletDisconnect, reconnect as walletReconnect, setupTestnetFunds } from "./wallet.js";
 import { makeTree } from "./tree.js";
 
@@ -1163,6 +1163,18 @@ async function proveAggregate(auditContextHash) {
     // COMPLETENESS: the audit hash the regulator issued = Poseidon(ctxNonce, requiredSet). The
     // circuit recomputes it from the PROVEN set, so omitting a payment -> mismatch -> unprovable.
     const issuedHash = F.toObject(poseidon([BigInt(ctxNonce), ...reqCommitments.map((c) => BigInt(c)), ...reqActive.map((a) => BigInt(a))])).toString();
+    // The AUDITOR registers this request (over the FULL set) ON-CHAIN before the holder proves.
+    // disclose_aggregate rejects any unregistered auditContextHash, so a holder can't mint their
+    // own hash for a cherry-picked subset — completeness is enforced on-chain. (Demo: the auditor
+    // role is the demo key so the no-install flow can register; production uses a regulator key.)
+    status.innerHTML = `<span class="spin">◠</span> Regulator: registering the audit request on-chain…`;
+    const reg = await registerAuditRequest(issuedHash);
+    if (!reg.ok) {
+      renderProof("rejected", { body: "Couldn't register the audit request on-chain: " + esc(reg.error || "") });
+      status.textContent = "Audit request registration failed.";
+      return;
+    }
+    status.innerHTML = `<span class="spin">◠</span> Proving “sum of ${provenN} payment(s) ≤ cap” in your browser…`;
     const input = { commitments, active, cap: capStroops.toString(), auditContextHash: issuedHash, ctxNonce: String(ctxNonce), amounts, pubKeys, blindings };
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, A_WASM, A_ZKEY);
     const ok = await snarkjs.groth16.verify(aVkey, publicSignals, proof);
@@ -1178,9 +1190,9 @@ async function proveAggregate(auditContextHash) {
       const oc = await discloseAggregateViaPool(proof, publicSignals);
       const el = $("result").querySelector("[data-onchain]");
       if (oc.verified) {
-        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the aggregate proof against ${AGG_N} known deposits`;
-        if (pt) pt.textContent = "Aggregate proof verified on-chain (bound to known deposits)";
-        status.textContent = "Portfolio disclosure verified — in your browser AND on Stellar, bound to real deposits. No individual amount revealed.";
+        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — against the <b>registered audit request</b> (the pool rejects any unregistered hash) over your known deposits`;
+        if (pt) pt.textContent = "Aggregate verified on-chain (registered audit request)";
+        status.textContent = "Portfolio disclosure verified — the auditor's request was registered on-chain and the report proven complete against it. No individual amount revealed.";
         setDisclosureReceipt("aggregate", { capUsdc: fmtUsdc(capStroops), commitments: sel.map((n) => n.commitment), auditContext: $("auditCtx").value, auditContextHash: issuedHash, ctxNonce: String(ctxNonce) }, proof, publicSignals);
       } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
     } catch (_) {

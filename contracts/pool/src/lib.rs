@@ -61,6 +61,7 @@ pub enum PoolError {
     SlippageExceeded = 12,
     BadIoCount = 13,
     NonCanonicalField = 14,
+    UnknownAuditRequest = 15,
 }
 
 // The transfer/withdraw JoinSplit is fixed at 2 inputs and 2 outputs (Transfer(10,2,2)).
@@ -113,6 +114,8 @@ enum DataKey {
     ThresholdVerifier, // BN254 verifier for the threshold (range) disclosure circuit
     AggregateVerifier, // BN254 verifier for the aggregate (portfolio) disclosure circuit
     RangeVerifier,     // BN254 verifier for the two-sided range (band) disclosure circuit
+    Auditor,           // the role allowed to register aggregate audit requests
+    AuditRequest(BytesN<32>), // a registered aggregate audit-request hash (regulator-issued)
 }
 
 // ---- Reflector SEP-40 oracle interface (the subset the pool calls) ----
@@ -154,6 +157,7 @@ impl Pool {
         }
         let s = env.storage().instance();
         s.set(&DataKey::Admin, &admin);
+        s.set(&DataKey::Auditor, &admin); // auditor role defaults to admin; admin can reassign it
         s.set(&DataKey::Token, &token);
         s.set(&DataKey::TransferVerifier, &transfer_verifier);
         s.set(&DataKey::ComplianceVerifier, &compliance_verifier);
@@ -206,6 +210,40 @@ impl Pool {
     /// The aggregate (portfolio) disclosure verifier, if one has been set.
     pub fn aggregate_verifier(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::AggregateVerifier)
+    }
+
+    /// Admin-only: set the AUDITOR role — the party allowed to register aggregate audit
+    /// requests. Defaults to the admin. In production this is an independent regulator; a
+    /// demo may point it at the demo key so the no-install flow can register requests.
+    pub fn set_auditor(env: Env, auditor: Address) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Auditor, &auditor);
+    }
+
+    /// The current auditor role.
+    pub fn auditor(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::Auditor).unwrap()
+    }
+
+    /// Auditor-only: REGISTER an aggregate audit request. `audit_context_hash` is the
+    /// Poseidon(ctxNonce, commitments, active) the regulator computed for the FULL required
+    /// set of a holder's payments. `disclose_aggregate` then only accepts a proof whose
+    /// auditContextHash is registered here — so a holder can't mint their own hash for a
+    /// cherry-picked subset: completeness is enforced ON-CHAIN (the auditor pins the set,
+    /// the circuit binds the hash to it). TTL-extended so a request stays valid a while.
+    pub fn register_audit_request(env: Env, audit_context_hash: BytesN<32>) {
+        let auditor: Address = env.storage().instance().get(&DataKey::Auditor).unwrap();
+        auditor.require_auth();
+        Self::require_canonical(&env, &audit_context_hash);
+        let key = DataKey::AuditRequest(audit_context_hash);
+        env.storage().persistent().set(&key, &());
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
+    }
+
+    /// Whether an aggregate audit-request hash has been registered by the auditor.
+    pub fn is_audit_request(env: Env, audit_context_hash: BytesN<32>) -> bool {
+        env.storage().persistent().has(&DataKey::AuditRequest(audit_context_hash))
     }
 
     /// Admin-only: set (or replace) the two-sided range (band) disclosure verifier.
@@ -700,11 +738,10 @@ impl Pool {
     /// has a public `active` flag (0/1); only ACTIVE slots must be commitments the pool knows,
     /// so the report is bound to real on-chain deposits while the count varies. The circuit's
     /// public inputs are [commitments[0..N], active[0..N], cap, auditContextHash, ctxNonce], and
-    /// the circuit enforces auditContextHash == Poseidon(ctxNonce, commitments, active) so the
-    /// report is bound to a specific audit-request hash. (Completeness — that the request covers
-    /// ALL of a holder's payments — is the regulator's OFF-CHAIN step: issue the hash for the
-    /// full set and check the proof used it. The pool does not enforce that.) Requires the admin
-    /// to have set the aggregate verifier.
+    /// the circuit enforces auditContextHash == Poseidon(ctxNonce, commitments, active). Completeness
+    /// is enforced ON-CHAIN: the auditContextHash MUST be an audit request the auditor previously
+    /// registered (register_audit_request) for the full set — else UnknownAuditRequest. So a holder
+    /// can't mint their own hash for a cherry-picked subset. Requires the aggregate verifier set.
     pub fn disclose_aggregate(
         env: Env,
         proof: Groth16Proof,
@@ -719,6 +756,12 @@ impl Pool {
         }
         if !env.storage().instance().has(&DataKey::AggregateVerifier) {
             soroban_sdk::panic_with_error!(&env, PoolError::ProofRejected);
+        }
+        // COMPLETENESS (on-chain): the auditContextHash MUST be an audit request the auditor
+        // registered (for the full required set). A holder can't mint their own hash for a
+        // cherry-picked subset — it isn't registered, so the report is rejected here.
+        if !env.storage().persistent().has(&DataKey::AuditRequest(audit_context.clone())) {
+            soroban_sdk::panic_with_error!(&env, PoolError::UnknownAuditRequest);
         }
         // Public-input order = [commitments(N), active(N), cap, auditContextHash, ctxNonce]. All commitments are
         // canonicalised; only ACTIVE slots must be known deposits (inactive slots are padding

@@ -86,7 +86,7 @@ Tukar differs and where it stays composable, see
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
-  | [pool](https://stellar.expert/explorer/testnet/contract/CBVRMBQ6CRFQA2TYWYTQ7KOQRPFXJBFVDMMSND4RPVCJOEK3CPSHZLC5) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
+  | [pool](https://stellar.expert/explorer/testnet/contract/CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ) | orchestration, token custody, root/nullifier/commitment sets | deposit · withdraw · disclose · double-spend rejected |
   | [disclosure verifier](https://stellar.expert/explorer/testnet/contract/CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V) | selective disclosure to regulator | `verify` → `true`; tampered → `InvalidProof` |
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2) | ASP allow/deny | `verify` → `true` |
@@ -95,7 +95,7 @@ Tukar differs and where it stays composable, see
   **Contract addresses (Stellar testnet)** — copy-paste form of the table above:
 
   ```
-  pool                 CBVRMBQ6CRFQA2TYWYTQ7KOQRPFXJBFVDMMSND4RPVCJOEK3CPSHZLC5
+  pool                 CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ
   transfer verifier    CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE
   compliance verifier  CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2
   disclosure verifier  CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V
@@ -329,16 +329,16 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   beyond demo scale (bounded only by the tree capacity, 2¹⁰ = 1024 leaves). A
   very-long-lived production pool would still want a periodic TTL-maintenance job
   and an indexer for fast reads.
-- **Aggregate (portfolio) disclosure — audit-bound, completeness is the regulator's step.**
-  The variable-count aggregate proves the sum of the active payments is under the cap, and the
-  circuit **binds the report to an audit-request hash** (`auditContextHash = Poseidon(ctxNonce,
-  commitments, active)`), so a report can't be *trimmed* relative to a request — proving a
-  different (smaller) set against a given request is unprovable. What it does **not** do on-chain
-  is enforce that the request covers *every* payment: the pool doesn't store/compare a
-  regulator-issued hash, so **full completeness is the regulator's off-chain step** (issue the
-  hash for the holder's full deposit set, then check the proof used exactly that hash). The demo
-  simulates that issuance in-browser. Making it on-chain is a small policy layer (a registry of
-  regulator-issued audit requests) on top of the existing ZK.
+- **Aggregate (portfolio) disclosure — completeness enforced on-chain via an audit registry.**
+  The variable-count aggregate proves the sum of the active payments is under the cap. Two layers
+  make it a *complete* report: (1) the circuit **binds the report to an audit-request hash**
+  (`auditContextHash = Poseidon(ctxNonce, commitments, active)`) so it can't be *trimmed* relative
+  to a request, and (2) an **auditor role registers that hash on-chain** for the full required set
+  (`register_audit_request`), and `disclose_aggregate` **rejects any unregistered hash**
+  (`UnknownAuditRequest`). So a holder can't mint their own request for a cherry-picked subset —
+  it isn't registered. Honest scope: completeness holds when the auditor is an **independent
+  regulator**; in the no-install demo the auditor role is the demo key (every demo role is one
+  person), so the demo exercises the mechanism rather than a true separation of parties.
 - **Not audited — do not use with real assets.**
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26

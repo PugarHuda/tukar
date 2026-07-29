@@ -20,7 +20,7 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-export const POOL = "CBVRMBQ6CRFQA2TYWYTQ7KOQRPFXJBFVDMMSND4RPVCJOEK3CPSHZLC5";
+export const POOL = "CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ";
 export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
 // Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
 // contract, deployed additively (the 5 core contracts are unchanged).
@@ -374,6 +374,25 @@ export async function discloseAggregateViaPool(proof, publicSignals) {
     return ok ? { verified: true } : { verified: false, error: "pool returned false" };
   } catch (e) {
     return { verified: false, error: (e && e.message) || String(e) };
+  }
+}
+
+/**
+ * Register an aggregate AUDIT REQUEST on-chain (auditor-signed): stores the audit hash
+ * Poseidon(ctxNonce, commitments, active) the regulator issued for the FULL required set.
+ * disclose_aggregate then only accepts a proof whose auditContextHash is registered, so a
+ * holder can't mint their own hash for a cherry-picked subset — completeness ON-CHAIN. In the
+ * demo the auditor role is the demo key (so the no-install flow can register); production uses
+ * an independent regulator key. Returns { ok, hash } or { ok:false, error }.
+ */
+export async function registerAuditRequest(auditContextHash) {
+  try {
+    const client = await poolWriteClient();
+    const res = await sendTx(() => client.register_audit_request({ audit_context_hash: buf32(auditContextHash) }));
+    const hash = res?.sendTransactionResponse?.hash || res?.getTransactionResponse?.txHash || "";
+    return { ok: true, hash };
+  } catch (e) {
+    return { ok: false, error: friendlyPoolError(e) };
   }
 }
 
