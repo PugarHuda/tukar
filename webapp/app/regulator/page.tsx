@@ -403,7 +403,7 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
         action: "Verified disclosure",
         type: v.type,
         detail: v.summary,
-        result: v.ok ? "valid" : "invalid",
+        result: !v.ok ? "invalid" : v.bound ? "valid + bound" : "valid, not bound",
         ref: short(v.commitment),
       });
     } catch (e: any) {
@@ -474,15 +474,33 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
             <div className="mt-1.5 text-tm">
               commitment <span className="font-mono">{short(res.commitment)}</span> · {res.summary}
             </div>
+
+            {/* F1: proof-valid is not enough — show whether it is BOUND to real on-chain state. */}
+            {!res.ok ? (
+              <div className="mt-3 rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2 text-red-t">
+                <b>✗ Not valid.</b> The proof was rejected, so nothing is disclosed.
+              </div>
+            ) : res.bound ? (
+              <div className="mt-3 rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2 text-green-t">
+                <b>✓ Verified and bound to real on-chain state.</b>{" "}
+                <span className="text-ts">{res.boundReason}.</span>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-lg border border-amber/40 bg-amber/[0.05] px-3 py-2 text-amber">
+                <b>⚠ Proof is valid but NOT bound to on-chain state.</b>{" "}
+                <span className="text-ts">{res.boundReason}. This is not a confirmed disclosure of a real deposit — treat it as unverified.</span>
+              </div>
+            )}
+
             {res.anchor && (
               <div className="mt-1.5">
                 On-chain anchor:{" "}
                 {res.anchor.matches ? (
-                  <b className="text-green-t">✓ content matches</b>
+                  <b className="text-green-t">✓ confirmed on-chain</b>
                 ) : (
-                  <b className="text-red-t">✗ content does NOT match</b>
+                  <b className="text-amber">✗ not confirmed on-chain</b>
                 )}{" "}
-                the timestamped hash ·{" "}
+                <span className="text-tm">({res.anchor.reason})</span> ·{" "}
                 {res.anchor.txHash ? (
                   <a href={txExplorer(res.anchor.txHash)} target="_blank" rel="noreferrer" className={link}>
                     {short(res.anchor.txHash)} ↗
@@ -493,7 +511,7 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
               </div>
             )}
 
-            {res.ok && receipt && !receipt.anchor && (
+            {res.ok && res.bound && receipt && !receipt.anchor && (
               <div className="mt-3 border-t border-line pt-3">
                 <p className="text-tm">
                   Anchor this receipt on-chain to timestamp a tamper-evident SHA-256 of its canonical bytes (signed by the demo
@@ -748,11 +766,13 @@ function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: Trai
 
   const pill = (res: string) => {
     const tone =
-      res === "valid" || res === "registered" || res === "anchored"
+      res === "valid + bound" || res === "valid" || res === "registered" || res === "anchored"
         ? "border-green/35 text-green-t"
         : res === "invalid" || res === "failed"
           ? "border-red/40 text-red-t"
-          : "border-line-input text-tm";
+          : res === "valid, not bound"
+            ? "border-amber/40 text-amber"
+            : "border-line-input text-tm";
     return <span className={`inline-block rounded-md border px-2 py-0.5 font-mono text-[10px] ${tone}`}>{res}</span>;
   };
 

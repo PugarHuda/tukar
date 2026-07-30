@@ -320,32 +320,32 @@ function AdminForms({ policy }: { policy: Policy | null }) {
       <div className="rounded-tile border border-line bg-black/20 p-4">
         <h4 className="font-mono text-[13px] font-semibold text-orange-l3">set_asp_root</h4>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-tm">Re-point the ASP allow-list root to widen or rotate approved sources without a redeploy. Build the root with <code className="font-mono text-ts">node scripts/build-asp.mjs G… G…</code>.</p>
-        <label className={`${labelCls} mt-3`}>asp_root (32-byte hex)</label>
-        <input className={inputCls} value={root} onChange={(e) => setRoot(e.target.value)} placeholder="allow-list merkle root" />
+        <label htmlFor="admin-asp-root" className={`${labelCls} mt-3`}>asp_root (32-byte hex)</label>
+        <input id="admin-asp-root" className={inputCls} value={root} onChange={(e) => setRoot(e.target.value)} placeholder="allow-list merkle root" />
         <div className="mt-3"><CopyBlock text={buildCmd("set_asp_root", [["asp_root", root.trim() || "<32-byte hex>"]])} /></div>
       </div>
 
       <div className="rounded-tile border border-line bg-black/20 p-4">
         <h4 className="font-mono text-[13px] font-semibold text-orange-l3">set_deny_list</h4>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-tm">Re-point the sanctions block-list. It takes exactly 8 <code className="font-mono text-ts">BytesN&lt;32&gt;</code> field elements, one per line. Build them with <code className="font-mono text-ts">node scripts/build-deny.mjs G… G…</code>.</p>
-        <label className={`${labelCls} mt-3`}>deny_list: 8 entries (one hex per line)</label>
-        <textarea className={`${inputCls} resize-y`} rows={8} value={deny} onChange={(e) => setDeny(e.target.value)} />
+        <label htmlFor="admin-deny-list" className={`${labelCls} mt-3`}>deny_list: 8 entries (one hex per line)</label>
+        <textarea id="admin-deny-list" className={`${inputCls} resize-y`} rows={8} value={deny} onChange={(e) => setDeny(e.target.value)} />
         <div className="mt-3"><CopyBlock text={denyCmd} /></div>
       </div>
 
       <div className="rounded-tile border border-line bg-black/20 p-4">
         <h4 className="font-mono text-[13px] font-semibold text-orange-l3">set_auditor</h4>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-tm">Set the auditor role that registers aggregate audit requests on-chain for the completeness binding. In production this is an independent regulator key.</p>
-        <label className={`${labelCls} mt-3`}>auditor (Stellar public key G…)</label>
-        <input className={inputCls} value={auditor} onChange={(e) => setAuditor(e.target.value)} placeholder="G…" />
+        <label htmlFor="admin-auditor" className={`${labelCls} mt-3`}>auditor (Stellar public key G…)</label>
+        <input id="admin-auditor" className={inputCls} value={auditor} onChange={(e) => setAuditor(e.target.value)} placeholder="G…" />
         <div className="mt-3"><CopyBlock text={buildCmd("set_auditor", [["auditor", auditor.trim() || "<G…>"]])} /></div>
       </div>
 
       <div className="rounded-tile border border-line bg-black/20 p-4">
         <h4 className="font-mono text-[13px] font-semibold text-orange-l3">set_fx_oracle</h4>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-tm">Re-point the FX oracle the pool cross-contract-reads for off-ramp quotes and the min-receive settlement gate.</p>
-        <label className={`${labelCls} mt-3`}>fx_oracle (contract C…)</label>
-        <input className={inputCls} value={oracle} onChange={(e) => setOracle(e.target.value)} placeholder="C…" />
+        <label htmlFor="admin-fx-oracle" className={`${labelCls} mt-3`}>fx_oracle (contract C…)</label>
+        <input id="admin-fx-oracle" className={inputCls} value={oracle} onChange={(e) => setOracle(e.target.value)} placeholder="C…" />
         <div className="mt-3"><CopyBlock text={buildCmd("set_fx_oracle", [["fx_oracle", oracle.trim() || "<C…>"]])} /></div>
       </div>
     </div>

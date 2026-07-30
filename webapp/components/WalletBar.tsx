@@ -1,13 +1,14 @@
 "use client";
 
 import { useWallet } from "@/components/WalletProvider";
-import { Button, StatusPill } from "@/components/ui";
+import { Button, StatusPill, useToast } from "@/components/ui";
 
 const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 /** Connect bar: built-in testnet key OR Freighter. Reusable across every route. */
 export function WalletBar() {
   const { connected, kind, address, connecting, connectFreighter, useDemoKey, disconnect } = useWallet();
+  const { toast } = useToast();
 
   if (connected && address) {
     return (
@@ -24,7 +25,15 @@ export function WalletBar() {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       <StatusPill tone="green" label="testnet" />
-      <Button variant="ghost" busy={connecting} onClick={() => connectFreighter().catch(() => {})}>
+      <Button
+        variant="ghost"
+        busy={connecting}
+        onClick={() =>
+          connectFreighter().catch((e) =>
+            toast((e && e.message) || "Freighter not detected. Install it, or use the testnet key.", "error"),
+          )
+        }
+      >
         Connect wallet
       </Button>
       <Button variant="subtle" onClick={useDemoKey}>

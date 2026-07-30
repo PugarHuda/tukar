@@ -3,13 +3,13 @@
 // One incoming payment: reveal the local-fiat figure read on-chain from Reflector, withdraw
 // on-chain (real transfer proof, ported from frontend/app.js), then cash out to fiat via
 // Onramper or a SEP-24 anchor. All on-chain reads/writes and anchor calls are real.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, Button, Select, Input, Badge, Spinner, useToast } from "@/components/ui";
 import {
-  offrampQuote,
   offrampQuoteTwap,
   readReflectorRecords,
   withdrawSubmit,
+  registerRootOnChain,
   extDataHashFor,
   anchorOfframp,
   anchorTxStatus,
@@ -91,6 +91,11 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   const [onramperInfo, setOnramperInfo] = useState<string | null>(null);
   const [anchorInfo, setAnchorInfo] = useState<string | null>(null);
 
+  // Switching receiver tabs unmounts every PaymentCard, so a running SEP-24 poll would keep
+  // firing setState for ~24s on an unmounted card. Track liveness and bail out of the loop.
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+
   const cor = corridorByCode(note.offCorridor || note.corridor);
   const usdcStr = fmtUsdc(BigInt(note.amount));
   const usdc = Number(usdcStr);
@@ -131,12 +136,58 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     const c = corridorByCode(code);
     if (note.revealed && c.oracle) {
       try {
-        const q = await offrampQuote(c.oracle, usdc);
+        // Median of 5 records — the SAME basis reveal() and the withdraw settlement gate use,
+        // so the re-quoted figure matches the "median of 5" copy and the enforced gate.
+        const q = await offrampQuoteTwap(c.oracle, usdc, 5);
         if (q != null) updateNote(note.id, { localQuote: q });
         const depth = await readReflectorRecords(c.oracle, 5);
         if (depth && depth.records.length) updateNote(note.id, { oracleDepth: depth.records });
       } catch {}
     }
+  }
+
+  // ---- finish the sender's tree registration from the receiver side ----
+  // A deposit can land on-chain but fail its follow-up registerRootOnChain (e.g. the sender's
+  // tab closed), leaving a valid bearer note whose commitment isn't yet an on-chain leaf and so
+  // can't be withdrawn. This makes the sender's "the recipient's console can finish it" promise
+  // real: same tree construction the sender's registerNote uses, same retry cases. Returns ok
+  // once the commitment is (or already was) an on-chain leaf.
+  async function finishRegistration(): Promise<{ ok: boolean; error?: string }> {
+    if (!prover) return { ok: false, error: "prover not ready" };
+    const { tree } = prover;
+    const commitment = BigInt(note.commitment);
+    let reg: WriteResult = { ok: false };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const leaves = await syncLeaves();
+      // Already on-chain (a prior register landed but its response was lost, or another writer
+      // inserted it) — adopt the index rather than re-inserting, which would hit #9 and strand it.
+      if (leaves.some((l) => l === commitment)) return { ok: true };
+      const index = leaves.length;
+      const oldRoot = tree.root(leaves);
+      const path = tree.pathElements(leaves, index).map((x) => x.toString());
+      const newRoot = tree.root([...leaves, commitment]);
+      setStatus(`${note.ref} isn't in the on-chain tree yet. Finishing setup, registering it now (try ${attempt}).`, true);
+      reg = await registerRootOnChain(oldRoot.toString(), note.commitment, newRoot.toString(), index, path);
+      if (reg.ok) return { ok: true };
+      // UnknownRoot (#1): another deposit advanced the tree between our sync and submit — re-sync.
+      if (attempt < 3 && reg.code === 1) {
+        setStatus(`Tree advanced by another deposit, re-syncing (try ${attempt + 1}).`, true);
+        continue;
+      }
+      // UnknownCommitment (#3): the deposit hasn't propagated to the read node yet — wait, retry.
+      if (attempt < 3 && reg.code === 3) {
+        setStatus(`Confirming ${note.ref}'s deposit on-chain (try ${attempt + 1}).`, true);
+        await sleep(4500);
+        continue;
+      }
+      // LeafAlreadyInserted (#9): another writer inserted it first — re-sync to adopt its index.
+      if (attempt < 3 && reg.code === 9) {
+        setStatus(`${note.ref} was just registered elsewhere, re-syncing (try ${attempt + 1}).`, true);
+        continue;
+      }
+      break;
+    }
+    return { ok: false, error: reg.error };
   }
 
   // ---- withdraw on-chain: transfer proof + pool.withdraw (SAME path as app.js withdrawNote) ----
@@ -193,12 +244,30 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
       let res: WriteResult | undefined;
       for (let attempt = 1; attempt <= 3; attempt++) {
-        const leaves = await syncLeaves();
-        const realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
+        let leaves = await syncLeaves();
+        let realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
         if (realIndex < 0) {
-          updateNote(note.id, { withdrawing: false });
-          setStatus(`${note.ref} is not registered in the on-chain tree yet, so it can't be withdrawn.`);
-          return;
+          // Not an on-chain leaf yet — finish the sender's tree registration, then re-sync.
+          const reg = await finishRegistration();
+          if (!reg.ok) {
+            updateNote(note.id, { withdrawing: false });
+            setStatus(`${note.ref} isn't registered on-chain yet and registration couldn't finish: ${reg.error || "unknown error"}. The deposit is valid, so try withdrawing again in a moment.`);
+            return;
+          }
+          leaves = await syncLeaves();
+          realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
+          if (realIndex < 0) {
+            // Registered on-chain but the read node hasn't caught up (read-after-write lag).
+            if (attempt < 3) {
+              setStatus(`${note.ref} registered on-chain, waiting for the node to catch up (try ${attempt + 1}).`, true);
+              await sleep(4500);
+              continue;
+            }
+            updateNote(note.id, { withdrawing: false });
+            setStatus(`${note.ref} was registered on-chain but isn't visible to the node yet. Try withdrawing again in a moment.`);
+            return;
+          }
+          setStatus(`${note.ref} registered into the shielded tree. Building the withdrawal proof.`, true);
         }
         const n0 = F.toObject(poseidon([BigInt(note.commitment), BigInt(realIndex), BigInt(note.privKey)]));
         const n1 = F.toObject(poseidon([dCommit, 0n, dPriv]));
@@ -297,7 +366,9 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     const terminal = /completed|refunded|error|expired|no_market/i;
     for (let i = 0; i < 6; i++) {
       await sleep(4000);
+      if (!aliveRef.current) return; // card unmounted (tab switch / navigation) — stop polling
       const t = await anchorTxStatus(sep24, bearer, id);
+      if (!aliveRef.current) return;
       if (!t) continue;
       setAnchorInfo(
         `SEP-24 transfer ${String(id).slice(0, 8)}: ${pretty(t.status)}${t.amountOut ? `, you receive ${t.amountOut}` : ""}.` +

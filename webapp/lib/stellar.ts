@@ -283,6 +283,54 @@ export async function loadLeavesFromChain(): Promise<bigint[]> {
   return out;
 }
 
+/**
+ * True iff `commitmentDec` (a decimal field element) is a REAL on-chain deposit — i.e. it
+ * appears as a Merkle leaf in the pool's durable state. Lets the regulator bind a disclosure
+ * proof to actual pool state instead of trusting a free-floating (possibly never-deposited)
+ * commitment. Reads via loadLeavesFromChain(). Returns false on any read failure.
+ */
+export async function isKnownCommitment(commitmentDec: string | bigint): Promise<boolean> {
+  try {
+    const target = BigInt(commitmentDec);
+    const leaves = await loadLeavesFromChain();
+    return leaves.some((l) => l === target);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * True iff `hashDec` (a decimal field element) is a REGISTERED aggregate audit request — the
+ * pool's `is_audit_request` view returns true only for a hash the auditor registered on-chain.
+ * Read-only simulation. Returns false on any read failure.
+ */
+export async function isAuditRequest(hashDec: string | bigint): Promise<boolean> {
+  const res = await simulate(POOL, "is_audit_request", Sdk.nativeToScVal(buf32(hashDec), { type: "bytes" }));
+  return res.ok && res.value === true;
+}
+
+/**
+ * Read the MemoHash of a confirmed on-chain transaction as lowercase hex, or null if the tx
+ * is missing / not successful / carries no hash memo. Used to confirm a receipt's anchor by
+ * reading the ledger, not by trusting the receipt's own claimed sha256.
+ */
+export async function readAnchorMemoHash(txHash: string): Promise<string | null> {
+  try {
+    const gt: any = await server.getTransaction(txHash);
+    if (!gt || gt.status !== "SUCCESS") return null;
+    const raw = gt.envelopeXdr;
+    if (!raw) return null;
+    const xdrStr = typeof raw === "string" ? raw : raw.toXDR("base64");
+    const tx: any = Sdk.TransactionBuilder.fromXDR(xdrStr, PASSPHRASE);
+    const memo = tx.memo || (tx.innerTransaction && tx.innerTransaction.memo);
+    if (!memo || memo.type !== "hash" || !memo.value) return null;
+    const u8 = memo.value instanceof Uint8Array ? memo.value : Uint8Array.from(memo.value);
+    return [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch (_) {
+    return null;
+  }
+}
+
 // ---- snarkjs proof -> contract args (G2 uses Soroban c1||c0 ordering) ----
 const fe = (d: string | bigint): string => BigInt(d).toString(16).padStart(64, "0");
 const g1 = (pt: any): string => fe(pt[0]) + fe(pt[1]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // CIRCUITS / CONTRACTS / CORRIDOR FLOW / DISCLOSURE tabs.
 // Faithful port of initTabs() + DATA + ICONS from frontend/landing.js.
@@ -102,15 +102,30 @@ function CircCard({ c }: { c: Card }) {
 
 export function CircuitsTabs() {
   const [active, setActive] = useState<TabKey>("circuits");
+
+  // The header "Contracts" nav points at #contracts (the tablist). Reading the hash lets that
+  // click actually show the Contracts tab, not just scroll to the still-Circuits-active tablist.
+  useEffect(() => {
+    const sync = () => {
+      if (window.location.hash === "#contracts") setActive("contracts");
+      else if (window.location.hash === "#circuits") setActive("circuits");
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+
   return (
     <>
       <div id="contracts" className="tabs" role="tablist" aria-label="Corridor layers">
         {TABS.map((t) => (
           <button
             key={t.key}
+            id={`tab-${t.key}`}
             className="tab"
             role="tab"
             aria-selected={active === t.key}
+            aria-controls="circ-panel"
             onClick={() => setActive(t.key)}
           >
             {t.label}
@@ -118,7 +133,7 @@ export function CircuitsTabs() {
         ))}
       </div>
 
-      <div className="card-grid">
+      <div id="circ-panel" className="card-grid" role="tabpanel" aria-labelledby={`tab-${active}`}>
         {DATA[active].map((c, i) => (
           <CircCard key={i} c={c} />
         ))}

@@ -10,6 +10,9 @@ import {
   AGGREGATE_VERIFIER,
   RANGE_VERIFIER,
   verifyProofOnChain,
+  isKnownCommitment,
+  isAuditRequest,
+  readAnchorMemoHash,
   type Groth16Proof,
 } from "./stellar";
 
@@ -64,7 +67,17 @@ export function contextToField(str: string): bigint {
   return x;
 }
 export function usdcToStroops(usdc: string | number): bigint {
-  const [whole, frac = ""] = String(usdc).split(".");
+  // Guard junk / scientific notation ("1e5", "", "abc") so a bad amount is a clean typed
+  // validation error, never an unhandled BigInt throw surfacing as "Prover failed to load".
+  let str = typeof usdc === "number" ? (Number.isFinite(usdc) ? usdc.toFixed(7) : "") : String(usdc ?? "").trim();
+  if (str && !/^\d+(\.\d+)?$/.test(str)) {
+    // normalize a numeric-but-non-plain string (e.g. "1e5") through Number, else reject
+    const n = Number(str);
+    if (!Number.isFinite(n) || n < 0) throw new Error(`invalid USDC amount: ${JSON.stringify(usdc)}`);
+    str = n.toFixed(7);
+  }
+  if (!/^\d+(\.\d+)?$/.test(str)) throw new Error(`invalid USDC amount: ${JSON.stringify(usdc)}`);
+  const [whole, frac = ""] = str.split(".");
   const fracPadded = (frac + "0000000").slice(0, 7);
   return BigInt(whole || "0") * STROOPS + BigInt(fracPadded || "0");
 }
@@ -160,8 +173,11 @@ export function decodeBearerNote(raw: string): BearerPayload {
 // ---- payment request (tukreq1:) — public (no secrets): amount + memo + payee address ----
 export type RequestPayload = { v: 1; kind: "req"; amount: string; memo: string; addr: string };
 export function encodePaymentRequest(amount: string | number, addr: string): string {
+  // Clamp to <= 7 decimals via the stroops round-trip so a float artifact (0.1+0.2) or an
+  // over-precise input always decodes cleanly in the sender (decode enforces <= 7 decimals).
+  const amt = fmtUsdc(usdcToStroops(amount));
   const memo = `to ${addr.slice(0, 4)}..${addr.slice(-4)}`; // ASCII only (btoa is Latin1)
-  return "tukreq1:" + btoa(JSON.stringify({ v: 1, kind: "req", amount: String(amount), memo, addr }));
+  return "tukreq1:" + btoa(JSON.stringify({ v: 1, kind: "req", amount: amt, memo, addr }));
 }
 /** Decode + validate a tukreq1: payment request. Throws on a malformed string. */
 export function decodePaymentRequest(raw: string): RequestPayload {
@@ -293,15 +309,32 @@ export type ReceiptVerification = {
   local: boolean; // snarkjs.verify in-browser
   onChain: boolean; // live Stellar verifier
   commitment: string;
-  summary: string; // human-readable "what this discloses"
-  anchor?: { matches: boolean; txHash: string };
+  summary: string; // human-readable "what this discloses" (derived from publicSignals)
+  anchor?: {
+    matches: boolean; // true ONLY when confirmed against the ledger memo (see onChainConfirmed)
+    txHash: string;
+    selfConsistent?: boolean; // receipt's own bytes hash to its claimed sha256
+    onChainConfirmed?: boolean; // the tx's ledger MemoHash equals the claimed sha256
+    reason?: string;
+  };
+  // F1: is a proof-valid receipt actually BOUND to real on-chain state? A valid proof about a
+  // never-deposited commitment (or an unregistered aggregate request) is bound=false, so the
+  // console must NOT show a plain green VALID.
+  bound?: boolean;
+  boundReason?: string;
+  metaMismatch?: boolean; // receipt metadata disagreed with the proven public signal
   error?: string;
 };
 /**
- * Independently re-verify a pasted audit receipt: Groth16 verify IN-BROWSER (snarkjs) AND on
- * the live Stellar verifier, routed to the right vkey + verifier for the receipt's type. If
- * the receipt carries an on-chain anchor, recompute its SHA-256 and confirm it matches the
- * timestamped memo. Zero trust in Tukar.
+ * Independently re-verify a pasted audit receipt with ZERO trust in Tukar OR in the receipt's
+ * own metadata:
+ *   1. Groth16 verify IN-BROWSER (snarkjs) AND on the live Stellar verifier (routed per type).
+ *   2. BIND the proof to real on-chain state (F1): the disclosed commitment must be a real pool
+ *      deposit; an aggregate's audit hash must be a REGISTERED request and every active
+ *      commitment a known deposit. proof-valid but NOT bound => not a plain VALID.
+ *   3. Every displayed figure is derived from publicSignals (F3), not receipt metadata.
+ *   4. If anchored, the on-chain content match requires READING the ledger memo (F2), not just
+ *      recomputing the receipt's own SHA-256.
  */
 export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerification> {
   const type: DisclosureType = (r.type as DisclosureType) || "exact";
@@ -310,21 +343,82 @@ export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerificatio
   const sigs = r.publicSignals.map(String);
   const local = await verify(vkPath, sigs, r.proof);
   const oc = await verifyProofOnChain(verifier, r.proof, sigs);
-  const cmt = r.commitment || sigs[0];
-  const summary = r.disclosedAmountUsdc
-    ? `discloses $${r.disclosedAmountUsdc} USDC`
-    : r.thresholdUsdc
-      ? `proves ≤ $${r.thresholdUsdc} USDC (amount hidden)`
-      : r.bandUsdc
-        ? `proves in band ${r.bandUsdc} USDC (amount hidden)`
-        : r.capUsdc
-          ? `proves portfolio ≤ $${r.capUsdc} USDC (individual amounts hidden)`
-          : "amount hidden";
-  let anchor: { matches: boolean; txHash: string } | undefined;
+
+  // F3: derive the disclosed figures + commitment from publicSignals, treating metadata as
+  // untrusted. If metadata disagrees with the proven signal, prefer the signal and flag it.
+  const cmt = sigs[0];
+  let summary: string;
+  let metaMismatch = false;
+  const disagrees = (metaUsdc: unknown, provenUsdc: string) =>
+    metaUsdc != null && String(metaUsdc) !== provenUsdc;
+  if (type === "exact") {
+    const shown = fmtUsdc(sigs[1]);
+    metaMismatch = disagrees(r.disclosedAmountUsdc, shown);
+    summary = `discloses $${shown} USDC`;
+  } else if (type === "threshold") {
+    const shown = fmtUsdc(sigs[1]);
+    metaMismatch = disagrees(r.thresholdUsdc, shown);
+    summary = `proves ≤ $${shown} USDC (amount hidden)`;
+  } else if (type === "range") {
+    const lo = fmtUsdc(sigs[1]);
+    const hi = fmtUsdc(sigs[2]);
+    metaMismatch = disagrees(r.bandUsdc, `${lo}–${hi}`);
+    summary = `proves in band $${lo}–$${hi} USDC (amount hidden)`;
+  } else {
+    // aggregate: cap is publicSignals[10]
+    const shown = fmtUsdc(sigs[10]);
+    metaMismatch = disagrees(r.capUsdc, shown);
+    summary = `proves portfolio ≤ $${shown} USDC (individual amounts hidden)`;
+  }
+  if (metaMismatch) summary += " (receipt metadata disagreed; showing the proven value)";
+
+  // F1: bind to on-chain state. Only meaningful once the proof itself verifies.
+  let bound = false;
+  let boundReason = "";
+  if (local && oc.verified) {
+    if (type === "aggregate") {
+      const auditHash = sigs[11];
+      const registered = await isAuditRequest(auditHash);
+      if (!registered) {
+        boundReason = "the audit request is not registered on-chain";
+      } else {
+        // every ACTIVE commitment (active[i]=1, indices 5..9) must be a known deposit
+        const activeIdx = [0, 1, 2, 3, 4].filter((i) => sigs[5 + i] === "1");
+        const known = await Promise.all(activeIdx.map((i) => isKnownCommitment(sigs[i])));
+        if (known.every(Boolean)) {
+          bound = true;
+          boundReason = "registered audit request; every active commitment is an on-chain deposit";
+        } else {
+          boundReason = "an active commitment in the aggregate is not an on-chain deposit";
+        }
+      }
+    } else {
+      // exact / threshold / range: commitment is publicSignals[0]
+      if (await isKnownCommitment(cmt)) {
+        bound = true;
+        boundReason = "the commitment is a real on-chain deposit";
+      } else {
+        boundReason = "the proof is valid but its commitment is not an on-chain deposit";
+      }
+    }
+  } else {
+    boundReason = "proof did not verify";
+  }
+
+  // F2: anchor content match requires reading the ledger memo, not just recomputing the hash.
+  let anchor: ReceiptVerification["anchor"];
   if (r.anchor && r.anchor.sha256) {
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(receiptCanonical(r))));
     const h = [...digest].map((b) => b.toString(16).padStart(2, "0")).join("");
-    anchor = { matches: h === r.anchor.sha256, txHash: r.anchor.txHash };
+    const selfConsistent = h === r.anchor.sha256; // receipt bytes hash to its claimed sha256
+    const memoHex = r.anchor.txHash ? await readAnchorMemoHash(r.anchor.txHash) : null;
+    const onChainConfirmed = !!memoHex && memoHex === r.anchor.sha256;
+    const reason = onChainConfirmed
+      ? "the ledger memo commits to this exact receipt"
+      : memoHex == null
+        ? "anchor not confirmed on-chain (transaction missing or no hash memo)"
+        : "anchor not confirmed on-chain (ledger memo does not match)";
+    anchor = { matches: onChainConfirmed, txHash: r.anchor.txHash, selfConsistent, onChainConfirmed, reason };
   }
-  return { ok: local && oc.verified, type, local, onChain: oc.verified, commitment: String(cmt), summary, anchor };
+  return { ok: local && oc.verified, type, local, onChain: oc.verified, commitment: String(cmt), summary, anchor, bound, boundReason, metaMismatch };
 }

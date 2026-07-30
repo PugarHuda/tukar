@@ -30,7 +30,6 @@ import {
   onramperOfframpUrl,
   readReflectorFx,
   readReflectorRecords,
-  offrampQuote,
   offrampQuoteTwap,
   readPoolState,
   readRecentActivity,
@@ -633,7 +632,9 @@ export default function DemoConsole() {
       const cor = byCode(code);
       if (offrampedRef.current.has(id) && cor && cor.oracle) {
         try {
-          const q = await offrampQuote(cor.oracle, Number(fmtUsdc(BigInt(n.amount))));
+          // median of 5 records (TWAP) — matches revealNote + the label + the settlement gate,
+          // not a single spot price, so the displayed basis stays true after a corridor change.
+          const q = await offrampQuoteTwap(cor.oracle, Number(fmtUsdc(BigInt(n.amount))), 5);
           if (q != null) {
             n.localQuote = q;
             saveSession();
@@ -832,7 +833,7 @@ export default function DemoConsole() {
         );
         setProof({
           state: "verified",
-          title: "Range proof verified",
+          title: "Threshold proof verified",
           body: (
             <>
               Proven: this payment is <b style={{ color: "#5fe3a0" }}>≤ ${fmtUsdc(claimThr)} USDC</b>. The exact amount was <b>never revealed</b>.
@@ -846,7 +847,7 @@ export default function DemoConsole() {
         try {
           const oc = await discloseThresholdViaPool(p, publicSignals);
           if (oc.verified) {
-            setProof((prev) => ({ ...prev, title: "Range proof verified on-chain (bound to a known deposit)", onchain: <>⛓ <b style={{ color: "#5fe3a0" }}>Verified on-chain</b>. The pool confirmed the range proof against a known deposit (verifier {tlink})</> }));
+            setProof((prev) => ({ ...prev, title: "Threshold proof verified on-chain (bound to a known deposit)", onchain: <>⛓ <b style={{ color: "#5fe3a0" }}>Verified on-chain</b>. The pool confirmed the threshold proof against a known deposit (verifier {tlink})</> }));
             setStatus("Threshold disclosure verified in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.");
             setDisclosureReceipt("threshold", { thresholdUsdc: fmtUsdc(claimThr), commitment: note.commitment, auditContext: auditCtx, auditContextHash }, p, publicSignals);
           } else {
@@ -1552,8 +1553,8 @@ export default function DemoConsole() {
 
               <div className="foot-note" style={{ margin: "-8px 0 14px" }}>{policyNode}</div>
 
-              <label className="fld">CONFIDENTIAL PAYMENT TO AUDIT</label>
-              <select className="tk-select" value={auditSel} onChange={(e) => setAuditSel(e.target.value)}>
+              <label className="fld" htmlFor="audit-select">CONFIDENTIAL PAYMENT TO AUDIT</label>
+              <select id="audit-select" className="tk-select" value={auditSel} onChange={(e) => setAuditSel(e.target.value)}>
                 <option value="">— none —</option>
                 {auditable.map((n) => (
                   <option key={n.id} value={n.id}>

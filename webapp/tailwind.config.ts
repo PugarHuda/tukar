@@ -25,7 +25,7 @@ const config: Config = {
         tp: "#f5f1ec", // primary
         ts: "#cfc8c1", // secondary
         tm: "#8a847e", // muted
-        tf: "#6b645e", // faint / labels
+        tf: "#837c74", // faint / labels (4.88:1 on #0a0705 — clears AA 4.5:1)
         // brand orange
         orange: {
           DEFAULT: "#ff7a1a",

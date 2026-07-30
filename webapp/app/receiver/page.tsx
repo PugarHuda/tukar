@@ -289,8 +289,10 @@ export default function ReceiverPage() {
         ] as const).map((t) => (
           <button
             key={t.id}
+            id={`tab-${t.id}`}
             role="tab"
             aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
             onClick={() => setTab(t.id)}
             className={`min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-[13px] font-semibold transition-colors ${
               tab === t.id ? "bg-orange text-bg" : "text-tm hover:text-tp"
@@ -302,8 +304,9 @@ export default function ReceiverPage() {
       </div>
 
       {/* Payments */}
-      {tab === "payments" &&
-        (ordered.length > 0 ? (
+      {tab === "payments" && (
+        <div id="panel-payments" role="tabpanel" aria-labelledby="tab-payments">
+        {ordered.length > 0 ? (
           <div className="mb-4 flex flex-col gap-4">
             {ordered.map((n) => (
               <PaymentCard
@@ -334,10 +337,13 @@ export default function ReceiverPage() {
               </Button>
             </div>
           </Card>
-        ))}
+        )}
+        </div>
+      )}
 
       {/* Claim */}
       {tab === "claim" && (
+      <div id="panel-claim" role="tabpanel" aria-labelledby="tab-claim">
       <Card className="mb-4 border-orange/[0.28] p-5">
         <div className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">Claim a payment</div>
         <p className="mt-2 text-[13px] leading-relaxed text-tm">
@@ -362,14 +368,16 @@ export default function ReceiverPage() {
         </div>
         <video ref={videoRef} playsInline muted className={`mt-3 w-full rounded-tile border border-line ${scanning ? "" : "hidden"}`} />
       </Card>
+      </div>
       )}
 
       {/* Request */}
       {tab === "request" && (
+      <div id="panel-request" role="tabpanel" aria-labelledby="tab-request">
       <Card className="mb-4 p-5">
         <div className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">Request a payment</div>
         <p className="mt-2 text-[13px] leading-relaxed text-tm">
-          Make a request to hand a sender. They load it in the sender app and it fills in the amount and pays you.
+          Make a request to hand a sender. Loading it in the sender app prefills the amount and shows you as the payee. Whoever holds the bearer note it creates can claim it.
         </p>
         <div className="mt-3">
           <Input
@@ -394,10 +402,11 @@ export default function ReceiverPage() {
               <Badge tone={copied ? "green" : "muted"}>{copied ? "copied" : "share this"}</Badge>
             </div>
             <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10.5px] leading-relaxed text-ts">{reqString}</pre>
-            <p className="mt-2 text-[11.5px] leading-relaxed text-tm">Hand this string to the sender. They load it in the sender app to pay you.</p>
+            <p className="mt-2 text-[11.5px] leading-relaxed text-tm">Hand this string to the sender. Loading it prefills the amount and shows you as the payee. Whoever holds the resulting bearer note can claim it.</p>
           </div>
         )}
       </Card>
+      </div>
       )}
 
       <p className="px-1 pb-2 text-[11.5px] leading-relaxed text-tf">
@@ -406,7 +415,7 @@ export default function ReceiverPage() {
 
       {/* Status bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[520px] items-center gap-2 px-4 py-3 text-[12.5px] text-ts">
+        <div role="status" aria-live="polite" className="mx-auto flex max-w-[520px] items-center gap-2 px-4 py-3 text-[12.5px] text-ts">
           {status.busy ? <Spinner label={status.text} /> : <span className="break-words">{status.text}</span>}
         </div>
       </div>
