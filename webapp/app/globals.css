@@ -50,6 +50,56 @@
   }
 }
 
+@layer components {
+  /* Crafted surface fill — a faint top-lit inner gradient over the near-black canvas, so a
+     card reads as a real, lifted surface rather than a flat grey box. Pair with `shadow-card`
+     (top-edge highlight + soft drop) on the element. */
+  .tk-surface {
+    background-image: theme(backgroundImage.card-hi);
+  }
+
+  /* Corridor-motif eyebrow: the brand glyph's diamond core, glowing, leading a mono label.
+     Carries the Tukar identity onto every section header so the surfaces feel like one product. */
+  .tk-eyebrow {
+    position: relative;
+    padding-left: 17px;
+  }
+  .tk-eyebrow::before {
+    content: "";
+    position: absolute;
+    left: 1px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    background: theme(colors.orange.DEFAULT);
+    transform: rotate(45deg);
+    box-shadow: 0 0 8px rgba(255, 122, 26, 0.55);
+  }
+
+  /* Loading shimmer — a soft light sweep across a placeholder, warmer than a bare opacity pulse. */
+  .tk-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .tk-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+    animation: theme(animation.tk-shimmer);
+  }
+
+  /* Success check-mark stroke draw (money-moment beat). */
+  .tk-draw-path {
+    stroke-dasharray: 18;
+    stroke-dashoffset: 18;
+    animation: tk-draw 0.55s 0.12s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -57,5 +107,9 @@
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+  /* Keep the drawn check-mark fully visible when motion is reduced (no partial stroke). */
+  .tk-draw-path {
+    stroke-dashoffset: 0;
   }
 }

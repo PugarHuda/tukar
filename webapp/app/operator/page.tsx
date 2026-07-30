@@ -79,7 +79,10 @@ const CONTRACT_LINK = (id: string) => (
 function SectionHead({ seq, title, sub }: { seq: string; title: string; sub?: React.ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-2.5">
-      <span className="font-mono text-xs font-semibold text-orange">{seq}</span>
+      <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-orange">
+        <i aria-hidden className="h-1.5 w-1.5 rotate-45 bg-orange shadow-[0_0_7px_rgba(255,122,26,0.6)]" />
+        {seq}
+      </span>
       <h2 className="text-lg font-extrabold tracking-[-0.01em]">{title}</h2>
       {sub && <span className="font-mono text-[11px] text-tf">{sub}</span>}
     </div>
@@ -686,7 +689,7 @@ export default function OperatorPage() {
       <div className="mx-auto max-w-wrap px-6 py-10">
         <section className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Operator console</p>
+            <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Operator console</p>
             <h1 className="text-[clamp(26px,3vw,40px)] font-extrabold leading-tight tracking-[-0.025em]">Corridor operations &amp; compliance policy</h1>
             <p className="mt-3 max-w-[560px] text-sm leading-relaxed text-tm">
               A monitoring and configuration surface for the ASP admin. Pool health, the deployed contract inventory, the on-chain allow and deny policy, oracle freshness, and corridor and anchor config, all read live from Stellar testnet.

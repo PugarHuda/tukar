@@ -26,7 +26,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         ref={ref}
         id={id}
         style={{ ...caretStyle, ...style }}
-        className={`mt-[7px] w-full cursor-pointer rounded-[11px] border border-line-input bg-input-2 py-[11px] pl-3 pr-[34px] text-[13px] text-tp transition-all duration-150 hover:border-white/30 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)] ${className}`}
+        className={`mt-[7px] w-full cursor-pointer rounded-[11px] border border-line-input bg-input-2 py-[11px] pl-3 pr-[34px] text-[13px] text-tp shadow-[inset_0_1px_1px_rgba(0,0,0,0.18)] transition-all duration-150 hover:border-white/30 focus:border-orange/60 focus:outline-none focus:shadow-[inset_0_1px_1px_rgba(0,0,0,0.18),0_0_0_3px_rgba(255,122,26,0.12)] ${className}`}
         {...rest}
       >
         {children}

@@ -931,7 +931,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
             Reveal in {cor.currency} →
           </Button>
         ) : local != null ? (
-          <div>
+          <div className="animate-tk-pop">
             <div className="text-2xl font-black tracking-[-0.02em] text-green-t">
               + {cor.symbol}
               {fmtLocal(local)} <span className="text-sm font-semibold text-tm">{cor.currency}</span>

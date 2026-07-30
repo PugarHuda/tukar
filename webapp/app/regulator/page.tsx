@@ -105,7 +105,7 @@ export default function RegulatorPage() {
       <div className="mx-auto max-w-wrap px-6 py-8">
         <section className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-[640px]">
-            <p className="mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Compliance · Selective disclosure</p>
+            <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Compliance · Selective disclosure</p>
             <h1 className="m-0 text-[clamp(24px,3vw,36px)] font-extrabold leading-tight tracking-[-0.02em]">
               Regulator / Compliance console
             </h1>
@@ -151,7 +151,7 @@ function CardBox({ title, sub, children, right }: { title: string; sub?: string;
     <section className="rounded-card border border-line bg-surface p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-extrabold tracking-[-0.01em]">{title}</h2>
+          <h2 className="tk-eyebrow text-lg font-extrabold tracking-[-0.01em]">{title}</h2>
           {sub && <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-tm">{sub}</p>}
         </div>
         {right}
@@ -479,16 +479,16 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
 
             {/* F1: proof-valid is not enough — show whether it is BOUND to real on-chain state. */}
             {!res.ok ? (
-              <div className="mt-3 rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2 text-red-t">
+              <div className="mt-3 animate-tk-pop rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2 text-red-t">
                 <b>✗ Not valid.</b> The proof was rejected, so nothing is disclosed.
               </div>
             ) : res.bound ? (
-              <div className="mt-3 rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2 text-green-t">
+              <div className="mt-3 animate-tk-ring rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2 text-green-t">
                 <b>✓ Verified and bound to real on-chain state.</b>{" "}
                 <span className="text-ts">{res.boundReason}.</span>
               </div>
             ) : (
-              <div className="mt-3 rounded-lg border border-amber/40 bg-amber/[0.05] px-3 py-2 text-amber">
+              <div className="mt-3 animate-tk-pop rounded-lg border border-amber/40 bg-amber/[0.05] px-3 py-2 text-amber">
                 <b>⚠ Proof is valid but NOT bound to on-chain state.</b>{" "}
                 <span className="text-ts">{res.boundReason}. This is not a confirmed disclosure of a real deposit — treat it as unverified.</span>
               </div>

@@ -261,7 +261,7 @@ export default function ReceiverPage() {
       </header>
 
       <div className="mb-6">
-        <p className="mb-2 font-mono text-[11px] tracking-[0.18em] text-orange uppercase">Receive & cash out · Stellar testnet</p>
+        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.18em] text-orange uppercase">Receive &amp; cash out · Stellar testnet</p>
         <h1 className="text-[clamp(26px,7vw,34px)] font-extrabold leading-[1.05] tracking-[-0.02em]">Receive money</h1>
         <p className="mt-3 text-sm leading-relaxed text-tm">
           Claim an incoming private payment, see it in your local currency read on-chain, withdraw on-chain, and cash out to fiat.
@@ -323,12 +323,20 @@ export default function ReceiverPage() {
             ))}
           </div>
         ) : (
-          <Card className="mb-4 p-6">
-            <div className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">No payments yet</div>
-            <p className="mt-2 text-[13px] leading-relaxed text-tm">
+          <Card className="mb-4 p-8 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-orange/25 bg-orange/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <svg width="34" height="34" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                <path d="M28 16 22 5.6 10 5.6 4 16 10 26.4 22 26.4Z" stroke="#ff8a3d" strokeWidth="2" strokeLinejoin="round" />
+                <path d="M1 16H12M20 16H31" stroke="#ffb070" strokeWidth="2" strokeLinecap="round" />
+                <path d="M16 11 21 16 16 21 11 16Z" fill="#ff7a1a" />
+                <path d="M16 13.2 18.8 16 16 18.8 13.2 16Z" fill="#0a0705" />
+              </svg>
+            </div>
+            <div className="mt-4 font-mono text-[10px] tracking-[0.14em] text-orange uppercase">No payments yet</div>
+            <p className="mx-auto mt-2 max-w-[360px] text-[13px] leading-relaxed text-tm">
               Claimed and incoming payments show up here. Paste a bearer note in Claim, or make a request in Request.
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Button variant="ghost" onClick={() => setTab("claim")}>
                 Claim a payment
               </Button>

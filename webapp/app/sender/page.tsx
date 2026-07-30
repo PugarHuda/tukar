@@ -516,7 +516,7 @@ function ComposeScreen(props: {
   return (
     <div className="animate-tk-pop">
       <div className="mb-7">
-        <p className="mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Live on Stellar testnet</p>
+        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Live on Stellar testnet</p>
         <h1 className="text-[clamp(28px,7vw,38px)] font-extrabold leading-[1.05] tracking-[-0.025em]">
           Send money.
           <br />
@@ -629,7 +629,7 @@ function ComposeScreen(props: {
       )}
 
       <div className="mt-3 text-center font-mono text-[11px] text-tm">
-        Shielded pool · <b className={poolBumped ? "text-orange" : "text-ts"}>{pool ? pool.commitments : "…"}</b> notes · your payment joins the anonymity set
+        Shielded pool · <b className={poolBumped ? "inline-block animate-tk-bump text-orange" : "text-ts"}>{pool ? pool.commitments : "…"}</b> notes · your payment joins the anonymity set
       </div>
 
       <p className="mt-6 text-center text-[11px] leading-relaxed text-tf">
@@ -660,7 +660,7 @@ function SendScreen(props: {
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
-        <p className="mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Step 2 · Confirm and send</p>
+        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Step 2 · Confirm and send</p>
         <h1 className="text-3xl font-extrabold tracking-[-0.02em]">Send ${usdc}</h1>
         <p className="mt-2 text-sm text-tm">
           to {recipient || "recipient"} · {corridor.country}
@@ -729,7 +729,7 @@ function ProgressScreen(props: {
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
-        <p className="mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Sending</p>
+        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Sending</p>
         <h1 className="text-2xl font-extrabold tracking-[-0.02em]">
           Sending ${usdc} to {corridor.country}
         </h1>
@@ -752,7 +752,7 @@ function ProgressScreen(props: {
       )}
 
       <div className="mt-3 text-center font-mono text-[11px] text-tm">
-        Pool commitments · <b className={poolBumped ? "text-orange" : "text-ts"}>{pool ? pool.commitments : "…"}</b>
+        Pool commitments · <b className={poolBumped ? "inline-block animate-tk-bump text-orange" : "text-ts"}>{pool ? pool.commitments : "…"}</b>
       </div>
 
       {status && (
@@ -770,10 +770,10 @@ function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () 
   return (
     <div className="animate-tk-pop">
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-green/40 bg-green/10">
+        <div className="mx-auto mb-4 flex h-14 w-14 animate-tk-ring items-center justify-center rounded-full border border-green/40 bg-green/10">
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#5fe3a0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 3 20 8 18 17 12 21 6 17 4 8Z" />
-            <path d="M8.5 12 11 14.5 15.5 9" />
+            <path className="tk-draw-path" d="M8.5 12 11 14.5 15.5 9" />
           </svg>
         </div>
         <h2 className="text-2xl font-extrabold tracking-[-0.02em]">Sent and shielded</h2>
@@ -868,7 +868,7 @@ function Step({ n, state, title, sub, last }: { n: number; state: StepState; tit
   return (
     <div className={`flex items-start gap-3 py-3 ${last ? "" : "border-b border-line"}`}>
       <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold ${STEP_TONE[state]}`}>
-        {state === "done" ? "✓" : state === "fail" ? "✕" : state === "run" ? <span className="inline-block animate-tk-spin">◠</span> : n}
+        {state === "done" ? <span className="inline-block animate-tk-bump">✓</span> : state === "fail" ? "✕" : state === "run" ? <span className="inline-block animate-tk-spin">◠</span> : n}
       </div>
       <div>
         <div className={`text-sm font-semibold ${state === "pend" ? "text-tm" : "text-tp"}`}>{title}</div>

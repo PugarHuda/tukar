@@ -59,6 +59,17 @@ const config: Config = {
       },
       boxShadow: {
         ring: "0 0 0 1px rgba(255,122,26,0.8), 0 0 26px rgba(255,122,26,0.16)",
+        // Crafted surface depth: a faint top-edge light line + a soft drop, so cards read as
+        // lifted off the near-black canvas rather than a flat 1px box.
+        card: "inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.28)",
+        lift: "inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 34px rgba(0,0,0,0.34)",
+        // Primary button: a top sheen + a warm cast, giving it depth without a gradient library.
+        btn: "inset 0 1px 0 rgba(255,255,255,0.32), 0 6px 16px rgba(255,122,26,0.24)",
+        "btn-hover": "inset 0 1px 0 rgba(255,255,255,0.36), 0 10px 24px rgba(255,122,26,0.32)",
+      },
+      backgroundImage: {
+        // Faint inner gradient for crafted surfaces (top-lit, fades to transparent).
+        "card-hi": "linear-gradient(180deg, rgba(255,255,255,0.032), rgba(255,255,255,0.006) 45%, transparent)",
       },
       maxWidth: {
         wrap: "1360px",
@@ -68,12 +79,23 @@ const config: Config = {
         "tk-pulse": { "0%,100%": { opacity: "1" }, "50%": { opacity: "0.45" } },
         "tk-pop": { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "translateY(0)" } },
         "tk-bar": { "0%": { transform: "translateX(-100%)" }, "100%": { transform: "translateX(280%)" } },
+        // A count/value beat: a quick spring when a live number changes (pool count, verdicts).
+        "tk-bump": { "0%": { transform: "scale(1)" }, "35%": { transform: "scale(1.24)" }, "100%": { transform: "scale(1)" } },
+        // Success moment: a one-shot ring that blooms and fades (deposit/verify verdict).
+        "tk-ring": { "0%": { boxShadow: "0 0 0 0 rgba(55,214,122,0.5)" }, "70%": { boxShadow: "0 0 0 14px rgba(55,214,122,0)" }, "100%": { boxShadow: "0 0 0 0 rgba(55,214,122,0)" } },
+        // Check-mark stroke draw for the success beat.
+        "tk-draw": { from: { strokeDashoffset: "18" }, to: { strokeDashoffset: "0" } },
+        // Loading shimmer sweep for skeletons (crafted, not a bare pulse).
+        "tk-shimmer": { "100%": { transform: "translateX(100%)" } },
       },
       animation: {
         "tk-spin": "tk-spin 0.9s linear infinite",
         "tk-pulse": "tk-pulse 2.4s ease-in-out infinite",
         "tk-pop": "tk-pop 0.42s cubic-bezier(.2,.7,.2,1)",
         "tk-bar": "tk-bar 1s ease-in-out infinite",
+        "tk-bump": "tk-bump 0.6s cubic-bezier(.2,.7,.2,1)",
+        "tk-ring": "tk-ring 1.1s ease-out",
+        "tk-shimmer": "tk-shimmer 1.5s ease-in-out infinite",
       },
     },
   },
