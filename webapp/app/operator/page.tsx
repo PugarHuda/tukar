@@ -12,6 +12,7 @@ import {
   readDenyList,
   readReflectorRecords,
   offrampQuoteTwap,
+  offrampQuote,
   explorer,
   txExplorer,
   POOL,
@@ -429,33 +430,66 @@ type OracleCard = {
   country: string;
   records: { rate: number; ageSec: number | null }[] | null;
   twap: number | null;
+  spot: number | null;
 };
 
 function OracleHealthSection() {
   const [cards, setCards] = useState<OracleCard[] | null>(null);
+  const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
 
   useEffect(() => {
     let live = true;
+    // The lib readers return null on error, but a stalled/throttled RPC can leave a read
+    // never settling. Race the whole fan-out against a timeout so the cards never hang silently.
+    const timeout = new Promise<null>((res) => setTimeout(() => res(null), 15000));
     (async () => {
-      const out = await Promise.all(
-        ORACLE_CORRIDORS.map(async (c) => {
-          const [depth, twap] = await Promise.all([readReflectorRecords(c.sym, 5), offrampQuoteTwap(c.sym, 500, 5).catch(() => null)]);
-          return { sym: c.sym, country: c.country, records: depth?.records ?? null, twap };
-        }),
-      );
-      if (live) setCards(out);
+      try {
+        const work = Promise.all(
+          ORACLE_CORRIDORS.map(async (c) => {
+            const [depth, twap, spot] = await Promise.all([
+              readReflectorRecords(c.sym, 5).catch(() => null),
+              offrampQuoteTwap(c.sym, 500, 5).catch(() => null),
+              offrampQuote(c.sym, 500).catch(() => null),
+            ]);
+            return { sym: c.sym, country: c.country, records: depth?.records ?? null, twap, spot };
+          }),
+        );
+        const out = await Promise.race([work, timeout]);
+        if (!live) return;
+        if (out == null) { setStatus("err"); return; }
+        setCards(out);
+        setStatus("ok");
+      } catch {
+        if (live) setStatus("err");
+      }
     })();
     return () => { live = false; };
   }, []);
 
   return (
     <Panel seq="03" className="w-full">
-      <SectionHead seq="03" title="Oracle health" sub="Reflector SEP-40 FX · settlement-gate basis" />
+      <SectionHead
+        seq="03"
+        title="Oracle health"
+        sub={
+          status === "err" ? (
+            <StatusPill tone="red" label="oracle unreachable" />
+          ) : status === "loading" ? (
+            <StatusPill tone="amber" label="reading FX oracle…" />
+          ) : (
+            <StatusPill tone="green" label="Reflector SEP-40 FX · settlement-gate basis" />
+          )
+        }
+      />
       <p className="mb-5 text-[12.5px] leading-relaxed text-tm">
-        The withdraw min-receive gate prices at the median of the last 5 Reflector records, not a single spot, and fails closed if the newest is stale (over 3600s). One manipulated or frozen record cannot lower the floor. Each corridor below shows that live depth.
+        The withdraw min-receive gate prices at the median of the last 5 Reflector records, not a single spot, and fails closed if the newest is stale (over 3600s). One manipulated or frozen record cannot lower the floor. Each corridor below shows that live depth, with the spot quote beside the median so you can see the two diverge.
       </p>
 
-      {!cards ? (
+      {status === "err" ? (
+        <div className="rounded-tile border border-amber/30 bg-amber/[0.05] p-4 text-[12.5px] leading-relaxed text-ts">
+          Couldn&apos;t reach the FX oracle right now. Try refreshing the page; the other sections read independently and are unaffected.
+        </div>
+      ) : !cards ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {ORACLE_CORRIDORS.map((c) => (
             <div key={c.sym} className="rounded-tile border border-line bg-black/20 p-4">
@@ -529,7 +563,11 @@ function OracleCardView({ card }: { card: OracleCard }) {
         })}
       </div>
       <div className="mt-3 border-t border-hair pt-2.5 text-[12px] leading-relaxed text-tm">
-        Settlement basis: 500 USDC off-ramps to <b className="text-ts">{card.twap != null ? fmtRate(card.twap) + " " + card.sym : "n/a"}</b> at the median (<code className="font-mono text-ts">offramp_quote_twap</code>, the exact floor the withdraw gate enforces).
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          <span>median <b className="text-orange-l3">{card.twap != null ? fmtRate(card.twap) + " " + card.sym : "n/a"}</b> <span className="text-tf">(<code className="font-mono">offramp_quote_twap</code>)</span></span>
+          <span>spot <b className="text-ts">{card.spot != null ? fmtRate(card.spot) + " " + card.sym : "n/a"}</b> <span className="text-tf">(<code className="font-mono">offramp_quote</code>)</span></span>
+        </div>
+        <div className="mt-1.5">The settlement gate prices 500 USDC on the <b className="text-ts">median of 5 records</b>, so spot may differ and the median is the floor the withdraw gate enforces.</div>
       </div>
     </div>
   );

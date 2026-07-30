@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Card, Button, Select, Input, Badge, Spinner, useToast } from "@/components/ui";
 import {
+  offrampQuote,
   offrampQuoteTwap,
   readReflectorRecords,
   withdrawSubmit,
@@ -47,6 +48,7 @@ import {
   proveRange,
   buildAggregateInput,
   proveAggregate,
+  decodeAuditRequest,
   makeReceipt,
   receiptCanonical,
   type Note,
@@ -90,6 +92,9 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   const { toast } = useToast();
   const [onramperInfo, setOnramperInfo] = useState<string | null>(null);
   const [anchorInfo, setAnchorInfo] = useState<string | null>(null);
+  // Spot off-ramp quote (offramp_quote), shown beside the median for oracle corridors to make
+  // the manipulation-resistance story visible. Component state, so it never persists to storage.
+  const [spotQuote, setSpotQuote] = useState<number | null>(null);
 
   // Switching receiver tabs unmounts every PaymentCard, so a running SEP-24 poll would keep
   // firing setState for ~24s on an unmounted card. Track liveness and bail out of the loop.
@@ -118,6 +123,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     try {
       const q = await offrampQuoteTwap(cor.oracle, usdc, 5);
       if (q != null) updateNote(note.id, { localQuote: q });
+      setSpotQuote(await offrampQuote(cor.oracle, usdc));
       const depth = await readReflectorRecords(cor.oracle, 5);
       if (depth && depth.records.length) updateNote(note.id, { oracleDepth: depth.records });
       setStatus(
@@ -133,16 +139,27 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   // Re-quote when the receiver changes the cash-out corridor.
   async function changeCorridor(code: string) {
     updateNote(note.id, { offCorridor: code, localQuote: undefined, oracleDepth: undefined, revealed: note.revealed });
+    setSpotQuote(null);
     const c = corridorByCode(code);
-    if (note.revealed && c.oracle) {
+    if (!note.revealed) return;
+    if (c.oracle) {
+      setStatus(`Reading the ${c.currency} figure on-chain from Reflector.`, true);
       try {
         // Median of 5 records — the SAME basis reveal() and the withdraw settlement gate use,
         // so the re-quoted figure matches the "median of 5" copy and the enforced gate.
         const q = await offrampQuoteTwap(c.oracle, usdc, 5);
         if (q != null) updateNote(note.id, { localQuote: q });
+        setSpotQuote(await offrampQuote(c.oracle, usdc));
         const depth = await readReflectorRecords(c.oracle, 5);
         if (depth && depth.records.length) updateNote(note.id, { oracleDepth: depth.records });
-      } catch {}
+        setStatus(q != null ? "Off-ramp figure read on-chain from the pool's Reflector quote." : "The FX oracle has no live price for this currency right now.");
+      } catch {
+        setStatus("On-chain quote unavailable right now.");
+      }
+    } else {
+      // Non-oracle corridor: priced from a live FX API, not on-chain. Never spin on an on-chain read.
+      const fx2 = fxRates[c.currency];
+      setStatus(fx2 ? `Shown at the live ${c.currency} rate (FX API).` : `Live ${c.currency} rate unavailable right now. This corridor prices from a live FX API, not on-chain.`);
     }
   }
 
@@ -421,6 +438,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   const [rangeLo, setRangeLo] = useState("0");
   const [rangeHi, setRangeHi] = useState(String(Math.max(1, Math.ceil(usdc)) + 100));
   const [aggCap, setAggCap] = useState("5000");
+  const [auditReq, setAuditReq] = useState("");
   const [proving, setProving] = useState(false);
   const [disc, setDisc] = useState<{ fact: React.ReactNode; onchain: boolean; verifierId: string } | null>(null);
   const [receipt, setReceipt] = useState<AuditReceipt | null>(null);
@@ -511,6 +529,66 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   }
 
   async function proveAggregateFlow() {
+    // REQUEST MODE — prove against a regulator-issued audit request. The request carries the exact
+    // ordered commitments[5] + active[5] + ctxNonce (+ cap) that the regulator already registered
+    // on-chain, so the proven issuedHash equals the registered one and the pool accepts it. The
+    // holder cannot trim the set: every ACTIVE required commitment must be matched to a claimed note.
+    const reqStr = auditReq.trim();
+    if (reqStr) {
+      let req;
+      try {
+        req = decodeAuditRequest(reqStr);
+      } catch (e: any) {
+        setStatus("That audit request could not be read. " + ((e && e.message) || e));
+        return;
+      }
+      // Rebuild the required openings in the request's slot order (Poseidon is order-sensitive).
+      const required: string[] = [];
+      for (let i = 0; i < AGG_N; i++) if (req.active[i] === "1") required.push(req.commitments[i]);
+      if (!required.length) {
+        setStatus("This audit request lists no active payments to prove.");
+        return;
+      }
+      const orderedNotes: Note[] = [];
+      let missing = 0;
+      for (const c of required) {
+        const n = allNotes.find((x) => x.commitment === c);
+        if (n) orderedNotes.push(n as unknown as Note);
+        else missing++;
+      }
+      if (missing) {
+        setStatus(`This request covers ${missing} payment(s) you do not hold, so you cannot prove it. Only the holder of every listed payment can answer this request.`);
+        return;
+      }
+      const cap = BigInt(req.cap);
+      // Same ctxNonce + ordered commitments + active flags -> the same issuedHash the regulator registered.
+      const build = await buildAggregateInput({ notes: orderedNotes, capStroops: cap, ctxNonce: req.ctxNonce });
+      if (build.total > cap) {
+        setStatus(`The total of the ${required.length} required payment(s) is above $${fmtUsdc(cap)} USDC, so it is not within the regulator's cap and cannot be proven under it.`);
+        return;
+      }
+      setStatus(`Proving the sum of ${required.length} payment(s) is at or below $${fmtUsdc(cap)} USDC against the regulator's request.`, true);
+      const { proof, publicSignals } = await proveAggregate(build);
+      const ok = await verify(CIRCUITS.aggregate.vkey, publicSignals, proof);
+      if (!ok) throw new Error("in-browser verification failed");
+      // No self-registration: the regulator already registered this exact audit hash on-chain.
+      const oc = await discloseAggregateViaPool(proof, publicSignals).catch(() => ({ verified: false }));
+      setDisc({
+        fact: (
+          <>
+            Proven the <b className="text-green-t">sum of {required.length} payment(s) in the regulator's request is at or below ${fmtUsdc(cap)} USDC</b>. No individual amount was revealed, and the set could not be trimmed.
+          </>
+        ),
+        onchain: oc.verified,
+        verifierId: AGGREGATE_VERIFIER,
+      });
+      setReceipt(makeReceipt("aggregate", { capUsdc: fmtUsdc(cap), commitments: orderedNotes.map((n) => n.commitment), auditContext: auditCtx, auditContextHash: build.issuedHash, ctxNonce: req.ctxNonce }, proof, publicSignals));
+      setStatus(oc.verified ? "Portfolio disclosure verified in your browser and on Stellar against the regulator's registered request." : "Verified in your browser. On-chain check unavailable right now.");
+      return;
+    }
+
+    // SELF-SERVE MODE (demo-only convenience) — no request loaded, so the holder self-computes the
+    // ctxNonce over its own claimed notes and self-registers (the demo key is the auditor here).
     const sel = allNotes.slice(0, AGG_N);
     if (!sel.length) {
       setStatus("Claim at least one payment to prove a portfolio total.");
@@ -683,19 +761,36 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
         <>
           <div className="mt-3">
             <Input
-              id={`cap-${note.id}`}
-              label="Cap for the sum of all claimed payments (USDC)"
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              value={aggCap}
-              onChange={(e) => setAggCap(e.target.value)}
+              id={`audit-req-${note.id}`}
+              label="Load an audit request (tukaudit1:) — optional"
+              value={auditReq}
+              onChange={(e) => setAuditReq(e.target.value)}
+              placeholder="tukaudit1:… paste a regulator-issued request"
             />
           </div>
-          <p className="mt-2 text-[11.5px] leading-relaxed text-tm">
-            Aggregates up to {AGG_N} of your claimed payments. On this testnet deploy the demo key is the auditor, so this app registers the audit request itself. In production an independent regulator issues that request first, then you prove against it. Either way the pool rejects any audit hash it never registered.
-          </p>
+          {auditReq.trim() ? (
+            <p className="mt-2 text-[11.5px] leading-relaxed text-tm">
+              Request mode, the production path. You prove the sum of the exact payments the regulator listed is within their cap, against the audit hash they already registered on-chain. The cap comes from the request, you cannot cherry-pick a subset, and the proof will not run unless you hold every payment listed.
+            </p>
+          ) : (
+            <>
+              <div className="mt-3">
+                <Input
+                  id={`cap-${note.id}`}
+                  label="Cap for the sum of all claimed payments (USDC)"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={aggCap}
+                  onChange={(e) => setAggCap(e.target.value)}
+                />
+              </div>
+              <p className="mt-2 text-[11.5px] leading-relaxed text-tm">
+                Self-serve mode, a demo-only convenience. It aggregates up to {AGG_N} of your claimed payments; on this testnet deploy the demo key is the auditor, so this app registers the audit request itself. The production path is request mode above: an independent regulator issues the request first, then you prove against it. Either way the pool rejects any audit hash it never registered.
+              </p>
+            </>
+          )}
         </>
       )}
 
@@ -845,12 +940,21 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
               Your ${usdcStr} USDC, converted{" "}
               {onChainQuote
                 ? "on-chain from the pool's Reflector quote, priced at the median of 5 records, the same basis the settlement gate enforces."
-                : "at the live FX rate."}
+                : "at the live FX API rate."}
             </div>
+            {onChainQuote && spotQuote != null && (
+              <div className="mt-2 rounded-tile border border-line bg-black/20 p-3 text-[11.5px] leading-relaxed text-tm">
+                <span className="text-amber">Spot</span> {cor.symbol}{fmtLocal(spotQuote)} · <span className="text-amber">Median of 5</span> {cor.symbol}{fmtLocal(local)}. The settlement gate prices on the median of 5 records, so spot can differ and the median is what the withdraw floor enforces.
+              </div>
+            )}
             {depth()}
           </div>
-        ) : (
+        ) : cor.oracle ? (
           <Spinner label={`Reading the ${cor.currency} figure on-chain.`} />
+        ) : (
+          <div className="text-[12.5px] leading-relaxed text-tm">
+            Live {cor.currency} rate unavailable right now. This corridor prices from a live FX API, not on-chain. Cash out below for the provider's live quote.
+          </div>
         )}
       </div>
 

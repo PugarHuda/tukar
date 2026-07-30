@@ -1073,6 +1073,20 @@ export default function DemoConsole() {
           <b style={{ textTransform: "capitalize" }}>{v.type}</b> disclosure · In your browser: {mark(v.local)} &nbsp;·&nbsp; On the live Stellar
           verifier: {mark(v.onChain)}
           <div style={{ opacity: 0.7, marginTop: 4 }}>commitment {short(v.commitment)} · {v.summary}</div>
+          {/* proof-valid is not enough: show whether it is BOUND to a real on-chain deposit (matches the Regulator console). */}
+          {!v.ok ? (
+            <div style={{ marginTop: 8, borderRadius: 8, border: "1px solid rgba(255,138,114,0.4)", background: "rgba(255,138,114,0.06)", padding: "6px 10px", color: "#ff8a72" }}>
+              <b>✗ Not valid.</b> The proof was rejected, so nothing is disclosed.
+            </div>
+          ) : v.bound ? (
+            <div style={{ marginTop: 8, borderRadius: 8, border: "1px solid rgba(95,227,160,0.35)", background: "rgba(95,227,160,0.06)", padding: "6px 10px", color: "#5fe3a0" }}>
+              <b>✓ Verified and bound to real on-chain state.</b> <span style={{ color: "#cfc8c1" }}>{v.boundReason}.</span>
+            </div>
+          ) : (
+            <div style={{ marginTop: 8, borderRadius: 8, border: "1px solid rgba(255,156,82,0.4)", background: "rgba(255,156,82,0.06)", padding: "6px 10px", color: "#ff9c52" }}>
+              <b>⚠ Proof is valid but NOT bound to on-chain state.</b> <span style={{ color: "#cfc8c1" }}>{v.boundReason}. This is not a confirmed disclosure of a real deposit, treat it as unverified.</span>
+            </div>
+          )}
           {v.anchor && (
             <div style={{ marginTop: 4 }}>
               On-chain anchor:{" "}

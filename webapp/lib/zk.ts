@@ -187,6 +187,34 @@ export function decodePaymentRequest(raw: string): RequestPayload {
   return json as RequestPayload;
 }
 
+// ---- audit request (tukaudit1:) — a regulator-issued aggregate audit request. Mirrors the
+// tukreq1: codec, but carries the EXACT ORDERED commitments[5] + active[5] + ctxNonce (+ cap in
+// stroops) that the regulator fed into the registered issuedHash = Poseidon(ctxNonce,
+// commitments[5], active[5]). Order matters: Poseidon is order-sensitive, so the holder must
+// prove against the same ordering to reproduce the hash the pool already registered.
+export type AuditRequestPayload = { v: 1; kind: "audit"; ctxNonce: string; commitments: string[]; active: string[]; cap: string };
+export function encodeAuditRequest(req: { ctxNonce: string | bigint; commitments: string[]; active: string[]; cap: string | bigint }): string {
+  const commitments = req.commitments.map(String);
+  const active = req.active.map(String);
+  if (commitments.length !== AGG_N || active.length !== AGG_N) throw new Error(`audit request needs ${AGG_N} commitments and ${AGG_N} active flags`);
+  const payload: AuditRequestPayload = { v: 1, kind: "audit", ctxNonce: String(req.ctxNonce), commitments, active, cap: String(req.cap) };
+  return "tukaudit1:" + btoa(JSON.stringify(payload));
+}
+/** Decode + validate a tukaudit1: audit request. Throws a clear error on a malformed string. */
+export function decodeAuditRequest(raw: string): AuditRequestPayload {
+  const json = JSON.parse(atob(raw.trim().replace(/^tukaudit1:/, "")));
+  if (json.kind !== "audit") throw new Error("not a Tukar audit request");
+  const commitments = Array.isArray(json.commitments) ? json.commitments.map(String) : [];
+  const active = Array.isArray(json.active) ? json.active.map(String) : [];
+  if (commitments.length !== AGG_N) throw new Error(`audit request must carry ${AGG_N} commitments`);
+  if (active.length !== AGG_N) throw new Error(`audit request must carry ${AGG_N} active flags`);
+  if (!commitments.every(isFieldStr)) throw new Error("audit request has a malformed commitment");
+  if (!active.every((a: string) => a === "0" || a === "1")) throw new Error("active flags must each be 0 or 1");
+  if (!isFieldStr(String(json.ctxNonce))) throw new Error("audit request has no valid ctxNonce");
+  if (!/^\d+$/.test(String(json.cap))) throw new Error("audit request has no valid cap");
+  return { v: 1, kind: "audit", ctxNonce: String(json.ctxNonce), commitments, active, cap: String(json.cap) };
+}
+
 // ---- generic Groth16 wrappers ----
 export type ProveResult = { proof: Groth16Proof; publicSignals: string[] };
 export async function fullProve(input: Record<string, any>, wasm: string, zkey: string): Promise<ProveResult> {
@@ -362,7 +390,9 @@ export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerificatio
   } else if (type === "range") {
     const lo = fmtUsdc(sigs[1]);
     const hi = fmtUsdc(sigs[2]);
-    metaMismatch = disagrees(r.bandUsdc, `${lo}–${hi}`);
+    // Compare in the SAME format makeReceipt stored: `$${fmtUsdc(lo)}-$${fmtUsdc(hi)}`
+    // (dollar signs, ASCII hyphen). The summary below uses an en-dash purely for display.
+    metaMismatch = disagrees(r.bandUsdc, `$${lo}-$${hi}`);
     summary = `proves in band $${lo}–$${hi} USDC (amount hidden)`;
   } else {
     // aggregate: cap is publicSignals[10]
@@ -372,20 +402,28 @@ export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerificatio
   }
   if (metaMismatch) summary += " (receipt metadata disagreed; showing the proven value)";
 
-  // F1: bind to on-chain state. Only meaningful once the proof itself verifies.
+  // F1/F3: bind to on-chain state. Only meaningful once the proof itself verifies. The binding
+  // checks return true=present, false=confirmed-absent, or null=could-not-read (RPC blip). A null
+  // must NOT show green bound and must NOT read as "not a deposit" — it's a distinct amber
+  // "couldn't confirm" (still bound=false, so the regulator's existing amber path renders it).
+  const CANT_CONFIRM = "could not confirm on-chain (chain read failed) — treat as unverified";
   let bound = false;
   let boundReason = "";
   if (local && oc.verified) {
     if (type === "aggregate") {
       const auditHash = sigs[11];
       const registered = await isAuditRequest(auditHash);
-      if (!registered) {
+      if (registered === null) {
+        boundReason = CANT_CONFIRM;
+      } else if (!registered) {
         boundReason = "the audit request is not registered on-chain";
       } else {
         // every ACTIVE commitment (active[i]=1, indices 5..9) must be a known deposit
         const activeIdx = [0, 1, 2, 3, 4].filter((i) => sigs[5 + i] === "1");
         const known = await Promise.all(activeIdx.map((i) => isKnownCommitment(sigs[i])));
-        if (known.every(Boolean)) {
+        if (known.some((k) => k === null)) {
+          boundReason = CANT_CONFIRM;
+        } else if (known.every((k) => k === true)) {
           bound = true;
           boundReason = "registered audit request; every active commitment is an on-chain deposit";
         } else {
@@ -394,7 +432,10 @@ export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerificatio
       }
     } else {
       // exact / threshold / range: commitment is publicSignals[0]
-      if (await isKnownCommitment(cmt)) {
+      const present = await isKnownCommitment(cmt);
+      if (present === null) {
+        boundReason = CANT_CONFIRM;
+      } else if (present) {
         bound = true;
         boundReason = "the commitment is a real on-chain deposit";
       } else {

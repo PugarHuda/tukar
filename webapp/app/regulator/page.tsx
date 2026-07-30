@@ -28,9 +28,11 @@ import {
 } from "@/lib/stellar";
 import {
   buildAggregateInput,
+  encodeAuditRequest,
   verifyReceipt,
   receiptCanonical,
   randomFieldElement,
+  usdcToStroops,
   fmtUsdc,
   short,
   shortHash,
@@ -569,12 +571,15 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
 // ================= 03 · ISSUE AUDIT REQUEST =================
 function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; addTrail: (e: Omit<TrailEntry, "ts">) => void }) {
   const { connected } = useWallet();
+  const { toast } = useToast();
   const [leaves, setLeaves] = useState<bigint[]>([]);
   const [loadingLeaves, setLoadingLeaves] = useState(true);
   const [selected, setSelected] = useState<string[]>([]);
   const [nonce, setNonce] = useState("");
+  const [cap, setCap] = useState("5000");
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<{ ok: boolean; html: React.ReactNode } | null>(null);
+  const [auditStr, setAuditStr] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -594,6 +599,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
 
   const issue = useCallback(async () => {
     setOut(null);
+    setAuditStr(null);
     if (!selected.length) {
       setOut({ ok: false, html: "Select at least one commitment." });
       return;
@@ -602,15 +608,22 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
       setOut({ ok: false, html: "Context nonce must be a decimal field element (use Random)." });
       return;
     }
+    if (!/^\d+(\.\d{1,7})?$/.test(cap.trim())) {
+      setOut({ ok: false, html: "Cap must be a USDC amount (up to 7 decimals)." });
+      return;
+    }
     const ctxNonce = (BigInt(nonce.trim()) % R).toString();
+    const capStroops = usdcToStroops(cap.trim());
     setBusy(true);
     setStatus("Computing the Poseidon audit hash and registering it on-chain (auditor = demo key)…");
     try {
       // Stub notes: buildAggregateInput derives issuedHash = Poseidon(ctxNonce, commitments[5],
       // active[5]) purely from each note's commitment + the active flags, so the amount/keys are
-      // not needed to ISSUE the request (they're only used later to PROVE against it).
+      // not needed to ISSUE the request (they're only used later to PROVE against it). The cap is
+      // a separate public input (not in the hash), carried in the shared request so the holder
+      // proves against the regulator's cap.
       const notes: Note[] = selected.map((c) => ({ amount: "0", privKey: "0", pubKey: "0", blinding: "0", commitment: c }));
-      const { issuedHash } = await buildAggregateInput({ notes, capStroops: 0n, ctxNonce });
+      const { issuedHash, input } = await buildAggregateInput({ notes, capStroops, ctxNonce });
       const reg = await registerAuditRequest(issuedHash);
       if (!reg.ok) {
         setStatus("Audit request registration failed.");
@@ -618,6 +631,10 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
         addTrail({ action: "Issued audit request", type: "aggregate", detail: `${selected.length} commitment(s)`, result: "failed", ref: shortHash(issuedHash) });
         return;
       }
+      // Emit the shareable request over the EXACT ordered commitments[5] + active[5] + ctxNonce
+      // that went into issuedHash (read back from the same build input, so it is byte-for-byte
+      // what was hashed). The holder proves against this and cannot trim the set.
+      setAuditStr(encodeAuditRequest({ ctxNonce: input.ctxNonce, commitments: input.commitments, active: input.active, cap: input.cap }));
       setStatus("Audit request registered on-chain.");
       setOut({
         ok: true,
@@ -655,7 +672,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
     } finally {
       setBusy(false);
     }
-  }, [selected, nonce, setStatus, addTrail]);
+  }, [selected, nonce, cap, setStatus, addTrail]);
 
   return (
     <CardBox
@@ -714,6 +731,27 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
         </Button>
       </div>
 
+      <div className="mt-4">
+        <label htmlFor="cap" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+          Cap for the holder's portfolio sum (USDC)
+        </label>
+        <input
+          id="cap"
+          type="number"
+          min="0"
+          step="0.01"
+          inputMode="decimal"
+          value={cap}
+          onChange={(e) => setCap(e.target.value)}
+          placeholder="e.g. 5000"
+          className="mt-[7px] w-full rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+        />
+        <p className="mt-2 text-[12px] text-tm">
+          The holder proves the sum of the selected payments is at or below this cap, without revealing any individual amount. The
+          cap rides in the shared request; it is a public circuit input, not part of the audit hash.
+        </p>
+      </div>
+
       {!connected && (
         <p className="mt-4 text-[13px] text-amber">Connect the testnet key (top right) to sign the on-chain registration.</p>
       )}
@@ -728,6 +766,32 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
       {out && (
         <div className={`mt-4 rounded-tile border p-4 text-[13px] ${out.ok ? "border-green/35 bg-green/[0.05]" : "border-red/40 bg-red/[0.05] text-red-t"}`}>
           {out.html}
+        </div>
+      )}
+
+      {auditStr && (
+        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Audit request to share (tukaudit1:)</div>
+          <textarea
+            readOnly
+            value={auditStr}
+            spellCheck={false}
+            className="mt-2 h-24 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[11px] leading-relaxed break-all text-tp"
+          />
+          <div className="mt-2 flex items-center gap-3">
+            <Button
+              variant="subtle"
+              onClick={() => {
+                if (navigator.clipboard) navigator.clipboard.writeText(auditStr).then(() => toast("Audit request copied", "success")).catch(() => {});
+              }}
+            >
+              Copy audit request
+            </Button>
+          </div>
+          <p className="mt-2 text-[12px] leading-relaxed text-tm">
+            Share this audit request with the holder. They prove their portfolio sum is within the cap against this exact request;
+            they cannot cherry-pick.
+          </p>
         </div>
       )}
     </CardBox>

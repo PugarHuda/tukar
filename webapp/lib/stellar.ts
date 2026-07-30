@@ -287,26 +287,33 @@ export async function loadLeavesFromChain(): Promise<bigint[]> {
  * True iff `commitmentDec` (a decimal field element) is a REAL on-chain deposit — i.e. it
  * appears as a Merkle leaf in the pool's durable state. Lets the regulator bind a disclosure
  * proof to actual pool state instead of trusting a free-floating (possibly never-deposited)
- * commitment. Reads via loadLeavesFromChain(). Returns false on any read failure.
+ * commitment. Reads via loadLeavesFromChain(). Returns true=present, false=confirmed-absent,
+ * or null when the chain could NOT be read (RPC blip) — so a caller can tell "never deposited"
+ * apart from "couldn't confirm" instead of conflating them.
  */
-export async function isKnownCommitment(commitmentDec: string | bigint): Promise<boolean> {
+export async function isKnownCommitment(commitmentDec: string | bigint): Promise<boolean | null> {
   try {
     const target = BigInt(commitmentDec);
     const leaves = await loadLeavesFromChain();
     return leaves.some((l) => l === target);
   } catch (_) {
-    return false;
+    return null; // could not read the chain — NOT "confirmed absent"
   }
 }
 
 /**
- * True iff `hashDec` (a decimal field element) is a REGISTERED aggregate audit request — the
- * pool's `is_audit_request` view returns true only for a hash the auditor registered on-chain.
- * Read-only simulation. Returns false on any read failure.
+ * REGISTERED aggregate audit request check — the pool's `is_audit_request` view returns true
+ * only for a hash the auditor registered on-chain. Read-only simulation. Returns true=registered,
+ * false=confirmed-not-registered, or null when the chain could NOT be read (RPC blip / sim error).
  */
-export async function isAuditRequest(hashDec: string | bigint): Promise<boolean> {
-  const res = await simulate(POOL, "is_audit_request", Sdk.nativeToScVal(buf32(hashDec), { type: "bytes" }));
-  return res.ok && res.value === true;
+export async function isAuditRequest(hashDec: string | bigint): Promise<boolean | null> {
+  try {
+    const res = await simulate(POOL, "is_audit_request", Sdk.nativeToScVal(buf32(hashDec), { type: "bytes" }));
+    if (!res.ok) return null; // could not read — NOT "confirmed not registered"
+    return res.value === true;
+  } catch (_) {
+    return null;
+  }
 }
 
 /**

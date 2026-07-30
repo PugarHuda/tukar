@@ -16,6 +16,7 @@ import {
   depositOnChain,
   registerRootOnChain,
   anchorOnramp,
+  anchorTxStatus,
   readPoolState,
   loadLeavesFromChain,
   readCurrentRoot,
@@ -59,6 +60,7 @@ type SendResult = {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const MAX_USDC = 1_000_000_000; // same cap the send path enforces on-chain
 const fmtRate = (r: number) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
 const fmtLocal = (v: number, c: Corridor) =>
   `${c.symbol}${v.toLocaleString("en-US", { maximumFractionDigits: v >= 1000 ? 0 : 2 })}`;
@@ -93,6 +95,12 @@ export default function SenderPage() {
 
   const treeRef = useRef<Tree | null>(null);
   const leavesRef = useRef<bigint[]>([]);
+  // Navigating away from /sender would keep an in-flight SEP-24 poll firing setState — track
+  // liveness and bail (same pattern as PaymentCard's aliveRef).
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+  // The amount in the field before a payment request overwrote it, restored on Clear.
+  const preReqAmount = useRef("200");
 
   const corridor = CORRIDORS.find((c) => c.code === code) || CORRIDORS[0];
   const effRate = fx[code]?.rate ?? corridor.rate;
@@ -300,10 +308,30 @@ export default function SenderPage() {
           ? `Anchor on-ramp opened for ${s.asset}. Finish the deposit in the anchor window (real SEP-24, tx ${String(s.id).slice(0, 8)}…).`
           : `Anchor ready for ${s.asset}. Allow pop-ups, then open ${s.url}`,
       );
+      // Follow the real SEP-24 deposit lifecycle (pending -> completed) and surface it.
+      pollOnrampStatus(s.sep24, s.bearer, s.id).catch(() => {});
     } catch (e: any) {
       setSendStatus("Anchor on-ramp failed: " + ((e && e.message) || e));
     } finally {
       setAnchorBusy(false);
+    }
+  }
+
+  // Bounded poll of the on-chain SEP-24 deposit status: 6 tries x ~4s, unmount-guarded.
+  async function pollOnrampStatus(sep24: string, bearer: { Authorization: string }, id: string) {
+    if (!sep24 || !bearer || !id) return;
+    const pretty = (s: string) => String(s).replace(/_/g, " ");
+    const terminal = /completed|refunded|error|expired|no_market/i;
+    for (let i = 0; i < 6; i++) {
+      await sleep(4000);
+      if (!aliveRef.current) return; // navigated away — stop polling
+      const t = await anchorTxStatus(sep24, bearer, id);
+      if (!aliveRef.current) return;
+      if (!t) continue;
+      setSendStatus(
+        `SEP-24 deposit ${String(id).slice(0, 8)}: ${pretty(t.status)}${t.amountOut ? `, ${t.amountOut} in` : ""}.`,
+      );
+      if (terminal.test(t.status)) return;
     }
   }
 
@@ -341,6 +369,7 @@ export default function SenderPage() {
     try {
       const json = decodePaymentRequest(raw);
       const label = /^G[A-Z2-7]{55}$/.test(json.addr) ? `Requested payee · ${json.addr.slice(0, 6)}…${json.addr.slice(-4)}` : "requested payee";
+      preReqAmount.current = amount; // remember what to restore on Clear
       setAmount(json.amount);
       setRecipient(label);
       setRequest({ addr: json.addr, label });
@@ -354,6 +383,7 @@ export default function SenderPage() {
     setRequest(null);
     setReqStatus("");
     setRecipient(corridor.recipient);
+    setAmount(preReqAmount.current || "200");
   }
 
   // ---- render ----
@@ -408,10 +438,15 @@ export default function SenderPage() {
             reqStatus={reqStatus}
             onLoadRequest={loadRequest}
             onClearRequest={clearRequest}
-            canContinue={isFinite(num) && num > 0}
+            canContinue={isFinite(num) && num > 0 && num <= MAX_USDC}
+            continueHint={num > MAX_USDC ? "Keep it under 1,000,000,000 USDC to continue." : "Enter an amount greater than 0 to continue."}
             onContinue={() => {
               if (!(num > 0)) {
                 setSendStatus("Enter a positive amount.");
+                return;
+              }
+              if (num > MAX_USDC) {
+                setSendStatus("Keep it under 1,000,000,000 USDC.");
                 return;
               }
               setScreen("send");
@@ -472,9 +507,10 @@ function ComposeScreen(props: {
   onLoadRequest: () => void;
   onClearRequest: () => void;
   canContinue: boolean;
+  continueHint: string;
   onContinue: () => void;
 }) {
-  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, onContinue } = props;
+  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
   const locked = !!request;
   const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "at the edge";
   return (
@@ -583,13 +619,13 @@ function ComposeScreen(props: {
         full
         className="mt-4"
         disabled={!canContinue}
-        title={canContinue ? undefined : "Enter an amount greater than 0"}
+        title={canContinue ? undefined : continueHint}
         onClick={onContinue}
       >
         Continue →
       </Button>
       {!canContinue && (
-        <p className="mt-2 text-center font-mono text-[11px] text-tf">Enter an amount greater than 0 to continue.</p>
+        <p className="mt-2 text-center font-mono text-[11px] text-tf">{continueHint}</p>
       )}
 
       <div className="mt-3 text-center font-mono text-[11px] text-tm">
