@@ -536,6 +536,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
       <div className="mt-3">
         <Select
+          id={`disc-mode-${note.id}`}
           label="What to prove"
           value={discMode}
           onChange={(e) => {
@@ -735,7 +736,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       </div>
 
       <div className="mt-4">
-        <Select label="Cash out to" value={cor.code} onChange={(e) => changeCorridor(e.target.value)}>
+        <Select id={`cashout-${note.id}`} label="Cash out to" value={cor.code} onChange={(e) => changeCorridor(e.target.value)}>
           {CORRIDORS.map((c) => (
             <option key={c.code} value={c.code}>
               {c.country} · {c.currency}

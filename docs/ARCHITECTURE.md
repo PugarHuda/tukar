@@ -114,9 +114,16 @@ functions (Protocol 25/26). Secrets never leave the device.
 | **`compliance`** | The **authenticated depositor** (`sourceKey = field(from)`, a public input the pool pins) ∈ ASP allow-list **and** ∉ deny-list, bound to the commitment | asp root, deny list, **sourceKey**, bind hash | Steps 2 & 4 |
 | **`disclosure`** | A confidential commitment opens to a disclosed amount, bound to an audit context | commitment, disclosed value, audit-context hash | Step 6 |
 | **`merkleUpdate`** | Inserting `newLeaf` into a known `oldRoot` yields exactly `newRoot` (trustless root registration) | old root, new leaf, new root | root advance |
+| **`thresholdDisclosure`** | A commitment's amount is ≤ a threshold, without revealing the amount | commitment, threshold, audit-context hash | Step 6 |
+| **`aggregateDisclosure`** | The sum of 1..5 confidential payments is ≤ a cap, without revealing any amount, bound to a registered audit request | commitments[5], active[5], cap, audit-context hash, ctxNonce | Step 6 |
+| **`rangeDisclosure`** | A commitment's amount is in a two-sided band `lower ≤ amount ≤ upper`, without revealing it | commitment, lower, upper, audit-context hash | Step 6 |
 
-The **`disclosure`** circuit is Tukar's differentiator — the selective-
-disclosure layer that turns "private payments" into "compliant private payments."
+The **selective-disclosure family** is Tukar's differentiator — the layer that
+turns "private payments" into "compliant private payments." It comes in **four
+types**: **exact** (`disclosure`), **threshold** (`≤` a figure, amount hidden),
+**aggregate** (Σ of a portfolio `≤` a cap, bound to an on-chain audit request), and
+**two-sided range** (`lower ≤ amount ≤ upper`). Each proof is bound through the pool
+to a real deposit.
 
 ### Note / commitment scheme
 
@@ -149,7 +156,14 @@ As deployed on testnet (see `deployments/testnet.json`):
 | **`transfer` verifier** | …for the shielded JoinSplit circuit. |
 | **`compliance` verifier** | …for the ASP membership + deny-list circuit. The allow-list root and deny-list are **pinned in the pool**, not separate contracts. |
 | **`merkleUpdate` verifier** | …for the tree-update circuit, enabling trustless `register_root_verified`. |
+| **`thresholdDisclosure` verifier** | …for the threshold circuit; routed via `pool.disclose_threshold` (amount ≤ a figure, amount hidden). |
+| **`aggregateDisclosure` verifier** | …for the aggregate circuit; routed via `pool.disclose_aggregate` (Σ portfolio ≤ cap, bound to a registered audit request). |
+| **`rangeDisclosure` verifier** | …for the two-sided range circuit; routed via `pool.disclose_range` (`lower ≤ amount ≤ upper`). |
 | **token (SAC)** | The asset the pool custodies — a **real testnet USDC** asset (SAC `CAT6F6HX…FVA2`). `deposit` moves the actual typed amount in; `withdraw` releases it. |
+
+As deployed: **8 contracts** live on testnet — the pool plus the 7 verifiers (see
+`deployments/testnet.json` for ids). The three disclosure-variant verifiers were
+deployed **additively** on top of the four core contracts.
 
 The **policy/verification split**: each verifier only checks cryptographic
 validity; the pool enforces business rules (binding, nullifier uniqueness, known
@@ -157,11 +171,35 @@ roots, amount binding, token movement). (Pattern recommended by Stellar's ZK
 skill.) The ASP allow/deny sets are folded into the `compliance` circuit and
 pinned in the pool rather than living in separate Merkle-tree contracts.
 
+### Front ends
+
+Two front ends drive the **same** live pool and the same in-browser proving:
+
+- **`webapp/`** — a unified **Next.js** app that combines the landing page, the full
+  **`/demo`** corridor console, and **four role-specific apps**: **Sender** and
+  **Receiver** (mobile-first consumer apps for funding/sending and receiving/off-ramping)
+  and **Regulator** and **Operator** (dashboards — the Regulator requests and verifies the
+  four disclosure proofs on-chain; the Operator views pool activity and state).
+- **`frontend/`** — the original vanilla site (landing + demo), still live and pointed at
+  the same contracts.
+
+They are alternate front ends over the same contracts, not forks.
+
+### Reads at scale (production note)
+
+The client reconstructs the spendable tree from **durable on-chain state**
+(`leaves()` / `leaf_range`), and reads a recent-activity feed from RPC `getEvents`.
+Public-testnet RPC ages events out, so a production deploy would point the read path
+at an existing Soroban indexer (**Mercury** or **SubQuery**) rather than scanning RPC
+directly. This is a known production step, not a current gap — the tree's source of
+truth is durable state, which has no retention dependency.
+
 ---
 
 ## 6. What is real vs mocked in the MVP (honesty first)
 
-- **Real:** the four ZK circuits, client-side proving, on-chain Groth16
+- **Real:** the seven ZK circuits (four core + three selective-disclosure variants),
+  client-side proving, on-chain Groth16
   verification, shielded deposit/transfer/withdraw with **real testnet USDC
   custody** (deposit moves the actual amount in, **bound to the commitment**;
   withdraw releases it with the amount bound to the proof's negative
@@ -175,9 +213,11 @@ pinned in the pool rather than living in separate Merkle-tree contracts.
 - **Mocked / simplified (stated clearly):** fiat anchor on/off-ramps (we assume
   testnet USDC at the edges), ASP curation policy (allow/deny lists seeded
   manually), the Merkle witness is computed off-chain (but its correctness is
-  proven on-chain), single corridor (A→B), and **phase-2** of the trusted setup is
-  a single Tukar contribution. These are integration surfaces, not the ZK core —
-  the load-bearing cryptography is real.
+  proven on-chain), and 10 corridors. **Phase-2** of the trusted setup is now a
+  multi-party ceremony (3 contributions + a public beacon) whose keys are deployed,
+  run on one machine in the demo (see CEREMONY.md for the independent-party flow).
+  These are integration surfaces, not the ZK core — the load-bearing cryptography is
+  real.
 
 ---
 

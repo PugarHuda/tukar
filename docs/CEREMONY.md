@@ -6,9 +6,12 @@ Tukar's proving keys are Groth16 over BN254, which needs a two-phase trusted set
   already multi-party, and reproducibly waste-free (`snarkjs zkey verify` binds every
   deployed key to it). Nothing to redo here.
 - **Phase 2 (per-circuit):** the deployed keys are now the output of a **multi-party**
-  phase-2 ceremony (3 independent contributions + a public random beacon) — the four
+  phase-2 ceremony (3 independent contributions + a public random beacon) — the seven
   live `frontend/circuit/*_final.zkey` are byte-identical to `ceremony/<circuit>/*_final.zkey`
-  and the on-chain verifiers embed the matching VKs. Production wants **multiple
+  and the on-chain verifiers embed the matching VKs. All seven circuits (transfer,
+  compliance, disclosure, merkleUpdate, thresholdDisclosure, aggregateDisclosure,
+  rangeDisclosure) have a committed transcript at `ceremony/<circuit>/TRANSCRIPT.txt`.
+  Production wants **multiple
   independent contributors** so that as long as *one* is honest, the toxic waste is
   unrecoverable; the demo ran all rounds on one machine to prove the *process*, so the
   one-honest-party guarantee holds fully only with genuinely independent parties.

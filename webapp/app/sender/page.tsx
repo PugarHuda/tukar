@@ -64,7 +64,7 @@ const fmtLocal = (v: number, c: Corridor) =>
   `${c.symbol}${v.toLocaleString("en-US", { maximumFractionDigits: v >= 1000 ? 0 : 2 })}`;
 
 export default function SenderPage() {
-  const { connected, address } = useWallet();
+  const { connected, address, kind } = useWallet();
 
   const [screen, setScreen] = useState<Screen>("compose");
   const [amount, setAmount] = useState("200");
@@ -373,6 +373,14 @@ export default function SenderPage() {
       </header>
 
       <main className="mx-auto max-w-[520px] px-5 pb-16 pt-6">
+        {connected && kind === "freighter" && screen !== "success" && (
+          <div className="mb-5 rounded-card border border-orange/35 bg-orange/[0.06] px-4 py-3 text-[13px] leading-relaxed text-ts">
+            <b className="text-orange">Heads up.</b> Only allow-listed sources can deposit. The built-in
+            testnet key is on the demo ASP allow-list, but this connected wallet is not, so a deposit will
+            be rejected by the compliance check. Use the testnet key to send, or have the operator add this
+            key to the allow-list. Receiving and cashing out work with any wallet.
+          </div>
+        )}
         {screen === "compose" && (
           <ComposeScreen
             amount={amount}
@@ -485,7 +493,7 @@ function ComposeScreen(props: {
         <label htmlFor="amount" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
           You send
         </label>
-        <div className="mt-2 flex items-center gap-2 border-b border-line-input pb-3">
+        <div className="mt-2 flex items-center gap-2 rounded-[12px] border border-line-input bg-input px-3.5 py-2.5 transition-all duration-150 focus-within:border-orange/60 focus-within:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]">
           <span className="text-3xl font-black text-tm">$</span>
           <input
             id="amount"
@@ -643,9 +651,9 @@ function SendScreen(props: {
         )}
       </div>
 
-      <button onClick={onBack} className="mt-5 block w-full text-center font-mono text-xs text-tm hover:text-tp">
+      <Button variant="ghost" full onClick={onBack} className="mt-5">
         ← Edit payment
-      </button>
+      </Button>
       {status && (
         <p className="mt-4 text-center text-[13px] leading-relaxed text-ts" role="status" aria-live="polite">
           {status}

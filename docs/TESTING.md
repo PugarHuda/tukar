@@ -7,13 +7,15 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 
 | Type | Suite | Command | Result |
 |---|---|---|---|
-| **Unit** — contract | pool (Rust) | `cargo test` | **36/36** |
+| **Unit** — contract | pool (Rust) | `cargo test` | **52/52** |
 | **Unit** — frontend | client Merkle tree | `npm run test:unit` | **15/15** |
 | **Unit** — circuit soundness | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
 | **Soundness** — widened ASP | multi-member allow-list, real proofs | `npm run test:asp` | **4/4** |
-| **Soundness** — threshold disclosure | prove amount ≤ threshold w/o revealing amount | `npm run test:threshold`¹ | **4/4** |
+| **Soundness** — threshold disclosure | prove amount ≤ threshold w/o revealing amount | `npm run test:threshold` | **4/4** |
+| **Soundness** — two-sided range disclosure | prove lower ≤ amount ≤ upper w/o revealing amount | `npm run test:range` | **5/5** |
+| **Soundness** — aggregate disclosure | prove Σ portfolio ≤ cap, bound to a registered audit request | `npm run test:aggregate` | **6/6** |
 | **Proving** | valid / tampered / false-witness | `npm run test:proving` | pass |
-| **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×4 | **4/4 ZKey Ok** |
+| **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×7 | **7/7 ZKey Ok** |
 | **Integration** — routing | per-page nav + no-flash + reload | `npm run test:pages` | **10/10** |
 | **Integration** — receiver UI | withdrawn-note auto-hide + off-ramp to another corridor | `npm run test:offramp` | **9/9** |
 | **Integration** — full flow | deposit→reveal→withdraw→disclose→tamper | `npm run test:e2e` | **11/11** |
@@ -26,10 +28,10 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 Every suite in the matrix is green. Regression pass: all of the above were re-run
 together after each change.
 
-¹ `test:threshold` runs against locally-built artifacts (`npm run circuit:threshold`
-first) — the threshold-disclosure circuit is compiled + soundness-tested but its
-on-chain verifier is not deployed yet (a deliberate redeploy step). ZKey derives from
-the same Hermez phase-1 (`snarkjs zkey verify` → ZKey Ok!).
+The three disclosure-variant circuits (threshold, two-sided range, aggregate) are
+compiled, multi-party-ceremony keyed, and their verifiers are **deployed on testnet**
+and bound through the pool (`disclose_threshold` / `disclose_range` /
+`disclose_aggregate`); each variant's soundness suite runs against its own artifacts.
 CI (`.github/workflows/ci.yml`) automates the deterministic ones (unit, proving,
 soundness) on every push; the live Playwright suites are manual pre-deploy gates
 (they need a funded testnet key + the deployed site).
@@ -37,12 +39,12 @@ soundness) on every push; the live Playwright suites are manual pre-deploy gates
 ## How to run the test suite
 
 ```bash
-npm run circuit:all      # compile + prove + verify all 4 circuits (Groth16/BN254)
+npm run circuit:all      # compile + prove + verify the 4 core circuits (Groth16/BN254)
 npm run test:proving     # in-browser proving flow: valid / tampered / false-witness
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 npm run test:e2e         # Playwright real-click e2e (drives the live site, real clicks)
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 36/36
+cd contracts/pool && cargo test          # 52/52
 ```
 
 > `npm run circuit:all` fetches the **real Hermez** phase-1 ptau
@@ -92,7 +94,7 @@ passing happy-path can't reveal):
 Result: no under-constrained signal or missing range check found.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **36/36 passed** (`cargo test`): deposit pulls USDC + records
+`contracts/pool` — **52/52 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
@@ -161,22 +163,25 @@ State checks after the test transfer: `pool.current_root` = registered root,
 
 ## 5. Trusted setup — independently verifiable ✅
 
-All four **deployed** proving keys (`frontend/circuit/*_final.zkey`) derive from the
+All seven **deployed** proving keys (`frontend/circuit/*_final.zkey`) derive from the
 real **Hermez** perpetual Powers-of-Tau ceremony (`powersOfTau28_hez_final_14.ptau`),
 so phase-1 has **no locally-known toxic waste**. This is not a claim to take on
 faith — anyone can check it:
 
 ```bash
-# for each circuit c in {disclosure, compliance, merkleUpdate, transfer}:
+# for each circuit c in {disclosure, compliance, merkleUpdate, transfer,
+#                         thresholdDisclosure, aggregateDisclosure, rangeDisclosure}:
 snarkjs zkey verify circuits/build/$c.r1cs circuits/build/pot14_hez.ptau \
         frontend/circuit/${c}_final.zkey      # => "ZKey Ok!"
 ```
 
-Verified 2026-06-30: **ZKey Ok! for all four** (2^14 = 16384 ≥ transfer's 15884
-constraints). The build scripts (`build-circuit.sh`, `build-disclosure.sh`) fetch
-this exact ptau and run the same assertion, so a stale local-ptau key can never
-silently replace a deployed one. Honest caveat: **phase-2** is a single Tukar
-contribution (a production deploy wants a multi-party phase-2 too).
+**ZKey Ok! for all seven** (2^14 = 16384 ≥ transfer's 15884 constraints). The build
+scripts (`build-circuit.sh`, `build-disclosure.sh`) fetch this exact ptau and run the
+same assertion, so a stale local-ptau key can never silently replace a deployed one.
+The deployed keys are now the output of a **multi-party phase-2 ceremony** (3
+contributions + a public beacon, transcripts in `ceremony/<circuit>/`); honest caveat:
+the demo ran all rounds on one machine to prove the *process*, so the one-honest-party
+guarantee needs genuinely independent contributors.
 
 ## 6. End-to-end UI (Playwright real-click) ✅ 11/11 live
 
@@ -287,6 +292,8 @@ KYC step, not code). Tukar also **publishes** its own SEP-1 `stellar.toml`
 - Fiat anchor on/off-ramps mocked. The ASP allow-list is now a real configurable
   policy (`scripts/build-asp.mjs` from approved accounts + admin `set_asp_root`),
   soundness-tested by `npm run test:asp` (4/4); 10 corridors.
-- Phase-2 of the trusted setup is a single contribution (phase-1 is the real
-  Hermez ceremony).
+- Phase-2 of the trusted setup is now a **multi-party ceremony** (3 contributions +
+  a public beacon; phase-1 is the real Hermez ceremony), and those ceremony keys are
+  the deployed keys. Honest caveat: the demo ran all rounds on one machine to prove
+  the process, so the one-honest-party guarantee needs genuinely independent parties.
 - Contracts are **not audited** — testnet only, no real assets.

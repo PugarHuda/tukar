@@ -23,10 +23,10 @@ Total sekitar 2,5 sampai 3 menit (belum termasuk video demo di slide 10).
 > Tukar mengatasi itu. (jeda) Dana masuk sebagai USDC, diproses privat selama berada di dalam sistem, lalu keluar menjadi mata uang lokal. Sudah live di sepuluh koridor, termasuk Indonesia, Filipina, dan Vietnam. (JEDA) Contohnya, kalau regulator minta bukti bahwa satu pembayaran jumlahnya lima ratus dolar, pengguna bisa membuktikan angka itu saja. Penerima, saldo, dan pembayaran lain tetap tidak terlihat.
 
 ## Slide 4, Zero-Knowledge
-> Privasi Tukar dibangun menggunakan zero-knowledge proof. (jeda) Ada empat sirkuit utama. Transfer privat, pengecekan compliance, selective disclosure, dan pembaruan Merkle tree. (jeda) Semua proof dibuat langsung di browser, lalu diverifikasi oleh smart contract di Stellar. (jeda) Jadi zero-knowledge di sini bukan fitur tambahan, tapi komponen inti yang menjalankan privasinya.
+> Privasi Tukar dibangun menggunakan zero-knowledge proof. (jeda) Ada tujuh sirkuit. Empat inti: transfer privat, pengecekan compliance, selective disclosure, dan pembaruan Merkle tree. (jeda) Ditambah tiga varian selective disclosure: threshold, agregat, dan range dua sisi. (jeda) Semua proof dibuat langsung di browser, lalu diverifikasi oleh smart contract di Stellar. (jeda) Jadi zero-knowledge di sini bukan fitur tambahan, tapi komponen inti yang menjalankan privasinya.
 
 ## Slide 5, Berjalan di Stellar
-> Seluruh sistem jalan langsung di atas Stellar. (jeda) Ada satu pool contract yang menyimpan USDC asli, plus empat verifier contract yang memakai fungsi BN254 bawaan Stellar Protokol 25 dan 26. (jeda) Jadi verifikasi proof-nya benar-benar dilakukan di jaringan Stellar. Lima kontrak, semuanya live di testnet.
+> Seluruh sistem jalan langsung di atas Stellar. (jeda) Ada satu pool contract yang menyimpan USDC asli, plus tujuh verifier contract yang memakai fungsi BN254 bawaan Stellar Protokol 25 dan 26. (jeda) Jadi verifikasi proof-nya benar-benar dilakukan di jaringan Stellar. Delapan kontrak, semuanya live di testnet.
 
 ## Slide 6, Integrasi Ekosistem
 > Tukar juga terintegrasi dengan ekosistem Stellar. (jeda) Saat proses off-ramp, contract mengambil kurs terbaru dari Reflector secara on-chain. (jeda) Kalau kurs berada di bawah batas minimum yang ditentukan pengguna, pencairan ditolak. (jeda) Jadi kurs ini ikut menentukan apakah dana dicairkan, bukan hanya ditampilkan di layar. (jeda) Transaksi juga bisa gasless lewat fee-bump bawaan Stellar.
@@ -35,7 +35,7 @@ Total sekitar 2,5 sampai 3 menit (belum termasuk video demo di slide 10).
 > Ini bukan prototype dengan token simulasi. (jeda) Dananya USDC asli. Nilainya selalu terikat ke cryptographic commitment, Merkle tree-nya dikelola sepenuhnya trustless, tanpa admin backdoor. (jeda) Dan trusted setup-nya memakai Powers of Tau, yang sudah menjadi standar di ekosistem zero-knowledge.
 
 ## Slide 8, Sudah Terbukti Berjalan
-> Semua ini juga sudah diuji, bukan hanya diklaim. (jeda) Smart contract-nya lolos tiga puluh enam unit test. Alur utamanya jalan lewat sebelas pengujian end-to-end langsung di on-chain. (JEDA) Termasuk percobaan double-spend, yang ditolak oleh sistem.
+> Semua ini juga sudah diuji, bukan hanya diklaim. (jeda) Smart contract-nya lolos lima puluh dua unit test. Alur utamanya jalan lewat sebelas pengujian end-to-end langsung di on-chain. (JEDA) Termasuk percobaan double-spend, yang ditolak oleh sistem.
 
 ## Slide 9, Keterbatasan  (singkat, percaya diri, sekitar 15 detik)
 > Saya juga mau jujur soal batasannya. (jeda) Tukar masih kelas hackathon, sudah hardened di testnet, tapi belum diaudit profesional. Jadi belum ditujukan untuk aset bernilai tinggi. (jeda) Tiga langkah berikutnya sudah jelas. Audit keamanan, ceremony trusted setup tahap dua, dan menggandeng satu anchor berlisensi untuk pilot. (JEDA) Kejujuran ini justru bagian dari desainnya.

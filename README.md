@@ -79,10 +79,11 @@ Tukar differs and where it stays composable, see
   crosses with amount + counterparties **hidden on-chain in the shielded transfer**
   (deposit/withdraw edges public by design), exits, with **ZK compliance proofs at
   the edges** and **selective disclosure** to regulators.
-- **ZK is load-bearing:** four Circom/Groth16/BN254 circuits do the real work
-  (shielded transfer, ASP compliance, selective disclosure, trustless tree
-  update). Without them the product does not exist.
-- **It runs on Stellar. 5 contracts live on testnet, all exercised:**
+- **ZK is load-bearing:** seven Circom/Groth16/BN254 circuits do the real work,
+  four core (shielded transfer, ASP compliance, selective disclosure, trustless
+  tree update) plus three selective-disclosure variants (threshold, aggregate,
+  two-sided range). Without them the product does not exist.
+- **It runs on Stellar. 8 contracts live on testnet, all exercised:**
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
@@ -91,6 +92,9 @@ Tukar differs and where it stays composable, see
   | [transfer verifier](https://stellar.expert/explorer/testnet/contract/CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE) | shielded JoinSplit | `verify` → `true` |
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2) | ASP allow/deny | `verify` → `true` |
   | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
+  | [threshold verifier](https://stellar.expert/explorer/testnet/contract/CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR) | disclosure: amount ≤ a figure (amount hidden) | `verify` → `true` |
+  | [aggregate verifier](https://stellar.expert/explorer/testnet/contract/CCTN437J4BX6S4JDMGUZFS2IEHV4ECHHK4ZLMM3N6VU5IIX2777AZJYA) | disclosure: Σ portfolio ≤ cap, bound to an on-chain audit request | `verify` → `true` |
+  | [range verifier](https://stellar.expert/explorer/testnet/contract/CDUONEVPPH7WI7EPSXZE3YXEF4FHHJM7HFJOTZBCJNJSUG26UMENUPQW) | disclosure: two-sided band `lower ≤ amount ≤ upper` | `verify` → `true` |
 
   **Contract addresses (Stellar testnet).** Copy-paste form of the table above:
 
@@ -100,6 +104,9 @@ Tukar differs and where it stays composable, see
   compliance verifier  CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2
   disclosure verifier  CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V
   merkleUpdate verifier CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H
+  threshold verifier   CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR
+  aggregate verifier   CCTN437J4BX6S4JDMGUZFS2IEHV4ECHHK4ZLMM3N6VU5IIX2777AZJYA
+  range verifier       CDUONEVPPH7WI7EPSXZE3YXEF4FHHJM7HFJOTZBCJNJSUG26UMENUPQW
   USDC (SAC, testnet)  CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2
   ```
 
@@ -130,6 +137,20 @@ Tukar differs and where it stays composable, see
   refuses to release below ~99% of it (`SlippageExceeded`), failing closed if the feed
   is down, so the oracle is **load-bearing for fund movement**, not just display. A
   plain withdraw (no gate) still settles in USDC and never touches the oracle.
+- **One unified app (`webapp/`).** Alongside the vanilla site, the product is now a
+  single **Next.js** app in [`webapp/`](webapp/) that unifies the landing page, the
+  full **`/demo`** corridor console, and **four role-specific apps** over the same
+  live pool and the same in-browser proving:
+  - **Sender** (`/sender`) and **Receiver** (`/receiver`) — mobile-first consumer apps:
+    Sender funds the corridor and builds the shielded deposit; Receiver holds/receives
+    a note and off-ramps to local fiat.
+  - **Regulator** (`/regulator`) — an auditor dashboard that requests and verifies the
+    selective-disclosure proofs (exact, threshold, aggregate, range) on-chain.
+  - **Operator** (`/operator`) — a corridor-operator dashboard over pool activity and
+    state.
+
+  The vanilla [`frontend/`](frontend/) site (landing + demo) still exists and shares
+  the **same live pool** and contracts; the two are alternate front ends, not forks.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Gasless, natively:** fees can be sponsored by a relayer via Stellar's native
@@ -151,10 +172,11 @@ Tukar differs and where it stays composable, see
 
 ## What the ZK is doing (load-bearing)
 
-The zero-knowledge is not decorative. It is the entire product. Four circuits,
+The zero-knowledge is not decorative. It is the entire product. Seven circuits,
 all **Groth16 over BN254**, generated **client-side in the browser (WASM)** and
 verified **on-chain** by Soroban contracts using Stellar's native BN254 host
-functions (Protocol 25/26). Secrets never leave the device.
+functions (Protocol 25/26). Secrets never leave the device. Four are the core; the
+other three are selective-disclosure variants (see the disclosure family below).
 
 | Circuit | Proves | Where |
 |---|---|---|
@@ -162,24 +184,41 @@ functions (Protocol 25/26). Secrets never leave the device.
 | **compliance** | Source ∈ ASP allow-list and ∉ deny-list, bound to the transfer | corridor edges |
 | **disclosure** | A confidential commitment opens to a disclosed amount, bound to an audit request | regulator view |
 | **merkleUpdate** | Inserting a leaf into a *known* `old_root` yields exactly `new_root` | trustless tree advance |
+| **thresholdDisclosure** | A commitment's amount is ≤ a threshold, without revealing the amount | regulator view |
+| **aggregateDisclosure** | The sum of 1..5 confidential payments is ≤ a cap, bound to an on-chain audit request | regulator view |
+| **rangeDisclosure** | A commitment's amount is in a two-sided band `lower ≤ amount ≤ upper`, amount hidden | regulator view |
 
 The **disclosure** circuit is Tukar's differentiator: the selective-disclosure
 layer that turns "private payments" into *compliant* private payments. See
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
-A fifth circuit, **threshold (range) disclosure**
-([`circuits/thresholdDisclosure.circom`](circuits/thresholdDisclosure.circom)), takes
-this further: it proves a payment is **at most a reporting threshold without revealing
-the exact amount**, the predicate real reporting rules actually want. It's compiled and
-soundness-tested (`npm run test:threshold` → **4/4**: under/at-threshold proves with the
-amount kept private; over-threshold and a mismatched commitment are unprovable), its zkey
-derives from the same Hermez phase-1 (`ZKey Ok!`). It's **wired into the live demo AND
-verified on-chain**. The Regulator step has a *"≤ Threshold · amount hidden"* mode that
-proves the range in the browser and confirms it on a **deployed standalone verifier**
-([`CCZLFV2P…53PY`](https://stellar.expert/explorer/testnet/contract/CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR),
-a 6th contract deployed **additively**, the 5 core contracts are unchanged). Verified live:
-`≤ $1000` proves with the amount hidden and passes on-chain; `≤ $100` on a $500 payment is
-honestly shown unprovable.
+Selective disclosure comes in **four types**, all compiled, soundness-tested, and
+live on-chain with each proof **bound through the pool to a real deposit**:
+
+1. **Exact** ([`disclosure.circom`](circuits/disclosure.circom)) — a commitment opens
+   to a disclosed amount.
+2. **Threshold** ([`thresholdDisclosure.circom`](circuits/thresholdDisclosure.circom))
+   — the amount is **≤ a reporting figure without revealing the exact amount**, the
+   predicate real reporting rules actually want. `npm run test:threshold` → **4/4**
+   (under/at-threshold proves with the amount kept private; over-threshold and a
+   mismatched commitment are unprovable). Wired into the demo's Regulator step
+   (*"≤ Threshold · amount hidden"*) and verified live on the deployed verifier:
+   `≤ $1000` proves with the amount hidden; `≤ $100` on a $500 payment is honestly
+   shown unprovable.
+3. **Aggregate** ([`aggregateDisclosure.circom`](circuits/aggregateDisclosure.circom))
+   — the **sum of 1..5 confidential payments is ≤ a cap** without revealing any amount
+   (a periodic CTR-style report in ZK). Completeness is enforced on-chain: the proof is
+   bound to an `auditContextHash` an **auditor registers on-chain** for the full
+   required set (`register_audit_request`), and `disclose_aggregate` rejects any
+   unregistered hash, so a holder can't report a cherry-picked subset.
+   `npm run test:aggregate` → **6/6**.
+4. **Two-sided range** ([`rangeDisclosure.circom`](circuits/rangeDisclosure.circom)) —
+   the amount is in a reportable band `lower ≤ amount ≤ upper`, amount hidden.
+   `npm run test:range` → **5/5** (in-band proves, boundaries inclusive, below/above and
+   a wrong opening unprovable).
+
+The threshold, aggregate, and range verifiers were deployed **additively** on top of
+the four core contracts, giving **8 contracts** (pool + 7 verifiers) live on testnet.
 
 ---
 
@@ -226,7 +265,7 @@ professionally audited, see the caveats below). What that means concretely:
   deny-listed), not merely that *some* approved source exists. An unapproved key
   can't deposit. (The shared demo key is allow-listed so the no-install demo works;
   the design is correct for real-wallet users.)
-- **Real trusted setup.** All four proving keys are derived from the **Hermez
+- **Real trusted setup.** All seven proving keys are derived from the **Hermez
   perpetual Powers-of-Tau ceremony** (`powersOfTau28_hez_final_14.ptau`). Phase-1
   has no locally-known toxic waste. Verifiers + pool were regenerated together so
   keys and verifiers stay in sync.
@@ -268,9 +307,10 @@ professionally audited, see the caveats below). What that means concretely:
   remaining caveat is that the *shared demo key's* secret is public, so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**36/36 pool unit tests** + **6/6 circuit-soundness** + a 19-point
-[threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser proving
-flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
+**52/52 pool unit tests** + **6/6 circuit-soundness** (plus disclosure-variant
+soundness suites: threshold **4/4**, two-sided range **5/5**, aggregate **6/6**) + a
+19-point [threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser
+proving flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
 
 **Live real-click e2e (`npm run test:e2e`): 11/11** against the deployed site (or a
 local `npm run serve`). Playwright drives genuine clicks through the full on-chain
@@ -284,7 +324,7 @@ rebuild-and-retry that self-heals transient testnet faults (sequence races,
 deterministic and is never retried, so it surfaces immediately. See
 [docs/TESTING.md](docs/TESTING.md) §6.
 
-**Trusted setup is independently verifiable:** all four deployed proving keys
+**Trusted setup is independently verifiable:** all seven deployed proving keys
 provably derive from the real Hermez ceremony. `snarkjs zkey verify <r1cs>
 pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 
@@ -311,17 +351,18 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   rejected by the circuit itself; the demo-only build still reproduces the deployed
   root (non-breaking). Corridors span 10 destinations.
 - **Phase-2 of the trusted setup, multi-party and now the *live* keys.** A runnable
-  **multi-party phase-2 ceremony** ships and has been **run + verified for all four
+  **multi-party phase-2 ceremony** ships and has been **run + verified for all seven
   circuits**. `npm run ceremony` (or [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh))
   does 3 independent contributions + a public random beacon and `snarkjs zkey verify`
   → `ZKey Ok!`; committed transcripts at [`ceremony/<circuit>/TRANSCRIPT.txt`](ceremony/)
-  (transfer, compliance, disclosure, merkleUpdate) and [`docs/CEREMONY.md`](docs/CEREMONY.md)
+  for all seven (transfer, compliance, disclosure, merkleUpdate, thresholdDisclosure,
+  aggregateDisclosure, rangeDisclosure) and [`docs/CEREMONY.md`](docs/CEREMONY.md)
   for the production (independent-party) flow. **These ceremony keys are now the deployed
-  keys**. The four live `frontend/circuit/*_final.zkey` are byte-identical to the
-  ceremony output and the on-chain verifiers embed the matching VKs (a deliberate
-  5-contract redeploy). Honest caveat: the demo ran all rounds on one machine to prove
-  the *process*; the one-honest-party soundness guarantee needs genuinely independent
-  contributors, which a production ceremony provides.
+  keys**. The seven live `frontend/circuit/*_final.zkey` are byte-identical to the
+  ceremony output and the on-chain verifiers embed the matching VKs. Honest caveat: the
+  demo ran all rounds on one machine to prove the *process*; the one-honest-party
+  soundness guarantee needs genuinely independent contributors, which a production
+  ceremony provides.
 - The off-chain Merkle **witness** (path) is computed in the browser; on-chain
   *integrity* is enforced by the `merkleUpdate` proof.
 - **Tree scale:** the accumulator now **paginates** (`leaf_range`), **bumps TTL**
@@ -351,11 +392,14 @@ reference (Apache-2.0 / GPLv3).
 ## Repository layout
 
 ```
-circuits/        Circom — transfer, compliance, disclosure, merkleUpdate (all ✅ on-chain)
+circuits/        Circom — transfer, compliance, disclosure, merkleUpdate,
+                 thresholdDisclosure, aggregateDisclosure, rangeDisclosure (7, all ✅ on-chain)
 contracts/pool/  Stateful corridor pool (Rust/Soroban) — orchestrates verifiers,
                  token custody, native poseidon.rs ✅
 deployments/     testnet.json — live contract ids + findings
-frontend/        Corridor Console demo + landing page; in-browser ZK proving;
+webapp/          Unified Next.js app — landing + /demo corridor console + four
+                 role apps (sender, receiver, regulator, operator); in-browser ZK proving
+frontend/        Vanilla Corridor Console demo + landing page; in-browser ZK proving;
                  stellar.js (chain), wallet.js (optional Freighter), tree.js
 scripts/         build / prove / convert / deploy / browser-test helpers
 docs/            ARCHITECTURE.md, SECURITY.md (threat model), ONCHAIN.md, TESTING.md, DEMO_SCRIPT.md
@@ -369,7 +413,8 @@ _reference/      Nethermind stellar-private-payments (study only, gitignored)
 ```bash
 npm install                         # snarkjs, circomlib, circomlibjs
 
-# A) Off-chain: compile + prove + verify ALL FOUR circuits (Groth16/BN254)
+# A) Off-chain: compile + prove + verify the four CORE circuits (Groth16/BN254)
+#    (the three disclosure variants build via circuit:threshold / :aggregate / :range)
 #    First run fetches the real Hermez phase-1 ptau (~19 MB) and asserts each zkey
 #    derives from it (reproducibly waste-free); reused on later runs.
 npm run circuit:all                 # or circuit:disclosure / :transfer / :compliance
@@ -390,7 +435,7 @@ npm run serve                       # -> http://localhost:8000
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
-- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 36/36)
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 52/52)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

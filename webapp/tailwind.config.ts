@@ -13,12 +13,14 @@ const config: Config = {
           2: "rgba(255,255,255,0.03)",
         },
         input: {
-          DEFAULT: "rgba(0,0,0,0.25)",
-          2: "rgba(0,0,0,0.3)",
+          // Faint white lift (not black): on the near-black canvas a dark fill vanished, so
+          // fields read as plain text. A subtle lift sits clearly above card/bg as a real field.
+          DEFAULT: "rgba(255,255,255,0.045)",
+          2: "rgba(255,255,255,0.06)",
         },
         hair: "rgba(255,255,255,0.06)",
         line: "rgba(255,255,255,0.07)",
-        "line-input": "rgba(255,255,255,0.1)",
+        "line-input": "rgba(255,255,255,0.18)",
         // text
         tp: "#f5f1ec", // primary
         ts: "#cfc8c1", // secondary
