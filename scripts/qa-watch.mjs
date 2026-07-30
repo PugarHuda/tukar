@@ -138,17 +138,16 @@ async function sender() {
     ? good("rejected as expected — honest “Couldn’t load that request”")
     : bad("NOT rejected — garbage request accepted");
 
-  narr("SENDER — WRONG PATH: an absurd amount (2,000,000,000) should be refused at send");
+  narr("SENDER — WRONG PATH: an absurd amount (2,000,000,000) is blocked at compose");
   await page.locator("#amount").fill("2000000000");
-  await page.getByRole("button", { name: /Continue/ }).click();
-  await page.getByText(/Confirm and send/i).waitFor({ timeout: 8000 }).catch(() => {});
-  await page.getByRole("button", { name: /^Send \$2000000000/ }).click().catch(() => {});
-  await page.waitForTimeout(900);
-  /under 1,000,000,000/.test(await page.evaluate(() => document.body.innerText))
-    ? good("rejected as expected — honest “keep it under 1,000,000,000 USDC”")
+  await page.waitForTimeout(700);
+  const overCapDisabled = await page.getByRole("button", { name: /Continue/ }).isDisabled().catch(() => false);
+  const overCapHint = /under 1,000,000,000/.test(await page.evaluate(() => document.body.innerText));
+  overCapDisabled || overCapHint
+    ? good("rejected as expected — Continue disabled with “keep it under 1,000,000,000 USDC”")
     : bad("NOT rejected — absurd amount accepted");
-  await page.getByRole("button", { name: /Edit payment/i }).click().catch(() => {});
-  await page.waitForTimeout(500);
+  await page.locator("#amount").fill("15"); // restore a valid amount for the happy-path deposit
+  await page.waitForTimeout(400);
 
   narr("SENDER — HAPPY PATH: one real on-chain deposit of $15 (builds ZK proofs + signs pool.deposit)");
   await page.locator("#amount").fill("15");

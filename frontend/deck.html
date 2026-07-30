@@ -197,29 +197,31 @@
   </p>
 </section>
 
-<!-- 4 — what makes it different -->
+<!-- 4 — the differentiator -->
 <section class="s" data-n="04">
-  <div class="kicker">Why Tukar, not another privacy coin</div>
-  <h2>Compliant privacy, built for remittance.</h2>
-  <div class="grid g2" style="margin-top:8px">
-    <div class="card"><span class="mono">Not just private, auditable</span>
-      <h3>Compliant privacy</h3>
-      <p>Every deposit proves the <em>authenticated</em> depositor is allow-listed
-      (key pinned to <code>from</code>), and a holder discloses one fact to a regulator,
-      verified on-chain. A corridor a regulator can audit is one a licensed anchor can run.</p></div>
-    <div class="card"><span class="mono">Not a generic shield</span>
-      <h3>Remittance, end-to-end</h3>
-      <p>Fiat-in → shielded crossing → fiat-out to <b>local currency</b>, 10 corridors.
-      The privacy serves the payment, not the other way around.</p></div>
-    <div class="card"><span class="mono">Not display-only</span>
-      <h3>Oracle-gated settlement</h3>
-      <p>The off-ramp rate is read on-chain from Reflector and <b>gates fund release</b>,
-      fail-closed. The privacy layer is bound to real-world FX.</p></div>
+  <div class="kicker">The differentiator</div>
+  <h2>Private for users. Provable to regulators.</h2>
+  <p class="lead" style="margin-top:0;margin-bottom:8px;max-width:70ch">
+    Shielded transfers, mixers and privacy L2s already exist. Tukar is the intersection
+    none of them cover: <em>compliant</em> privacy on the chain built for cross-border money.</p>
+  <div class="grid g2" style="margin-top:2px">
+    <div class="card"><span class="mono">Not a generic shielded transfer</span>
+      <h3>A remittance corridor</h3>
+      <p>Real fiat in and out through live <b>SEP anchors</b> on Stellar's cross-border rail,
+      10 corridors. The privacy serves the payment, not the reverse.</p></div>
+    <div class="card"><span class="mono">Not a non-compliant mixer</span>
+      <h3>ASP allow / deny in-circuit</h3>
+      <p>Every deposit proves the <em>authenticated</em> depositor is allow-listed and not
+      deny-listed, the key pinned to <code>from</code>. Compliance is in the proof, not a promise.</p></div>
+    <div class="card"><span class="mono">Not a general privacy L2</span>
+      <h3>Four disclosure types on-chain</h3>
+      <p>A regulator verifies a fact bound to a real deposit: <b>exact, threshold, aggregate,
+      range</b>. Aggregate <em>completeness</em> is enforced on-chain by an audit-request registry.</p></div>
     <div class="card" style="border-color:#5a3a22;background:linear-gradient(180deg,#1c1109,#0d0906)">
       <span class="mono">The combination</span>
       <h3 style="color:var(--hot)">No catalog equivalent</h3>
-      <p>A privacy-pool <em>remittance</em> corridor with ASP compliance and selective
-      disclosure. Pure-privacy projects hide the payment; Tukar makes it accountable.</p></div>
+      <p>Private for users <em>and</em> provable to regulators, on the chain built for
+      cross-border money. That combination has no off-the-shelf equivalent.</p></div>
   </div>
 </section>
 
@@ -235,8 +237,9 @@
       <h3>compliance</h3><p>The <em>authenticated</em> depositor is in the ASP allow-list
       and not deny-listed, key pinned to <code>from</code>.</p></div>
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
-      <h3>disclosure ×4</h3><p>A commitment proves exactly one amount, or a threshold, a
-      portfolio cap, or a range, each bound to an audit request. The compliant-privacy wedge.</p></div>
+      <h3>disclosure ×4</h3><p>One commitment proves an exact amount, a threshold, an aggregate
+      cap across a set, or a two-sided range. Aggregate completeness is enforced on-chain by an
+      audit-request registry.</p></div>
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
       <h3>merkleUpdate</h3><p>Inserting a leaf into a known <code>old_root</code> yields
       exactly <code>new_root</code>, a trustless tree with no admin backdoor.</p></div>

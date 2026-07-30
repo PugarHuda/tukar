@@ -64,9 +64,14 @@ private-payment or encryption-infra work:
    manipulated rate. No pure-privacy project ties settlement to an on-chain oracle.
 
 Put together: a **privacy-pool remittance corridor with ASP compliance and selective
-disclosure**, a combination with no catalog equivalent. For an honest map of the
-neighbours (Confidential Tokens, LumenShade, Moonlight, Fairblock) and exactly where
-Tukar differs and where it stays composable, see
+disclosure**, a combination with no catalog equivalent. The one-line wedge:
+**private for users AND provable to regulators, on the chain built for cross-border
+money.** So "this already exists (LumenShade / Moonlight / Fairblock)" misses the
+combination: those are privacy *primitives* or infra on other models, not a compliant
+remittance corridor on Stellar's anchor rail with in-circuit ASP compliance, **four**
+contract-verified disclosure types, and a load-bearing settlement oracle. For an honest
+map of the neighbours (Confidential Tokens, LumenShade, Moonlight, Fairblock) and exactly
+where Tukar differs and where it stays composable, see
 [`docs/COMPETITIVE.md`](docs/COMPETITIVE.md).
 
 ---

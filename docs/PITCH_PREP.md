@@ -79,6 +79,11 @@ There is no room for a competitor slide in a 3-minute present. Keep this for Q&A
 | Public stablecoin rails | Circle/Stellar USDC, MoneyGram Access | Fast and compliant but fully transparent. Tukar adds the privacy layer they lack. |
 | Privacy mixers / pools | Tornado-style | Private but non-compliant and sanctioned. Tukar is a Privacy-Pools design with ASP allow/deny plus selective disclosure, so it is the compliant version. |
 | ZK payment L2s | Aztec and similar | Different chain/ecosystem. Tukar is native to Stellar's cross-border rail and Protocol 25/26 BN254 host functions. |
+| Stellar privacy-pool primitive | LumenShade | A shielded-pool primitive; compliance is roadmap. Tukar is the remittance product on that tier, with compliance proven in-circuit today, and could sit on top of such a primitive rather than competing with it. |
+| General Stellar privacy layer | Moonlight | Unlinkable UTXOs with compliance relayed through trusted Privacy Providers. Tukar's compliance is trustless and in-protocol (no trusted relay), and it is a corridor, not a horizontal layer. |
+| Programmable-privacy infra | Fairblock | Encrypt-then-execute MPC/IBE on Cosmos/Arbitrum, not a Stellar ZK privacy pool and not a remittance product. Different chain, different primitive. |
+
+If asked "isn't this just LumenShade / Moonlight / Fairblock?": those are privacy primitives or infra on other models; Tukar is a compliant remittance corridor on Stellar's anchor rail, with in-circuit ASP compliance, four contract-verified disclosure types, and a load-bearing settlement oracle. Position on our verifiable features, not on their internals. Full map in `docs/COMPETITIVE.md`.
 
 One-line positioning: **the only rail that is private for users AND provable to regulators, on the chain built for cross-border money.**
 
