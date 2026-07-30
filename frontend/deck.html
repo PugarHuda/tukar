@@ -226,7 +226,7 @@
 <!-- 5 — ZK load-bearing -->
 <section class="s" data-n="05">
   <div class="kicker">ZK is load-bearing, not namechecked</div>
-  <h2>Four circuits do the actual work.</h2>
+  <h2>Seven circuits do the actual work.</h2>
   <div class="grid g4">
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
       <h3>transfer</h3><p>Note ownership, correct nullifiers (no double-spend), Merkle
@@ -235,14 +235,14 @@
       <h3>compliance</h3><p>The <em>authenticated</em> depositor is in the ASP allow-list
       and not deny-listed, key pinned to <code>from</code>.</p></div>
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
-      <h3>disclosure</h3><p>A commitment opens to a disclosed amount, bound to an audit
-      request. The compliant-privacy wedge.</p></div>
+      <h3>disclosure ×4</h3><p>A commitment proves exactly one amount, or a threshold, a
+      portfolio cap, or a range, each bound to an audit request. The compliant-privacy wedge.</p></div>
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
       <h3>merkleUpdate</h3><p>Inserting a leaf into a known <code>old_root</code> yields
       exactly <code>new_root</code>, a trustless tree with no admin backdoor.</p></div>
   </div>
   <p class="lead">
-    All four are proved <strong>client-side in the browser (WASM)</strong>, so secrets never
+    All seven are proved <strong>client-side in the browser (WASM)</strong>, so secrets never
     leave the device, and verified <strong>on-chain</strong>. Remove them and the product
     does not exist.
   </p>
@@ -311,7 +311,7 @@
   <div class="kicker">Proof it works</div>
   <h2>Verified live, not asserted.</h2>
   <div class="grid g4">
-    <div class="card"><div class="stat">36/36<small>Contract unit tests</small></div></div>
+    <div class="card"><div class="stat">52/52<small>Contract unit tests</small></div></div>
     <div class="card"><div class="stat">11/11<small>Live real-click e2e</small></div></div>
     <div class="card"><div class="stat">6/6<small>Circuit soundness</small></div></div>
     <div class="card"><div class="stat">5/5<small>Anchor SEPs live</small></div></div>
