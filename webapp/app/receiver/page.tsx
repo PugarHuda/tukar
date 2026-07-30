@@ -8,7 +8,7 @@
 // app and the vanilla site are claimable here. Reads/writes and anchor calls are all real.
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Card, Button, Input, Badge, Spinner } from "@/components/ui";
+import { Card, Button, Input, Badge, Spinner, useToast } from "@/components/ui";
 import { WalletBar } from "@/components/WalletBar";
 import { useWallet } from "@/components/WalletProvider";
 import {
@@ -27,6 +27,7 @@ const STORE_KEY = `tukar:rcv:notes:${POOL}`;
 
 export default function ReceiverPage() {
   const { connected } = useWallet();
+  const { toast } = useToast();
 
   const [notes, setNotes] = useState<ClaimedNote[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -178,9 +179,9 @@ export default function ReceiverPage() {
     const str = encodePaymentRequest(amt, activeAddress());
     setReqString(str);
     setCopied(false);
-    if (navigator.clipboard) navigator.clipboard.writeText(str).then(() => setCopied(true)).catch(() => {});
+    if (navigator.clipboard) navigator.clipboard.writeText(str).then(() => { setCopied(true); toast("Request copied", "success"); }).catch(() => {});
     setStatus(`Requested ${amt} USDC. Share the string with the sender.`);
-  }, [reqAmount, connected, setStatus]);
+  }, [reqAmount, connected, setStatus, toast]);
 
   // ---- QR scan (native BarcodeDetector, degrades to paste) ----
   const stopScan = useCallback(() => {

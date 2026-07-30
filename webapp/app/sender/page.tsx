@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/components/WalletProvider";
 import { WalletBar } from "@/components/WalletBar";
-import { Button, Card, Input, Select, Badge } from "@/components/ui";
+import { Button, Card, Input, Select, Badge, useToast } from "@/components/ui";
 import {
   depositOnChain,
   registerRootOnChain,
@@ -65,6 +65,7 @@ const fmtLocal = (v: number, c: Corridor) =>
 
 export default function SenderPage() {
   const { connected, address, kind } = useWallet();
+  const { toast } = useToast();
 
   const [screen, setScreen] = useState<Screen>("compose");
   const [amount, setAmount] = useState("200");
@@ -310,6 +311,7 @@ export default function SenderPage() {
     if (!result || !navigator.clipboard) return;
     navigator.clipboard.writeText(result.bearer).then(() => {
       setCopied(true);
+      toast("Claim note copied", "success");
       setTimeout(() => setCopied(false), 1600);
     }).catch(() => {});
   }

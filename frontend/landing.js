@@ -425,14 +425,20 @@
       { tag: "GROTH16 · BN254", code: "transfer.circom", name: "Shielded transfer", type: "2-in / 2-out JoinSplit", status: "VERIFIED ON-CHAIN", meta: "depth 10", icon: "swap" },
       { tag: "GROTH16 · BN254", code: "compliance.circom", name: "ASP compliance", type: "allow ∈ / deny ∉", status: "VERIFIED ON-CHAIN", meta: "bound", icon: "shield" },
       { tag: "GROTH16 · BN254", code: "disclosure.circom", name: "Selective disclosure", type: "commitment → amount", status: "VERIFIED ON-CHAIN", meta: "tamper → reject", icon: "eye" },
-      { tag: "GROTH16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "VERIFIED ON-CHAIN", meta: "fake → reject", icon: "tree" }
+      { tag: "GROTH16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "VERIFIED ON-CHAIN", meta: "fake → reject", icon: "tree" },
+      { tag: "GROTH16 · BN254", code: "thresholdDisclosure.circom", name: "Threshold disclosure", type: "amount ≤ figure, hidden", status: "VERIFIED ON-CHAIN", meta: "amount hidden", icon: "eye" },
+      { tag: "GROTH16 · BN254", code: "aggregateDisclosure.circom", name: "Aggregate disclosure", type: "Σ portfolio ≤ cap", status: "VERIFIED ON-CHAIN", meta: "audit-bound", icon: "layers" },
+      { tag: "GROTH16 · BN254", code: "rangeDisclosure.circom", name: "Range disclosure", type: "lower ≤ amount ≤ upper", status: "VERIFIED ON-CHAIN", meta: "amount hidden", icon: "eye" }
     ],
     contracts: [
-      { tag: "SOROBAN", code: "CABRLZH…AA7FEXPJ", name: "pool", type: "orchestration · nullifiers", status: "36/36 TESTS PASS", meta: "no double-spend", icon: "layers" },
-      { tag: "SOROBAN", code: "CCRCRVF…I6K3N", name: "transfer verifier", type: "shielded JoinSplit", status: "VERIFY → TRUE", meta: "BN254", icon: "chip" },
-      { tag: "SOROBAN", code: "CAGBZGF…XIJQO", name: "compliance verifier", type: "ASP allow / deny", status: "VERIFY → TRUE", meta: "tx ✓", icon: "shield" },
-      { tag: "SOROBAN", code: "CACVDX2…AAOD3", name: "disclosure verifier", type: "selective disclosure", status: "VERIFY → TRUE", meta: "tamper → reject", icon: "eye" },
-      { tag: "SOROBAN", code: "CBQB4AJ…7EP5Z", name: "merkleUpdate verifier", type: "trustless root advance", status: "VERIFY → TRUE", meta: "fake → reject", icon: "tree" }
+      { tag: "SOROBAN", code: "CBIYQAC…DK2MHTWJ", name: "pool", type: "orchestration · nullifiers", status: "52/52 TESTS PASS", meta: "no double-spend", icon: "layers" },
+      { tag: "SOROBAN", code: "CACHZSW…3PUNE", name: "transfer verifier", type: "shielded JoinSplit", status: "VERIFY → TRUE", meta: "BN254", icon: "chip" },
+      { tag: "SOROBAN", code: "CDXYGM3…XBCG2", name: "compliance verifier", type: "ASP allow / deny", status: "VERIFY → TRUE", meta: "tx ✓", icon: "shield" },
+      { tag: "SOROBAN", code: "CAYGURQ…J4W4V", name: "disclosure verifier", type: "selective disclosure", status: "VERIFY → TRUE", meta: "tamper → reject", icon: "eye" },
+      { tag: "SOROBAN", code: "CCA3T54…S3X6H", name: "merkleUpdate verifier", type: "trustless root advance", status: "VERIFY → TRUE", meta: "fake → reject", icon: "tree" },
+      { tag: "SOROBAN", code: "CDGOSIZ…KLHVR", name: "threshold verifier", type: "amount ≤ figure, hidden", status: "VERIFY → TRUE", meta: "amount hidden", icon: "eye" },
+      { tag: "SOROBAN", code: "CCTN437…AZJYA", name: "aggregate verifier", type: "Σ portfolio ≤ cap", status: "VERIFY → TRUE", meta: "audit-bound", icon: "layers" },
+      { tag: "SOROBAN", code: "CDUONEV…NUPQW", name: "range verifier", type: "lower ≤ amount ≤ upper", status: "VERIFY → TRUE", meta: "amount hidden", icon: "eye" }
     ],
     flow: [
       { tag: "EDGE A", code: "fiat → USDC", name: "Deposit", type: "compliance proof bound", status: "ON-CHAIN", meta: "pinned ASP", icon: "in" },

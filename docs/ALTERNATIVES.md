@@ -140,7 +140,7 @@ signatures, no mocks (**5/5 steps pass**):
 
 | SEP | What it is | Tukar |
 |---|---|---|
-| **SEP-1** (`stellar.toml`) | org/asset/contract discovery | ✅ **published** — [`/.well-known/stellar.toml`](../frontend/.well-known/stellar.toml) declares the org + the live Soroban contracts (pool + 4 verifiers), network, operating account. Deliberately omits anchor endpoints and claims no `[[CURRENCIES]]` (Tukar issues no asset — settles in Circle/SDF USDC). Also **consumed**: `sep:anchor` reads the anchor's toml to discover its endpoints. |
+| **SEP-1** (`stellar.toml`) | org/asset/contract discovery | ✅ **published** — [`/.well-known/stellar.toml`](../frontend/.well-known/stellar.toml) declares the org + the live Soroban contracts (pool + 7 verifiers), network, operating account. Deliberately omits anchor endpoints and claims no `[[CURRENCIES]]` (Tukar issues no asset — settles in Circle/SDF USDC). Also **consumed**: `sep:anchor` reads the anchor's toml to discover its endpoints. |
 | **SEP-10** (web-auth) | challenge → sign → JWT | ✅ **real JWT obtained** — fetches the anchor's challenge tx, signs it with the demo key, POSTs it back, gets a valid ~400-char JWT. Genuine anchor authentication, not a stub. |
 | **SEP-6** (programmatic) | non-interactive deposit/withdraw | ✅ **authenticated `/info`** read live (anchor supports USDC/SRT/native deposit + withdraw). |
 | **SEP-24** (interactive) | hosted deposit/withdraw | ✅ **real interactive URL** — an authenticated `POST …/transactions/deposit/interactive` for **USDC** returns a live hosted ramp URL (`anchor-ref-ui-testanchor.stellar.org?transaction_id=…&token=…`) + a transaction id. This is a genuine fiat-on-ramp session against a real anchor. |

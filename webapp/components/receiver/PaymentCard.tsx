@@ -4,7 +4,7 @@
 // on-chain (real transfer proof, ported from frontend/app.js), then cash out to fiat via
 // Onramper or a SEP-24 anchor. All on-chain reads/writes and anchor calls are real.
 import { useState } from "react";
-import { Card, Button, Select, Input, Badge, Spinner } from "@/components/ui";
+import { Card, Button, Select, Input, Badge, Spinner, useToast } from "@/components/ui";
 import {
   offrampQuote,
   offrampQuoteTwap,
@@ -87,6 +87,7 @@ function Expander({ label, children }: { label: string; children: React.ReactNod
 }
 
 export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLeaves, updateNote, setStatus }: Props) {
+  const { toast } = useToast();
   const [onramperInfo, setOnramperInfo] = useState<string | null>(null);
   const [anchorInfo, setAnchorInfo] = useState<string | null>(null);
 
@@ -508,6 +509,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Receipt exported", "success");
     setStatus("Audit receipt exported. The regulator can re-verify the proof independently.");
   }
 
@@ -519,6 +521,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       const { txHash, sha256 } = await anchorReceipt(receiptCanonical(receipt));
       setReceipt({ ...receipt, anchor: { txHash, sha256, network: "Test SDF Network ; September 2015" } });
       setAnchorTx(txHash);
+      toast("Receipt anchored", "success");
       setStatus("Receipt anchored on-chain. The export now carries a tamper-evident, timestamped proof.");
     } catch (e: any) {
       setStatus("Anchoring failed. " + ((e && e.message) || e));
@@ -629,6 +632,11 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
         <Button variant="primary" onClick={runProve} busy={proving} disabled={proving}>
           Generate proof
         </Button>
+        {proving && (
+          <div className="mt-2 flex">
+            <Spinner label="Proving in your browser, this takes a few seconds" />
+          </div>
+        )}
       </div>
 
       {disc && (

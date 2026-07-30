@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
-import { Button, Spinner, StatusPill } from "@/components/ui";
+import { Button, Spinner, StatusPill, useToast } from "@/components/ui";
 import {
   registerAuditRequest,
   anchorReceipt,
@@ -338,6 +338,7 @@ function EmptyRow({ cols, children }: { cols: number; children: React.ReactNode 
 
 // ================= 02 · VERIFY A DISCLOSURE =================
 function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void }) {
+  const { toast } = useToast();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<ReceiptVerification | null>(null);
@@ -386,6 +387,7 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
     try {
       const { txHash, sha256 } = await anchorReceipt(receiptCanonical(receipt));
       setAnchorState({ busy: false, txHash });
+      toast("Receipt anchored", "success");
       addTrail({
         action: "Anchored receipt",
         type: receipt.type,
@@ -424,6 +426,10 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
           </Button>
           {busy && <Spinner label="re-verifying in your browser and on Stellar…" />}
         </div>
+
+        {!res && !error && !busy && (
+          <p className="mt-3 text-[12.5px] leading-relaxed text-tm">Paste an audit receipt exported by a holder to verify it here.</p>
+        )}
 
         {error && <p className="mt-4 text-[13px] text-red-t">{error}</p>}
 
@@ -662,10 +668,11 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
         <p className="mt-4 text-[13px] text-amber">Connect the testnet key (top right) to sign the on-chain registration.</p>
       )}
 
-      <div className="mt-4">
+      <div className="mt-4 flex items-center gap-3">
         <Button onClick={issue} busy={busy} disabled={!connected}>
           Compute hash and register on-chain
         </Button>
+        {busy && <Spinner label="Registering the audit request on-chain" />}
       </div>
 
       {out && (
@@ -679,6 +686,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
 
 // ================= 04 · AUDIT TRAIL =================
 function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: TrailEntry[]) => void }) {
+  const { toast } = useToast();
   const linkRef = useRef<HTMLAnchorElement>(null);
 
   const download = (name: string, text: string, mime: string) => {
@@ -688,6 +696,7 @@ function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: Trai
     a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Exported", "success");
   };
 
   const exportJson = () => download(`tukar-regulator-trail-${Date.now()}.json`, JSON.stringify(trail, null, 2), "application/json");

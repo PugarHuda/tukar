@@ -22,8 +22,8 @@ const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
 export const POOL = "CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ";
 export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
-// Standalone BN254 verifier for the threshold (range) disclosure circuit — a 6th
-// contract, deployed additively (the 5 core contracts are unchanged).
+// Standalone BN254 verifier for the threshold (range) disclosure circuit — one of the
+// disclosure-variant verifiers deployed additively, leaving the core contracts unchanged.
 export const THRESHOLD_VERIFIER = "CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR";
 // Standalone BN254 verifier for the aggregate (portfolio) disclosure circuit — the pool's
 // disclose_aggregate routes proofs to it (set via set_aggregate_verifier).

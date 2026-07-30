@@ -57,7 +57,7 @@ cd contracts/pool && cargo test          # 52/52
 - Only the demo artifacts (`frontend/circuit/disclosure.wasm`, `.zkey`, vk) are
   committed (needed to serve the browser demo). Largest tracked file 1.8 MB.
 - Contract IDs are consistent across README, the frontend, these docs, and
-  `deployments/testnet.json` (current pool `CABRLZH…AA7FEXPJ`; older deployments are
+  `deployments/testnet.json` (current pool `CBIYQAC…DK2MHTWJ`; older deployments are
   recorded under `deployments/testnet.json` → `pool.supersedes`).
 - `LICENSE` (Apache-2.0) present; `test_snapshots/` ignored.
 
@@ -132,14 +132,14 @@ Positive — all return `true`:
 
 | Call | Contract | Result |
 |---|---|---|
-| `disclosure.verify` | `CACVDX…AOD3` | `true` |
-| `transfer.verify` | `CCRCRVF…I6K3N` | `true` |
-| `compliance.verify` | `CAGBZGF…XIJQO` | `true` |
-| `pool.deposit` | `CABRLZH…AA7FEXPJ` | success — moved real USDC in, bound to the commitment |
-| `pool.withdraw` | `CABRLZH…AA7FEXPJ` | success — released USDC, amount bound to negative `public_amount` |
-| `pool.register_root_verified` | `CABRLZH…AA7FEXPJ` | success — trustless root advance (merkleUpdate proof) |
-| `pool.poseidon_hash(1,2)` | `CABRLZH…AA7FEXPJ` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
-| `merkleUpdate.verify` | `CBQB4AJ…7EP5Z` | `true` |
+| `disclosure.verify` | `CAYGUR…J4W4V` | `true` |
+| `transfer.verify` | `CACHZSW…3PUNE` | `true` |
+| `compliance.verify` | `CDXYGM3…XBCG2` | `true` |
+| `pool.deposit` | `CBIYQAC…DK2MHTWJ` | success — moved real USDC in, bound to the commitment |
+| `pool.withdraw` | `CBIYQAC…DK2MHTWJ` | success — released USDC, amount bound to negative `public_amount` |
+| `pool.register_root_verified` | `CBIYQAC…DK2MHTWJ` | success — trustless root advance (merkleUpdate proof) |
+| `pool.poseidon_hash(1,2)` | `CBIYQAC…DK2MHTWJ` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
+| `merkleUpdate.verify` | `CCA3T54…S3X6H` | `true` |
 
 Negative — all correctly rejected:
 

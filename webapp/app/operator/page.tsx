@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Panel, Badge, StatusPill } from "@/components/ui";
+import { Panel, Badge, StatusPill, useToast } from "@/components/ui";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
 import {
   readPoolState,
@@ -88,12 +88,13 @@ const TH = "px-3.5 py-2.5 font-mono text-[10px] font-semibold uppercase tracking
 const TD = "px-3.5 py-2.5 border-t border-hair align-middle";
 
 function CopyBlock({ text }: { text: string }) {
+  const { toast } = useToast();
   const [done, setDone] = useState(false);
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1600); })}
+        onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); toast("CLI command copied", "success"); setTimeout(() => setDone(false), 1600); })}
         className={`absolute right-2 top-2 z-10 rounded-md border px-2 py-1 font-mono text-[10px] transition-colors ${done ? "border-green/40 text-green-t" : "border-line-input bg-white/[0.05] text-ts hover:border-orange/50 hover:text-tp"}`}
       >
         {done ? "copied ✓" : "copy"}

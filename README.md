@@ -131,7 +131,7 @@ Tukar differs and where it stays composable, see
   [Reflector](https://reflector.network), Stellar's decentralized SEP-40 FX oracle
   (`pool.offramp_quote` → Reflector `lastprice`), so the number comes from our
   Soroban contract reading a partner oracle on-chain, not a client-side hardcode
-  (the other corridors fall back to a public FX API). For those three corridors the
+  (the other corridors fall back to a public FX API). For those four corridors the
   withdraw also carries an **optional min-receive gate**: it passes the live quote as
   `min_local_out`, and the pool **re-reads Reflector on-chain at settlement** and
   refuses to release below ~99% of it (`SlippageExceeded`), failing closed if the feed

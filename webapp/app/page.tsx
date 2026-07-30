@@ -324,7 +324,7 @@ export default function Home() {
             <h2>Money enters in one country. Exits in another.</h2>
             <p>Stellar&apos;s whole reason for existing is moving real money across borders. Tukar takes that exact rail and makes it confidential and compliant, with visible deposits and withdrawals at the edges, a private transfer in the middle, and selective disclosure for regulators.</p>
             <div className="globe-stats">
-              <div><div className="stat-num orange">A → B</div><div className="stat-label">SINGLE CORRIDOR</div></div>
+              <div><div className="stat-num orange">A → B</div><div className="stat-label">10 CORRIDORS</div></div>
               <div><div className="stat-num">USDC</div><div className="stat-label">SHIELDED IN THE MIDDLE</div></div>
             </div>
           </div>
