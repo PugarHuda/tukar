@@ -25,7 +25,7 @@
     @media (prefers-reduced-motion: reduce) { body { animation: none; } }
   </style>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tukar — Corridor Console (live demo)</title>
+  <title>Tukar. Corridor Console (live demo)</title>
   <meta name="description" content="Run the Tukar corridor live on Stellar testnet: deposit real USDC with a zero-knowledge compliance proof, off-ramp to fiat, and audit with a selective-disclosure proof verified on-chain. No install, no wallet." />
   <meta name="theme-color" content="#0a0705" />
   <!-- Installable (add-to-home) — manifest only, no service worker, so nothing caches
@@ -37,8 +37,8 @@
   <link rel="canonical" href="https://tukar-six.vercel.app/demo" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://tukar-six.vercel.app/demo" />
-  <meta property="og:title" content="Tukar — live corridor console" />
-  <meta property="og:description" content="Deposit real testnet USDC with a ZK compliance proof, off-ramp to fiat, audit with selective disclosure — all verified on-chain on Stellar." />
+  <meta property="og:title" content="Tukar. Live corridor console" />
+  <meta property="og:description" content="Deposit real testnet USDC with a ZK compliance proof, off-ramp to fiat, audit with selective disclosure, all verified on-chain on Stellar." />
   <meta property="og:image" content="https://tukar-six.vercel.app/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://tukar-six.vercel.app/og-image.png" />
@@ -86,7 +86,7 @@
         <div class="eyebrow">Try the live corridor</div>
         <h1>USDC in. Private crossing.<br>Local fiat out.</h1>
       </div>
-      <p>Generate a real zero-knowledge proof in your browser. The in-corridor transfer hides amounts and counterparties — only commitments are public; deposits and withdrawals are public at the edges by design. Selective disclosure is verified by a live Stellar contract.</p>
+      <p>Generate a real zero-knowledge proof in your browser. The in-corridor transfer hides amounts and counterparties. Only commitments are public, and deposits and withdrawals are public at the edges by design. Selective disclosure is verified by a live Stellar contract.</p>
     </div>
 
     <!-- status line -->
@@ -126,7 +126,7 @@
           <span class="chip-cc us">US</span>
           <div class="cc-label">COUNTRY A · SENDER</div>
         </div>
-        <p class="phint">Fiat on-ramp → USDC enters the corridor. Only a commitment goes on-chain — amount and recipient stay hidden.</p>
+        <p class="phint">Fiat on-ramp → USDC enters the corridor. Only a commitment goes on-chain, so the amount and recipient stay hidden.</p>
 
         <div class="import-row" style="margin-bottom:14px;">
           <input id="reqLoadInput" class="tk-input" type="text" placeholder="paste a payment request to fulfill…" aria-label="Paste a payment request" />
@@ -168,7 +168,7 @@
         <button id="anchorBtn" class="btn-ghost" style="margin-top:10px;width:100%;font-size:11.5px;">↗ Try a real anchor USDC on-ramp (SEP-10 + SEP-24)</button>
         <div class="foot-note" style="opacity:.8;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b645e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
-          Real anchor handshake vs SDF's reference anchor (Circle testnet USDC). The corridor demo itself is pre-funded — this shows the live SEP on-ramp, not the deposit source.
+          Real anchor handshake vs SDF's reference anchor (Circle testnet USDC). The corridor demo itself is pre-funded, so this shows the live SEP on-ramp, not the deposit source.
         </div>
       </div>
 
@@ -179,7 +179,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 19 6V11C19 16 16 19 12 21 8 19 5 16 5 11V6Z"/><path d="M9.4 11.6 12 9 14.6 11.6 12 14.2Z"/></svg>
           <div class="cc-label">CORRIDOR · ON STELLAR</div>
         </div>
-        <p class="phint">Inside the shielded set the ledger reveals just commitments — transfer amounts and counterparties stay shielded. (The deposit/withdraw edges are public by design.)</p>
+        <p class="phint">Inside the shielded set the ledger reveals just commitments, and transfer amounts and counterparties stay shielded. (The deposit/withdraw edges are public by design.)</p>
 
         <div class="stats">
           <div class="stat"><div class="v" id="poolCount">—</div><div class="k">COMMITMENTS</div></div>
@@ -207,7 +207,7 @@
           <span class="chip-cc mx" id="rcvChip">MX</span>
           <div class="cc-label">COUNTRY B · RECEIVER</div>
         </div>
-        <p class="phint">Payments arrive shielded. At the off-ramp the receiver reveals the amount to convert to local fiat — compliance by design.</p>
+        <p class="phint">Payments arrive shielded. At the off-ramp the receiver reveals the amount to convert to local fiat. That is compliance by design.</p>
 
         <div class="list-label">REQUEST A PAYMENT</div>
         <div class="import-row">
@@ -225,7 +225,7 @@
         <div id="incoming" class="list">
           <div class="empty"><div class="t">Nothing received yet.</div><div class="s" style="color:#6b645e;">Send a payment from Country A →</div></div>
         </div>
-        <button id="onramperBtn" class="btn-wd" style="margin-top:12px;width:100%;">↗ Cash out to fiat — live quote (MoonPay / Transak)</button>
+        <button id="onramperBtn" class="btn-wd" style="margin-top:12px;width:100%;">↗ Cash out to fiat, live quote (MoonPay / Transak)</button>
         <button id="offrampBtn" class="btn-ghost" style="margin-top:8px;width:100%;font-size:11px;opacity:.8;">or via a licensed SEP-24 anchor (SEP-10 + SEP-24 withdraw)</button>
         <div class="spacer"></div>
         <div class="foot-note">
@@ -241,7 +241,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#cfc8c1" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5V19"/><path d="M6 5H9"/><path d="M6 19H9"/><path d="M18 5V19"/><path d="M18 5H15"/><path d="M18 19H15"/><path d="M9.5 12 12 9.5 14.5 12 12 14.5Z"/></svg>
           <div class="cc-label dim">REGULATOR</div>
         </div>
-        <p class="phint">On audit, the holder proves one fact — the amount — with a ZK proof made in this browser and verified on-chain. The regulator learns only that.</p>
+        <p class="phint">On audit, the holder proves one fact, the amount, with a ZK proof made in this browser and verified on-chain. The regulator learns only that.</p>
 
         <div id="policyLive" class="foot-note" style="margin:-8px 0 14px;"></div>
 
@@ -261,12 +261,12 @@
         <div id="threshRow" style="display:none;">
           <label class="fld mt">REPORTING THRESHOLD (USDC)</label>
           <input id="threshVal" class="tk-input" type="number" min="1" value="1000" aria-label="Disclosure threshold in USDC" />
-          <div class="foot-note" style="margin-top:6px;">Prove the payment is under this figure without revealing the exact amount — verified in your browser and on the live Stellar threshold verifier.</div>
+          <div class="foot-note" style="margin-top:6px;">Prove the payment is under this figure without revealing the exact amount, verified in your browser and on the live Stellar threshold verifier.</div>
         </div>
         <div id="aggRow" style="display:none;">
           <label class="fld mt">REPORTING CAP (USDC · total of up to 5 payments)</label>
           <input id="aggCap" class="tk-input" type="number" min="1" value="5000" aria-label="Aggregate reporting cap in USDC" />
-          <div class="foot-note" style="margin-top:6px;">Prove the <b>sum of up to 5 of your on-chain payments</b> is under this cap without revealing any single amount — the shape of a periodic (CTR) report. The auditor <b>registers the request on-chain</b> (over the full set: auditContextHash = Poseidon(nonce, commitments, active)), and the pool <b>rejects any unregistered hash</b> — so a holder can't mint their own request for a cherry-picked subset. Completeness is <b>enforced on-chain</b> when the auditor is an independent party. (In this demo the auditor role is the demo key, since every role is played by one person.)</div>
+          <div class="foot-note" style="margin-top:6px;">Prove the <b>sum of up to 5 of your on-chain payments</b> is under this cap without revealing any single amount. This is the shape of a periodic (CTR) report. The auditor <b>registers the request on-chain</b> (over the full set: auditContextHash = Poseidon(nonce, commitments, active)), and the pool <b>rejects any unregistered hash</b>, so a holder can't mint their own request for a cherry-picked subset. Completeness is <b>enforced on-chain</b> when the auditor is an independent party. (In this demo the auditor role is the demo key, since every role is played by one person.)</div>
           <label id="aggOmitLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false" style="margin-top:8px;">
             <span class="box" aria-hidden="true"></span>
             <span class="txt">Try to omit a payment <span>(watch the completeness binding make it unprovable)</span></span>
@@ -279,7 +279,7 @@
             <input id="rangeLo" class="tk-input" type="number" min="0" value="100" aria-label="Band lower bound in USDC" style="flex:1;" />
             <input id="rangeHi" class="tk-input" type="number" min="1" value="1000" aria-label="Band upper bound in USDC" style="flex:1;" />
           </div>
-          <div class="foot-note" style="margin-top:6px;">Prove the payment is <b>inside this band</b> (lower ≤ amount ≤ upper) without revealing the exact amount — "in the reportable bracket". Bound to a known deposit and verified on the live Stellar range verifier.</div>
+          <div class="foot-note" style="margin-top:6px;">Prove the payment is <b>inside this band</b> (lower ≤ amount ≤ upper) without revealing the exact amount, i.e. that it's "in the reportable bracket". Bound to a known deposit and verified on the live Stellar range verifier.</div>
         </div>
 
         <label id="tamperLabel" class="tamper" role="checkbox" tabindex="0" aria-checked="false">
@@ -302,7 +302,7 @@
         <details class="verify-receipt" style="margin-top:14px;border:1px solid #241d17;border-radius:8px;background:#0d0a07;">
           <summary style="cursor:pointer;padding:10px 12px;font-size:12px;color:#c9a36a;">Verify an audit receipt independently ↓</summary>
           <div style="padding:2px 12px 12px;">
-            <div class="foot-note" style="margin:0 0 8px;">Paste a receipt JSON exported by any Tukar disclosure. It re-runs the Groth16 proof <b>in your browser</b> and on the <b>live Stellar verifier</b> — a skeptic confirms the attestation with zero trust in Tukar.</div>
+            <div class="foot-note" style="margin:0 0 8px;">Paste a receipt JSON exported by any Tukar disclosure. It re-runs the Groth16 proof <b>in your browser</b> and on the <b>live Stellar verifier</b>, so a skeptic confirms the attestation with zero trust in Tukar.</div>
             <textarea id="receiptInput" class="tk-input" rows="3" placeholder='{"kind":"tukar-audit-receipt","proof":{…},"publicSignals":[…]}' aria-label="Audit receipt JSON" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:11px;resize:vertical;"></textarea>
             <button id="verifyReceiptBtn" class="btn-wd" style="margin-top:8px;width:100%;">Verify receipt</button>
             <div id="receiptResult" class="pmono" style="margin-top:8px;font-size:11px;"></div>

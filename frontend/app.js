@@ -298,7 +298,7 @@ async function init() {
           // Was connected before, but Freighter is now locked/denied on reload. Don't
           // silently fall back to the demo key — prompt an explicit reconnect (Send stays
           // gated until then, so nothing transacts under the wrong signer).
-          $("walletTag").innerHTML = '<span style="opacity:.75;font-size:11px;color:#c9a36a">Freighter session expired — click “Connect wallet”</span>';
+          $("walletTag").innerHTML = '<span style="opacity:.75;font-size:11px;color:#c9a36a">Freighter session expired. Click “Connect wallet”</span>';
         }
       })();
     }
@@ -317,7 +317,7 @@ async function init() {
     })();
   } catch (e) {
     console.error("[tukar] init failed:", e);
-    status.textContent = "Init error: " + ((e && e.message) || e) + " — open the console (F12) for details.";
+    status.textContent = "Init error: " + ((e && e.message) || e) + ". Open the console (F12) for details.";
   }
 }
 
@@ -335,7 +335,7 @@ async function loadPoolState() {
       const strong = Number.isFinite(n) && n >= 20;
       $("anonSet").innerHTML =
         `${icon("shield", 11, "#8a847e")} Your withdrawal hides among <b style="color:#cfc8c1;">${commitments}</b> shielded notes. ` +
-        `Unlinkability <b style="color:${strong ? "#5fe3a0" : "#ff9c52"};">scales with pool usage</b> — every deposit grows everyone's anonymity set (demo-scale today, by design).`;
+        `Unlinkability <b style="color:${strong ? "#5fe3a0" : "#ff9c52"};">scales with pool usage</b>, and every deposit grows everyone's anonymity set (demo-scale today, by design).`;
     }
   } catch (_) { /* network — leave as-is */ }
   loadActivity();
@@ -352,7 +352,7 @@ async function showLivePolicy() {
     if (!root) return;
     const short = "0x" + root.slice(0, 6) + "…" + root.slice(-4);
     el.innerHTML =
-      `${icon("shield", 11, "#8a847e")} Compliance policy read <b style="color:#cfc8c1;">live on-chain</b> — ` +
+      `${icon("shield", 11, "#8a847e")} Compliance policy read <b style="color:#cfc8c1;">live on-chain</b> · ` +
       `allow-list root <a href="${explorer(POOL)}" target="_blank" rel="noreferrer" style="color:#cfc8c1;">${short}</a> · ` +
       `${deny ? deny.length : "?"} deny entries · <span style="color:#8a847e;">no trusted relay</span>`;
   } catch (_) { /* best-effort */ }
@@ -374,7 +374,7 @@ async function loadActivity() {
   try {
     const events = await readRecentActivity(8);
     if (!events.length) {
-      el.innerHTML = `<div class="empty"><div class="s">No recent on-chain events — testnet RPC retains only recent ledgers (the spendable tree is read from durable state, not events).</div></div>`;
+      el.innerHTML = `<div class="empty"><div class="s">No recent on-chain events. Testnet RPC retains only recent ledgers (the spendable tree is read from durable state, not events).</div></div>`;
       return;
     }
     el.innerHTML = events.map((e) => {
@@ -413,7 +413,7 @@ async function createPayment() {
     return;
   }
   if (num > 1_000_000_000) {
-    status.textContent = "Amount too large — keep it under 1,000,000,000 USDC.";
+    status.textContent = "Amount too large. Keep it under 1,000,000,000 USDC.";
     return;
   }
   const corridor = selectedCorridor().code;
@@ -442,7 +442,7 @@ async function createPayment() {
   notes.unshift(note);
   setActiveStep(1);
   render();
-  status.innerHTML = `<span class="spin">◠</span> ${note.ref} — building compliance + binding proofs, depositing on-chain…`;
+  status.innerHTML = `<span class="spin">◠</span> ${note.ref} · building compliance + binding proofs, depositing on-chain…`;
 
   // 1) Real on-chain deposit: compliance + amount-binding proofs -> signed pool.deposit.
   const forge = !!($("compTamper") && $("compTamper").checked);
@@ -454,7 +454,7 @@ async function createPayment() {
       notes.shift();
       if ($("denyTamper")) { $("denyTamper").checked = false; $("denyTamperLabel").classList.remove("on"); $("denyTamperLabel").setAttribute("aria-checked", "false"); }
       setActiveStep(0);
-      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit BLOCKED — source on the sanctions deny-list</b> — the compliance circuit couldn't produce a proof (its non-membership constraint is unsatisfiable), so no deposit is possible. This is the deny-list half of compliance, enforced by the math itself. <b>Sanctions demo is now off</b> — press <i>Send into corridor →</i> again for a normal deposit.`;
+      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit BLOCKED, source on the sanctions deny-list</b>. The compliance circuit couldn't produce a proof (its non-membership constraint is unsatisfiable), so no deposit is possible. This is the deny-list half of compliance, enforced by the math itself. <b>Sanctions demo is now off</b>, press <i>Send into corridor →</i> again for a normal deposit.`;
       render(); loadPoolState();
       return;
     }
@@ -469,7 +469,7 @@ async function createPayment() {
       $("compTamperLabel").classList.remove("on");
       $("compTamperLabel").setAttribute("aria-checked", "false");
       setActiveStep(0);
-      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit REJECTED by the ASP on-chain</b> — the compliance proof claimed a source you don't control. The pool pins the source to <i>your authenticated key</i>, so only an approved key you can sign with may deposit. <b>Forge is now off</b> — press <i>Send into corridor →</i> again for a normal deposit.`;
+      status.innerHTML = `🛡 <b style="color:#ff8a72;">Deposit REJECTED by the ASP on-chain</b>. The compliance proof claimed a source you don't control. The pool pins the source to <i>your authenticated key</i>, so only an approved key you can sign with may deposit. <b>Forge is now off</b>, press <i>Send into corridor →</i> again for a normal deposit.`;
       render(); loadPoolState();
       return;
     }
@@ -495,7 +495,7 @@ async function createPayment() {
 // failed (network/race) keeps a "Retry registration" button instead of dead-ending.
 async function registerNote(note) {
   const commitment = BigInt(note.commitment);
-  status.innerHTML = `<span class="spin">◠</span> ${note.ref} deposited ✓ — registering into the on-chain tree…`;
+  status.innerHTML = `<span class="spin">◠</span> ${note.ref} deposited ✓ · registering into the on-chain tree…`;
   let reg;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const syncedDep = await syncedLeaves();
@@ -522,7 +522,7 @@ async function registerNote(note) {
     // old_root (UnknownRoot, code 1). Re-sync and retry — self-heals concurrent
     // multi-user deposits. (Branch on the numeric code, not the friendly string.)
     if (attempt < 3 && reg.code === 1) {
-      status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree advanced by another deposit, re-syncing… (try ${attempt + 1})`;
+      status.innerHTML = `<span class="spin">◠</span> ${note.ref} · tree advanced by another deposit, re-syncing… (try ${attempt + 1})`;
       continue;
     }
     // The deposit tx confirmed, but the RPC node our register simulation read
@@ -531,7 +531,7 @@ async function registerNote(note) {
     // propagates and the next attempt finds it. (Only reachable when the deposit
     // itself succeeded — a failed deposit returns earlier, never calling this.)
     if (attempt < 3 && reg.code === 3) {
-      status.innerHTML = `<span class="spin">◠</span> ${note.ref} — confirming the deposit on-chain… (try ${attempt + 1})`;
+      status.innerHTML = `<span class="spin">◠</span> ${note.ref} · confirming the deposit on-chain… (try ${attempt + 1})`;
       await new Promise((r) => setTimeout(r, 4500));
       continue;
     }
@@ -542,10 +542,10 @@ async function registerNote(note) {
     note.status = "received";
     note.regFailed = false;
     setActiveStep(2);
-    status.textContent = `${note.ref} deposited & registered on-chain ✓ — shielded and spendable from the corridor.`;
+    status.textContent = `${note.ref} deposited & registered on-chain ✓ · shielded and spendable from the corridor.`;
   } else {
     note.regFailed = true;
-    status.textContent = `${note.ref} deposited ✓ — tree registration failed (tap “Retry registration”): ` + reg.error;
+    status.textContent = `${note.ref} deposited ✓ · tree registration failed (tap “Retry registration”): ` + reg.error;
   }
   render();
   renderReceiver();
@@ -644,7 +644,7 @@ function renderReceiver() {
           return `<span title="${fmtRate(r.rate)} · ${fmtAge(r.ageSec)} ago" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${col};margin-right:3px;opacity:.85"></span>`;
         }).join("");
         body += `<div class="oracle-depth" style="margin-top:8px;padding:8px 10px;border:1px solid #241d17;border-radius:8px;background:#0d0a07;font-size:11px;color:#9a9089;line-height:1.5">`
-          + `<div>${icon("shield", 11, "#c9a36a")} <b style="color:#c9a36a">Reflector depth</b> — ${n.oracleDepth.length} records read on-chain · freshest ${fmtAge(freshest)} ago</div>`
+          + `<div>${icon("shield", 11, "#c9a36a")} <b style="color:#c9a36a">Reflector depth</b> · ${n.oracleDepth.length} records read on-chain · freshest ${fmtAge(freshest)} ago</div>`
           + `<div style="margin-top:5px">${bars} <span style="margin-left:6px">median <b style="color:#cfc8c1">${cor.symbol}${fmtRate(med)}</b> · spread ${fmtRate(sorted[0])}–${fmtRate(sorted[sorted.length - 1])}</span></div>`
           + `<div style="margin-top:4px;opacity:.8">A single outlier record (orange) can't move the median the gate enforces.</div>`
           + `</div>`;
@@ -679,7 +679,7 @@ async function withdrawNote(note) {
   if (!connected) { promptConnect("withdraw on-chain"); return; }
   note.withdrawing = true;
   renderReceiver();
-  status.innerHTML = `<span class="spin">◠</span> ${note.ref} — building shielded transfer proof…`;
+  status.innerHTML = `<span class="spin">◠</span> ${note.ref} · building shielded transfer proof…`;
   try {
     const amt = BigInt(note.amount);
     const W = amt; // release the note's full amount
@@ -732,7 +732,7 @@ async function withdrawNote(note) {
       const realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
       if (realIndex < 0) {
         note.withdrawing = false;
-        status.textContent = `${note.ref} isn't registered in the on-chain tree yet — can't withdraw.`;
+        status.textContent = `${note.ref} isn't registered in the on-chain tree yet, can't withdraw.`;
         renderReceiver();
         return;
       }
@@ -757,11 +757,11 @@ async function withdrawNote(note) {
       // ?v bumped when the transfer circuit changes so a returning visitor never proves
       // with a stale circuit the new verifier rejects.
       const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, "./circuit/transfer.wasm?v=2", "./circuit/transfer_final.zkey?v=3");
-      status.innerHTML = `<span class="spin">◠</span> ${note.ref} — releasing tokens on-chain…`;
+      status.innerHTML = `<span class="spin">◠</span> ${note.ref} · releasing tokens on-chain…`;
       res = await withdrawSubmit(proof, publicSignals, recipient, W, offrampSym, minLocalOut);
       if (res.ok) break;
       if (attempt < 3 && res.code === 1) {
-        status.innerHTML = `<span class="spin">◠</span> ${note.ref} — tree moved on, re-syncing… (try ${attempt + 1})`;
+        status.innerHTML = `<span class="spin">◠</span> ${note.ref} · tree moved on, re-syncing… (try ${attempt + 1})`;
         continue;
       }
       break;
@@ -769,14 +769,14 @@ async function withdrawNote(note) {
     note.withdrawing = false;
     if (res.ok) {
       note.withdrawn = res.hash || "ok";
-      status.textContent = `${note.ref} withdrawn on-chain ✓ — the note was spent and tokens released from the pool.`;
+      status.textContent = `${note.ref} withdrawn on-chain ✓ · the note was spent and tokens released from the pool.`;
     } else if (res.code === 2) {
       // NullifierUsed: this note's nullifier is already on-chain. Either a prior
       // withdraw whose response we lost, or a genuine double-spend attempt — both
       // mean the funds are settled and there's nothing left to release. Mark it
       // spent rather than showing a scary failure for the lost-response case.
       note.withdrawn = "spent";
-      status.textContent = `${note.ref} — already spent (nullifier on-chain). Tokens were released; nothing left to withdraw.`;
+      status.textContent = `${note.ref} · already spent (nullifier on-chain). Tokens were released; nothing left to withdraw.`;
     } else {
       status.textContent = "Withdraw failed: " + res.error;
     }
@@ -813,7 +813,7 @@ async function exportNote(note) {
     <div class="qr" id="exportQr"></div>
     <div class="ec">Whoever holds this string can withdraw the note. Scan the code, or paste the string into "Import" on another device to receive it.</div>`;
   copyToClipboard(str);
-  status.textContent = `${note.ref} exported as a bearer note — hand the string (or QR) to the receiver.`;
+  status.textContent = `${note.ref} exported as a bearer note. Hand the string (or QR) to the receiver.`;
   qrInto("exportQr", str, "bearer note QR");
 }
 
@@ -827,7 +827,7 @@ async function qrInto(slotId, str, alt) {
     if (slot) slot.innerHTML = `<img alt="${alt}" src="${url}" width="168" height="168" />`;
   } catch (_) {
     const slot = $(slotId);
-    if (slot) slot.innerHTML = `<span class="qr-fallback">QR unavailable — copy the string instead.</span>`;
+    if (slot) slot.innerHTML = `<span class="qr-fallback">QR unavailable. Copy the string instead.</span>`;
   }
 }
 
@@ -847,7 +847,7 @@ function createRequest() {
     <div class="qr" id="reqQr"></div>
     <div class="ec">→ paste this into "Load" at the top of the Sender panel (or scan the QR) to fill in the amount and recipient.</div>`;
   copyToClipboard(str);
-  status.textContent = `Requested ${amt} USDC — hand the string (or QR) to the sender.`;
+  status.textContent = `Requested ${amt} USDC. Hand the string (or QR) to the sender.`;
   qrInto("reqQr", str, "payment request QR");
 }
 
@@ -870,7 +870,7 @@ function loadRequest() {
     $("recipient").value = label;
     $("reqLoadInput").value = "";
     setActiveStep(0);
-    status.textContent = `Loaded a request for ${json.amount} USDC — review and hit "Send into corridor".`;
+    status.textContent = `Loaded a request for ${json.amount} USDC. Review and hit "Send into corridor".`;
   } catch (e) {
     status.textContent = "Couldn't load that request: " + ((e && e.message) || "invalid string");
   }
@@ -908,7 +908,7 @@ function importNote() {
     $("exportBox").style.display = "none";
     setActiveStep(2);
     render(); renderReceiver(); saveSession();
-    status.textContent = `Imported ${note.ref} — it's now withdrawable here (the tree is verified from chain on withdraw).`;
+    status.textContent = `Imported ${note.ref}. It's now withdrawable here (the tree is verified from chain on withdraw).`;
   } catch (e) {
     status.textContent = "Couldn't import that note: " + ((e && e.message) || "invalid string");
   }
@@ -987,8 +987,8 @@ async function anchorReceiptOnChain() {
   try {
     const { txHash, sha256 } = await anchorReceipt(receiptCanonical(lastDisclosure));
     lastDisclosure.anchor = { txHash, sha256, network: "Test SDF Network ; September 2015" };
-    if (btn) btn.innerHTML = `${icon("sealCheck", 11, "#5fe3a0")} Anchored — <a href="${txExplorer(txHash)}" target="_blank" rel="noreferrer" style="color:#5fe3a0">${short(txHash)} ↗</a>`;
-    status.textContent = "Receipt anchored on-chain — the export now carries a tamper-evident, timestamped proof.";
+    if (btn) btn.innerHTML = `${icon("sealCheck", 11, "#5fe3a0")} Anchored · <a href="${txExplorer(txHash)}" target="_blank" rel="noreferrer" style="color:#5fe3a0">${short(txHash)} ↗</a>`;
+    status.textContent = "Receipt anchored on-chain. The export now carries a tamper-evident, timestamped proof.";
   } catch (e) {
     if (btn) { btn.disabled = false; btn.innerHTML = `${icon("shield", 11, "#8a847e")} Anchor receipt on-chain (timestamp)`; }
     status.textContent = "Anchoring failed: " + ((e && e.message) || e);
@@ -1005,7 +1005,7 @@ function exportAuditReceipt() {
   a.download = `tukar-audit-receipt-${lastDisclosure.type || "exact"}-${short(String(cmtForName)).replace(/[^\w]/g, "")}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  status.textContent = "Audit receipt exported — the regulator can re-verify the proof independently.";
+  status.textContent = "Audit receipt exported. The regulator can re-verify the proof independently.";
 }
 
 // B3: independently re-verify a pasted audit receipt — Groth16 verify in-browser AND on
@@ -1019,7 +1019,7 @@ async function verifyReceipt() {
   try { r = JSON.parse(($("receiptInput").value || "").trim()); }
   catch { out.innerHTML = '<span style="color:#ff8a72">Not valid JSON.</span>'; return; }
   if (!r || !r.proof || !Array.isArray(r.publicSignals) || r.publicSignals.length < 3) {
-    out.innerHTML = '<span style="color:#ff8a72">Missing <code>proof</code> / <code>publicSignals</code> — paste a full Tukar receipt.</span>';
+    out.innerHTML = '<span style="color:#ff8a72">Missing <code>proof</code> / <code>publicSignals</code>. Paste a full Tukar receipt.</span>';
     return;
   }
   out.innerHTML = '<span class="spin">◠</span> re-verifying in your browser and on Stellar…';
@@ -1082,21 +1082,21 @@ async function proveThreshold(note, auditContextHash) {
     if (ok) {
       const tlink = `<a href="${explorer(THRESHOLD_VERIFIER)}" target="_blank" rel="noreferrer">${short(THRESHOLD_VERIFIER)} ↗</a>`;
       renderProof("verified", {
-        body: `Proven: this payment is <b style="color:#5fe3a0;">≤ $${fmtUsdc(claimThr)} USDC</b> — the exact amount was <b>never revealed</b>. The regulator learns only that the threshold is met.`,
+        body: `Proven: this payment is <b style="color:#5fe3a0;">≤ $${fmtUsdc(claimThr)} USDC</b>. The exact amount was <b>never revealed</b>. The regulator learns only that the threshold is met.`,
         mono: `commitment ${short(note.commitment)} · threshold $${fmtUsdc(claimThr)} · amount hidden`,
         onchain: "⛓ confirming on the live Stellar threshold verifier…",
       });
       const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Range proof verified";
-      status.textContent = "Threshold disclosure verified in your browser — confirming on Stellar…";
+      status.textContent = "Threshold disclosure verified in your browser, confirming on Stellar…";
       // Confirm the SAME range proof THROUGH THE POOL: disclose_threshold also checks the
       // commitment is a known on-chain deposit, so the attestation is bound to a real note.
       try {
         const oc = await discloseThresholdViaPool(proof, publicSignals);
         const el = $("result").querySelector("[data-onchain]");
         if (oc.verified) {
-          if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the range proof against a known deposit (verifier ${tlink})`;
+          if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b>. The pool confirmed the range proof against a known deposit (verifier ${tlink})`;
           if (pt) pt.textContent = "Range proof verified on-chain (bound to a known deposit)";
-          status.textContent = "Threshold disclosure verified — in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
+          status.textContent = "Threshold disclosure verified in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
           setDisclosureReceipt("threshold", { thresholdUsdc: fmtUsdc(claimThr), commitment: note.commitment, auditContext: $("auditCtx").value, auditContextHash }, proof, publicSignals);
         } else if (el) {
           el.textContent = "⛓ on-chain check unavailable (network).";
@@ -1112,10 +1112,10 @@ async function proveThreshold(note, auditContextHash) {
     // fullProve throws when amount > threshold (predicate unsatisfiable) — the honest case.
     renderProof("rejected", {
       body: tamper
-        ? `Can't prove a threshold <b style="color:#ff8a72;">below the real amount</b> — "amount ≤ threshold" is false, so no proof exists. Soundness holds.`
+        ? `Can't prove a threshold <b style="color:#ff8a72;">below the real amount</b>. "amount ≤ threshold" is false, so no proof exists. Soundness holds.`
         : `This payment is <b style="color:#ff8a72;">above $${fmtUsdc(thrStroops)} USDC</b>, so "amount ≤ threshold" cannot be proven. Raise the threshold to disclose it's under.`,
     });
-    status.textContent = "Threshold not satisfiable — no false proof is possible.";
+    status.textContent = "Threshold not satisfiable. No false proof is possible.";
   } finally {
     $("proveBtn").disabled = false; $("proveBtn").classList.remove("busy"); $("proveBtn").textContent = "Generate & verify disclosure proof";
   }
@@ -1126,7 +1126,7 @@ async function proveThreshold(note, auditContextHash) {
 async function proveAggregate(auditContextHash) {
   const known = notes.filter((n) => n.onchain && n.commitment && n.amount != null && n.pubKey != null && n.blinding != null);
   if (known.length < 1) {
-    renderProof("rejected", { body: `Portfolio disclosure aggregates your on-chain payments (up to <b>${AGG_N}</b>) — you have <b>none</b> yet. Send a payment into the corridor first, then aggregate.` });
+    renderProof("rejected", { body: `Portfolio disclosure aggregates your on-chain payments (up to <b>${AGG_N}</b>). You have <b>none</b> yet. Send a payment into the corridor first, then aggregate.` });
     status.textContent = "Deposit at least one payment to prove a portfolio total.";
     return;
   }
@@ -1142,7 +1142,7 @@ async function proveAggregate(auditContextHash) {
   try {
     if (total > capStroops) {
       renderProof("rejected", { body: `The total of your ${nActive} payment(s) is <b style="color:#ff8a72;">above $${fmtUsdc(capStroops)} USDC</b>, so “sum ≤ cap” cannot be proven. Raise the cap to disclose the total is under it.` });
-      status.textContent = "Aggregate over cap — no false proof is possible.";
+      status.textContent = "Aggregate over cap. No false proof is possible.";
       return;
     }
     if (!aVkey) aVkey = await (await fetch(A_VKEY)).json();
@@ -1180,19 +1180,19 @@ async function proveAggregate(auditContextHash) {
     const ok = await snarkjs.groth16.verify(aVkey, publicSignals, proof);
     if (!ok) { renderProof("rejected", { body: "In-browser verification failed unexpectedly." }); return; }
     renderProof("verified", {
-      body: `Proven: the <b style="color:#5fe3a0;">sum of your ${nActive} payment(s) is ≤ $${fmtUsdc(capStroops)} USDC</b> — no individual amount was revealed. This is a periodic (CTR-style) report, in zero-knowledge.`,
+      body: `Proven: the <b style="color:#5fe3a0;">sum of your ${nActive} payment(s) is ≤ $${fmtUsdc(capStroops)} USDC</b>. No individual amount was revealed. This is a periodic (CTR-style) report, in zero-knowledge.`,
       mono: `${nActive} of ${AGG_N} slots active · cap $${fmtUsdc(capStroops)} · individual amounts hidden`,
       onchain: "⛓ confirming on the pool (bound to known deposits)…",
     });
     const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Aggregate proof verified";
-    status.textContent = "Aggregate disclosure verified in your browser — confirming on Stellar…";
+    status.textContent = "Aggregate disclosure verified in your browser, confirming on Stellar…";
     try {
       const oc = await discloseAggregateViaPool(proof, publicSignals);
       const el = $("result").querySelector("[data-onchain]");
       if (oc.verified) {
-        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — against the <b>registered audit request</b> (the pool rejects any unregistered hash) over your known deposits`;
+        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> against the <b>registered audit request</b> (the pool rejects any unregistered hash) over your known deposits`;
         if (pt) pt.textContent = "Aggregate verified on-chain (registered audit request)";
-        status.textContent = "Portfolio disclosure verified — the auditor's request was registered on-chain and the report proven complete against it. No individual amount revealed.";
+        status.textContent = "Portfolio disclosure verified. The auditor's request was registered on-chain and the report proven complete against it. No individual amount revealed.";
         setDisclosureReceipt("aggregate", { capUsdc: fmtUsdc(capStroops), commitments: sel.map((n) => n.commitment), auditContext: $("auditCtx").value, auditContextHash: issuedHash, ctxNonce: String(ctxNonce) }, proof, publicSignals);
       } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
     } catch (_) {
@@ -1200,8 +1200,8 @@ async function proveAggregate(auditContextHash) {
     }
   } catch (e) {
     if ($("aggOmit") && $("aggOmit").checked) {
-      renderProof("rejected", { body: `<b style="color:#ff8a72;">Unprovable</b> — this report is bound to the audit request's hash (over the full set), so proving a <b>trimmed</b> set against it fails. A holder can't silently drop a payment from a request a regulator issued. (Whether the request covers <em>all</em> payments is the regulator's to pin off-chain.)` });
-      status.textContent = "Bound to the audit request — a trimmed report is unprovable.";
+      renderProof("rejected", { body: `<b style="color:#ff8a72;">Unprovable</b>. This report is bound to the audit request's hash (over the full set), so proving a <b>trimmed</b> set against it fails. A holder can't silently drop a payment from a request a regulator issued. (Whether the request covers <em>all</em> payments is the regulator's to pin off-chain.)` });
+      status.textContent = "Bound to the audit request. A trimmed report is unprovable.";
     } else {
       renderProof("rejected", { body: "Couldn't generate the aggregate proof: " + esc((e && e.message) || String(e)) });
       status.textContent = "Aggregate proof failed.";
@@ -1223,7 +1223,7 @@ async function proveRange(note, auditContextHash) {
     const amt = BigInt(note.amount);
     if (amt < lo || amt > hi) {
       renderProof("rejected", { body: `This payment is <b style="color:#ff8a72;">outside $${fmtUsdc(lo)}–$${fmtUsdc(hi)} USDC</b>, so “in band” cannot be proven. Widen the band to disclose it's inside.` });
-      status.textContent = "Amount outside the band — no false proof is possible.";
+      status.textContent = "Amount outside the band. No false proof is possible.";
       return;
     }
     if (!rVkey) rVkey = await (await fetch(R_VKEY)).json();
@@ -1232,19 +1232,19 @@ async function proveRange(note, auditContextHash) {
     const ok = await snarkjs.groth16.verify(rVkey, publicSignals, proof);
     if (!ok) { renderProof("rejected", { body: "In-browser verification failed unexpectedly." }); return; }
     renderProof("verified", {
-      body: `Proven: this payment is <b style="color:#5fe3a0;">between $${fmtUsdc(lo)} and $${fmtUsdc(hi)} USDC</b> — the exact amount was <b>never revealed</b>. The regulator learns only that it's in the band.`,
+      body: `Proven: this payment is <b style="color:#5fe3a0;">between $${fmtUsdc(lo)} and $${fmtUsdc(hi)} USDC</b>. The exact amount was <b>never revealed</b>. The regulator learns only that it's in the band.`,
       mono: `commitment ${short(note.commitment)} · band $${fmtUsdc(lo)}–$${fmtUsdc(hi)} · amount hidden`,
       onchain: "⛓ confirming on the pool (bound to a known deposit)…",
     });
     const pt = $("result").querySelector(".pt"); if (pt) pt.textContent = "Range proof verified";
-    status.textContent = "Range disclosure verified in your browser — confirming on Stellar…";
+    status.textContent = "Range disclosure verified in your browser, confirming on Stellar…";
     try {
       const oc = await discloseRangeViaPool(proof, publicSignals);
       const el = $("result").querySelector("[data-onchain]");
       if (oc.verified) {
-        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> — the pool confirmed the band proof against a known deposit`;
+        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b>. The pool confirmed the band proof against a known deposit`;
         if (pt) pt.textContent = "Range proof verified on-chain (bound to a known deposit)";
-        status.textContent = "Range disclosure verified — in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
+        status.textContent = "Range disclosure verified in your browser AND on Stellar, bound to a real deposit. Exact amount never revealed.";
         setDisclosureReceipt("range", { bandUsdc: `$${fmtUsdc(lo)}-$${fmtUsdc(hi)}`, commitment: note.commitment, auditContext: $("auditCtx").value, auditContextHash }, proof, publicSignals);
       } else if (el) { el.textContent = "⛓ on-chain check unavailable (network)."; }
     } catch (_) {
@@ -1294,7 +1294,7 @@ async function proveAndVerify() {
 
     if (ok) {
       renderProof("verified", {
-        body: `Disclosed amount: <b style="color:#5fe3a0;">$${fmtUsdc(claimed[1])} USDC</b>. Nothing else is revealed — no keys, no blinding, no other payments.`,
+        body: `Disclosed amount: <b style="color:#5fe3a0;">$${fmtUsdc(claimed[1])} USDC</b>. Nothing else is revealed. No keys, no blinding, no other payments.`,
         mono: `commitment ${short(note.commitment)} · context ${short(auditContextHash)}`,
         onchain: "⛓ confirming on the live Stellar verifier…",
       });
@@ -1312,7 +1312,7 @@ async function proveAndVerify() {
       const oc = await verifyDisclosureOnChain(proof, claimed);
       const el = $("result").querySelector("[data-onchain]");
       if (ok && oc.verified) {
-        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> too — by the live Stellar verifier ${link}`;
+        if (el) el.innerHTML = `⛓ <b style="color:#5fe3a0;">Verified on-chain</b> too, by the live Stellar verifier ${link}`;
         // Only now upgrade the headline from "Proof verified" to the on-chain claim.
         const pt = $("result").querySelector(".pt");
         if (pt) pt.textContent = "Verified on-chain";
@@ -1324,10 +1324,10 @@ async function proveAndVerify() {
           auditContext: $("auditCtx").value, auditContextHash,
           disclosureVerifier: DISCLOSURE_VERIFIER,
         }, proof, claimed);
-        status.textContent = "Disclosure verified — in your browser AND on Stellar. Privacy preserved, compliance satisfied.";
+        status.textContent = "Disclosure verified in your browser AND on Stellar. Privacy preserved, compliance satisfied.";
       } else if (!ok && !oc.verified) {
         if (el) el.innerHTML = `⛓ The live Stellar verifier ${link} <b style="color:#ff8a72;">also rejected it</b> (InvalidProof).`;
-        status.textContent = "Tampered claim rejected — in your browser AND on-chain. The proof is sound.";
+        status.textContent = "Tampered claim rejected in your browser AND on-chain. The proof is sound.";
       } else if (el) {
         el.textContent = `⛓ on-chain result: ${oc.verified ? "verified" : "rejected"}`;
       }
@@ -1337,7 +1337,7 @@ async function proveAndVerify() {
     }
   } catch (e) {
     renderProof("rejected", { body: `Proof generation failed: ${(e && e.message) || e}. A disclosure that contradicts the committed amount cannot even be proven.` });
-    status.textContent = "Proof rejected at generation — soundness holds.";
+    status.textContent = "Proof rejected at generation. Soundness holds.";
   } finally {
     $("proveBtn").disabled = false;
     $("proveBtn").classList.remove("busy");
@@ -1377,7 +1377,7 @@ function resetUI() {
 
 // ---- wiring ----
 $("sendBtn").addEventListener("click", async () => {
-  if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
+  if (!poseidon) { status.textContent = "Prover still loading, one moment…"; return; }
   $("sendBtn").disabled = true;
   $("sendBtn").classList.add("busy");
   $("sendBtn").textContent = "Building compliance proof…";
@@ -1389,7 +1389,7 @@ $("sendBtn").addEventListener("click", async () => {
   }
 });
 $("proveBtn").addEventListener("click", () => {
-  if (!poseidon) { status.textContent = "Prover still loading — one moment…"; return; }
+  if (!poseidon) { status.textContent = "Prover still loading, one moment…"; return; }
   proveAndVerify();
 });
 function toggleTamper() {
@@ -1571,7 +1571,7 @@ function setSendGate() {
   if (h) h.style.display = connected ? "none" : "";
 }
 function promptConnect(action) {
-  status.innerHTML = `Connect a wallet — or click <b>“Use testnet key”</b> in the top bar — to ${action}.`;
+  status.innerHTML = `Connect a wallet (or click <b>“Use testnet key”</b> in the top bar) to ${action}.`;
 }
 function showConnected(tagHtml, msg) {
   connected = true;
@@ -1607,7 +1607,7 @@ function onDemoKeyClick() {
   walletConn = null;
   showConnected(
     `<b>testnet key</b> · ${shortAddr(activeAddress())}`,
-    "Connected with the built-in testnet key — real testnet transactions, no install. (Connect Freighter to sign with your own wallet.)",
+    "Connected with the built-in testnet key. Real testnet transactions, no install. (Connect Freighter to sign with your own wallet.)",
   );
   // Persist so navigating between step pages (or refreshing one) keeps the connection.
   localStorage.setItem("tukar:conn", "demo");
@@ -1620,23 +1620,23 @@ async function onWalletClick() {
     const { address, signTransaction } = await walletConnect();
     walletConn = { address };
     localStorage.setItem("tukar:conn", "freighter"); // silently re-established on reload via isAllowed()
-    showConnected(`<b>${shortAddr(address)}</b>`, `Wallet connected (${shortAddr(address)}) — transactions signed by Freighter.`);
+    showConnected(`<b>${shortAddr(address)}</b>`, `Wallet connected (${shortAddr(address)}). Transactions signed by Freighter.`);
     // Funding (friendbot XLM + USDC trustline + faucet) is best-effort: the wallet
     // is already connected, so a transient faucet failure must NOT drop it.
     try {
       await setupTestnetFunds(address, signTransaction, (m) => {
-        status.innerHTML = `<span class="spin">◠</span> Wallet setup — ${m}`;
+        status.innerHTML = `<span class="spin">◠</span> Wallet setup · ${m}`;
       });
-      status.textContent = `Wallet connected (${shortAddr(address)}) — transactions signed by Freighter.`;
+      status.textContent = `Wallet connected (${shortAddr(address)}). Transactions signed by Freighter.`;
     } catch (fundErr) {
-      status.textContent = `Wallet connected (${shortAddr(address)}) — testnet funding step failed (${(fundErr && fundErr.message) || fundErr}); you may need XLM + a USDC trustline before depositing.`;
+      status.textContent = `Wallet connected (${shortAddr(address)}). Testnet funding step failed (${(fundErr && fundErr.message) || fundErr}); you may need XLM + a USDC trustline before depositing.`;
     }
   } catch (e) {
     const msg = (e && e.message) || String(e);
     if (/not detected|not available|failed to load/i.test(msg)) {
       status.innerHTML =
         'No Freighter wallet detected. <a href="https://www.freighter.app/" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline;font-weight:600">Install Freighter →</a> ' +
-        'then click Connect again — or click “Use testnet key” to run on the built-in testnet key.';
+        'then click Connect again, or click “Use testnet key” to run on the built-in testnet key.';
     } else {
       status.textContent = "Wallet error: " + msg;
     }
@@ -1658,8 +1658,8 @@ if ($("anchorBtn")) $("anchorBtn").addEventListener("click", async () => {
     const { url, id, asset, sep24, bearer } = await anchorOnramp();
     const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
     status.innerHTML = w
-      ? `Anchor on-ramp opened for <b>${asset}</b> — complete the deposit in the anchor window (real SEP-24 session · tx ${esc(String(id).slice(0, 8))}…).`
-      : `Anchor session ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">deposit ↗</a>`;
+      ? `Anchor on-ramp opened for <b>${asset}</b>. Complete the deposit in the anchor window (real SEP-24 session · tx ${esc(String(id).slice(0, 8))}…).`
+      : `Anchor session ready for <b>${asset}</b>. Allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">deposit ↗</a>`;
     pollAnchorStatus(sep24, bearer, id).catch(() => {}); // track the SEP-24 deposit lifecycle
   } catch (e) {
     status.textContent = "Anchor on-ramp failed: " + ((e && e.message) || e);
@@ -1683,8 +1683,8 @@ if ($("offrampBtn")) $("offrampBtn").addEventListener("click", async () => {
     const { url, id, asset, sep24, bearer } = await anchorOfframp();
     const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
     status.innerHTML = w
-      ? `Anchor off-ramp opened for <b>${asset}</b> — complete the cash-out in the anchor window (real SEP-24 withdraw · tx ${esc(String(id).slice(0, 8))}…).`
-      : `Anchor withdraw ready for <b>${asset}</b> — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">withdraw ↗</a>`;
+      ? `Anchor off-ramp opened for <b>${asset}</b>. Complete the cash-out in the anchor window (real SEP-24 withdraw · tx ${esc(String(id).slice(0, 8))}…).`
+      : `Anchor withdraw ready for <b>${asset}</b>. Allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">withdraw ↗</a>`;
     // Track the REAL SEP-24 lifecycle: poll the anchor's transaction status (it advances as
     // the user completes KYC + transfer in the anchor window).
     pollAnchorStatus(sep24, bearer, id).catch(() => {});
@@ -1708,7 +1708,7 @@ async function pollAnchorStatus(sep24, bearer, id) {
     const t = await anchorTxStatus(sep24, bearer, id);
     if (!t) continue;
     const more = t.moreInfoUrl ? ` · <a href="${t.moreInfoUrl}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">details ↗</a>` : "";
-    status.innerHTML = `⛓ SEP-24 transfer <b>${esc(String(id).slice(0, 8))}…</b> — status: <b style="color:#c9a36a;">${esc(pretty(t.status))}</b>${t.amountOut ? ` · you receive ${esc(String(t.amountOut))}` : ""}${more}`;
+    status.innerHTML = `⛓ SEP-24 transfer <b>${esc(String(id).slice(0, 8))}…</b> · status: <b style="color:#c9a36a;">${esc(pretty(t.status))}</b>${t.amountOut ? ` · you receive ${esc(String(t.amountOut))}` : ""}${more}`;
     if (terminal.test(t.status)) return;
   }
 }
@@ -1732,10 +1732,10 @@ if ($("onramperBtn")) $("onramperBtn").addEventListener("click", async () => {
     const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=760");
     const quoteTxt = q
       ? `≈ <b style="color:#5fe3a0;">${q.payout.toLocaleString("en-US")} ${esc(fiat)}</b> via <b>${esc(q.ramp)}</b> (real provider quote · KYC by the provider)`
-      : `(no live ${esc(fiat)} quote right now — the widget prices it live)`;
+      : `(no live ${esc(fiat)} quote right now, the widget prices it live)`;
     status.innerHTML = w
       ? `Onramper off-ramp opened for <b>${usdc} USDC</b> → ${quoteTxt}. Finish KYC + payout in the provider window.`
-      : `Onramper ready — allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">off-ramp ↗</a> · ${quoteTxt}`;
+      : `Onramper ready. Allow pop-ups, or open: <a href="${url}" target="_blank" rel="noreferrer" style="color:#c9a36a;text-decoration:underline">off-ramp ↗</a> · ${quoteTxt}`;
   } catch (e) {
     status.textContent = "Onramper off-ramp failed: " + ((e && e.message) || e);
   } finally {

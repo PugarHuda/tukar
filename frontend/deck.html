@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tukar — Private cross-border remittance on Stellar</title>
-<meta name="description" content="Tukar: confidential cross-border payment corridors on Stellar. USDC in, shielded ZK transfer, local fiat out.">
-<meta property="og:title" content="Tukar — Private cross-border remittance on Stellar">
+<title>Tukar. Private cross-border remittance on Stellar</title>
+<meta name="description" content="Tukar. Confidential cross-border payment corridors on Stellar. USDC in, shielded ZK transfer, local fiat out.">
+<meta property="og:title" content="Tukar. Private cross-border remittance on Stellar">
 <meta property="og:description" content="USDC in → shielded ZK transfer → local fiat out. Private in the middle, accountable at the edges.">
 <meta property="og:image" content="/og-image.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡</text></svg>">
@@ -156,12 +156,12 @@
   <p class="big">
     Cross-border remittance is Stellar's core real-world use case. But on a public
     ledger, every payment's <strong>amount</strong> and <strong>both counterparties</strong>
-    are exposed — leaking a sensitive financial graph: who pays whom, how much, how often.
+    are exposed, leaking a sensitive financial graph: who pays whom, how much, how often.
   </p>
   <div class="note">
     <p>Hiding <em>balances</em> alone doesn't fix a remittance corridor. If the corridor
     still reveals sender → receiver, the payment graph is public. A corridor must hide
-    the <em>parties</em> too — while staying auditable enough for a regulator.</p>
+    the <em>parties</em> too, while staying auditable enough for a regulator.</p>
   </div>
 </section>
 
@@ -182,18 +182,18 @@
     </div>
     <div class="step">
       <div class="n">03 · PUBLIC</div><div class="t">Off-ramp</div>
-      <div class="d">The receiver reveals only at the edge and withdraws to local fiat —
-      IDR, PHP, VND, THB, INR, MXN, BRL, ARS, NGN, COP.</div>
+      <div class="d">The receiver reveals only at the edge and withdraws to local fiat
+      (IDR, PHP, VND, THB, INR, MXN, BRL, ARS, NGN, COP).</div>
     </div>
     <div class="step">
       <div class="n">04 · ON DEMAND</div><div class="t">Disclose</div>
-      <div class="d">A holder proves <b>one fact</b> to a regulator (e.g. the amount) —
-      no keys, no other payments.</div>
+      <div class="d">A holder proves <b>one fact</b> to a regulator (e.g. the amount),
+      with no keys and no other payments.</div>
     </div>
   </div>
   <p class="lead">
     Deposits and withdrawals are public <em>by design</em> (Privacy-Pools model). The
-    private leg is the crossing — exactly where a corridor must not leak.
+    private leg is the crossing, exactly where a corridor must not leak.
   </p>
 </section>
 
@@ -202,7 +202,7 @@
   <div class="kicker">Why Tukar, not another privacy coin</div>
   <h2>Compliant privacy, built for remittance.</h2>
   <div class="grid g2" style="margin-top:8px">
-    <div class="card"><span class="mono">Not just private — auditable</span>
+    <div class="card"><span class="mono">Not just private, auditable</span>
       <h3>Compliant privacy</h3>
       <p>Every deposit proves the <em>authenticated</em> depositor is allow-listed
       (key pinned to <code>from</code>), and a holder discloses one fact to a regulator,
@@ -225,7 +225,7 @@
 
 <!-- 5 — ZK load-bearing -->
 <section class="s" data-n="05">
-  <div class="kicker">ZK is load-bearing — not namechecked</div>
+  <div class="kicker">ZK is load-bearing, not namechecked</div>
   <h2>Four circuits do the actual work.</h2>
   <div class="grid g4">
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
@@ -233,17 +233,17 @@
       inclusion, value conservation.</p></div>
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
       <h3>compliance</h3><p>The <em>authenticated</em> depositor is in the ASP allow-list
-      and not deny-listed — key pinned to <code>from</code>.</p></div>
+      and not deny-listed, key pinned to <code>from</code>.</p></div>
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
       <h3>disclosure</h3><p>A commitment opens to a disclosed amount, bound to an audit
       request. The compliant-privacy wedge.</p></div>
     <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
       <h3>merkleUpdate</h3><p>Inserting a leaf into a known <code>old_root</code> yields
-      exactly <code>new_root</code> — trustless tree, no admin backdoor.</p></div>
+      exactly <code>new_root</code>, a trustless tree with no admin backdoor.</p></div>
   </div>
   <p class="lead">
-    All four are proved <strong>client-side in the browser (WASM)</strong> — secrets never
-    leave the device — and verified <strong>on-chain</strong>. Remove them and the product
+    All four are proved <strong>client-side in the browser (WASM)</strong>, so secrets never
+    leave the device, and verified <strong>on-chain</strong>. Remove them and the product
     does not exist.
   </p>
 </section>
@@ -260,12 +260,12 @@
 <b>disclosure verifier</b>   CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V
 <b>merkleUpdate verifier</b> CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H</code></pre>
   <p class="lead">Network: <code>Test SDF Network ; September 2015</code>. Every contract is
-  exercised live — deposit, withdraw, disclose, and a double-spend <span class="ok">rejected on-chain</span>.</p>
+  exercised live: deposit, withdraw, disclose, and a double-spend <span class="ok">rejected on-chain</span>.</p>
 </section>
 
 <!-- 6 — ecosystem integration -->
 <section class="s" data-n="07">
-  <div class="kicker">Ecosystem integration — real, not decorative</div>
+  <div class="kicker">Ecosystem integration, real not decorative</div>
   <h2>The oracle moves funds. The anchors are live.</h2>
   <div class="grid g2">
     <div class="card"><span class="mono">Reflector · SEP-40 FX oracle</span>
@@ -278,16 +278,16 @@
       <h3>Really integrated</h3>
       <p>Tukar publishes a SEP-1 <code>stellar.toml</code>, authenticates with a real
       <b>SEP-10</b> JWT and opens a real <b>SEP-24</b> interactive USDC on-ramp against
-      SDF's reference anchor — wired into the demo UI, not a mock.
+      SDF's reference anchor, wired into the demo UI, not a mock.
       <span class="ok">5/5 live.</span></p></div>
     <div class="card"><span class="mono">CAP-15 · native fee-bump</span>
       <h3>Gasless, natively</h3>
-      <p>Fees sponsored by a relayer using Stellar's own fee-bump — no gated
+      <p>Fees sponsored by a relayer using Stellar's own fee-bump, with no gated
       paymaster token. Proven on testnet.</p></div>
     <div class="card"><span class="mono">Protocol 25 / 26 host functions</span>
       <h3>On-chain BN254 + Poseidon</h3>
       <p>The pool computes a <b>circomlib-exact Poseidon</b> on-chain from BN254 host ops.
-      We measured it — which is <em>why</em> the tree advances with a cheap SNARK instead
+      We measured it, which is <em>why</em> the tree advances with a cheap SNARK instead
       of on-chain hashing.</p></div>
   </div>
 </section>
@@ -297,12 +297,12 @@
   <div class="kicker">What's real (not mocked)</div>
   <h2>Real USDC. Real custody. Real setup.</h2>
   <ul>
-    <li><b>Real testnet USDC custody</b> <span>— <code>deposit</code> moves the actual amount you type; <code>withdraw</code> releases it.</span></li>
-    <li><b>Amount ↔ commitment binding</b> <span>— a deposit proves the commitment opens to exactly the deposited amount. Privacy can't decouple hidden value from moved tokens.</span></li>
-    <li><b>Recipient bound into the proof</b> <span>— the contract recomputes <code>keccak256(recipient ‖ amount)</code>, so a withdraw proof can't be replayed to a different recipient.</span></li>
-    <li><b>Fully trustless tree</b> <span>— the root advances only via a <code>merkleUpdate</code> proof. No admin override. Leaves live in durable state, so any client rebuilds the exact tree from chain.</span></li>
-    <li><b>Real trusted setup</b> <span>— all four proving keys derive from the Hermez Powers-of-Tau ceremony, independently verifiable: <code>snarkjs zkey verify</code> → <span class="ok">ZKey Ok!</span> ×4.</span></li>
-    <li><b>Bearer notes + payment requests</b> <span>— a note <em>is</em> spendable value: export it as a string/QR, import on another device, withdraw. Requests pull money the other way.</span></li>
+    <li><b>Real testnet USDC custody.</b> <span><code>deposit</code> moves the actual amount you type; <code>withdraw</code> releases it.</span></li>
+    <li><b>Amount ↔ commitment binding.</b> <span>A deposit proves the commitment opens to exactly the deposited amount. Privacy can't decouple hidden value from moved tokens.</span></li>
+    <li><b>Recipient bound into the proof.</b> <span>The contract recomputes <code>keccak256(recipient ‖ amount)</code>, so a withdraw proof can't be replayed to a different recipient.</span></li>
+    <li><b>Fully trustless tree.</b> <span>The root advances only via a <code>merkleUpdate</code> proof. No admin override. Leaves live in durable state, so any client rebuilds the exact tree from chain.</span></li>
+    <li><b>Real trusted setup.</b> <span>All four proving keys derive from the Hermez Powers-of-Tau ceremony, independently verifiable: <code>snarkjs zkey verify</code> → <span class="ok">ZKey Ok!</span> ×4.</span></li>
+    <li><b>Bearer notes + payment requests.</b> <span>A note <em>is</em> spendable value: export it as a string/QR, import on another device, withdraw. Requests pull money the other way.</span></li>
   </ul>
 </section>
 
@@ -317,9 +317,9 @@
     <div class="card"><div class="stat">5/5<small>Anchor SEPs live</small></div></div>
   </div>
   <ul style="margin-top:14px">
-    <li><b>Playwright drives genuine clicks</b> <span>through the full on-chain flow — deposit → reveal → withdraw → disclose → tamper-rejected — against the live site.</span></li>
-    <li><b>Cross-wallet double-spend rejected on-chain</b> <span>— export a bearer note, reset to a second holder, import, spend again → <code>NullifierUsed</code>. <span class="ok">Rejected.</span></span></li>
-    <li><b>A forged compliance source is rejected on-chain</b> <span>by the ASP — you can't deposit pretending to be a different approved account.</span></li>
+    <li><b>Playwright drives genuine clicks</b> <span>through the full on-chain flow (deposit → reveal → withdraw → disclose → tamper-rejected) against the live site.</span></li>
+    <li><b>Cross-wallet double-spend rejected on-chain.</b> <span>Export a bearer note, reset to a second holder, import, spend again → <code>NullifierUsed</code>. <span class="ok">Rejected.</span></span></li>
+    <li><b>A forged compliance source is rejected on-chain</b> <span>by the ASP, so you can't deposit pretending to be a different approved account.</span></li>
     <li><b>Tamper with a disclosed amount</b> <span>→ <code>InvalidProof</code> from the live Stellar verifier. The proof is sound.</span></li>
   </ul>
 </section>
@@ -327,25 +327,25 @@
 <!-- 9 — honest scope -->
 <section class="s" data-n="10">
   <div class="kicker">Honest scope</div>
-  <h2>What this is — and isn't.</h2>
+  <h2>What this is and isn't.</h2>
   <p class="big">Hackathon-grade and security-hardened on testnet through many adversarial
-  self-audit rounds (19-point threat model). <strong>Not professionally audited — do not
+  self-audit rounds (19-point threat model). <strong>Not professionally audited. Do not
   use with real assets.</strong></p>
   <ul>
-    <li><b>Fiat anchors</b> <span>— the SEP protocols are really integrated against SDF's reference anchor, but a production ramp needs a <em>licensed KYC anchor</em>. A business problem, not a code problem.</span></li>
-    <li><b>Trusted setup phase-2</b> <span>— the live keys are the output of a multi-party ceremony (3 contributions + beacon), byte-identical to the committed transcripts. We ran the rounds on one machine to prove the process; full one-honest-party soundness needs genuinely independent contributors.</span></li>
-    <li><b>Anonymity set</b> <span>— privacy scales with pool usage. A demo-scale pool has a small set; that's inherent to the model, and we say so.</span></li>
-    <li><b>The shared demo key is public</b> <span>— so the no-install demo isn't access-controlled. The design is correct for real wallets (connect Freighter and it is).</span></li>
+    <li><b>Fiat anchors.</b> <span>The SEP protocols are really integrated against SDF's reference anchor, but a production ramp needs a <em>licensed KYC anchor</em>. A business problem, not a code problem.</span></li>
+    <li><b>Trusted setup phase-2.</b> <span>The live keys are the output of a multi-party ceremony (3 contributions + beacon), byte-identical to the committed transcripts. We ran the rounds on one machine to prove the process; full one-honest-party soundness needs genuinely independent contributors.</span></li>
+    <li><b>Anonymity set.</b> <span>Privacy scales with pool usage. A demo-scale pool has a small set; that's inherent to the model, and we say so.</span></li>
+    <li><b>The shared demo key is public.</b> <span>This means the no-install demo isn't access-controlled. The design is correct for real wallets (connect Freighter and it is).</span></li>
   </ul>
 </section>
 
 <!-- 10 — watch it run (live demo video) -->
 <section class="s" data-n="11">
-  <div class="kicker">Watch it run — live on Stellar testnet</div>
+  <div class="kicker">Watch it run, live on Stellar testnet</div>
   <h2 style="margin-bottom:14px">The whole flow, on-chain, in 1:43.</h2>
   <video class="demovid" controls playsinline preload="metadata" poster="/og-image.png">
     <source src="/demo-id.mp4" type="video/mp4">
-    Your browser can't play this video — <a href="/demo-id.mp4">download it</a>.
+    Your browser can't play this video. <a href="/demo-id.mp4">Download it</a>.
   </video>
   <p class="lead" style="margin-top:12px">
     Real testnet USDC: deposit → shielded crossing → off-ramp to local fiat → on-chain
@@ -357,15 +357,15 @@
 <!-- 11 — close -->
 <section class="s hero" data-n="12">
   <div class="streaks"><i style="top:30%;opacity:.3"></i><i style="top:70%;opacity:.4"></i></div>
-  <div class="kicker">Try it — no install</div>
+  <div class="kicker">Try it, no install</div>
   <h2 style="font-size:clamp(28px,4.6vw,60px)">Real-world money.<br>Private. Kept compliant.<br>On Stellar.</h2>
   <p class="lead">One click activates a real testnet key. Send builds proofs in your browser
   and deposits real USDC; the receiver off-ramps to fiat; a regulator audit is verified
-  on-chain — and a false claim is rejected on-chain.</p>
+  on-chain, and a false claim is rejected on-chain.</p>
   <div class="links">
     <a class="btn p" href="https://tukar-six.vercel.app/demo">Launch the live demo →</a>
     <a class="btn" href="https://tukar-six.vercel.app">Landing page</a>
-    <a class="btn" href="https://github.com/PugarHuda/tukar">GitHub — full source</a>
+    <a class="btn" href="https://github.com/PugarHuda/tukar">GitHub · full source</a>
     <a class="btn" href="https://stellar.expert/explorer/testnet/contract/CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ">Pool on stellar.expert ↗</a>
   </div>
   <div class="tag" style="margin-top:26px">Tukar · USDC in · private crossing · local fiat out</div>

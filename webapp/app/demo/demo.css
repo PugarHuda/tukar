@@ -1,0 +1,302 @@
+/* Tukar — Corridor Console design system (ported from frontend/styles.css).
+   Every component rule is scoped under .tukar-console so importing this file on the
+   /demo route can't restyle other routes' inputs/scrollbars/body. Tokens + fonts wire
+   to the app's next/font CSS vars (--font-archivo / --font-mono) instead of a CDN link. */
+.tukar-console {
+  --bg: #0a0705;
+  --surface: rgba(255, 255, 255, 0.016);
+  --surface-2: rgba(255, 255, 255, 0.03);
+  --input: rgba(0, 0, 0, 0.25);
+  --input-2: rgba(0, 0, 0, 0.3);
+  --border: rgba(255, 255, 255, 0.07);
+  --hairline: rgba(255, 255, 255, 0.06);
+  --border-input: rgba(255, 255, 255, 0.1);
+  --tp: #f5f1ec;   /* text primary */
+  --ts: #cfc8c1;   /* text secondary */
+  --tm: #8a847e;   /* text muted */
+  --tf: #6b645e;   /* text faint / labels */
+  --orange: #ff7a1a;
+  --orange-l: #ff8a3d;
+  --orange-l2: #ff9445;
+  --orange-l3: #ff9c52;
+  --orange-pale: #ffb070;
+  --orange-deep: #d4540a;
+  --green: #37d67a;
+  --green-t: #5fe3a0;
+  --red: #ff5a2a;
+  --red-t: #ff8a72;
+  --mono: var(--font-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ring: 0 0 0 1px rgba(255, 122, 26, 0.8), 0 0 26px rgba(255, 122, 26, 0.16);
+
+  background: var(--bg);
+  color: var(--tp);
+  font-family: var(--font-archivo), "Archivo", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+.tukar-console * { box-sizing: border-box; }
+.tukar-console ::selection { background: var(--orange); color: var(--bg); }
+.tukar-console a { color: inherit; }
+.tukar-console input, .tukar-console select, .tukar-console textarea, .tukar-console button { font-family: inherit; }
+.tukar-console input:focus, .tukar-console select:focus { outline: none; border-color: rgba(255, 122, 26, 0.6); }
+
+.tukar-console ::-webkit-scrollbar { width: 10px; height: 10px; }
+.tukar-console ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 6px; }
+.tukar-console ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- animations ---- */
+@keyframes tk-flow { from { left: -16px; } to { left: 100%; } }
+@keyframes tk-spin { to { transform: rotate(360deg); } }
+@keyframes tk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes tk-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(280%); } }
+@keyframes tk-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- layout ---- */
+.tukar-console .wrap { max-width: 1360px; margin: 0 auto; padding: 0 26px; }
+
+.tukar-console header.bar {
+  position: sticky; top: 0; z-index: 40;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: rgba(10, 7, 5, 0.72);
+  border-bottom: 1px solid var(--hairline);
+}
+.tukar-console .bar-in { display: flex; align-items: center; gap: 18px; padding: 14px 0; }
+.tukar-console .logo { display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--tp); }
+.tukar-console .logo .word { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+.tukar-console .tag {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; color: var(--tf);
+  border: 1px solid var(--border-input); border-radius: 6px; padding: 3px 7px; margin-left: 2px;
+}
+.tukar-console .grow { flex: 1; }
+.tukar-console .live { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 12px; color: var(--tm); }
+.tukar-console .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: tk-pulse 2.4s ease-in-out infinite; }
+.tukar-console .btn-ghost {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--ts); font-weight: 600; font-size: 13px; padding: 9px 15px; border-radius: 10px; cursor: pointer; text-decoration: none;
+}
+.tukar-console .btn-ghost:hover { border-color: rgba(255, 122, 26, 0.5); color: var(--tp); }
+
+.tukar-console .console { padding: 40px 0 80px; }
+.tukar-console .intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; flex-wrap: wrap; margin-bottom: 26px; }
+.tukar-console .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; color: var(--orange); text-transform: uppercase; margin-bottom: 14px; }
+.tukar-console .intro h1 { margin: 0; font-weight: 800; font-size: clamp(30px, 3.8vw, 50px); line-height: 1; letter-spacing: -0.025em; }
+.tukar-console .intro p { max-width: 360px; margin: 0; font-size: 14px; line-height: 1.55; color: var(--tm); }
+
+.tukar-console .statusbar {
+  display: flex; align-items: center; gap: 9px; min-height: 20px; margin-bottom: 22px;
+  font-family: var(--mono); font-size: 12px; color: var(--tm);
+}
+.tukar-console .spin { display: inline-block; color: var(--orange); animation: tk-spin 0.9s linear infinite; }
+
+/* ---- flow strip ---- */
+.tukar-console .flow {
+  display: flex; align-items: center; border: 1px solid var(--border); border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 122, 26, 0.04), rgba(255, 255, 255, 0.012));
+  padding: 22px 30px; margin-bottom: 22px;
+}
+.tukar-console .flow-node { display: flex; flex-direction: column; align-items: center; gap: 9px; flex: none; width: 88px; }
+.tukar-console .flow-tile { width: 52px; height: 52px; border-radius: 14px; border: 1px solid rgba(255, 122, 26, 0.35); background: rgba(255, 122, 26, 0.08); display: flex; align-items: center; justify-content: center; transition: box-shadow 0.4s, border-color 0.4s; }
+.tukar-console .flow-tile.muted { border-color: rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.03); }
+.tukar-console .flow-node.active .flow-tile { box-shadow: var(--ring); border-color: rgba(255, 122, 26, 0.8); }
+.tukar-console .flow-cap { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; color: var(--ts); text-align: center; }
+.tukar-console .flow-track { flex: 1; height: 2px; background: rgba(255, 255, 255, 0.08); position: relative; overflow: hidden; border-radius: 2px; margin: 25px 6px 0; align-self: flex-start; }
+.tukar-console .flow-track i { position: absolute; top: -2px; left: 0; width: 16px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--orange-l)); animation: tk-flow 2.2s linear infinite; }
+.tukar-console .flow-track.d2 i { animation-delay: 0.7s; }
+.tukar-console .flow-track.g i { background: linear-gradient(90deg, transparent, var(--green)); animation-delay: 1.4s; }
+
+/* ---- panels ---- */
+/* One step per page: the console mounts a single active panel (React-driven). */
+.tukar-console .grid { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: stretch; max-width: 720px; margin: 0 auto; }
+.tukar-console .pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 18px; max-width: 100%; margin: 20px auto 0; }
+.tukar-console .pager-label { font: 600 12px/1.4 var(--mono); letter-spacing: .04em; color: var(--tm); text-transform: uppercase; min-width: 0; text-align: center; }
+.tukar-console .pager .btn-ghost, .tukar-console .pager .btn-primary { min-width: 120px; flex: 0 0 auto; }
+.tukar-console .offramp-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.tukar-console .offramp-lbl { font: 600 10px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--tm); white-space: nowrap; }
+.tukar-console .offramp-sel { flex: 1; min-width: 0; background: var(--surface-2); color: var(--ts); border: 1px solid var(--border-input); border-radius: 8px; padding: 5px 8px; font: 500 11.5px var(--mono); cursor: pointer; }
+.tukar-console .panel {
+  position: relative; border: 1px solid var(--border); border-radius: 18px; background: var(--surface);
+  padding: 24px; display: flex; flex-direction: column; transition: box-shadow 0.4s;
+  animation: tk-pop .42s cubic-bezier(.2, .7, .2, 1);
+}
+.tukar-console .panel.active { box-shadow: var(--ring); }
+.tukar-console .panel.alt { border-color: var(--border-input); background: linear-gradient(180deg, var(--surface-2), rgba(255, 255, 255, 0.012)); }
+.tukar-console .seq { position: absolute; top: 16px; right: 18px; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--orange); }
+.tukar-console .phead { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.tukar-console .cc-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; color: var(--orange); }
+.tukar-console .cc-label.dim { color: var(--ts); }
+.tukar-console .chip-cc { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; border-radius: 6px; padding: 3px 7px; }
+.tukar-console .chip-cc.us { color: var(--orange-l3); border: 1px solid rgba(255, 122, 26, 0.35); }
+.tukar-console .chip-cc.mx { color: var(--green-t); border: 1px solid rgba(55, 214, 122, 0.35); }
+.tukar-console .phint { margin: 8px 0 18px; font-size: 13px; line-height: 1.5; color: var(--tm); }
+
+.tukar-console label.fld { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; color: var(--tf); display: block; }
+.tukar-console label.fld.mt { margin-top: 16px; }
+.tukar-console .amount-box { display: flex; align-items: center; gap: 8px; margin-top: 7px; border: 1px solid var(--border-input); border-radius: 11px; background: var(--input); padding: 0 14px; }
+.tukar-console .amount-box .cur { color: var(--tm); font-weight: 700; }
+.tukar-console .amount-box input { flex: 1; background: transparent; border: none; color: var(--tp); font-size: 22px; font-weight: 700; padding: 12px 0; width: 100%; }
+.tukar-console .amount-box .unit { font-family: var(--mono); font-size: 11px; color: var(--tf); }
+.tukar-console .tk-input { margin-top: 7px; border: 1px solid var(--border-input); border-radius: 11px; background: var(--input); color: var(--tp); font-size: 14px; padding: 12px 14px; width: 100%; }
+.tukar-console .tk-select { margin-top: 7px; border: 1px solid var(--border-input); border-radius: 11px; background: var(--input-2); color: var(--tp); font-size: 13px; padding: 11px 12px; width: 100%; cursor: pointer; }
+
+.tukar-console .btn-primary { display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--orange); color: var(--bg); font-weight: 700; font-size: 15px; padding: 15px; border-radius: 12px; border: none; cursor: pointer; width: 100%; }
+.tukar-console .btn-primary:disabled, .tukar-console .btn-primary.busy { background: rgba(255, 255, 255, 0.08); color: var(--tm); cursor: default; }
+.tukar-console .btn-primary.sm { font-size: 14px; padding: 14px; }
+.tukar-console .connect-hint { margin-top: 8px; font-size: 11px; color: var(--tf); text-align: center; line-height: 1.4; }
+.tukar-console .spacer { flex: 1; min-height: 10px; }
+.tukar-console .foot-note { margin-top: 12px; font-family: var(--mono); font-size: 10.5px; color: var(--tf); display: flex; align-items: center; gap: 7px; }
+
+/* corridor stat tiles */
+.tukar-console .stats { display: flex; gap: 10px; margin-bottom: 16px; }
+.tukar-console .stat { flex: 1; border: 1px solid var(--border); border-radius: 11px; padding: 12px; background: rgba(0, 0, 0, 0.2); }
+.tukar-console .stat .v { font-weight: 900; font-size: 24px; letter-spacing: -0.02em; }
+.tukar-console .stat .v.o { color: var(--orange); }
+.tukar-console .stat .k { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; color: var(--tf); margin-top: 3px; }
+.tukar-console .list-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--tf); margin-bottom: 10px; }
+.tukar-console .list { display: flex; flex-direction: column; gap: 8px; }
+
+.tukar-console .crow { border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; background: rgba(0, 0, 0, 0.2); animation: tk-pop 0.35s ease; }
+.tukar-console .crow .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tukar-console .crow .hash { font-family: var(--mono); font-size: 12px; color: var(--ts); }
+.tukar-console .crow .st { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em; }
+.tukar-console .crow .st i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.tukar-console .crow .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; font-family: var(--mono); font-size: 10px; color: var(--tf); }
+.tukar-console .crow .meta .hid { display: flex; align-items: center; gap: 5px; }
+
+.tukar-console .arrival { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: rgba(0, 0, 0, 0.2); animation: tk-pop 0.35s ease; }
+.tukar-console .arrival.done { border-color: rgba(55, 214, 122, 0.3); }
+.tukar-console .arrival .top { display: flex; justify-content: space-between; align-items: center; }
+.tukar-console .arrival .ref { font-family: var(--mono); font-size: 11px; color: var(--ts); }
+.tukar-console .arrival .chip { font-family: var(--mono); font-size: 9px; }
+.tukar-console .arrival .body { margin-top: 10px; }
+.tukar-console .mxn { display: flex; align-items: baseline; justify-content: space-between; }
+.tukar-console .mxn .amt { font-weight: 800; font-size: 20px; color: var(--green); letter-spacing: -0.01em; }
+.tukar-console .mxn .lbl { font-family: var(--mono); font-size: 10px; color: var(--tf); }
+.tukar-console .btn-reveal { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: rgba(255, 122, 26, 0.12); border: 1px solid rgba(255, 122, 26, 0.4); color: var(--orange-l3); font-weight: 700; font-size: 13px; padding: 10px; border-radius: 9px; cursor: pointer; }
+.tukar-console .btn-wd { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border-input); color: var(--ts); font-weight: 600; font-size: 12px; padding: 9px; border-radius: 9px; cursor: pointer; }
+.tukar-console .wd-done { margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--green-t); display: flex; align-items: center; gap: 6px; text-decoration: none; }
+.tukar-console .wd-pend { margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--orange-l3); display: flex; align-items: center; gap: 6px; }
+
+.tukar-console .empty { border: 1px dashed var(--border-input); border-radius: 11px; padding: 22px 16px; text-align: center; }
+.tukar-console .empty .t { font-size: 13px; color: var(--tm); }
+.tukar-console .empty .s { font-family: var(--mono); font-size: 10.5px; color: var(--tf); margin-top: 6px; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.tukar-console .empty .s i { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); animation: tk-pulse 1.6s ease-in-out infinite; display: inline-block; }
+
+/* tamper checkbox */
+.tukar-console .tamper { margin-top: 16px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.tukar-console .tamper .box { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.25); background: transparent; flex: none; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.tukar-console .tamper.on .box { border-color: var(--orange); background: var(--orange); }
+.tukar-console .tamper .txt { font-size: 12.5px; line-height: 1.4; color: var(--ts); }
+.tukar-console .tamper .txt span { color: var(--tf); }
+
+/* proof view */
+.tukar-console .proofbox { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; background: rgba(0, 0, 0, 0.2); padding: 14px; }
+.tukar-console .proofbox .ph { display: flex; align-items: center; gap: 8px; }
+.tukar-console .proofbox .pt { font-weight: 700; font-size: 13.5px; }
+.tukar-console .proofbox .pb { font-size: 12px; line-height: 1.45; color: #9a948e; margin-top: 7px; }
+.tukar-console .proofbox .pb a { color: var(--ts); }
+.tukar-console .proofbox .pmono { font-family: var(--mono); font-size: 10.5px; color: var(--tf); margin-top: 6px; word-break: break-all; }
+.tukar-console .proofbar { margin-top: 10px; height: 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.tukar-console .proofbar i { display: block; width: 40%; height: 100%; border-radius: 3px; background: var(--orange); animation: tk-bar 1s ease-in-out infinite; }
+
+/* footer */
+.tukar-console .fnote { margin-top: 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; border-top: 1px solid var(--hairline); padding-top: 22px; }
+.tukar-console .fchips { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.tukar-console .fchip { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 12px; color: var(--ts); text-decoration: none; border: 1px solid var(--border-input); border-radius: 8px; padding: 8px 12px; }
+.tukar-console .fchip:hover { border-color: rgba(255, 122, 26, 0.5); }
+.tukar-console .fdisc { font-family: var(--mono); font-size: 11px; color: var(--tf); }
+
+.tukar-console .wallet-tag { font-family: var(--mono); font-size: 11px; color: var(--tm); display: flex; align-items: center; gap: 7px; }
+.tukar-console .wallet-tag b { color: var(--green-t); font-weight: 600; }
+
+@media (max-width: 980px) {
+  .tukar-console .grid { grid-template-columns: 1fr; }
+  .tukar-console .flow { flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .tukar-console .flow-track { display: none; }
+  .tukar-console .intro { gap: 18px; }
+}
+
+@media (max-width: 620px) {
+  .tukar-console .wrap { padding: 0 16px; }
+  .tukar-console .bar-in { flex-wrap: wrap; gap: 10px; }
+  .tukar-console .grow { flex-basis: 100%; height: 0; }
+  .tukar-console .tag { display: none; }
+  .tukar-console .live { font-size: 11px; }
+  .tukar-console .btn-ghost { padding: 8px 11px; font-size: 12px; }
+  .tukar-console .console { padding: 28px 0 60px; }
+  .tukar-console .intro { margin-bottom: 20px; }
+  .tukar-console .fnote { flex-direction: column; align-items: flex-start; }
+}
+
+/* bearer-note import/export */
+.tukar-console .import-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.tukar-console .import-row .tk-input { margin-top: 0; font-size: 12px; padding: 9px 11px; }
+.tukar-console .btn-import { flex: none; background: rgba(255,122,26,0.12); border: 1px solid rgba(255,122,26,0.4); color: var(--orange-l3); font-weight: 700; font-size: 12px; padding: 0 12px; border-radius: 11px; cursor: pointer; white-space: nowrap; }
+.tukar-console .btn-import:hover { background: rgba(255,122,26,0.18); }
+.tukar-console .export-box { border: 1px solid rgba(255,122,26,0.35); border-radius: 10px; background: rgba(255,122,26,0.05); padding: 10px 12px; margin-bottom: 10px; animation: tk-pop 0.3s ease; }
+.tukar-console .export-box .eh { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--orange-l3); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.tukar-console .export-box .es { font-family: var(--mono); font-size: 10px; color: var(--ts); word-break: break-all; line-height: 1.4; max-height: 56px; overflow-y: auto; }
+.tukar-console .btn-copy { margin-left: auto; flex: none; background: rgba(255,122,26,0.14); border: 1px solid rgba(255,122,26,0.4); color: var(--orange-l3); font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 7px; cursor: pointer; }
+.tukar-console .btn-copy:hover { background: rgba(255,122,26,0.22); }
+.tukar-console .btn-retry { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,122,26,0.12); border: 1px solid rgba(255,122,26,0.4); color: var(--orange-l3); font-weight: 600; font-size: 11px; padding: 5px 10px; border-radius: 8px; cursor: pointer; }
+.tukar-console .btn-retry:hover { background: rgba(255,122,26,0.2); }
+.tukar-console .export-box .qr { margin-top: 8px; }
+.tukar-console .export-box .qr img, .tukar-console .export-box .qr svg { border-radius: 8px; image-rendering: pixelated; display: block; width: 168px; height: 168px; }
+.tukar-console .qr-fallback { font-family: var(--mono); font-size: 10px; color: var(--tf); }
+.tukar-console .export-box .ec { font-family: var(--mono); font-size: 10px; color: var(--tf); margin-top: 6px; }
+.tukar-console .btn-export { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--border-input); color: var(--tm); font-weight: 600; font-size: 11.5px; padding: 8px; border-radius: 9px; cursor: pointer; }
+.tukar-console .btn-export:hover { border-color: rgba(255,122,26,0.5); color: var(--ts); }
+
+/* custom select caret + interaction motion */
+.tukar-console .tk-select, .tukar-console .offramp-sel {
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%23ff9445' stroke-width='1.7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 13px center; padding-right: 34px;
+}
+.tukar-console .offramp-sel { background-position: right 9px center; padding-right: 26px; }
+.tukar-console .tk-input, .tukar-console .tk-select, .tukar-console .amount-box, .tukar-console .offramp-sel,
+.tukar-console .btn-primary, .tukar-console .btn-ghost, .tukar-console .btn-reveal, .tukar-console .btn-wd,
+.tukar-console .btn-export, .tukar-console .btn-import, .tukar-console .btn-copy,
+.tukar-console .btn-retry, .tukar-console .fchip, .tukar-console .stat, .tukar-console .crow, .tukar-console .arrival, .tukar-console .flow-tile {
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease, color .18s ease, transform .12s ease;
+}
+.tukar-console .tk-input:focus, .tukar-console .tk-select:focus, .tukar-console .amount-box:focus-within {
+  border-color: rgba(255, 122, 26, .6);
+  box-shadow: 0 0 0 3px rgba(255, 122, 26, .12);
+}
+.tukar-console .tk-input:hover, .tukar-console .tk-select:hover, .tukar-console .offramp-sel:hover { border-color: rgba(255, 255, 255, .2); }
+.tukar-console .btn-primary:not(:disabled):not(.busy):hover {
+  background: var(--orange-l); transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(255, 122, 26, .28);
+}
+.tukar-console .btn-primary:not(:disabled):not(.busy):active { transform: translateY(0); box-shadow: 0 3px 10px rgba(255, 122, 26, .22); }
+.tukar-console .btn-reveal:hover { background: rgba(255, 122, 26, .2); border-color: rgba(255, 122, 26, .6); }
+.tukar-console .btn-wd:hover { border-color: rgba(255, 122, 26, .5); color: var(--tp); background: rgba(255, 122, 26, .06); }
+.tukar-console .btn-ghost:hover { transform: translateY(-1px); }
+.tukar-console .btn-reveal:active, .tukar-console .btn-wd:active, .tukar-console .btn-export:active, .tukar-console .btn-import:active,
+.tukar-console .btn-ghost:active, .tukar-console .btn-primary:not(:disabled):active, .tukar-console .fchip:active { transform: translateY(1px); }
+.tukar-console .stat:hover, .tukar-console .crow:hover { border-color: rgba(255, 122, 26, .28); }
+.tukar-console .arrival:hover { border-color: rgba(255, 122, 26, .3); }
+.tukar-console .fchip:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0, 0, 0, .3); }
+.tukar-console .flow-node.active .flow-tile { animation: tk-tilepulse 2.8s ease-in-out infinite; }
+@keyframes tk-tilepulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 122, 26, .8), 0 0 20px rgba(255, 122, 26, .14); }
+  50%      { box-shadow: 0 0 0 1px rgba(255, 122, 26, .95), 0 0 32px rgba(255, 122, 26, .32); }
+}
+
+/* verify-receipt disclosure */
+.tukar-console .verify-receipt { margin-top: 14px; border: 1px solid #241d17; border-radius: 8px; background: #0d0a07; }
+.tukar-console .verify-receipt > summary { cursor: pointer; padding: 10px 12px; font-size: 12px; color: #c9a36a; }
+.tukar-console .oracle-depth { margin-top: 8px; padding: 8px 10px; border: 1px solid #241d17; border-radius: 8px; background: #0d0a07; font-size: 11px; color: #9a9089; line-height: 1.5; }
+
+/* ---- accessibility ---- */
+.tukar-console :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .tukar-console *, .tukar-console *::before, .tukar-console *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

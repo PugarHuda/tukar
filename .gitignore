@@ -26,6 +26,11 @@ contracts/build/
 !frontend/circuit/*.wasm
 !frontend/circuit/*.zkey
 !frontend/circuit/*.json
+# the Next.js webapp ships the same artifacts so it is self-contained on Vercel
+!webapp/public/circuit/
+!webapp/public/circuit/*.wasm
+!webapp/public/circuit/*.zkey
+!webapp/public/circuit/*.json
 
 # Powers of Tau (large)
 *.ptau

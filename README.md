@@ -8,12 +8,12 @@ Tukar is a **private cross-border remittance corridor** built for the
 hackathon. Money enters in one country, crosses the corridor with its **amount
 and counterparties hidden on-chain in the shielded transfer leg**, and exits as
 local fiat in another country. (Deposits and withdrawals are public at the edges, by
-Privacy-Pools design — see [the privacy model](docs/SECURITY.md#privacy-model--anonymity-set-honest-scope).)
+Privacy-Pools design; see [the privacy model](docs/SECURITY.md#privacy-model--anonymity-set-honest-scope).)
 At each **edge**, zero-knowledge **compliance proofs** keep the corridor auditable
 without ever exposing the private payment graph.
 
 Stellar's whole reason for existing is moving real money across borders. Tukar
-takes that exact rail and makes it confidential *and* compliant — a direct
+takes that exact rail and makes it confidential *and* compliant, a direct
 implementation of Stellar's privacy strategy and the
 [Privacy Pools whitepaper](https://privacypools.com/whitepaper.pdf)
 (visible deposits/withdrawals, private transfers, ASP + selective disclosure for
@@ -25,18 +25,18 @@ Stellar's privacy stack has two complementary tiers, and Stellar itself draws th
 line ([Confidential Tokens preview](https://stellar.org/blog/developers/developer-preview-confidential-tokens-on-stellar),
 Jun 2026):
 
-- **Confidential, not anonymous** — OpenZeppelin's **Confidential Tokens** (Noir +
+- **Confidential, not anonymous.** OpenZeppelin's **Confidential Tokens** (Noir +
   Nethermind UltraHonk) hide **balances and amounts** but keep **sender/recipient
-  visible**. Ideal for treasury, payroll, institutional settlement — *known*
+  visible**. Ideal for treasury, payroll, institutional settlement, with *known*
   counterparties.
-- **Anonymous (privacy pool)** — the tier that *also* hides the counterparties. The
+- **Anonymous (privacy pool).** The tier that *also* hides the counterparties. The
   Confidential Tokens post names **Stellar Private Payments (SPP)** here: *"privacy
   pool implementations … shield **both the parties and the amounts**."* **Tukar is
-  in this tier** — its shielded transfer leg hides amount *and* who-paid-whom, which
+  in this tier.** Its shielded transfer leg hides amount *and* who-paid-whom, which
   is exactly the cross-border-remittance threat model (a corridor must not leak the
   payment graph).
 
-So Tukar isn't an alternative to Confidential Tokens — it's the **more-private
+So Tukar isn't an alternative to Confidential Tokens. It's the **more-private
 remittance tier** of the same stack, and it ships the *same* compliance primitives
 Stellar shipped (auditor/selective disclosure + an ASP allow/deny policy), built
 independently during the hackathon. Honest scope: Confidential Tokens is an official,
@@ -46,25 +46,25 @@ tier, with its ZK verified live on testnet.
 ### What makes Tukar different
 
 Most on-chain privacy projects stop at *"hide the payment."* Tukar is built for one
-specific job — **cross-border remittance** — and three things set it apart from generic
+specific job, **cross-border remittance**, and three things set it apart from generic
 private-payment or encryption-infra work:
 
 1. **Compliant privacy, not just privacy.** Private in the middle, *accountable at the
    edges*. Every deposit carries an ASP compliance proof that **authenticates the
-   depositor** (`sourceKey` pinned to `field(from)` — you can't deposit as someone
+   depositor** (`sourceKey` pinned to `field(from)`, so you can't deposit as someone
    else), and a holder can prove **one fact** to a regulator via selective disclosure,
    verified on-chain. A corridor a regulator can audit is a corridor a licensed anchor
-   can actually run — that's the wedge a pure mixer doesn't have.
+   can actually run. That's the wedge a pure mixer doesn't have.
 2. **Remittance end-to-end, not a generic shield.** Fiat-in → shielded crossing →
    fiat-out to **local currency**, across **10 corridors**. The privacy serves the
    payment; the payment isn't an afterthought to the privacy.
 3. **Oracle-gated settlement.** The off-ramp rate is read **on-chain from Reflector**
    and *gates fund release* (min-receive on the median of 5 records, **fail-closed**).
-   The privacy layer is bound to real-world FX — funds never move on a stale or
+   The privacy layer is bound to real-world FX, so funds never move on a stale or
    manipulated rate. No pure-privacy project ties settlement to an on-chain oracle.
 
 Put together: a **privacy-pool remittance corridor with ASP compliance and selective
-disclosure** — a combination with no catalog equivalent. For an honest map of the
+disclosure**, a combination with no catalog equivalent. For an honest map of the
 neighbours (Confidential Tokens, LumenShade, Moonlight, Fairblock) and exactly where
 Tukar differs and where it stays composable, see
 [`docs/COMPETITIVE.md`](docs/COMPETITIVE.md).
@@ -77,12 +77,12 @@ Tukar differs and where it stays composable, see
 
 - **What:** a private cross-border remittance corridor. Real testnet USDC enters,
   crosses with amount + counterparties **hidden on-chain in the shielded transfer**
-  (deposit/withdraw edges public by design), exits — with **ZK compliance proofs at
+  (deposit/withdraw edges public by design), exits, with **ZK compliance proofs at
   the edges** and **selective disclosure** to regulators.
 - **ZK is load-bearing:** four Circom/Groth16/BN254 circuits do the real work
   (shielded transfer, ASP compliance, selective disclosure, trustless tree
   update). Without them the product does not exist.
-- **It runs on Stellar — 5 contracts live on testnet, all exercised:**
+- **It runs on Stellar. 5 contracts live on testnet, all exercised:**
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
@@ -92,7 +92,7 @@ Tukar differs and where it stays composable, see
   | [compliance verifier](https://stellar.expert/explorer/testnet/contract/CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2) | ASP allow/deny | `verify` → `true` |
   | [merkleUpdate verifier](https://stellar.expert/explorer/testnet/contract/CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H) | trustless root advance | `verify` → `true`; fake root → `InvalidProof` |
 
-  **Contract addresses (Stellar testnet)** — copy-paste form of the table above:
+  **Contract addresses (Stellar testnet).** Copy-paste form of the table above:
 
   ```
   pool                 CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ
@@ -106,40 +106,40 @@ Tukar differs and where it stays composable, see
   Network: **Stellar testnet** (`Test SDF Network ; September 2015`). The same ids
   live in [`deployments/testnet.json`](deployments/testnet.json).
 
-- **🌐 Live site:** **https://tukar-six.vercel.app** — a landing page; hit
+- **🌐 Live site:** **https://tukar-six.vercel.app**. A landing page; hit
   **Launch the live demo** (or go straight to
   [`/demo`](https://tukar-six.vercel.app/demo)). There, **Send** builds compliance
   + amount-binding proofs in your browser and **deposits real USDC on-chain**
   (watch the pool's commitment count rise); the receiver off-ramps to fiat; and a
   regulator audit produces a disclosure proof that is **verified on-chain by the
-  live Stellar verifier**. **No install needed** — one click on **Use testnet key**
+  live Stellar verifier**. **No install needed.** One click on **Use testnet key**
   activates a real built-in testnet key (or **connect Freighter** to sign with your
-  own). On-chain actions are gated on that explicit connection — no silent signing.
-  Pick a **destination corridor** — 10 of them: Indonesia, Philippines, Vietnam,
-  Thailand, India, Mexico, Brazil, Argentina, Nigeria, Colombia — and the off-ramp
+  own). On-chain actions are gated on that explicit connection, with no silent signing.
+  Pick a **destination corridor**, 10 of them (Indonesia, Philippines, Vietnam,
+  Thailand, India, Mexico, Brazil, Argentina, Nigeria, Colombia), and the off-ramp
   converts at a **live** USD→local exchange rate.
   For **Mexico, Brazil, Argentina and Thailand** (the first SEA corridor with an
   on-chain FX oracle), the receiver's revealed fiat figure is
   computed **on-chain by the pool contract itself**, which cross-contract-reads
-  [Reflector](https://reflector.network) — Stellar's decentralized SEP-40 FX oracle
-  (`pool.offramp_quote` → Reflector `lastprice`) — so the number comes from our
+  [Reflector](https://reflector.network), Stellar's decentralized SEP-40 FX oracle
+  (`pool.offramp_quote` → Reflector `lastprice`), so the number comes from our
   Soroban contract reading a partner oracle on-chain, not a client-side hardcode
   (the other corridors fall back to a public FX API). For those three corridors the
   withdraw also carries an **optional min-receive gate**: it passes the live quote as
   `min_local_out`, and the pool **re-reads Reflector on-chain at settlement** and
   refuses to release below ~99% of it (`SlippageExceeded`), failing closed if the feed
-  is down — so the oracle is **load-bearing for fund movement**, not just display. A
+  is down, so the oracle is **load-bearing for fund movement**, not just display. A
   plain withdraw (no gate) still settles in USDC and never touches the oracle.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Gasless, natively:** fees can be sponsored by a relayer via Stellar's native
-  **fee-bump** (CAP-15) — the no-gated-token alternative to a Launchtube paymaster.
+  **fee-bump** (CAP-15), the no-gated-token alternative to a Launchtube paymaster.
   Proven on testnet: `npm run demo:feebump` (a tx signed by one account, fee paid by
   another). See [`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) for how each
   externally-gated integration (Launchtube, Mercury, passkeys, SEP-24) maps to a
   native alternative and what's verifiable here.
 - **Demo video (self-hosted, always available):**
-  **▶ [Watch the narrated walkthrough](https://tukar-six.vercel.app/deck)** — it plays on
+  **▶ [Watch the narrated walkthrough](https://tukar-six.vercel.app/deck)** plays on
   **slide 10** of the pitch deck, or open the raw file directly at
   **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~1:24 recording of the
   **real on-chain flow** (landing → connect → on-chain deposit → off-ramp via Reflector →
@@ -151,7 +151,7 @@ Tukar differs and where it stays composable, see
 
 ## What the ZK is doing (load-bearing)
 
-The zero-knowledge is not decorative — it is the entire product. Four circuits,
+The zero-knowledge is not decorative. It is the entire product. Four circuits,
 all **Groth16 over BN254**, generated **client-side in the browser (WASM)** and
 verified **on-chain** by Soroban contracts using Stellar's native BN254 host
 functions (Protocol 25/26). Secrets never leave the device.
@@ -170,14 +170,14 @@ layer that turns "private payments" into *compliant* private payments. See
 A fifth circuit, **threshold (range) disclosure**
 ([`circuits/thresholdDisclosure.circom`](circuits/thresholdDisclosure.circom)), takes
 this further: it proves a payment is **at most a reporting threshold without revealing
-the exact amount** — the predicate real reporting rules actually want. It's compiled and
+the exact amount**, the predicate real reporting rules actually want. It's compiled and
 soundness-tested (`npm run test:threshold` → **4/4**: under/at-threshold proves with the
 amount kept private; over-threshold and a mismatched commitment are unprovable), its zkey
 derives from the same Hermez phase-1 (`ZKey Ok!`). It's **wired into the live demo AND
-verified on-chain** — the Regulator step has a *"≤ Threshold · amount hidden"* mode that
+verified on-chain**. The Regulator step has a *"≤ Threshold · amount hidden"* mode that
 proves the range in the browser and confirms it on a **deployed standalone verifier**
 ([`CCZLFV2P…53PY`](https://stellar.expert/explorer/testnet/contract/CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR),
-a 6th contract deployed **additively** — the 5 core contracts are unchanged). Verified live:
+a 6th contract deployed **additively**, the 5 core contracts are unchanged). Verified live:
 `≤ $1000` proves with the amount hidden and passes on-chain; `≤ $100` on a $500 payment is
 honestly shown unprovable.
 
@@ -187,18 +187,18 @@ honestly shown unprovable.
 
 This started as a demo and was hardened, increment by increment, through many
 adversarial self-audit rounds into a **security-hardened testnet** system (not
-professionally audited — see the caveats below). What that means concretely:
+professionally audited, see the caveats below). What that means concretely:
 
 - **Real USDC, real custody.** The pool custodies a **real testnet USDC asset**
   (SAC [`CAT6F6HX…FVA2`](https://stellar.expert/explorer/testnet/contract/CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2),
   issuer `GC7SWGHR…SY3B`). `deposit` moves the **actual amount** you type into the
   pool; `withdraw` releases it.
 - **Amount ↔ commitment binding.** `deposit` requires a second (disclosure) proof
-  that the commitment **opens to exactly the deposited amount** — privacy can't
+  that the commitment **opens to exactly the deposited amount**, so privacy can't
   decouple the hidden note value from the tokens that moved.
 - **Correct withdraw value semantics.** A withdraw carries a **negative**
   `publicAmount` (`r − amount`, value *leaving* the shielded set) and the pool
-  binds the released amount to that field-negative — it cannot be told to release
+  binds the released amount to that field-negative, so it cannot be told to release
   more than the proof authorizes (`AmountNotBound`).
 - **Binding closes the double-spend bypass.** The pool never accepts a pre-built
   public-input vector; it builds the verifier's inputs from the typed signals
@@ -211,10 +211,10 @@ professionally audited — see the caveats below). What that means concretely:
   commitment count is idempotent (no double-count).
 - **Reliable global Merkle accumulator.** `register_root_verified` requires
   `old_root == current_root`, so the tree is a single append-only accumulator (not
-  a per-session view) — inserting from a stale root is rejected. The ordered leaves
+  a per-session view), and inserting from a stale root is rejected. The ordered leaves
   live in **durable contract state**, read via `leaves()` / `leaf_range(start,count)`
   / `leaf_count` (paginated, so it scales), so any client reconstructs the exact
-  tree from on-chain **state** — reload-safe and multi-user-correct, with no
+  tree from on-chain **state**, reload-safe and multi-user-correct, with no
   dependency on RPC event retention. Leaf/root entries get their TTL extended on
   each insert (long-lived pools stay readable), and the client auto-retries the
   concurrent-deposit race. Verified live: leaves accumulate 0→1→2→3→4 across
@@ -223,18 +223,18 @@ professionally audited — see the caveats below). What that means concretely:
   circuit's `sourceKey` is a public input the pool pins to
   `field(from) = keccak256(from XDR) mod r`, and `deposit` `require_auth(from)`s. So
   the proof shows **this authenticated depositor** is in the ASP allow-list (and not
-  deny-listed) — not merely that *some* approved source exists. An unapproved key
+  deny-listed), not merely that *some* approved source exists. An unapproved key
   can't deposit. (The shared demo key is allow-listed so the no-install demo works;
   the design is correct for real-wallet users.)
 - **Real trusted setup.** All four proving keys are derived from the **Hermez
-  perpetual Powers-of-Tau ceremony** (`powersOfTau28_hez_final_14.ptau`) — phase-1
+  perpetual Powers-of-Tau ceremony** (`powersOfTau28_hez_final_14.ptau`). Phase-1
   has no locally-known toxic waste. Verifiers + pool were regenerated together so
   keys and verifiers stay in sync.
 - **On-chain Poseidon (proven).** The pool exposes
-  [`poseidon_hash(a,b)`](contracts/pool/src/poseidon.rs) — a **circomlib-exact**
+  [`poseidon_hash(a,b)`](contracts/pool/src/poseidon.rs), a **circomlib-exact**
   Poseidon computed on-chain from BN254 Fr host ops. Live, `poseidon_hash(1,2)`
   returns `0x115cc0f5…4417189a`, exactly circomlibjs `poseidon([1,2])`. We measured
-  it at ~13.6M CPU/hash, so a depth-10 insert (~135M) exceeds the per-tx budget —
+  it at ~13.6M CPU/hash, so a depth-10 insert (~135M) exceeds the per-tx budget,
   which is *why* the tree is advanced with a cheap `merkleUpdate` SNARK rather than
   hashed on-chain. See [`onChainPoseidonFinding`](deployments/testnet.json).
 - **Optional real wallet.** [`frontend/wallet.js`](frontend/wallet.js) adds an
@@ -242,30 +242,30 @@ professionally audited — see the caveats below). What that means concretely:
   one-click testnet faucet); the embedded throwaway key stays the no-install
   default.
 - **Reload-survivable notes.** Your notes persist in `localStorage` (keyed by
-  pool), so a page reload restores them — and because the tree reconstructs from
+  pool), so a page reload restores them, and because the tree reconstructs from
   durable on-chain state, a deposited note stays **withdrawable after you close the
   tab** (verified live: deposit → reload → withdraw the restored note).
 - **Bearer notes (true P2P).** A shielded note *is* the spendable asset, so the
   receiver can **export it as a portable string (and a scannable QR)** and hand it
-  to anyone, who **imports it on a different device and withdraws** — no shared
+  to anyone, who **imports it on a different device and withdraws**. No shared
   account, no server. The tree reconstructs from chain anywhere, and the imported
   note's leaf index is resolved on-chain by commitment at withdraw time (verified
-  live: export → fresh wallet → import → on-chain withdraw). Demo keys only — the
+  live: export → fresh wallet → import → on-chain withdraw). Demo keys only. The
   string carries the note's secret, so treat it like cash.
 - **Payment requests (the reverse direction).** The receiver can ask for money:
   generate a request (a string **and a QR**, carrying just an amount + the payee
-  address — no secrets), and the sender **loads it to pre-fill the corridor send
+  address, no secrets), and the sender **loads it to pre-fill the corridor send
   form** and fulfills it with a normal shielded deposit (verified live: request →
-  load → on-chain deposit). Together with bearer notes this closes the P2P loop —
-  request money one way, hand over a spendable note the other.
+  load → on-chain deposit). Together with bearer notes this closes the P2P loop.
+  Request money one way, hand over a spendable note the other.
 - **Adversarially self-audited.** A read-only audit (see
-  [`docs/SECURITY.md`](docs/SECURITY.md)) hardened the contract — the verifier's
+  [`docs/SECURITY.md`](docs/SECURITY.md)) hardened the contract. The verifier's
   return is now asserted (no fail-open), the deposit amount range and tree capacity
   are bounded, withdraw resolves the note's real on-chain index, and the **withdraw
   recipient is bound into the proof** (the contract recomputes `keccak256(recipient ‖
   amount)`, so a withdraw proof can't be replayed to a different recipient), and
   **compliance now authenticates the depositor** (key-on-`from`, above). The only
-  remaining caveat is that the *shared demo key's* secret is public — so the public
+  remaining caveat is that the *shared demo key's* secret is public, so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
 **36/36 pool unit tests** + **6/6 circuit-soundness** + a 19-point
@@ -273,11 +273,11 @@ professionally audited — see the caveats below). What that means concretely:
 flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
 
 **Live real-click e2e (`npm run test:e2e`): 11/11** against the deployed site (or a
-local `npm run serve`) — Playwright drives genuine clicks through the full on-chain
+local `npm run serve`). Playwright drives genuine clicks through the full on-chain
 flow (deposit → reveal → withdraw → disclose → tamper-rejected), on-chain ASP
 forge-rejection, corridor switching, graceful junk-input handling, UI gating, and a
 **cross-wallet double-spend**: export a bearer note, reset to a second holder, import,
-and the on-chain `NullifierUsed` (`#2`) rejects the second spend — all with zero
+and the on-chain `NullifierUsed` (`#2`) rejects the second spend, all with zero
 uncaught page errors. Back-to-back txns on the shared demo key ride a
 rebuild-and-retry that self-heals transient testnet faults (sequence races,
 `TRY_AGAIN_LATER`, RPC 5xx); a contract revert like that double-spend `#2` is
@@ -285,7 +285,7 @@ deterministic and is never retried, so it surfaces immediately. See
 [docs/TESTING.md](docs/TESTING.md) §6.
 
 **Trusted setup is independently verifiable:** all four deployed proving keys
-provably derive from the real Hermez ceremony — `snarkjs zkey verify <r1cs>
+provably derive from the real Hermez ceremony. `snarkjs zkey verify <r1cs>
 pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 
 ---
@@ -293,11 +293,11 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 ## Still honestly simplified
 
 - **Fiat anchors are mocked in the demo flow** (the corridor assumes testnet USDC at
-  the edges). But the anchor **SEP protocols are really integrated** — Tukar publishes
+  the edges). But the anchor **SEP protocols are really integrated**. Tukar publishes
   a [SEP-1 `stellar.toml`](frontend/.well-known/stellar.toml), and `npm run sep:anchor`
   authenticates (SEP-10 JWT) and opens a real interactive USDC on-ramp (SEP-24) against
-  SDF's reference anchor, plus SEP-6/SEP-31 `/info` — **5/5 live** ([`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) §6).
-  It's also **wired into the demo UI** — a "Fund via a real anchor (SEP-24)" button on
+  SDF's reference anchor, plus SEP-6/SEP-31 `/info`, **5/5 live** ([`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) §6).
+  It's also **wired into the demo UI**. A "Fund via a real anchor (SEP-24)" button on
   the Sender step signs the SEP-10 challenge (demo key or Freighter) and opens the real
   anchor deposit window (`npm run test:anchor` → 5/5 live).
   A production ramp needs a *licensed* KYC anchor (business, not code). The **ASP
@@ -305,19 +305,19 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   [`scripts/build-asp.mjs`](scripts/build-asp.mjs) builds it from a list of approved
   Stellar accounts (`field(addr) = keccak256(addr XDR) mod r`, the exact value the
   pool pins as `field(from)`), and the admin re-points the live policy with
-  `set_asp_root` — no redeploy. `npm run test:asp` proves the widening is sound
+  `set_asp_root`, no redeploy. `npm run test:asp` proves the widening is sound
   (**4/4**): a non-demo approved account produces a real compliance proof that
   verifies and is bound to its key, while a non-member and a deny-listed account are
   rejected by the circuit itself; the demo-only build still reproduces the deployed
   root (non-breaking). Corridors span 10 destinations.
-- **Phase-2 of the trusted setup — multi-party, and now the *live* keys.** A runnable
+- **Phase-2 of the trusted setup, multi-party and now the *live* keys.** A runnable
   **multi-party phase-2 ceremony** ships and has been **run + verified for all four
-  circuits** — `npm run ceremony` (or [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh))
+  circuits**. `npm run ceremony` (or [`scripts/ceremony-phase2.sh`](scripts/ceremony-phase2.sh))
   does 3 independent contributions + a public random beacon and `snarkjs zkey verify`
   → `ZKey Ok!`; committed transcripts at [`ceremony/<circuit>/TRANSCRIPT.txt`](ceremony/)
   (transfer, compliance, disclosure, merkleUpdate) and [`docs/CEREMONY.md`](docs/CEREMONY.md)
   for the production (independent-party) flow. **These ceremony keys are now the deployed
-  keys** — the four live `frontend/circuit/*_final.zkey` are byte-identical to the
+  keys**. The four live `frontend/circuit/*_final.zkey` are byte-identical to the
   ceremony output and the on-chain verifiers embed the matching VKs (a deliberate
   5-contract redeploy). Honest caveat: the demo ran all rounds on one machine to prove
   the *process*; the one-honest-party soundness guarantee needs genuinely independent
@@ -325,21 +325,21 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 - The off-chain Merkle **witness** (path) is computed in the browser; on-chain
   *integrity* is enforced by the `merkleUpdate` proof.
 - **Tree scale:** the accumulator now **paginates** (`leaf_range`), **bumps TTL**
-  on each insert, and **auto-retries** the concurrent-deposit race — so it holds up
+  on each insert, and **auto-retries** the concurrent-deposit race, so it holds up
   beyond demo scale (bounded only by the tree capacity, 2¹⁰ = 1024 leaves). A
   very-long-lived production pool would still want a periodic TTL-maintenance job
   and an indexer for fast reads.
-- **Aggregate (portfolio) disclosure — completeness enforced on-chain via an audit registry.**
+- **Aggregate (portfolio) disclosure, completeness enforced on-chain via an audit registry.**
   The variable-count aggregate proves the sum of the active payments is under the cap. Two layers
   make it a *complete* report: (1) the circuit **binds the report to an audit-request hash**
   (`auditContextHash = Poseidon(ctxNonce, commitments, active)`) so it can't be *trimmed* relative
   to a request, and (2) an **auditor role registers that hash on-chain** for the full required set
   (`register_audit_request`), and `disclose_aggregate` **rejects any unregistered hash**
-  (`UnknownAuditRequest`). So a holder can't mint their own request for a cherry-picked subset —
-  it isn't registered. Honest scope: completeness holds when the auditor is an **independent
+  (`UnknownAuditRequest`). So a holder can't mint their own request for a cherry-picked subset,
+  since it isn't registered. Honest scope: completeness holds when the auditor is an **independent
   regulator**; in the no-install demo the auditor role is the demo key (every demo role is one
   person), so the demo exercises the mechanism rather than a true separation of parties.
-- **Not audited — do not use with real assets.**
+- **Not audited. Do not use with real assets.**
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
 "Yardstick"). The verifier pattern is adapted from Nethermind's
