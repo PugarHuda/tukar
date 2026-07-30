@@ -1,16 +1,26 @@
 # Tukar
 
-> **Confidential cross-border payment corridors on Stellar.**
+> **A private way to send money home, on Stellar.**
 > Fiat in → shielded USDC transfer → fiat out. Private in the middle, accountable at the edges.
 
-Tukar is a **private cross-border remittance corridor** built for the
+Tukar is a **consumer cross-border payments app**: the everyday job of sending
+money home to family, made private. It ships as **mobile-first Sender and Receiver
+apps** (`/sender`, `/receiver`) with **real fiat in and out** at the edges, and a
+**private cross-border remittance corridor** underneath. Built for the
 [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)
-hackathon. Money enters in one country, crosses the corridor with its **amount
-and counterparties hidden on-chain in the shielded transfer leg**, and exits as
-local fiat in another country. (Deposits and withdrawals are public at the edges, by
-Privacy-Pools design; see [the privacy model](docs/SECURITY.md#privacy-model--anonymity-set-honest-scope).)
+hackathon, and entered in the APAC Grand Finale's **Payments & Consumer
+Applications** category, because that is what it is: a way for a person to pay
+another person across a border. Money enters in one country, crosses the corridor
+with its **amount and counterparties hidden on-chain in the shielded transfer leg**,
+and exits as local fiat in another country. (Deposits and withdrawals are public at
+the edges, by Privacy-Pools design; see
+[the privacy model](docs/SECURITY.md#privacy-model--anonymity-set-honest-scope).)
 At each **edge**, zero-knowledge **compliance proofs** keep the corridor auditable
 without ever exposing the private payment graph.
+
+Tukar's moat is not the payment, it is the **compliant on-chain privacy**. A
+consumer sends money privately, and a regulator can still check a fact on-chain via
+selective disclosure. That is the part a plain wallet or a plain mixer does not have.
 
 Stellar's whole reason for existing is moving real money across borders. Tukar
 takes that exact rail and makes it confidential *and* compliant, a direct

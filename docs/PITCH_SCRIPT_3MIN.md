@@ -13,13 +13,13 @@ land. **bold** = hit that word a little harder.
 ## The spoken script (timed)
 
 ### Hook — 0:00 to 0:15
-> Someone works abroad, sending money home every month. Today that costs about **six percent** in fees. Or they go on-chain, which is cheaper, but then everyone can see how much they sent and to who. **(breathe)** You shouldn't have to pick.
+> Someone's working abroad, sending money home to their family every month, right from their phone. Today that costs them about **six percent** in fees. They could go on-chain and pay way less, but then anyone can see how much they sent and who they sent it to. **(breathe)** You shouldn't have to pick.
 
 ### Problem — 0:15 to 0:40
 > Here's the problem. Remittances are **eight hundred billion dollars** a year, and the fees are brutal. Blockchains fix the fees, but they leak everything. Every amount, every wallet, public forever. **(breathe)** That's bad for the guy sending fifty dollars home. And it's a dealbreaker for a bank, because you can't run compliance on a rail where everything's public. So today it's privacy **or** compliance. Not both.
 
 ### Solution / the wedge — 0:40 to 1:00
-> Tukar fixes that. It's a settlement corridor on Stellar. USDC in one end. In the middle it crosses over privately, so the amount and the people stay hidden. Local currency out the other end. **(breathe)** And when a regulator asks, you prove just **one fact** with zero knowledge. Nothing else leaks. **(slow)** Private in the middle. Accountable at the edges.
+> Tukar fixes both. It's a real remittance corridor on Stellar. You send from your phone, dollars go in one end, and your family cashes out in local currency at the other. In the middle it crosses over privately, so the amount and the people stay hidden. **(breathe)** And here's why a bank can actually run it. When a regulator asks, you prove just **one fact** with zero knowledge. Nothing else leaks. **(slow)** Private in the middle. Accountable at the edges.
 
 ### DEMO — 1:00 to 2:15
 > Okay, watch this. This is live on Stellar testnet, right now.
@@ -33,7 +33,7 @@ land. **bold** = hit that word a little harder.
 > *(Regulator)* Here's the part that matters. The receiver makes a disclosure proof, the regulator checks it. **(slow)** **Valid.** And it's bound to a real on-chain deposit, not a screenshot. **(breathe)** Now watch. I change **one character**. **(slow)** **Invalid.** The live verifier rejects it on-chain. You can't fake it.
 
 ### Differentiator — 2:15 to 2:40
-> So why's this different. The zero knowledge isn't decoration. Take it out and there's no product. **Seven circuits, eight contracts**, live on testnet. **(breathe)** The wedge is the disclosure. A regulator can ask for four kinds of proof, each one checked on-chain. The exact amount. Below a threshold with the number hidden. A sum across payments tied to an on-chain audit request, so you can't cherry-pick. Or inside a range. **(breathe)** Mixers are private but they get sanctioned. The public rails are compliant but they show everything. **(slow)** We're both, on the chain built to move money across borders.
+> So here's why we win. The zero knowledge isn't decoration. Take it out and there's no product. **Seven circuits, eight contracts**, live on testnet. **(breathe)** The wedge is the disclosure. A regulator can ask for four kinds of proof, each one checked on-chain. The exact amount. Below a threshold with the number hidden. A sum across payments tied to an on-chain audit request, so you can't cherry-pick. Or inside a range. **(breathe)** Private tools out there get shut down because they can't answer a regulator. The public rails answer fine, but they show everyone everything. **(slow)** We do both, and it's a real corridor moving real money across borders.
 
 ### Close + ask — 2:40 to 3:00
 > This goes first into one high-fee corridor, through one licensed anchor who already has the KYC and the cash-out rails. We bring the private-but-provable middle. **(breathe)** And to be straight with you, this is a testnet prototype. Not audited yet. But the crypto and the on-chain verification are real, and you just watched them run. We want a pilot anchor, and support from SCF to get there. **(breathe)** Thanks.
@@ -61,7 +61,7 @@ and **"Invalid."** Land those two and the rest carries itself.
 
 ## If you only have 60 seconds
 
-> Remittances cost about six percent. The cheaper blockchain option shows everyone your amounts and your wallet. Tukar fixes both. It's a private settlement corridor on Stellar. USDC in, local currency out, and the crossing in the middle stays hidden. **(breathe)**
+> Sending money home costs about six percent. The cheaper blockchain option shows everyone your amounts and your wallet. Tukar fixes both. It's a real remittance corridor on Stellar. You send from your phone, your family cashes out in local currency, and the crossing in the middle stays hidden. **(breathe)**
 >
 > The hard part is staying compliant, so watch this one thing. A receiver proves a fact about their payment to a regulator. On the live Stellar verifier it comes back **valid**, and it's tied to a real on-chain deposit. I change one character. **Invalid.** Rejected on-chain. **(breathe)**
 >

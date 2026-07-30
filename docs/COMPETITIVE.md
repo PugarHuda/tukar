@@ -5,6 +5,16 @@ Stellar is investing). This is an honest map of the neighbours and where Tukar i
 genuinely different, plus where it deliberately *isn't* (so it stays relevant and
 composable, not a reinvention).
 
+## Category: Payments & Consumer Applications
+
+Tukar is entered in the **Payments & Consumer Applications** category of the Stellar
+APAC Grand Finale. It fits there directly: it is a **consumer remittance app** (send
+money home to family) with mobile-first Sender and Receiver experiences and real fiat
+in and out. The privacy and compliance layer is the moat, not the category. So the
+map below has two kinds of neighbour: the **privacy-tier projects** (Confidential
+Tokens, LumenShade, Moonlight, Fairblock) that share Tukar's tech, and the
+**in-category rivals** (other payments and consumer apps) it is judged against.
+
 ## The neighbours
 
 | Project | What it is | Compliance model | Chain / tech |
@@ -14,6 +24,24 @@ composable, not a reinvention).
 | **Moonlight** | A **general privacy layer**: accounts become constellations of unlinkable UTXOs; hides sender/recipient/amount | Trusted **"Privacy Providers"** (banks/custodians) relay txns and add optional compliance hooks + selective disclosure | Stellar · UTXO + ZK |
 | **Fairblock** | **Programmable privacy / anti-MEV** via MPC + identity-based encryption; encrypt-then-execute, confidential stablecoin transfers & sealed trading | Condition-based decryption | Cosmos / Arbitrum · MPC/IBE (not ZK privacy pools) |
 | **Tukar** | A **remittance corridor** on the privacy-pool tier: fiat-in → shielded crossing → fiat-out to **local currency** | **In-protocol, trustless**: per-deposit ASP allow/deny proof (key pinned to `from`) + **four** on-chain-verified selective-disclosure types with on-chain-enforced aggregate completeness | Stellar/Soroban · Circom/Groth16/BN254 |
+
+## In-category rivals (Payments & Consumer Applications)
+
+These are the apps Tukar is judged beside, not privacy primitives. Positioning is on
+Tukar's own verifiable features, not any guess about their internals.
+
+| Rival | What it is (public read) | Where Tukar differs |
+|---|---|---|
+| **Veil** | A **ZK privacy pool / mixer** on Stellar, private-by-default | Veil is private but, on public material, has **no compliance layer**. Tukar is the **compliant** version: ASP allow/deny proven **in-circuit** and bound to the authenticated depositor, plus **four** on-chain-verified selective-disclosure types a regulator can check. Tukar is also a **cross-border corridor with fiat edges**, not a bare pool. |
+| **OLIO** | **Private USDC payment links**, freelancer-focused | OLIO is a private-payment tool for a different job (getting paid via a link). Tukar is **cross-border remittance** with fiat-in/fiat-out to **local currency**, an on-chain FX oracle gating settlement, and a **regulator-verifiable** disclosure layer. Different user, different edges. |
+| **Palengke-pay, Pundar, Pacta, Family Haven, StarTip, Human FX, Payoes** | Consumer wallets / payments plays (send, tip, remit, FX) | These are consumer money apps without an on-chain privacy + compliance layer (on public material). Tukar adds **privacy AND provable compliance** to cross-border money: the payment graph is hidden on-chain, yet a regulator can verify a single fact via on-chain selective disclosure. That combination is the wedge. |
+
+Honest framing for judges: vs the **privacy pools/mixers** (Veil, and the LumenShade
+tier below), Tukar's edge is **compliance** (allow/deny in-circuit plus four
+contract-verified disclosure types) and being a **real remittance corridor with fiat
+edges**. Vs the **consumer wallets**, Tukar's edge is adding **privacy + compliance**
+to cross-border money. We do not claim to know any rival's internals beyond what is
+public, and these descriptions may lag their latest releases.
 
 ## What the judges verified (the load-bearing facts)
 

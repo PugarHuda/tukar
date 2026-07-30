@@ -55,10 +55,10 @@ IT STALLS line and cut to the recording.
 field type **500**. Leave Destination on **Mexico · MXN**. Click **Continue →**,
 then on the next screen click **Send $500 →**.
 
-**SAY:** "This is live on Stellar testnet, right now. Sender's putting in five
-hundred real USDC, headed for Mexico. The browser's building two proofs on this
-device. One says the source is allowed and not sanctioned, the other binds the
-amount. Then it deposits the real USDC into the pool."
+**SAY:** "This is live on Stellar testnet, right now. This is someone sending five
+hundred dollars home to family in Mexico. The browser's building two proofs on
+their phone. One says the sender's allowed and not sanctioned, the other binds
+the amount. Then it puts the real USDC into the pool."
 
 **SEE:** The progress screen ticks through three steps: Zero-knowledge proofs,
 Deposit USDC on-chain, Register into the shielded tree. A deposit tx hash link
@@ -67,9 +67,9 @@ a **Claim note (tukar1:…)** and a QR.
 
 **DO:** Click **Copy** on the claim note.
 
-**SAY:** "On the ledger all you see is a commitment. No amount, no receiver. And
-that count's read straight from the contract, so the money really is in the pool.
-Now I'll hand this claim note to the receiver."
+**SAY:** "On the ledger all you see is a commitment. No amount, nobody's name.
+That count's read straight from the contract, so the money really is in the pool.
+Now this claim note goes to the family back home."
 
 > Timing note: the tree registration is the slow part (~20s). Keep talking over
 > it. Do not touch the Sender again until it's done.
@@ -82,8 +82,8 @@ Now I'll hand this claim note to the receiver."
 **Claim** tab, paste the note into the box, click **Claim payment**. It jumps you
 to **Payments**.
 
-**SAY:** "Receiver's money arrives shielded. It's only at cash-out that a figure
-shows up."
+**SAY:** "Back home, the family's money arrives shielded. It's only at cash-out
+that a figure shows up."
 
 **DO:** On the payment card, leave Cash out on **Mexico · MXN** and click
 **Reveal in MXN →**.
@@ -92,9 +92,9 @@ shows up."
 the live rate), with the line "read on-chain from the pool's Reflector quote,
 priced at the median of 5 records."
 
-**SAY:** "There's the peso figure, read on-chain from Reflector, at the median of
-five records. That's the same rate the settlement gate enforces. Now the part
-that matters. The receiver proves one fact to a regulator, in zero knowledge."
+**SAY:** "There's the pesos, read on-chain from Reflector, at the median of five
+records. Same rate the settlement gate enforces. Now the part that matters. They
+prove one fact to a regulator, in zero knowledge."
 
 **DO:** Expand **Prove to a regulator**. In **What to prove** pick **Amount is at
 or below a figure, amount stays hidden**. Leave the figure at **1000** (or type
@@ -160,9 +160,9 @@ from pre-flight.
 **DO:** On the `/regulator` tab, click **Verify disclosure**. Paste your
 pre-exported receipt JSON. Click **Re-verify in browser and on-chain**.
 
-**SAY:** "A receiver already proved one fact about their payment to a regulator.
-Here's the receipt. The regulator re-verifies it in the browser and on the live
-Stellar verifier."
+**SAY:** "Someone got money from family abroad, and they've already proved one
+fact about that payment to a regulator. Here's the receipt. The regulator
+re-verifies it in the browser and on the live Stellar verifier."
 
 **SEE:** ✓ valid in the browser and on the verifier, green **"Verified and bound
 to real on-chain state."**
