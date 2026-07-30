@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
-import { Button, Spinner, StatusPill, useToast } from "@/components/ui";
+import { Button, Spinner, StatusPill, Skeleton, useToast } from "@/components/ui";
 import {
   registerAuditRequest,
   anchorReceipt,
@@ -68,6 +68,9 @@ type TrailEntry = { ts: string; action: string; type?: string; detail?: string; 
 const TRAIL_KEY = `tukar:regulator-trail:${POOL}`;
 
 const link = "text-orange-l3 underline underline-offset-2 hover:text-orange";
+
+// Thousands-separated count (matches the Operator console). Leaves non-numeric values ("?") as-is.
+const fmtCount = (s: string) => (/^\d+$/.test(s) ? Number(s).toLocaleString("en-US") : s);
 
 export default function RegulatorPage() {
   const [tab, setTab] = useState<TabId>("reports");
@@ -234,10 +237,14 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
         }
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi k="Commitments" v={pool?.commitments ?? "…"} />
-          <Kpi k="Leaf count" v={leafCount ?? "…"} />
-          <Kpi k="Custody balance" v={pool ? (pool.balance === "?" ? "?" : fmtUsdc(pool.balance)) : "…"} u="USDC" />
-          <Kpi k="Current root" v={root != null ? shortHash(root.toString()) : "…"} title={root?.toString()} />
+          <Kpi k="Commitments" v={pool ? fmtCount(pool.commitments) : loading ? <Skeleton className="h-6 w-14" /> : "—"} />
+          <Kpi k="Leaf count" v={leafCount != null ? leafCount.toLocaleString("en-US") : loading ? <Skeleton className="h-6 w-12" /> : "—"} />
+          <Kpi
+            k="Custody balance"
+            v={pool ? (pool.balance === "?" ? "?" : fmtUsdc(pool.balance)) : loading ? <Skeleton className="h-6 w-20" /> : "—"}
+            u="USDC"
+          />
+          <Kpi k="Current root" v={root != null ? shortHash(root.toString()) : loading ? <Skeleton className="h-6 w-28" /> : "—"} title={root?.toString()} />
         </div>
         {err && <p className="mt-3 text-[13px] text-red-t">{err}</p>}
         <p className="mt-4 text-[13px] text-tm">
@@ -253,8 +260,12 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
         sub="The corridor's allow-list root and sanctions deny-list, read live from the pool. This is the same policy the deposit ZK proof is checked against."
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Kpi k="ASP allow-list root" v={aspRoot ? "0x" + aspRoot.slice(0, 8) + "…" + aspRoot.slice(-6) : "…"} title={aspRoot ?? undefined} />
-          <Kpi k="Deny-list entries" v={deny ? deny.length : "…"} />
+          <Kpi
+            k="ASP allow-list root"
+            v={aspRoot ? "0x" + aspRoot.slice(0, 8) + "…" + aspRoot.slice(-6) : loading ? <Skeleton className="h-6 w-32" /> : "—"}
+            title={aspRoot ?? undefined}
+          />
+          <Kpi k="Deny-list entries" v={deny ? deny.length : loading ? <Skeleton className="h-6 w-10" /> : "—"} />
         </div>
         <p className="mt-4 mb-2 text-[13px] text-tm">Sanctions deny-list (field elements, non-membership enforced in-circuit):</p>
         <TableWrap>
@@ -275,8 +286,10 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
                   </td>
                 </tr>
               ))
+            ) : loading ? (
+              <SkeletonRows cols={2} rows={3} />
             ) : (
-              <EmptyRow cols={2}>{loading ? "Loading…" : deny ? "No deny-list entries." : "Deny-list read unavailable."}</EmptyRow>
+              <EmptyRow cols={2}>{deny ? "No deny-list entries." : "Deny-list read unavailable."}</EmptyRow>
             )}
           </tbody>
         </TableWrap>
@@ -316,8 +329,10 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
                   </tr>
                 );
               })
+            ) : loading ? (
+              <SkeletonRows cols={3} rows={4} />
             ) : (
-              <EmptyRow cols={3}>{loading ? "Loading…" : "No recent on-chain events (testnet RPC retains only recent ledgers)."}</EmptyRow>
+              <EmptyRow cols={3}>No recent on-chain events (testnet RPC retains only recent ledgers).</EmptyRow>
             )}
           </tbody>
         </TableWrap>
@@ -333,6 +348,23 @@ function EmptyRow({ cols, children }: { cols: number; children: React.ReactNode 
         {children}
       </td>
     </tr>
+  );
+}
+
+// Pulsing placeholder rows while a table's on-chain read is pending.
+function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, r) => (
+        <tr key={r} className="border-b border-line/60 last:border-0">
+          {Array.from({ length: cols }).map((_, c) => (
+            <td key={c} className={tdCls}>
+              <Skeleton className="h-4 w-full max-w-[220px]" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
   );
 }
 
@@ -421,7 +453,7 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
           className="mt-2 h-40 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] leading-relaxed text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
         />
         <div className="mt-3 flex items-center gap-3">
-          <Button onClick={run} busy={busy} disabled={!text.trim()}>
+          <Button onClick={run} busy={busy} disabled={!text.trim()} title={!text.trim() ? "Paste an audit receipt to verify" : undefined}>
             Re-verify in browser and on-chain
           </Button>
           {busy && <Spinner label="re-verifying in your browser and on Stellar…" />}
@@ -669,7 +701,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
       )}
 
       <div className="mt-4 flex items-center gap-3">
-        <Button onClick={issue} busy={busy} disabled={!connected}>
+        <Button onClick={issue} busy={busy} disabled={!connected} title={!connected ? "Connect the auditor key first" : undefined}>
           Compute hash and register on-chain
         </Button>
         {busy && <Spinner label="Registering the audit request on-chain" />}
@@ -730,13 +762,13 @@ function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: Trai
       sub="Every disclosure this console verified, every audit request it issued, and every receipt it anchored this session. Persisted locally so a reload keeps the record."
       right={
         <div className="flex gap-2">
-          <Button variant="subtle" onClick={exportJson} disabled={!trail.length}>
+          <Button variant="subtle" onClick={exportJson} disabled={!trail.length} title={!trail.length ? "No audit actions recorded yet" : undefined}>
             Export JSON
           </Button>
-          <Button variant="subtle" onClick={exportCsv} disabled={!trail.length}>
+          <Button variant="subtle" onClick={exportCsv} disabled={!trail.length} title={!trail.length ? "No audit actions recorded yet" : undefined}>
             Export CSV
           </Button>
-          <Button variant="subtle" onClick={clear} disabled={!trail.length}>
+          <Button variant="subtle" onClick={clear} disabled={!trail.length} title={!trail.length ? "No audit actions recorded yet" : undefined}>
             Clear
           </Button>
         </div>

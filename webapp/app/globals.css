@@ -34,7 +34,11 @@
   ::-webkit-scrollbar-track {
     background: transparent;
   }
-  :focus-visible {
+  /* Keyboard-only focus ring (:focus-visible, so it never shows on mouse click).
+     Scoped to interactive elements so a programmatically-focused container never
+     picks up the outline. outline-offset stays small (2px) so it isn't clipped
+     inside overflow-hidden surfaces. */
+  :where(a, button, [role="tab"], input, select, textarea, summary):focus-visible {
     outline: 2px solid theme(colors.orange.DEFAULT);
     outline-offset: 2px;
     border-radius: 6px;

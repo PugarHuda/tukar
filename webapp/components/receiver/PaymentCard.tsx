@@ -629,7 +629,13 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       )}
 
       <div className="mt-3">
-        <Button variant="primary" onClick={runProve} busy={proving} disabled={proving}>
+        <Button
+          variant="primary"
+          onClick={runProve}
+          busy={proving}
+          disabled={proving}
+          title={proving ? "Proving in your browser, please wait" : undefined}
+        >
           Generate proof
         </Button>
         {proving && (
@@ -779,7 +785,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
       <div className="mt-4 border-t border-line pt-4">
         {note.withdrawing ? (
-          <Button variant="primary" full busy disabled>
+          <Button variant="primary" full busy disabled title="Releasing tokens on-chain, please wait">
             Withdrawing on-chain
           </Button>
         ) : (

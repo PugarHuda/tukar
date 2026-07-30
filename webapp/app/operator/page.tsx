@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Panel, Badge, StatusPill, useToast } from "@/components/ui";
+import { Panel, Badge, StatusPill, Skeleton, useToast } from "@/components/ui";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
 import {
   readPoolState,
@@ -49,6 +49,24 @@ const median = (a: number[]) => {
   const m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
+const fmtCount = (s: string) => (/^\d+$/.test(s) ? Number(s).toLocaleString("en-US") : s);
+
+// Pulsing placeholder rows while a table's on-chain read is pending.
+function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, r) => (
+        <tr key={r}>
+          {Array.from({ length: cols }).map((_, c) => (
+            <td key={c} className={TD}>
+              <Skeleton className="h-4 w-full max-w-[220px]" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
 
 const CONTRACT_LINK = (id: string) => (
   <a href={explorer(id)} target="_blank" rel="noreferrer" title={id} className="text-ts hover:text-orange-l3">
@@ -170,16 +188,16 @@ function PoolHealthSection() {
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <PoolCard label="Commitments recorded" value={health ? health.commitments : "—"} sub="deposits bound on-chain" accent />
-        <PoolCard label="Tree fill" value={health ? n.toLocaleString("en-US") : "—"} sub={`${n} / ${TREE_CAP} leaves (2¹⁰ cap)`}>
+        <PoolCard label="Commitments recorded" value={health ? fmtCount(health.commitments) : status === "loading" ? <Skeleton className="h-7 w-16" /> : "—"} sub="deposits bound on-chain" accent />
+        <PoolCard label="Tree fill" value={health ? n.toLocaleString("en-US") : status === "loading" ? <Skeleton className="h-7 w-20" /> : "—"} sub={`${n} / ${TREE_CAP} leaves (2¹⁰ cap)`}>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
             <div className="h-full rounded-full bg-orange transition-[width] duration-500" style={{ width: `${Math.min(100, (n / TREE_CAP) * 100).toFixed(1)}%` }} />
           </div>
         </PoolCard>
-        <PoolCard label="Custody balance" value={health ? `${fmtUsdc(health.balance)}` : "—"} sub="USDC held by the pool" />
+        <PoolCard label="Custody balance" value={health ? `${fmtUsdc(health.balance)}` : status === "loading" ? <Skeleton className="h-7 w-24" /> : "—"} sub="USDC held by the pool" />
         <PoolCard
           label="Current Merkle root"
-          value={<span className="font-mono text-[13px]" title={rootHex ?? undefined}>{rootHex ? rootHex.slice(0, 12) + "…" : "—"}</span>}
+          value={<span className="font-mono text-[13px]" title={rootHex ?? undefined}>{rootHex ? rootHex.slice(0, 12) + "…" : status === "loading" ? <Skeleton className="mt-1 h-5 w-28" /> : "—"}</span>}
           sub="append-only accumulator"
         />
       </div>
@@ -242,9 +260,7 @@ function ActivityTable() {
         </tr>
       </thead>
       <tbody>
-        {status === "loading" && (
-          <tr><td className={`${TD} font-mono text-[11px] text-tm`} colSpan={4}>reading pool events…</td></tr>
-        )}
+        {status === "loading" && <SkeletonRows cols={4} rows={4} />}
         {status === "err" && (
           <tr><td className={`${TD} text-[12px] text-red-t`} colSpan={4}>event feed unavailable</td></tr>
         )}
@@ -380,7 +396,7 @@ function CompliancePolicySection() {
           </tr>
         </thead>
         <tbody>
-          {status === "loading" && <tr><td className={`${TD} font-mono text-[11px] text-tm`} colSpan={2}>reading deny-list…</td></tr>}
+          {status === "loading" && <SkeletonRows cols={2} rows={3} />}
           {status === "err" && <tr><td className={`${TD} text-[12px] text-red-t`} colSpan={2}>policy read failed</td></tr>}
           {deny?.map((d, i) => (
             <tr key={i}>
@@ -440,7 +456,22 @@ function OracleHealthSection() {
       </p>
 
       {!cards ? (
-        <div className="font-mono text-[12px] text-tm">reading Reflector feed…</div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {ORACLE_CORRIDORS.map((c) => (
+            <div key={c.sym} className="rounded-tile border border-line bg-black/20 p-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-14" />
+              </div>
+              <Skeleton className="mt-2.5 h-3.5 w-3/4" />
+              <div className="mt-3 flex flex-col gap-1.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-1.5 w-full" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {cards.map((c) => (

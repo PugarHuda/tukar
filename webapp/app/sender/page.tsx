@@ -579,9 +579,18 @@ function ComposeScreen(props: {
         </p>
       )}
 
-      <Button full className="mt-4" disabled={!canContinue} onClick={onContinue}>
+      <Button
+        full
+        className="mt-4"
+        disabled={!canContinue}
+        title={canContinue ? undefined : "Enter an amount greater than 0"}
+        onClick={onContinue}
+      >
         Continue →
       </Button>
+      {!canContinue && (
+        <p className="mt-2 text-center font-mono text-[11px] text-tf">Enter an amount greater than 0 to continue.</p>
+      )}
 
       <div className="mt-3 text-center font-mono text-[11px] text-tm">
         Shielded pool · <b className={poolBumped ? "text-orange" : "text-ts"}>{pool ? pool.commitments : "…"}</b> notes · your payment joins the anonymity set
@@ -644,7 +653,13 @@ function SendScreen(props: {
         <Button variant="subtle" full busy={anchorBusy} onClick={onAnchor}>
           Fund via a real anchor (SEP-24 on-ramp)
         </Button>
-        <Button full busy={busy} disabled={!connected} onClick={onSend}>
+        <Button
+          full
+          busy={busy}
+          disabled={!connected}
+          title={!connected ? "Connect a wallet or use the testnet key" : undefined}
+          onClick={onSend}
+        >
           Send ${usdc} →
         </Button>
         {!connected && <div className="text-center font-mono text-[11px] text-tf">Connect above to send on-chain.</div>}

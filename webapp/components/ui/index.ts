@@ -6,5 +6,6 @@ export { Select, type SelectProps } from "./Select";
 export { Stat, type StatProps } from "./Stat";
 export { Badge, StatusPill, type BadgeProps, type StatusPillProps, type Tone } from "./Badge";
 export { Spinner, type SpinnerProps } from "./Spinner";
+export { Skeleton, type SkeletonProps } from "./Skeleton";
 export { Mono, CodeBlock } from "./Mono";
 export { ToastProvider, useToast, type ToastTone } from "./Toast";
