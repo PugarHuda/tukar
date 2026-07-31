@@ -401,8 +401,7 @@ export default function SenderPage() {
           <span className="text-lg font-extrabold tracking-[-0.01em]">Tukar</span>
           <Badge tone="orange">SEND</Badge>
         </div>
-        {/* Header shows wallet status only once connected; the body Connect card is the CTA before that (no duplicate bar). */}
-        {connected && <WalletBar />}
+        <WalletBar />
       </header>
 
       <main className="mx-auto max-w-[520px] px-5 pb-16 pt-6">
