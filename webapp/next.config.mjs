@@ -3,6 +3,10 @@ import { dirname } from "node:path";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Static export: the live domain serves webapp/out as plain static files (no server).
+  // Next headers() don't apply under export — CORS/cache headers live in root vercel.json.
+  output: "export",
+  images: { unoptimized: true },
   // The repo root has its own package-lock; pin tracing to this app so Next doesn't
   // infer the parent as the workspace root.
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),

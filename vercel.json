@@ -1,11 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": null,
-  "installCommand": null,
-  "outputDirectory": "frontend",
+  "installCommand": "cd webapp && npm install",
+  "buildCommand": "cd webapp && npm run build",
+  "outputDirectory": "webapp/out",
   "cleanUrls": true,
-  "rewrites": [
+  "redirects": [
     { "source": "/demo/send", "destination": "/demo" },
     { "source": "/demo/corridor", "destination": "/demo" },
     { "source": "/demo/receive", "destination": "/demo" },
@@ -21,12 +21,6 @@
     },
     {
       "source": "/circuit/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
-    },
-    {
-      "source": "/vendor/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
