@@ -201,14 +201,14 @@ for the average cost of sending $200.
   native alternative and what's verifiable here.
 - **Demo video (self-hosted, always available):**
   **▶ [Watch the narrated walkthrough](https://tukar-six.vercel.app/deck)** plays on
-  **slide 10** of the pitch deck, or open the raw file directly at
-  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~1:24 recording of the
-  **real on-chain flow** (landing → connect → on-chain deposit → off-ramp via Reflector →
-  withdraw → disclosure verified on-chain → tampered claim rejected on-chain), narrated.
-  It's regenerated end-to-end by `npm run video:demo-id` (Playwright records the live run,
-  `edge-tts` narrates, ffmpeg muxes, `scripts/tight-cut.py` trims the on-chain waits). The
-  shot-by-shot script lives in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md); a
-  read-aloud narration in [`docs/DEMO_NARRATION.md`](docs/DEMO_NARRATION.md).
+  **slide 8** of the pitch deck, or open the raw file directly at
+  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~90-second recording of the
+  **real on-chain flow** (connect → on-chain deposit → off-ramp via Reflector → claim →
+  disclosure verified on-chain → tampered claim rejected on-chain), narrated with a natural voice.
+  It's recorded end-to-end from the live app by Playwright (`scripts/record-shortcut.mjs`),
+  narrated by `edge-tts`, and muxed with ffmpeg; the on-chain waits are sped up, not cut. The
+  caption and voiceover script lives in [`docs/DEMO_VO_SUBTITLES.md`](docs/DEMO_VO_SUBTITLES.md),
+  and a slide-by-slide deck script in [`docs/DECK_SCRIPT.md`](docs/DECK_SCRIPT.md).
 
 ## What the ZK is doing (load-bearing)
 
