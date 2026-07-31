@@ -219,6 +219,45 @@ for the average cost of sending $200.
   caption and voiceover script lives in [`docs/DEMO_VO_SUBTITLES.md`](docs/DEMO_VO_SUBTITLES.md),
   and a slide-by-slide deck script in [`docs/DECK_SCRIPT.md`](docs/DECK_SCRIPT.md).
 
+## Features and how they work
+
+A quick map of what's in the box and the mechanism behind each. The deep dives follow in the
+next two sections.
+
+- **Shielded transfer (the private crossing).** Each note enters a Merkle tree as a Poseidon
+  commitment; spending it reveals only a nullifier, which the pool rejects if it has been seen
+  before (no double-spend). The `transfer` JoinSplit circuit proves membership, correct
+  nullifiers, and value conservation without revealing the amount or the parties.
+- **In-circuit compliance (ASP allow + deny).** Every deposit proves the depositor is in the
+  allow-list Merkle root and not in the sanctioned deny-list, with the proving key pinned to
+  `field(from)` so you can't deposit as someone else. Compliance lives in the proof, not a
+  promise.
+- **Selective disclosure (four kinds).** A holder proves one fact and nothing else: the exact
+  amount, a threshold (at or under a figure), a two-sided range, or an aggregate (sum at or
+  under a cap). Each produces an exportable receipt.
+- **Aggregate completeness (on-chain).** The regulator registers an audit request on-chain;
+  `disclose_aggregate` rejects any hash that was never registered, so a holder can't
+  cherry-pick which payments to include (`UnknownAuditRequest`).
+- **On-chain verification.** Proofs are built in the browser (snarkjs/WASM, secrets never
+  leave the device) and verified by Soroban BN254 contracts. Genuine returns valid; tampered
+  returns `InvalidProof`; a cross-wallet double-spend is rejected as `NullifierUsed`.
+- **Trustless tree.** The `merkleUpdate` circuit proves that inserting a leaf into `old_root`
+  yields exactly `new_root`, so the tree advances with no admin backdoor.
+- **Oracle-gated off-ramp.** The local-currency rate is read on-chain from the Reflector
+  SEP-40 oracle on a median of five sources; the withdraw carries a min-receive gate and fails
+  closed if the feed stalls, so funds never move on a bad price.
+- **Fiat edges (SEP anchors).** On and off ramps run over SEP-10 plus SEP-24 against SDF's
+  reference anchor, with Onramper wired as the licensed off-ramp path. On testnet the
+  reference anchor does no real KYC, so the fiat edges are simulated; going live swaps in one
+  licensed anchor and the SEP flow is identical.
+- **No-install wallet.** A one-tap built-in testnet key (no seed phrase) signs real testnet
+  transactions, or connect Freighter for your own key.
+- **Four apps.** Sender and Receiver are mobile-first consumer apps (send, claim, cash out);
+  Regulator and Operator are desktop consoles (verify plus audit requests; pool health, ASP
+  policy, oracle, and config).
+- **Also.** The anonymity set is surfaced in the UI, gasless fee-bump (CAP-15) is a proven
+  primitive, and the corridor spans 10 destinations.
+
 ## What the ZK is doing (load-bearing)
 
 The zero-knowledge is not decorative. It is the entire product. Seven circuits,
@@ -379,7 +418,7 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 
 ---
 
-## Still honestly simplified
+## Honest limits, and how far it's actually built
 
 - **Fiat anchors are mocked in the demo flow** (the corridor assumes testnet USDC at
   the edges). But the anchor **SEP protocols are really integrated**. Tukar publishes
