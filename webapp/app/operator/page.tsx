@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Panel, Badge, StatusPill, Skeleton, useToast } from "@/components/ui";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
+import { ConnectGate } from "@/components/dashboard/ConnectGate";
+import { useWallet } from "@/components/WalletProvider";
 import {
   readPoolState,
   readCurrentRoot,
@@ -683,9 +685,13 @@ const NAV: (NavItem & { id: SectionId })[] = [
 
 export default function OperatorPage() {
   const [section, setSection] = useState<SectionId>("pool");
+  const { connected } = useWallet();
 
   return (
     <DashboardShell title="Operator · ASP admin" nav={NAV} active={section} onSelect={(k) => setSection(k as SectionId)}>
+      {!connected ? (
+        <ConnectGate name="Operator console" />
+      ) : (
       <div className="mx-auto max-w-wrap px-6 py-10">
         <section className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -701,7 +707,7 @@ export default function OperatorPage() {
         <div className="mb-8 flex items-start gap-3 rounded-tile border border-amber/30 bg-amber/[0.05] p-4">
           <span className="mt-0.5 text-amber">⚠</span>
           <p className="text-[12.5px] leading-relaxed text-ts">
-            <b>Monitoring is live and read-only</b>, so it needs no key (RPC simulations). <b>Admin writes are gated.</b> <span className="font-mono text-ts">set_asp_root</span>, <span className="font-mono text-ts">set_deny_list</span>, <span className="font-mono text-ts">set_auditor</span>, and <span className="font-mono text-ts">set_fx_oracle</span> all require the operator key (<span className="font-mono">{short(ADMIN)}</span>), which this browser does not hold. The admin actions below build the exact signed CLI command to copy and run offline, so no admin secret ever touches the browser.
+            <b>Monitoring is live and read-only</b> (RPC simulations). <b>Admin writes are gated.</b> <span className="font-mono text-ts">set_asp_root</span>, <span className="font-mono text-ts">set_deny_list</span>, <span className="font-mono text-ts">set_auditor</span>, and <span className="font-mono text-ts">set_fx_oracle</span> all require the operator key (<span className="font-mono">{short(ADMIN)}</span>), which this browser does not hold. The admin actions below build the exact signed CLI command to copy and run offline, so no admin secret ever touches the browser.
           </p>
         </div>
 
@@ -716,6 +722,7 @@ export default function OperatorPage() {
           Read live from Stellar testnet · monitoring is trustless RPC simulation · admin writes need the operator key
         </p>
       </div>
+      )}
     </DashboardShell>
   );
 }

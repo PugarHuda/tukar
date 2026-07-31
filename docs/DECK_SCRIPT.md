@@ -1,165 +1,70 @@
-# Tukar deck — slide-by-slide reading script (English)
+# Tukar deck — reading script (English, 9 slides, 3-minute format)
 
-What to say on each of the 14 slides. Written to be spoken, not read. Keep it warm and
-a little bit sales, with real intonation, not flat. Roughly 3 to 3.5 minutes at a calm
-pace. Timings are a guide. Honesty is built in; say the caveats plainly, they build trust
-with the technical judges.
+Format: **3 minutes total for deck + live demo**, then 2 minutes Q&A. So the deck talk is
+about 90 to 100 seconds (slides 1 to 7), then roughly 80 seconds of live demo on slide 8,
+then a one-line close on slide 9.
 
-Tip before you start: land the first sentence looking at the judges, not the screen. Pause
-after the one-liner. Push energy on the moat and the market slides, slow down on the honest
-scope slide.
+Delivery: warm and a little bit sales, real intonation, not flat. Land the first line at the
+judges, not the screen. Push energy on the moat and market. Slow down on honest scope.
 
 ---
 
-## Slide 1 — Hook (0:00 – 0:20)
-[Screen: "Send money home, privately."]
+## Slide 1 — Hook (0:00 – 0:15)
+"Millions of people working abroad send money home every month, from their phone, and they
+still pay around six percent. Tukar makes that private on Stellar. Dollars in, local cash
+out, and the crossing in the middle stays private. Private in the middle, accountable at the
+edges."
 
-"Every month, millions of people working abroad send money home to their families. Right
-from their phone. And they still pay around six percent to do it."
+## Slide 2 — Problem to solution (0:15 – 0:40)
+"The problem: Stellar moves real money, but it's a public ledger, so every payment shows the
+amount and both people. That's a private financial history in the open."
 
-"Tukar is a private way to send that money on Stellar. Dollars in one end, local cash out
-the other, and the crossing in the middle stays private. Private in the middle, accountable
-at the edges."
+"So we split it. Deposit is public, with a compliance proof. The crossing is private, the
+amount and both parties hidden. The off-ramp is public again, into local currency. And any
+time, the holder can prove one fact to a regulator. Public at the edges, private exactly
+where a remittance shouldn't leak. It's for the worker and the family, and for the licensed
+anchor that pays to run the corridor."
 
----
+## Slide 3 — The moat (0:40 – 1:00)
+"Why us. A mixer is private but can't answer a regulator; we put compliance inside the proof.
+A payment link just moves crypto; we take real fiat in and out through live anchors. A normal
+wallet is cross-border but public; we hide it and a regulator can still verify. Private,
+compliant, and cross-border, all three at once. No off-the-shelf equivalent."
 
-## Slide 2 — The problem (0:20 – 0:45)
-[Screen: "A public ledger leaks who moved it." + who it's for]
+## Slide 4 — The market (1:00 – 1:20)
+"And it's a big market. About six hundred sixty-nine billion dollars went into lower-income
+countries in 2023, and sending two hundred dollars still costs over six percent, double the
+UN's target. Our model is a thin take-rate on settlement volume, paid by the anchors that
+route through us. B2B2C, one corridor and one anchor first, then more."
 
-"Here's the catch. Stellar is great for moving real money, but it's a public ledger. Every
-payment shows the amount and both people. That's a private financial history, out in the
-open: who pays whom, how much, how often."
-
-"And who feels this? The worker sending money and the family receiving it. But the customer
-who actually pays for a fix is the licensed anchor that wants to run this corridor and can't,
-not without privacy it can still audit."
-
----
-
-## Slide 3 — The solution (0:45 – 1:05)
-[Screen: the four-step flow]
-
-"So we split it. The deposit is public, a real dollar goes in with a compliance proof. The
-crossing is private, the amount and both people are hidden on-chain. The off-ramp is public
-again, the family cashes out to local currency. And any time, the holder can prove one fact
-to a regulator."
-
-"Public at the edges, private exactly where a remittance shouldn't leak."
-
----
-
-## Slide 4 — The consumer app (1:05 – 1:25)
-[Screen: two phones, sender and receiver]
-
-"For the two people, it's just two phones. The sender funds and sends; the proof is built
-on their own phone, so the amount and the recipient never leave the device. Out comes a
-claim note."
-
-"The receiver pastes that note, picks a corridor, and cashes out to local fiat. No account
-to open, the note is the money. It installs like an app, and there's no seed phrase to try
-it."
-
----
-
-## Slide 5 — The moat (1:25 – 1:55)
-[Screen: vs mixer / payment link / wallet, and the combination]
-
-"Now, why us. There are privacy tools and there are consumer wallets. None of them sit where
-we do."
-
-"A mixer is private but can't answer a regulator. We put compliance inside the proof, pinned
-to the sender's key. A payment link just moves crypto between users. We take real fiat in and
-out through live anchors. A normal wallet is cross-border but fully public. We hide it, and a
-regulator can still verify a disclosed fact live."
-
-"Private, compliant, and cross-border, all three at once. That combination has no off-the-shelf
-equivalent."
-
----
-
-## Slide 6 — The opportunity (1:55 – 2:20)
-[Screen: $669B market, model, GTM]
-
-"And the market is huge. About six hundred and sixty-nine billion dollars flowed into
-lower-income countries in 2023, and sending two hundred dollars still costs over six percent,
-more than double the UN's target."
-
-"Our model is a thin take-rate on settlement volume, paid by the anchors that route through
-the corridor. It's B2B2C, so we don't buy users one at a time. We start with one high-volume
-corridor and one licensed anchor, then add more."
-
----
-
-## Slide 7 — ZK is load-bearing (2:20 – 2:40)
-[Screen: seven circuits]
-
+## Slide 5 — The tech (1:20 – 1:35)
 "None of this is hand-waving. Seven zero-knowledge circuits do the real work: the shielded
 transfer, the compliance check, four kinds of selective disclosure, and a trustless tree
-update. All proved in the browser, verified on-chain. Take them out and there's no product."
+update. Eight Soroban contracts live on testnet. Proved in the browser, verified on-chain."
 
----
+## Slide 6 — Real and verified (1:35 – 1:50)
+"It's real. Real testnet USDC and custody, a real multi-party trusted setup, and the off-ramp
+rate is read on-chain from an oracle so funds never move on a stale price. And it's checked,
+not asserted: a genuine disclosure verifies on-chain, a tampered one comes back invalid."
 
-## Slide 8 — On Stellar (2:40 – 2:55)
-[Screen: 8 Soroban contracts]
+## Slide 7 — Honest scope (1:50 – 2:00)
+"Honestly, it's hardened on testnet but not audited, so not for real money yet, and a
+production ramp needs a licensed anchor. That's a business step, not a code gap. We'd rather
+tell you than hide it."
 
-"It runs on Stellar. Eight Soroban contracts live on testnet, a pool plus seven verifiers,
-using the newest protocol's host functions. Every one of them is exercised for real, right
-down to a double-spend getting rejected on-chain."
+## Slide 8 — Live demo (2:00 – 3:20 target ~80s)
+"Let me show you." [Play the live demo, or run it live. Narrate over it using
+docs/DEMO_VO_SUBTITLES.md, the SHORT CUT section. Key beats: send with the proof building on
+the phone, claim and the on-chain off-ramp quote, a disclosure verified on-chain by the
+regulator, and a tampered claim rejected on-chain.]
 
----
-
-## Slide 9 — Ecosystem integration (2:55 – 3:10)
-[Screen: Reflector oracle + anchors]
-
-"And the ecosystem pieces are load-bearing, not decoration. The off-ramp rate is read
-on-chain from the Reflector oracle, on a median of five sources, and the withdraw won't
-release below your floor. If the feed goes stale, it fails closed. The SEP anchors are
-really integrated for the fiat edges."
-
----
-
-## Slide 10 — What's real (3:10 – 3:20)
-[Screen: real USDC, custody, setup]
-
-"To be clear about what's real: real testnet USDC, real custody in the pool, a real
-multi-party trusted setup. This isn't a slide deck pretending to be a product."
-
----
-
-## Slide 11 — Verified live (3:20 – 3:30)
-[Screen: verified live, not asserted]
-
-"Everything I'm claiming is checked, not asserted. A genuine disclosure verifies on-chain,
-and a tampered one comes back invalid. You'll see that live in a second."
-
----
-
-## Slide 12 — Honest scope (3:30 – 3:45)
-[Screen: what this is and isn't]
-
-"And honestly, here's what it isn't. It's hardened on testnet but not professionally
-audited, so don't use it with real money yet. A production ramp needs a licensed anchor,
-that's a business step, not a code gap. The privacy grows with the pool. We'd rather tell
-you that than hide it."
-
----
-
-## Slide 13 — Watch it run (3:45 – 3:55)
-[Screen: demo video]
-
-"So let's watch it actually run, on-chain, on Stellar testnet." [play the video, or switch
-to the live demo]
-
----
-
-## Slide 14 — Close (3:55 – 4:05)
-[Screen: "Real-world money. Private. Kept compliant. On Stellar."]
-
+## Slide 9 — Close (last 5 seconds)
 "That's Tukar. Real-world money, private in the middle, kept compliant at the edges, on
 Stellar. You can try it right now, no install. Thank you."
 
 ---
 
-## If you only get 90 seconds
-Slides 1, 3, 5, and 13. Hook, the public-then-private-then-public flow, the three-axis moat,
-then the live demo. Close on one line: "Private in the middle, accountable at the edges."
+## If you're running long
+Cut slide 4's model detail and slide 6 to one sentence each. Never cut the demo or the moat.
+The two lines that must survive: "Private in the middle, accountable at the edges," and the
+tampered claim getting rejected on-chain.
