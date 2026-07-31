@@ -92,7 +92,7 @@ export default function Home() {
           <div>
             <div className="eyebrow">Confidential corridors</div>
             <h1>
-              Cross-border money.
+              Send money home, privately.
               <br />
               <span className="dim">Private in the middle, accountable at the edges.</span>
             </h1>
