@@ -96,15 +96,6 @@ function LaunchDialog({ onClose }: { onClose: () => void }) {
           <button type="button" className="launch-x" aria-label="Close" onClick={onClose}>✕</button>
         </div>
 
-        <Link href="/demo" className="apps-demo" onClick={onClose}>
-          <div>
-            <div className="tag" style={{ color: "var(--orange)" }}>All in one</div>
-            <div className="apps-demo-title">Full live demo console</div>
-            <div className="apps-demo-sub">Everything in one place. Send, update the tree, withdraw, and audit, against the live testnet pool.</div>
-          </div>
-          <span className="apps-demo-cta">Open /demo ↗</span>
-        </Link>
-
         <div className="launch-grid">
           {ROLES.map((r) => (
             <Link key={r.href} href={r.href} className="card app-card" onClick={onClose}>

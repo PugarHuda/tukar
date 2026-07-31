@@ -79,7 +79,7 @@ export default function Home() {
           <div className="header-right">
             <a className="link" href={REPO} target="_blank" rel="noopener">GitHub</a>
             <a className="link" href={POOL_URL} target="_blank" rel="noopener">Pool ↗</a>
-            <LaunchButton className="btn-cta">Launch demo ↗</LaunchButton>
+            <LaunchButton className="btn-cta">Launch app ↗</LaunchButton>
           </div>
         </div>
       </header>
@@ -97,7 +97,7 @@ export default function Home() {
               <span className="dim">Private in the middle, accountable at the edges.</span>
             </h1>
             <div className="hero-ctas">
-              <LaunchButton className="btn-primary">Launch the live demo <span>↗</span></LaunchButton>
+              <LaunchButton className="btn-primary">Launch the live apps <span>↗</span></LaunchButton>
               <a className="btn-ghost" href={REPO} target="_blank" rel="noopener">View on GitHub <span>↗</span></a>
             </div>
           </div>
@@ -118,19 +118,10 @@ export default function Home() {
           <div className="apps-head">
             <div>
               <div className="eyebrow">Try the corridor</div>
-              <h2 className="big">Five ways in.<br />Pick a role.</h2>
+              <h2 className="big">Four ways in.<br />Pick a role.</h2>
             </div>
-            <p>Four focused apps for each side of the corridor, or the all-in-one console that runs the whole flow end to end.</p>
+            <p>Four focused apps, one for each side of the corridor. Consumer apps to send and receive, dashboards for the regulator and the operator.</p>
           </div>
-
-          <LaunchButton className="apps-demo">
-            <div>
-              <div className="tag" style={{ color: "var(--orange)" }}>All in one</div>
-              <div className="apps-demo-title">Corridor console</div>
-              <div className="apps-demo-sub">See the whole corridor in one place. Send, update the tree, withdraw, and audit, all against the live testnet pool.</div>
-            </div>
-            <span className="apps-demo-cta">Launch the live demo ↗</span>
-          </LaunchButton>
 
           <div className="apps-grid">
             <a className="card app-card" href="/sender">
@@ -338,9 +329,9 @@ export default function Home() {
             <h2>Try it now.<br /><span className="orange">No install needed.</span></h2>
             <p>One click activates a real built-in testnet key (or connect Freighter). Send builds a compliance proof in your browser and deposits on-chain for real. Audit a payment and its disclosure proof is verified by the live Stellar verifier.</p>
             <div className="fact-list">
-              <a className="fact" href="/demo">
-                <div className="k">LIVE DEMO</div>
-                <div className="v">/demo · corridor console</div>
+              <a className="fact" href="#apps">
+                <div className="k">LIVE APPS</div>
+                <div className="v">Four focused apps</div>
               </a>
               <a className="fact" href={REPO} target="_blank" rel="noopener">
                 <div className="k">REPOSITORY</div>
@@ -361,7 +352,7 @@ export default function Home() {
               <div className="step"><span className="num">04</span><div><div className="st">Audit</div><div className="sd">Disclosure proof verified on-chain by the Stellar verifier</div></div></div>
             </div>
             <div className="hr-card" style={{ margin: "28px 0 22px" }} />
-            <a className="btn-launch" href="/demo">Launch the live demo ↗</a>
+            <LaunchButton className="btn-launch">Launch a live app ↗</LaunchButton>
             <div className="disclaim">
               <span className="box"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#37d67a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17 19 7" /></svg></span>
               Free testnet XLM only, never with real funds.
@@ -395,7 +386,6 @@ export default function Home() {
               <a href={`${REPO}/blob/main/docs/ARCHITECTURE.md`} target="_blank" rel="noopener">Architecture</a>
               <a href={`${REPO}/blob/main/docs/ONCHAIN.md`} target="_blank" rel="noopener">On-chain</a>
               <a href={`${REPO}/blob/main/docs/TESTING.md`} target="_blank" rel="noopener">Testing</a>
-              <a href="/demo">Demo console</a>
               <a href="/sender">Sender app</a>
               <a href="/receiver">Receiver app</a>
               <a href="/regulator">Regulator</a>

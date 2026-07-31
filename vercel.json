@@ -6,10 +6,8 @@
   "outputDirectory": "webapp/out",
   "cleanUrls": true,
   "redirects": [
-    { "source": "/demo/send", "destination": "/demo" },
-    { "source": "/demo/corridor", "destination": "/demo" },
-    { "source": "/demo/receive", "destination": "/demo" },
-    { "source": "/demo/audit", "destination": "/demo" }
+    { "source": "/demo", "destination": "/" },
+    { "source": "/demo/:path*", "destination": "/" }
   ],
   "headers": [
     {
