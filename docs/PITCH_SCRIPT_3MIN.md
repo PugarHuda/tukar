@@ -51,14 +51,14 @@ land. **bold** = hit that word a little harder.
 > paid by the anchors that route through us. One corridor, one anchor first, then
 > more.
 
-### The tech, and honest scope
+### The tech, and the ask
 > None of this is hand-waving. **Seven zero-knowledge circuits**, **eight
-> contracts** live on testnet, **fifty-two passing tests**. Real testnet USDC,
-> a real multi-party trusted setup, and the off-ramp rate read on-chain from an
-> oracle so funds never move on a stale price. **(breathe)** And I'll be straight
-> with you. It's hardened on testnet but not audited, so not for real money yet,
-> and a production ramp needs a licensed anchor. That's a business step, not a
-> code gap.
+> contracts** live on testnet, **fifty-two passing tests**. And it's all
+> load-bearing: the proofs verify on-chain, the contract holds real USDC and runs
+> the full lifecycle, compliance is proven in-circuit, and the oracle gates
+> settlement. **(beat)** What we're looking for is one licensed-anchor pilot on a
+> busy corridor and a Stellar Community Fund award, to take this from testnet to a
+> live, regulated corridor.
 
 ---
 
@@ -101,8 +101,9 @@ The two lines that win are **"bound to a real on-chain deposit"** and
 ## Close (last 5 seconds)
 
 > That's Tukar. Real money, private in the middle, kept compliant at the edges,
-> on Stellar. You can try it right now, no install. We're looking for a pilot
-> anchor. Thanks.
+> on Stellar. It's live on testnet, not audited yet, and the fiat edges are
+> simulated, but everything in the middle is real and you can verify it on-chain
+> right now. Try it, no install. Thanks.
 
 ---
 

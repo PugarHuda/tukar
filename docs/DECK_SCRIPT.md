@@ -3,7 +3,7 @@
 Word for word, one block per slide. Format is 3 minutes total: the talking slides (1 to 7
 and 9) run about 90 seconds, slide 8 is the ~90 second demo, then 2 minutes of Q&A. Read it
 like a person, warm and a little bit sales. Land the first line at the judges, not the
-screen. Push energy on slides 3 and 4. Slow down on slide 7.
+screen. Push energy on slides 3 and 4. Land the ask clearly on slide 7.
 
 ---
 
@@ -41,10 +41,12 @@ on-chain."
 read on-chain from an oracle, so funds never move on a bad price. And it's checked, not
 claimed. A genuine proof verifies, and a tampered one gets rejected."
 
-**SLIDE 7 — Honest scope**
-"Honestly, it's on testnet, not audited yet, and the fiat ramps are simulated. A real launch
-needs a licensed anchor, and that's a business step, not a code gap. We'd rather tell you
-than hide it."
+**SLIDE 7 — Depth of integration, and the ask**
+"Everything here does real work on-chain, it's load-bearing, not name-checked. The proofs
+verify on-chain, the contract holds real USDC and runs the full lifecycle, compliance is
+proven in-circuit, and the oracle gates settlement. What we're looking for is one
+licensed-anchor pilot and a Stellar Community Fund award, to take this from testnet to a live
+corridor."
 
 **SLIDE 8 — Live demo (~90 seconds)**
 "Let me show you."
@@ -54,7 +56,9 @@ the on-chain off-ramp quote, a disclosure verified on-chain, and a tampered clai
 
 **SLIDE 9 — Close**
 "That's Tukar. Real-world money, private in the middle, kept compliant at the edges, on
-Stellar. You can try it right now, no install. Thank you."
+Stellar. It's live on testnet, not audited yet, and the fiat edges are simulated, but
+everything in the middle is real and you can verify it on-chain right now. Try it, no install.
+Thank you."
 
 ---
 

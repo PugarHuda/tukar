@@ -97,6 +97,11 @@
 
   .demovid{width:min(70vw,880px);max-height:60vh;margin-top:6px;border:1px solid var(--line);
     border-radius:12px;background:#000;box-shadow:0 12px 44px rgba(0,0,0,.55)}
+  .dep{display:grid;grid-template-columns:minmax(190px,250px) 1fr;column-gap:22px;margin-top:8px}
+  .dep>div{padding:5px 0;border-top:1px solid var(--line);font-size:12.5px;line-height:1.42}
+  .dep .k{color:var(--orange);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+  .dep .v{color:var(--dim)}
+  .dep .lb{color:#37d67a;font-weight:700}
 
   /* --- slide chrome: dots + arrows (bottom centre) --- */
   #chrome{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;
@@ -304,19 +309,34 @@
   </div>
 </section>
 
-<!-- 7 — honest scope (was 12) -->
+<!-- 7 — depth of integration + ask (was honest scope) -->
 <section class="s" data-n="07">
-  <div class="kicker">Honest scope</div>
-  <h2>What this is and isn't.</h2>
-  <p class="big">Hackathon-grade and security-hardened on testnet through many adversarial
-  self-audit rounds (19-point threat model). <strong>Not professionally audited. Do not
-  use with real assets.</strong></p>
-  <ul>
-    <li><b>Fiat anchors.</b> <span>The SEP protocols are really integrated against SDF's reference anchor, but a production ramp needs a <em>licensed KYC anchor</em>. A business problem, not a code problem.</span></li>
-    <li><b>Trusted setup phase-2.</b> <span>The live keys are the output of a multi-party ceremony (3 contributions + beacon), byte-identical to the committed transcripts. We ran the rounds on one machine to prove the process; full one-honest-party soundness needs genuinely independent contributors.</span></li>
-    <li><b>Anonymity set.</b> <span>Privacy scales with pool usage. A demo-scale pool has a small set; that's inherent to the model, and we say so.</span></li>
-    <li><b>The shared demo key is public.</b> <span>This means the no-install demo isn't access-controlled. The design is correct for real wallets (connect Freighter and it is).</span></li>
-  </ul>
+  <div class="kicker">Depth of integration</div>
+  <h2>Load-bearing, not name-checked.</h2>
+  <div class="dep">
+    <div class="k">BN254 host fns · P25/26</div>
+    <div class="v"><span class="lb">Load-bearing.</span> All seven Groth16 proofs verified on-chain (pairing checks).</div>
+    <div class="k">Soroban pool contract</div>
+    <div class="v"><span class="lb">Load-bearing.</span> Real USDC escrow, root · nullifier · commitment sets, ASP policy, audit-request registry, full deposit and withdraw lifecycle.</div>
+    <div class="k">Circle USDC (SAC)</div>
+    <div class="v"><span class="lb">Load-bearing.</span> The real escrow and settlement asset, not a mock token.</div>
+    <div class="k">ASP compliance (allow + deny)</div>
+    <div class="v"><span class="lb">Load-bearing.</span> Proven in-circuit and pinned to the depositor's key, so you can't deposit as someone else.</div>
+    <div class="k">Nullifiers + Merkle root</div>
+    <div class="v"><span class="lb">Load-bearing.</span> Trustless root advance proven in ZK; a double-spend is rejected on-chain.</div>
+    <div class="k">Selective disclosure ×4</div>
+    <div class="v"><span class="lb">Load-bearing.</span> Prove one hidden fact to a regulator, verified on-chain; aggregate completeness enforced by an on-chain registry.</div>
+    <div class="k">Reflector oracle · SEP-40</div>
+    <div class="v">Consumed at settlement as a min-receive price circuit-breaker (median of five, fails closed).</div>
+    <div class="k">Freighter + in-browser proving</div>
+    <div class="v"><span class="lb">Load-bearing.</span> Real signing, and snarkjs proving client-side so secrets never leave the device.</div>
+    <div class="k">SEP-24 / SEP-1 anchors</div>
+    <div class="v">Integrated against SDF's reference anchor; a licensed KYC anchor is the honest production step.</div>
+  </div>
+  <p class="lead" style="margin-top:14px">
+    <b style="color:var(--hot)">The ask:</b> one licensed-anchor pilot on a high-volume corridor,
+    and a Stellar Community Fund build award, to take this from testnet to a live, regulated corridor.
+  </p>
 </section>
 
 <!-- 8 — watch it run (live demo video) (was 13) -->
@@ -342,6 +362,8 @@
   <p class="lead">One click activates a real testnet key. Send builds proofs in your browser
   and deposits real USDC; the receiver off-ramps to fiat; a regulator audit is verified
   on-chain, and a false claim is rejected on-chain.</p>
+  <p class="lead" style="margin-top:10px;font-size:14px;opacity:.72">Honest scope: live on testnet, not yet
+  audited, and the fiat edges are simulated. Everything in the middle is real and verifiable on-chain right now.</p>
   <div class="links">
     <a class="btn p" href="https://tukar-six.vercel.app/sender">Try the live app →</a>
     <a class="btn" href="https://tukar-six.vercel.app">Landing page</a>
