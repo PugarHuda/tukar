@@ -39,6 +39,9 @@ export function WalletBar() {
       <Button variant="subtle" onClick={useDemoKey}>
         Use testnet key
       </Button>
+      <span className="w-full text-right text-[11px] leading-snug text-tf">
+        Testing with others? Connect Freighter for your own key (the built-in testnet key is shared).
+      </span>
     </div>
   );
 }
