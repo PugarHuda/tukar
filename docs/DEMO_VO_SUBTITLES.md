@@ -228,9 +228,19 @@ SUBTITLE:
 ## SHORT CUT (80 to 90 second live-pitch script, matches `scripts/demo-video-out/tukar-shortcut.mp4`)
 
 The tight cut used in the 3-minute live pitch (deck plus demo). These are the exact
-on-screen captions, in order. Read them as the voiceover to stay in sync. About 85s total.
-Everything shown is real: a real testnet key, a real on-chain deposit, a real Reflector
-quote, and a real on-chain verify with a tamper rejected.
+on-screen captions, in order, and they double as the voiceover, word for word.
+
+Renders (all 1366x768, scratch neural VO baked in with en-US-AndrewNeural, plus a silent
+twin; replace the VO with your own):
+- `tukar-shortcut-90s.mp4` / `-silent.mp4` — the ~1:35 live-pitch cut (drops the standalone
+  amount beat; the amount line is merged into the send line).
+- `tukar-shortcut.mp4` / `-silent.mp4` — the ~1:50 full cut (keeps every line below).
+
+The mobile-first consumer apps (Sender, Receiver) are shown inside a phone frame; the
+desktop consoles (Regulator, Operator) stay full-screen. Loading/proving waits are shown
+but sped up 4x, so the real work is visible without dead time. Everything shown is real:
+a real testnet key, a real on-chain deposit, a real Reflector quote, and a real on-chain
+verify with a tamper rejected.
 
 Sender:
 - "This is Tukar. Send money home privately, on Stellar. One tap connects a real testnet key."

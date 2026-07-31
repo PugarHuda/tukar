@@ -153,15 +153,22 @@ for the average cost of sending $200.
   Network: **Stellar testnet** (`Test SDF Network ; September 2015`). The same ids
   live in [`deployments/testnet.json`](deployments/testnet.json).
 
-- **🌐 Live site:** **https://tukar-six.vercel.app**. A landing page; hit
-  **Launch the live demo** (or go straight to
-  [`/demo`](https://tukar-six.vercel.app/demo)). There, **Send** builds compliance
-  + amount-binding proofs in your browser and **deposits real USDC on-chain**
-  (watch the pool's commitment count rise); the receiver off-ramps to fiat; and a
-  regulator audit produces a disclosure proof that is **verified on-chain by the
-  live Stellar verifier**. **No install needed.** One click on **Use testnet key**
-  activates a real built-in testnet key (or **connect Freighter** to sign with your
-  own). On-chain actions are gated on that explicit connection, with no silent signing.
+- **🌐 Live site:** **https://tukar-six.vercel.app**, a **Next.js** app. The landing
+  page (`/`) opens onto the product surfaces: **Sender** ([`/sender`](https://tukar-six.vercel.app/sender))
+  and **Receiver** ([`/receiver`](https://tukar-six.vercel.app/receiver)), mobile-first
+  consumer PWAs; **Regulator** ([`/regulator`](https://tukar-six.vercel.app/regulator))
+  and **Operator** ([`/operator`](https://tukar-six.vercel.app/operator)), desktop
+  dashboards; and the pitch **deck** ([`/deck`](https://tukar-six.vercel.app/deck)).
+  Send builds compliance + amount-binding proofs in your browser and **deposits real
+  USDC on-chain** (watch the pool's commitment count rise); the receiver off-ramps to
+  fiat; and a regulator audit produces a disclosure proof **verified on-chain by the
+  live Stellar verifier**. **No install needed.** The consoles are open to view, and
+  each sensitive action gates itself: a deposit needs the ASP allow-list (proven
+  in-circuit), issuing a regulator audit request needs the auditor key, and operator
+  admin writes build an offline-signed command (the admin key never enters the browser).
+  One tap activates the built-in testnet key (funded and allow-listed) to sign, or
+  **connect Freighter** to sign with your own; when several people test at once a UI hint
+  suggests Freighter to avoid sharing one key's sequence.
   Pick a **destination corridor**, 10 of them (Indonesia, Philippines, Vietnam,
   Thailand, India, Mexico, Brazil, Argentina, Nigeria, Colombia), and the off-ramp
   converts at a **live** USD→local exchange rate.
@@ -177,20 +184,20 @@ for the average cost of sending $200.
   refuses to release below ~99% of it (`SlippageExceeded`), failing closed if the feed
   is down, so the oracle is **load-bearing for fund movement**, not just display. A
   plain withdraw (no gate) still settles in USDC and never touches the oracle.
-- **One unified app (`webapp/`).** Alongside the vanilla site, the product is now a
-  single **Next.js** app in [`webapp/`](webapp/) that unifies the landing page, the
-  full **`/demo`** corridor console, and **four role-specific apps** over the same
-  live pool and the same in-browser proving:
-  - **Sender** (`/sender`) and **Receiver** (`/receiver`) — mobile-first consumer apps:
+- **One unified app (`webapp/`).** The live site is a single **Next.js** app in
+  [`webapp/`](webapp/): the landing page plus **four role-specific apps** over the same
+  live pool and the same in-browser proving. (The old all-in-one `/demo` console is
+  retired; it now redirects to the landing page.)
+  - **Sender** (`/sender`) and **Receiver** (`/receiver`), mobile-first consumer apps:
     Sender funds the corridor and builds the shielded deposit; Receiver holds/receives
     a note and off-ramps to local fiat.
-  - **Regulator** (`/regulator`) — an auditor dashboard that requests and verifies the
+  - **Regulator** (`/regulator`), an auditor dashboard that requests and verifies the
     selective-disclosure proofs (exact, threshold, aggregate, range) on-chain.
-  - **Operator** (`/operator`) — a corridor-operator dashboard over pool activity and
+  - **Operator** (`/operator`), a corridor-operator dashboard over pool activity and
     state.
 
-  The vanilla [`frontend/`](frontend/) site (landing + demo) still exists and shares
-  the **same live pool** and contracts; the two are alternate front ends, not forks.
+  The vanilla [`frontend/`](frontend/) site still exists and shares the **same live
+  pool** and contracts; it's an alternate front end, not a fork.
 - **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
   → http://localhost:8000.
 - **Gasless, natively:** fees can be sponsored by a relayer via Stellar's native
@@ -202,9 +209,11 @@ for the average cost of sending $200.
 - **Demo video (self-hosted, always available):**
   **▶ [Watch the narrated walkthrough](https://tukar-six.vercel.app/deck)** plays on
   **slide 8** of the pitch deck, or open the raw file directly at
-  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~90-second recording of the
+  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~90-second English cut of the
   **real on-chain flow** (connect → on-chain deposit → off-ramp via Reflector → claim →
-  disclosure verified on-chain → tampered claim rejected on-chain), narrated with a natural voice.
+  disclosure verified on-chain → tampered claim rejected on-chain), the consumer apps shown
+  inside a phone frame and the dashboards on desktop, narrated with a natural neural voice.
+  (A fuller ~1:50 cut also exists.)
   It's recorded end-to-end from the live app by Playwright (`scripts/record-shortcut.mjs`),
   narrated by `edge-tts`, and muxed with ffmpeg; the on-chain waits are sped up, not cut. The
   caption and voiceover script lives in [`docs/DEMO_VO_SUBTITLES.md`](docs/DEMO_VO_SUBTITLES.md),
@@ -453,8 +462,8 @@ circuits/        Circom — transfer, compliance, disclosure, merkleUpdate,
 contracts/pool/  Stateful corridor pool (Rust/Soroban) — orchestrates verifiers,
                  token custody, native poseidon.rs ✅
 deployments/     testnet.json — live contract ids + findings
-webapp/          Unified Next.js app — landing + /demo corridor console + four
-                 role apps (sender, receiver, regulator, operator); in-browser ZK proving
+webapp/          Unified Next.js app — landing + four role apps (sender, receiver,
+                 regulator, operator) + /deck; in-browser ZK proving (the live site)
 frontend/        Vanilla Corridor Console demo + landing page; in-browser ZK proving;
                  stellar.js (chain), wallet.js (optional Freighter), tree.js
 scripts/         build / prove / convert / deploy / browser-test helpers

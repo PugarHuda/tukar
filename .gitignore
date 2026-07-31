@@ -67,3 +67,5 @@ shot.png
 build-video/
 tukar-logo-480.png
 ceremony/**/verify.log
+
+scripts/demo-video-out/

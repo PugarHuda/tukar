@@ -9,7 +9,7 @@ Format: **3 minutes to present** (pitch AND demo), then **2 minutes of Q&A**. Ju
 | Time | Section | What to say (energy up, not flat) |
 |---|---|---|
 | 0:00–0:15 | **Hook** | One line that lands the pain. "A worker sends money home. Today that payment is either expensive, or on-chain and fully public. We fixed both." |
-| 0:15–0:40 | **Problem** | Remittances move ~$800B/yr at 6%+ fees. On-chain rails are cheaper but leak everything: amounts and counterparties are public. That is a privacy problem for users and a compliance non-starter for institutions. Privacy OR compliance on a public chain, not both. |
+| 0:15–0:40 | **Problem** | Remittances to lower-income countries ran ~$669B in 2023 at ~6% average cost to send $200. On-chain rails are cheaper but leak everything: amounts and counterparties are public. That is a privacy problem for users and a compliance non-starter for institutions. Privacy OR compliance on a public chain, not both. |
 | 0:40–1:00 | **Solution / the wedge** | Tukar is a confidential settlement corridor on Stellar. USDC in, a shielded ZK crossing in the middle where amounts and counterparties are hidden, local fiat out. Compliance proven with zero-knowledge and disclosed selectively to regulators. "Private in the middle, accountable at the edges." |
 | 1:00–2:15 | **DEMO (~75s)** | The money shot (script below). Narrate as it runs: "this proof is generated in the browser and verified on-chain right now, real testnet USDC." |
 | 2:15–2:40 | **Differentiators** | ZK is load-bearing, not decorative. 7 circuits, 8 live contracts. Four selective-disclosure types (the wedge). Real edges: anchors + an on-chain FX oracle. |
@@ -36,7 +36,7 @@ The gap: there is no rail that is private for the user AND provable-to-a-regulat
   1. exact amount, 2. threshold (at or below a figure, amount hidden), 3. portfolio aggregate (sum of payments at or below a cap, bound to an on-chain audit request), 4. two-sided range (amount within a band). Each is its own circuit, verified on-chain.
 - **Real edges, not mocks.** Real testnet USDC moves. Real SEP-10/24 anchor handshake (Onramper live off-ramp quotes, MoneyGram-ready). The Reflector FX oracle is read on-chain and is a load-bearing min-receive settlement gate, not decoration.
 - **Security done properly.** No double-spend (nullifiers are bound public inputs), a trustless Merkle tree with no admin backdoor, a critical non-canonical-field double-spend bug we found and fixed, and multi-party ceremony keys. 52/52 contract tests plus circuit soundness suites.
-- **One product, four real actor experiences.** Sender and Receiver consumer apps, Regulator and Operator dashboards, plus an all-in-one live console, all on the same live pool.
+- **One product, four real actor experiences.** Sender and Receiver consumer apps, Regulator and Operator dashboards, plus a live deck, all on the same live pool at https://tukar-six.vercel.app. Consoles are open to view and gated per action (deposit needs the ASP allow-list in-circuit, regulator issue needs the auditor key, operator writes are offline-signed). The old all-in-one /demo console is disabled; the four actor surfaces are the demo.
 
 ---
 
@@ -54,9 +54,9 @@ That single loop shows the whole thesis: private, compliant, real, on-chain. The
 **If you must go fully live and short:** show just step 3 (paste a pre-exported receipt, VALID on-chain, tamper, INVALID) against the live verifier. It is fast and it is the "this is real, not a mock" proof. Offer to run the full deposit live during Q&A if a judge asks.
 
 **Demo discipline (critical):**
-- Pre-fund the key (done: ~9.5k XLM for fees, ~960k testnet USDC).
+- Pre-fund the key (done: ~9.5k XLM for fees, ~960k testnet USDC). Sign in with the one-tap built-in testnet key (funded, allow-listed) or Freighter; a hint nudges Freighter for anyone testing concurrently.
 - Do ONE on-chain action at a time. Tree registration takes ~20s to confirm; back-to-back deposits collide on the shared key.
-- Have a BACKUP RECORDING queued (`/demo-id.mp4`, or a screen capture of `npm run qa:watch`). If the live demo stalls, cut to the recording and keep talking.
+- Have a BACKUP RECORDING queued: the ~90s English VO demo clip (consumer apps in a phone frame) at `/demo-id.mp4`, or a screen capture of `npm run qa:watch`. If the live demo stalls, cut to the recording and keep talking.
 - One person drives the demo, one narrates. Practice it 5+ times on the actual machine and network.
 
 ---
@@ -96,7 +96,7 @@ One-line positioning: **the only rail that is private for users AND provable to 
 
 ## 7. Q&A prep sheet (the mentor's #1 tip)
 
-Rehearse these out loud. Answer with confidence, and be honest about scope (honesty is a strength, judges probe for overclaim).
+Rehearse these out loud. Answer with confidence, and be honest about scope (honesty is a strength, judges probe for overclaim). The full 20-question judge Q&A lives in `docs/JUDGE_QA.md`; this sheet is the fast-recall subset.
 
 | Likely judge question | Prepared answer |
 |---|---|
@@ -137,7 +137,7 @@ Keep adding to this sheet as a shared spreadsheet. Assign one teammate to own Q&
 - [ ] Key funded (XLM for fees + testnet USDC) — verified.
 - [ ] Live demo rehearsed on the actual presentation machine and network.
 - [ ] Backup recording downloaded and ready to cut to.
-- [ ] Deck exportable offline (the deck prints one slide per page via Ctrl+P if the network fails).
+- [ ] Deck (9 slides) exportable offline (the deck prints one slide per page via Ctrl+P if the network fails).
 - [ ] Do one on-chain action at a time; wait for registration to confirm.
 - [ ] Timer visible to the presenter.
 - [ ] Q&A spreadsheet reviewed by the whole team.
