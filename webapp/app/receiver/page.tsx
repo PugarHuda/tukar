@@ -257,7 +257,8 @@ export default function ReceiverPage() {
           <span className="text-lg font-extrabold tracking-[-0.01em]">Tukar</span>
           <span className="rounded-md border border-line-input px-[7px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-tf">RECEIVE</span>
         </div>
-        <WalletBar />
+        {/* Header shows wallet status only once connected; the body Connect card is the CTA before that (no duplicate bar). */}
+        {connected && <WalletBar />}
       </header>
 
       <div className="mb-6">
