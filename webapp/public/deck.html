@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tukar. Private cross-border remittance on Stellar</title>
+<meta name="description" content="Tukar. Confidential cross-border payment corridors on Stellar. USDC in, shielded ZK transfer, local fiat out.">
+<meta property="og:title" content="Tukar. Private cross-border remittance on Stellar">
+<meta property="og:description" content="USDC in → shielded ZK transfer → local fiat out. Private in the middle, accountable at the edges.">
+<meta property="og:image" content="/og-image.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡</text></svg>">
+<style>
+  :root{
+    --bg:#0a0705; --bg2:#140d08; --ink:#f2e9e1; --dim:#9c9188; --faint:#6b645e;
+    --orange:#f3ad79; --hot:#ffb070; --green:#5fe3a0; --line:#2a1f17;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--orange)}
+
+  /* horizontal slide rail — one slide per screen, advance left/right */
+  #rail{display:flex;flex-direction:row;height:100%;width:100%;
+    overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;
+    scrollbar-width:none}
+  #rail::-webkit-scrollbar{display:none}
+  .s{flex:0 0 100vw;width:100vw;height:100%;scroll-snap-align:center;
+     display:flex;flex-direction:column;justify-content:center;
+     padding:8vh 7vw;position:relative;overflow:hidden}
+  .s::after{content:attr(data-n);position:absolute;right:3vw;bottom:3.5vh;
+    font:600 12px var(--mono);color:var(--faint);letter-spacing:2px}
+
+  .kicker{font:700 12px var(--mono);letter-spacing:3px;color:var(--hot);
+    text-transform:uppercase;margin-bottom:16px}
+  h1{font-size:clamp(38px,7vw,88px);font-weight:800;letter-spacing:-2px;line-height:1.03}
+  h2{font-size:clamp(24px,3.4vw,44px);font-weight:800;letter-spacing:-1px;line-height:1.12;margin-bottom:20px}
+  .lead{font-size:clamp(15px,1.5vw,21px);color:var(--dim);line-height:1.55;max-width:62ch;margin-top:16px}
+  .big{font-size:clamp(17px,1.9vw,25px);color:var(--ink);line-height:1.5;max-width:58ch}
+  strong{color:var(--orange);font-weight:700}
+  em{color:var(--hot);font-style:normal;font-weight:600}
+
+  .hero{background:radial-gradient(120% 110% at 50% 15%,#23140c 0%,var(--bg) 62%)}
+  .streaks{position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:.5}
+  .streaks i{position:absolute;left:-10%;width:120%;height:2px;
+    background:linear-gradient(90deg,transparent,var(--hot) 35%,var(--orange) 60%,transparent)}
+  .wm{font-size:clamp(56px,11vw,140px);font-weight:800;letter-spacing:-5px;color:var(--orange);line-height:.95}
+  .tag{font:700 13px var(--mono);letter-spacing:5px;color:var(--dim);text-transform:uppercase;margin-top:18px}
+
+  ul{list-style:none;margin-top:6px}
+  li{font-size:clamp(14px,1.35vw,19px);color:var(--ink);line-height:1.45;padding:9px 0 9px 26px;
+     position:relative;max-width:72ch;border-bottom:1px solid rgba(42,31,23,.6)}
+  li::before{content:"";position:absolute;left:0;top:18px;width:9px;height:9px;border-radius:2px;
+    background:var(--hot);box-shadow:0 0 10px rgba(255,176,112,.6)}
+  li b{color:var(--orange)}
+  li span{color:var(--dim)}
+
+  .grid{display:grid;gap:13px;margin-top:6px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .card{background:linear-gradient(180deg,var(--bg2),#0d0906);border:1px solid var(--line);
+    border-radius:12px;padding:16px 18px}
+  .card h3{font-size:15.5px;font-weight:800;color:var(--orange);margin-bottom:7px}
+  .card p{font-size:14px;color:var(--dim);line-height:1.48}
+  .card .mono{font:600 10.5px var(--mono);color:var(--faint);letter-spacing:1px;
+    text-transform:uppercase;display:block;margin-bottom:6px}
+
+  .stat{font-size:clamp(28px,3.8vw,50px);font-weight:800;color:var(--orange);letter-spacing:-1.5px;line-height:1}
+  .stat small{display:block;font:600 10.5px var(--mono);color:var(--faint);
+    letter-spacing:2px;text-transform:uppercase;margin-top:8px}
+
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin-top:6px}
+  .step{flex:1;min-width:150px;background:var(--bg2);border:1px solid var(--line);
+    border-radius:10px;padding:13px 15px}
+  .step .n{font:800 10.5px var(--mono);color:var(--hot);letter-spacing:2px}
+  .step .t{font-size:14.5px;font-weight:700;margin:6px 0 4px}
+  .step .d{font-size:12.5px;color:var(--dim);line-height:1.42}
+  .step.priv{border-color:#5a3a22;background:linear-gradient(180deg,#1c1109,#0d0906)}
+  .step.priv .t{color:var(--orange)}
+
+  code,.k{font-family:var(--mono);font-size:.92em;color:var(--hot)}
+  pre{background:#080504;border:1px solid var(--line);border-radius:10px;padding:13px 15px;
+    overflow-x:auto;margin-top:12px}
+  pre code{font-size:12px;color:var(--dim);line-height:1.65;white-space:pre}
+  pre code b{color:var(--orange);font-weight:600}
+
+  .ok{color:var(--green);font-weight:700}
+  .links{display:flex;flex-wrap:wrap;gap:11px;margin-top:24px}
+  .btn{display:inline-block;padding:11px 19px;border-radius:9px;font-size:14px;font-weight:700;
+    text-decoration:none;border:1px solid var(--line);color:var(--ink);background:var(--bg2)}
+  .btn.p{background:var(--orange);color:#120802;border-color:var(--orange)}
+
+  .note{margin-top:20px;padding:13px 17px;border-left:3px solid var(--hot);
+    background:rgba(255,176,112,.05);border-radius:0 8px 8px 0}
+  .note p{font-size:14px;color:var(--dim);line-height:1.5}
+
+  .demovid{width:min(70vw,880px);max-height:60vh;margin-top:6px;border:1px solid var(--line);
+    border-radius:12px;background:#000;box-shadow:0 12px 44px rgba(0,0,0,.55)}
+
+  /* --- slide chrome: dots + arrows (bottom centre) --- */
+  #chrome{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;
+    display:flex;align-items:center;gap:14px;
+    background:rgba(10,7,5,.82);border:1px solid var(--line);border-radius:999px;
+    padding:8px 14px;backdrop-filter:blur(8px)}
+  #chrome button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);
+    background:var(--bg2);color:var(--ink);font-size:15px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center}
+  #chrome button:hover{background:var(--orange);color:#120802;border-color:var(--orange)}
+  #chrome button:disabled{opacity:.3;cursor:default}
+  #chrome button.on{background:var(--orange);color:#120802;border-color:var(--orange)}
+  #dots{display:flex;gap:7px}
+  #dots b{width:7px;height:7px;border-radius:50%;background:#3a2c21;cursor:pointer;transition:.2s}
+  #dots b.on{background:var(--orange);transform:scale(1.4)}
+  #num{font:700 11px var(--mono);color:var(--faint);letter-spacing:1px;min-width:38px;text-align:center}
+
+  @media (max-width:640px){
+    .s{padding:7vh 6vw}
+    li{font-size:14px}
+    #chrome{gap:9px;padding:7px 11px}
+    #dots{display:none}
+  }
+  /* Ctrl+P -> one slide per landscape page (serviceable PDF export) */
+  @media print{
+    @page{size:landscape}
+    html,body{overflow:visible;height:auto}
+    #rail{display:block;overflow:visible;height:auto}
+    .s{width:100%;height:100vh;page-break-after:always;flex:none}
+    #chrome{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="rail">
+
+<!-- 1 — title -->
+<section class="s hero" data-n="01">
+  <div class="streaks">
+    <i style="top:38%;opacity:.35"></i><i style="top:44%;opacity:.7"></i>
+    <i style="top:50%;height:3px"></i><i style="top:56%;opacity:.55"></i><i style="top:62%;opacity:.3"></i>
+  </div>
+  <div class="kicker">Stellar · Payments &amp; Consumer Apps</div>
+  <div class="wm">Tukar</div>
+  <h1 style="font-size:clamp(20px,2.5vw,33px);letter-spacing:-1px;margin-top:24px;max-width:26ch;">
+    Send money home privately. Cash out in local fiat.
+  </h1>
+  <div class="tag">USDC in · private crossing · local fiat out</div>
+  <p class="lead" style="margin-top:22px;">A mobile-first cross-border remittance app on Stellar.
+  A worker deposits USDC, the crossing hides the amount and both people, the family cashes out
+  in local fiat. What sets it apart from every other privacy app: it stays provable to a regulator.
+  Private in the middle, <em>accountable at the edges</em>.</p>
+</section>
+
+<!-- 2 — problem -->
+<section class="s" data-n="02">
+  <div class="kicker">The problem</div>
+  <h2>Stellar moves real money.<br>A public ledger leaks who moved it.</h2>
+  <p class="big">
+    Cross-border remittance is Stellar's core real-world use case. But on a public
+    ledger, every payment's <strong>amount</strong> and <strong>both counterparties</strong>
+    are exposed, leaking a sensitive financial graph: who pays whom, how much, how often.
+  </p>
+  <div class="note">
+    <p>Hiding <em>balances</em> alone doesn't fix a remittance corridor. If the corridor
+    still reveals sender → receiver, the payment graph is public. A corridor must hide
+    the <em>parties</em> too, while staying auditable enough for a regulator.</p>
+  </div>
+</section>
+
+<!-- 3 — solution / flow -->
+<section class="s" data-n="03">
+  <div class="kicker">The solution</div>
+  <h2>Private in the middle, accountable at the edges.</h2>
+  <div class="flow">
+    <div class="step">
+      <div class="n">01 · PUBLIC</div><div class="t">Deposit</div>
+      <div class="d">Real testnet USDC enters the pool. A ZK compliance proof shows the
+      authenticated depositor is allow-listed.</div>
+    </div>
+    <div class="step priv">
+      <div class="n">02 · PRIVATE</div><div class="t">Shielded crossing</div>
+      <div class="d">The transfer hides the <b>amount and both counterparties</b> on-chain.
+      Only a commitment and nullifiers are visible.</div>
+    </div>
+    <div class="step">
+      <div class="n">03 · PUBLIC</div><div class="t">Off-ramp</div>
+      <div class="d">The receiver reveals only at the edge and withdraws to local fiat
+      (IDR, PHP, VND, THB, INR, MXN, BRL, ARS, NGN, COP).</div>
+    </div>
+    <div class="step">
+      <div class="n">04 · ON DEMAND</div><div class="t">Disclose</div>
+      <div class="d">A holder proves <b>one fact</b> to a regulator (e.g. the amount),
+      with no keys and no other payments.</div>
+    </div>
+  </div>
+  <p class="lead">
+    Deposits and withdrawals are public <em>by design</em> (Privacy-Pools model). The
+    private leg is the crossing, exactly where a corridor must not leak.
+  </p>
+</section>
+
+<!-- 4 — the consumer app -->
+<section class="s" data-n="04">
+  <div class="kicker">The consumer app</div>
+  <h2>Two phones. Send money home, claim it as local fiat.</h2>
+  <div class="grid g2" style="margin-top:2px">
+    <div class="card"><span class="mono">Sender · mobile-first PWA</span>
+      <h3>Send money home</h3>
+      <p>Fund with real USDC, then send. The proof is built <b>on your own phone</b>, so the
+      amount and recipient never leave the device. You get a <b>bearer claim note</b> to hand
+      over as a string or a QR code.</p></div>
+    <div class="card"><span class="mono">Receiver · mobile-first PWA</span>
+      <h3>Claim and cash out</h3>
+      <p>Paste the claim note, pick a corridor (IDR, PHP, VND, THB, INR, MXN, BRL, ARS, NGN,
+      COP), and withdraw to <b>local fiat</b> through a live anchor. The note itself is the
+      money, no Tukar account to open.</p></div>
+  </div>
+  <p class="lead">Installable as a PWA, and no seed phrase needed to try: one tap activates a
+  testnet key. The compliance and disclosure proofs run underneath; the sender and receiver
+  just see send and claim.</p>
+</section>
+
+<!-- 5 — the moat / differentiator -->
+<section class="s" data-n="05">
+  <div class="kicker">The moat</div>
+  <h2>Compliant privacy on cross-border money. No catalog equivalent.</h2>
+  <p class="lead" style="margin-top:0;margin-bottom:8px;max-width:74ch">
+    The category already has privacy tools and consumer wallets. None sits where Tukar does:
+    private for the user <em>and</em> provable to a regulator, on a real remittance corridor.</p>
+  <div class="grid g2" style="margin-top:2px">
+    <div class="card"><span class="mono">vs a privacy pool / mixer</span>
+      <h3>Compliance is in the circuit</h3>
+      <p>A mixer is private but not accountable. Every Tukar deposit proves in-circuit that the
+      <em>authenticated</em> depositor is ASP allow-listed and not deny-listed, key pinned to
+      <code>from</code>. Compliance is in the proof, not a promise.</p></div>
+    <div class="card"><span class="mono">vs a private payment link</span>
+      <h3>A real cross-border corridor</h3>
+      <p>Payment links move USDC between crypto users. Tukar takes real fiat in and out through
+      live <b>SEP anchors</b> on Stellar's rail, 10 corridors, with an on-chain
+      <b>Reflector min-receive gate</b> on the off-ramp rate.</p></div>
+    <div class="card"><span class="mono">vs a plain consumer wallet</span>
+      <h3>Private, and it verifies</h3>
+      <p>Wallets are cross-border but public. Tukar hides the amount and both parties on-chain,
+      and a regulator can verify a disclosed fact live; tamper with it and the Stellar verifier
+      returns <code>InvalidProof</code>.</p></div>
+    <div class="card" style="border-color:#5a3a22;background:linear-gradient(180deg,#1c1109,#0d0906)">
+      <span class="mono">The combination</span>
+      <h3 style="color:var(--hot)">Private + compliant + cross-border</h3>
+      <p>Each rival covers one axis. Holding all three at once, on the chain built for
+      cross-border money, is the moat, and it has no off-the-shelf equivalent.</p></div>
+  </div>
+</section>
+
+<!-- 6 — ZK load-bearing -->
+<section class="s" data-n="06">
+  <div class="kicker">ZK is load-bearing, not namechecked</div>
+  <h2>Seven circuits do the actual work.</h2>
+  <div class="grid g4">
+    <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
+      <h3>transfer</h3><p>Note ownership, correct nullifiers (no double-spend), Merkle
+      inclusion, value conservation.</p></div>
+    <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
+      <h3>compliance</h3><p>The <em>authenticated</em> depositor is in the ASP allow-list
+      and not deny-listed, key pinned to <code>from</code>.</p></div>
+    <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
+      <h3>disclosure ×4</h3><p>One commitment proves an exact amount, a threshold, an aggregate
+      cap across a set, or a two-sided range. Aggregate completeness is enforced on-chain by an
+      audit-request registry.</p></div>
+    <div class="card"><span class="mono">Circom · Groth16 · BN254</span>
+      <h3>merkleUpdate</h3><p>Inserting a leaf into a known <code>old_root</code> yields
+      exactly <code>new_root</code>, a trustless tree with no admin backdoor.</p></div>
+  </div>
+  <p class="lead">
+    All seven are proved <strong>client-side in the browser (WASM)</strong>, so secrets never
+    leave the device, and verified <strong>on-chain</strong>. Remove them and the product
+    does not exist.
+  </p>
+</section>
+
+<!-- 7 — on Stellar -->
+<section class="s" data-n="07">
+  <div class="kicker">It runs on Stellar</div>
+  <h2>8 Soroban contracts, live on testnet.</h2>
+  <p class="big">A pool custodies real USDC and orchestrates seven on-chain BN254 verifiers,
+  using Stellar's <strong>Protocol 25 / 26</strong> host functions.</p>
+  <pre><code><b>pool</b>                  CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ
+<b>transfer verifier</b>     CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE
+<b>compliance verifier</b>   CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2
+<b>disclosure verifier</b>   CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V
+<b>merkleUpdate verifier</b> CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H
+<b>threshold verifier</b>    CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR
+<b>aggregate verifier</b>    CCTN437J4BX6S4JDMGUZFS2IEHV4ECHHK4ZLMM3N6VU5IIX2777AZJYA
+<b>range verifier</b>        CDUONEVPPH7WI7EPSXZE3YXEF4FHHJM7HFJOTZBCJNJSUG26UMENUPQW</code></pre>
+  <p class="lead">Network: <code>Test SDF Network ; September 2015</code>. Every contract is
+  exercised live: deposit, withdraw, disclose, and a double-spend <span class="ok">rejected on-chain</span>.</p>
+</section>
+
+<!-- 8 — ecosystem integration -->
+<section class="s" data-n="08">
+  <div class="kicker">Ecosystem integration, real not decorative</div>
+  <h2>The oracle moves funds. The anchors are live.</h2>
+  <div class="grid g2">
+    <div class="card"><span class="mono">Reflector · SEP-40 FX oracle</span>
+      <h3>Load-bearing, not display</h3>
+      <p>For MX/BR/AR + <b>THB (Thailand)</b> the off-ramp rate is read <em>on-chain by the pool</em>. The withdraw
+      carries a <b>min-receive gate</b>: the pool <b>re-reads Reflector at settlement</b> and
+      refuses to release below ~99% of the quote, failing closed if the feed stalls. It prices
+      on the <b>median of 5 records</b>, so one manipulated spot can't move it.</p></div>
+    <div class="card"><span class="mono">Anchor rails · SEP-1/10/6/24/31</span>
+      <h3>Really integrated</h3>
+      <p>Tukar publishes a SEP-1 <code>stellar.toml</code>, authenticates with a real
+      <b>SEP-10</b> JWT and opens a real <b>SEP-24</b> interactive USDC on-ramp against
+      SDF's reference anchor, wired into the demo UI, not a mock.
+      <span class="ok">5/5 live.</span></p></div>
+    <div class="card"><span class="mono">CAP-15 · native fee-bump</span>
+      <h3>Gasless, natively</h3>
+      <p>Fees sponsored by a relayer using Stellar's own fee-bump, with no gated
+      paymaster token. Proven on testnet.</p></div>
+    <div class="card"><span class="mono">Protocol 25 / 26 host functions</span>
+      <h3>On-chain BN254 + Poseidon</h3>
+      <p>The pool computes a <b>circomlib-exact Poseidon</b> on-chain from BN254 host ops.
+      We measured it, which is <em>why</em> the tree advances with a cheap SNARK instead
+      of on-chain hashing.</p></div>
+  </div>
+</section>
+
+<!-- 9 — what's real -->
+<section class="s" data-n="09">
+  <div class="kicker">What's real (not mocked)</div>
+  <h2>Real USDC. Real custody. Real setup.</h2>
+  <ul>
+    <li><b>Real testnet USDC custody.</b> <span><code>deposit</code> moves the actual amount you type; <code>withdraw</code> releases it.</span></li>
+    <li><b>Amount ↔ commitment binding.</b> <span>A deposit proves the commitment opens to exactly the deposited amount. Privacy can't decouple hidden value from moved tokens.</span></li>
+    <li><b>Recipient bound into the proof.</b> <span>The contract recomputes <code>keccak256(recipient ‖ amount)</code>, so a withdraw proof can't be replayed to a different recipient.</span></li>
+    <li><b>Fully trustless tree.</b> <span>The root advances only via a <code>merkleUpdate</code> proof. No admin override. Leaves live in durable state, so any client rebuilds the exact tree from chain.</span></li>
+    <li><b>Real trusted setup.</b> <span>All four proving keys derive from the Hermez Powers-of-Tau ceremony, independently verifiable: <code>snarkjs zkey verify</code> → <span class="ok">ZKey Ok!</span> ×4.</span></li>
+    <li><b>Bearer notes + payment requests.</b> <span>A note <em>is</em> spendable value: export it as a string/QR, import on another device, withdraw. Requests pull money the other way.</span></li>
+  </ul>
+</section>
+
+<!-- 10 — proof it works -->
+<section class="s" data-n="10">
+  <div class="kicker">Proof it works</div>
+  <h2>Verified live, not asserted.</h2>
+  <div class="grid g4">
+    <div class="card"><div class="stat">52/52<small>Contract unit tests</small></div></div>
+    <div class="card"><div class="stat">11/11<small>Live real-click e2e</small></div></div>
+    <div class="card"><div class="stat">6/6<small>Circuit soundness</small></div></div>
+    <div class="card"><div class="stat">5/5<small>Anchor SEPs live</small></div></div>
+  </div>
+  <ul style="margin-top:14px">
+    <li><b>Playwright drives genuine clicks</b> <span>through the full on-chain flow (deposit → reveal → withdraw → disclose → tamper-rejected) against the live site.</span></li>
+    <li><b>Cross-wallet double-spend rejected on-chain.</b> <span>Export a bearer note, reset to a second holder, import, spend again → <code>NullifierUsed</code>. <span class="ok">Rejected.</span></span></li>
+    <li><b>A forged compliance source is rejected on-chain</b> <span>by the ASP, so you can't deposit pretending to be a different approved account.</span></li>
+    <li><b>Tamper with a disclosed amount</b> <span>→ <code>InvalidProof</code> from the live Stellar verifier. The proof is sound.</span></li>
+  </ul>
+</section>
+
+<!-- 11 — honest scope -->
+<section class="s" data-n="11">
+  <div class="kicker">Honest scope</div>
+  <h2>What this is and isn't.</h2>
+  <p class="big">Hackathon-grade and security-hardened on testnet through many adversarial
+  self-audit rounds (19-point threat model). <strong>Not professionally audited. Do not
+  use with real assets.</strong></p>
+  <ul>
+    <li><b>Fiat anchors.</b> <span>The SEP protocols are really integrated against SDF's reference anchor, but a production ramp needs a <em>licensed KYC anchor</em>. A business problem, not a code problem.</span></li>
+    <li><b>Trusted setup phase-2.</b> <span>The live keys are the output of a multi-party ceremony (3 contributions + beacon), byte-identical to the committed transcripts. We ran the rounds on one machine to prove the process; full one-honest-party soundness needs genuinely independent contributors.</span></li>
+    <li><b>Anonymity set.</b> <span>Privacy scales with pool usage. A demo-scale pool has a small set; that's inherent to the model, and we say so.</span></li>
+    <li><b>The shared demo key is public.</b> <span>This means the no-install demo isn't access-controlled. The design is correct for real wallets (connect Freighter and it is).</span></li>
+  </ul>
+</section>
+
+<!-- 12 — watch it run (live demo video) -->
+<section class="s" data-n="12">
+  <div class="kicker">Watch it run, live on Stellar testnet</div>
+  <h2 style="margin-bottom:14px">The whole flow, on-chain, in 1:43.</h2>
+  <video class="demovid" controls playsinline preload="metadata" poster="/og-image.png">
+    <source src="/demo-id.mp4" type="video/mp4">
+    Your browser can't play this video. <a href="/demo-id.mp4">Download it</a>.
+  </video>
+  <p class="lead" style="margin-top:12px">
+    Real testnet USDC: deposit → shielded crossing → off-ramp to local fiat → on-chain
+    withdraw → a disclosure proof <span class="ok">verified on-chain</span> → a tampered
+    claim <span class="ok">rejected on-chain</span>. Narasi &amp; subtitle Bahasa Indonesia.
+  </p>
+</section>
+
+<!-- 13 — close -->
+<section class="s hero" data-n="13">
+  <div class="streaks"><i style="top:30%;opacity:.3"></i><i style="top:70%;opacity:.4"></i></div>
+  <div class="kicker">Try it, no install</div>
+  <h2 style="font-size:clamp(28px,4.6vw,60px)">Real-world money.<br>Private. Kept compliant.<br>On Stellar.</h2>
+  <p class="lead">One click activates a real testnet key. Send builds proofs in your browser
+  and deposits real USDC; the receiver off-ramps to fiat; a regulator audit is verified
+  on-chain, and a false claim is rejected on-chain.</p>
+  <div class="links">
+    <a class="btn p" href="https://tukar-six.vercel.app/demo">Launch the live demo →</a>
+    <a class="btn" href="https://tukar-six.vercel.app">Landing page</a>
+    <a class="btn" href="https://github.com/PugarHuda/tukar">GitHub · full source</a>
+    <a class="btn" href="https://stellar.expert/explorer/testnet/contract/CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ">Pool on stellar.expert ↗</a>
+  </div>
+  <div class="tag" style="margin-top:26px">Tukar · USDC in · private crossing · local fiat out</div>
+</section>
+
+</div><!-- /rail -->
+
+<div id="chrome">
+  <button id="prev" aria-label="Previous slide">‹</button>
+  <div id="dots"></div>
+  <span id="num"></span>
+  <button id="next" aria-label="Next slide">›</button>
+  <button id="fs" aria-label="Toggle fullscreen (F)" title="Fullscreen (F)">⛶</button>
+</div>
+
+<script>
+  // ponytail: horizontal CSS scroll-snap IS the slide engine; this only drives it.
+  const rail = document.getElementById("rail");
+  const slides = [...rail.querySelectorAll(".s")];
+  const dots = document.getElementById("dots");
+  const num = document.getElementById("num");
+  const prev = document.getElementById("prev");
+  const next = document.getElementById("next");
+  let cur = 0;
+
+  slides.forEach((_, i) => {
+    const b = document.createElement("b");
+    b.onclick = () => go(i);
+    dots.appendChild(b);
+  });
+
+  function paint() {
+    [...dots.children].forEach((b, i) => b.classList.toggle("on", i === cur));
+    num.textContent = (cur + 1) + " / " + slides.length;
+    prev.disabled = cur === 0;
+    next.disabled = cur === slides.length - 1;
+  }
+  function go(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    rail.scrollTo({ left: cur * rail.clientWidth, behavior: "smooth" });
+    paint();
+  }
+  prev.onclick = () => go(cur - 1);
+  next.onclick = () => go(cur + 1);
+
+  // Native Fullscreen API — present the deck edge-to-edge with no browser chrome.
+  const fs = document.getElementById("fs");
+  const isFs = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function toggleFs() {
+    if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else {
+      const el = document.documentElement;
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {});
+    }
+  }
+  fs.onclick = toggleFs;
+  const syncFs = () => { fs.textContent = isFs() ? "⛶" : "⛶"; fs.classList.toggle("on", !!isFs()); };
+  document.addEventListener("fullscreenchange", syncFs);
+  document.addEventListener("webkitfullscreenchange", syncFs);
+
+  addEventListener("keydown", (e) => {
+    if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+    if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+    if (e.key === "Home") go(0);
+    if (e.key === "End") go(slides.length - 1);
+    if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleFs(); }
+  });
+  // keep the dots honest if someone swipes/trackpad-scrolls the rail directly
+  let t;
+  rail.addEventListener("scroll", () => {
+    clearTimeout(t);
+    t = setTimeout(() => { cur = Math.round(rail.scrollLeft / rail.clientWidth); paint(); }, 90);
+  }, { passive: true });
+  addEventListener("resize", () => rail.scrollTo({ left: cur * rail.clientWidth, behavior: "auto" }));
+
+  // recorder hook (scripts/record-deck.mjs drives the slides through this)
+  window.__deck = { go, count: slides.length, at: () => cur };
+  paint();
+</script>
+</body>
+</html>
