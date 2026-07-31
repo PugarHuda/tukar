@@ -8,7 +8,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
-import { ConnectGate } from "@/components/dashboard/ConnectGate";
 import { Button, Spinner, StatusPill, Skeleton, useToast } from "@/components/ui";
 import {
   registerAuditRequest,
@@ -79,7 +78,6 @@ export default function RegulatorPage() {
   const [tab, setTab] = useState<TabId>("reports");
   const [trail, setTrail] = useState<TrailEntry[]>([]);
   const [status, setStatus] = useState("Reading live pool state from Stellar…");
-  const { connected } = useWallet();
 
   // load persisted trail once (client only — avoids SSR localStorage access)
   useEffect(() => {
@@ -104,9 +102,6 @@ export default function RegulatorPage() {
 
   return (
     <DashboardShell title="Regulator console" nav={NAV} active={tab} onSelect={(k) => setTab(k as TabId)}>
-      {!connected ? (
-        <ConnectGate name="Regulator console" />
-      ) : (
       <div className="mx-auto max-w-wrap px-6 py-8">
         <section className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-[640px]">
@@ -146,7 +141,6 @@ export default function RegulatorPage() {
           {tab === "trail" && <TrailTab trail={trail} setTrail={setTrail} />}
         </div>
       </div>
-      )}
     </DashboardShell>
   );
 }
