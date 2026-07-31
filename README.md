@@ -84,6 +84,31 @@ map of the neighbours (Confidential Tokens, LumenShade, Moonlight, Fairblock) an
 where Tukar differs and where it stays composable, see
 [`docs/COMPETITIVE.md`](docs/COMPETITIVE.md).
 
+### Market, users, and business
+
+**Who it's for.** The end users are the migrant worker sending money home and the family
+receiving it in local currency. The paying customer is the licensed anchor or PSP that
+needs a private corridor it can still audit. B2B2C, so Tukar doesn't acquire consumers one
+at a time.
+
+**Market.** Remittances into low- and middle-income countries reached about **$669B in
+2023**, and sending $200 still costs about **6.2%** on average, more than double the UN's
+3% target and barely changed in a decade. Public stablecoin rails cut that fee but expose
+every amount and counterparty; pure privacy tools hide it but can't answer a regulator. A
+licensed corridor needs both, which is the gap Tukar fills.
+
+**Model.** Tukar is the private settlement leg between anchors. Revenue is a thin take-rate
+on settlement volume, paid by the anchors and PSPs that route through the corridor.
+Go-to-market is one high-volume lane with one licensed anchor first, then more corridors;
+the post-hackathon path is a Stellar Community Fund build award on the same rail.
+
+**Honest status.** This is a testnet build with no users or revenue yet. The above is the
+opportunity and the model, not traction.
+
+Sources: [World Bank, Migration and Development Brief 39 (Dec 2023)](https://www.worldbank.org/en/news/press-release/2023/12/18/remittance-flows-grow-2023-slower-pace-migration-development-brief)
+for remittance volume; [World Bank Remittance Prices Worldwide](https://remittanceprices.worldbank.org/)
+for the average cost of sending $200.
+
 ---
 
 ![Tukar architecture](docs/architecture.svg)
@@ -403,6 +428,22 @@ Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
 reference (Apache-2.0 / GPLv3).
 
 ---
+
+## Tech stack
+
+- **Zero-knowledge:** Circom 2 circuits, Groth16 over BN254, proved and verified with
+  snarkjs; Poseidon hashing via circomlibjs. Proofs run client-side in the browser (WASM),
+  so secrets never leave the device. Trusted setup from the Hermez phase-1 ptau plus a
+  3-contribution phase-2 ceremony.
+- **Smart contracts:** Rust on Soroban (Stellar), 8 contracts (a pool plus 7 BN254
+  verifiers), using Protocol 25/26 host functions. 52 passing Cargo tests.
+- **Stellar standards:** SEP-1 (stellar.toml discovery), SEP-24 (interactive deposit and
+  withdraw), SEP-41 / SAC (USDC), with SEP-31 as the cross-border positioning. Native
+  fee-bump (CAP-15) as a proven gasless primitive.
+- **Oracle:** Reflector SEP-40 FX oracle, read on-chain by the pool for the off-ramp gate.
+- **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS. Static export,
+  deployed on Vercel; installable PWA. Freighter wallet plus a built-in testnet key.
+- **Tooling:** Node and npm, Playwright for browser QA, Cargo for contract tests.
 
 ## Repository layout
 
