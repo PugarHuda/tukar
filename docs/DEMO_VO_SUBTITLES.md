@@ -1,4 +1,4 @@
-# Tukar live demo — full voiceover / subtitle script (English)
+# Tukar live demo, full voiceover / subtitle script (English)
 
 A complete, feature-by-feature walkthrough for a screen recording. You read the
 VO; the SUBTITLE lines double as captions. Keep each spoken line short so it fits
@@ -14,7 +14,7 @@ Ordering: Landing → Sender → Receiver → Regulator → Operator → Close.
 
 ---
 
-## 0. Open on the landing page (0:00 – 0:20)
+## 0. Open on the landing page (0:00 to 0:20)
 
 [SCREEN] tukar-six.vercel.app, hero visible.
 
@@ -31,7 +31,7 @@ SUBTITLE:
 
 ---
 
-## 1. Sender app — sending money (0:20 – 1:40)
+## 1. Sender app, sending money (0:20 to 1:40)
 
 [SCREEN] click Launch, pick "Send money", land on /sender.
 
@@ -76,7 +76,7 @@ SUBTITLE:
 
 ---
 
-## 2. Receiver app — claiming and cashing out (1:40 – 3:10)
+## 2. Receiver app, claiming and cashing out (1:40 to 3:10)
 
 [SCREEN] open /receiver, three tabs: Payments, Claim, Request.
 
@@ -121,7 +121,7 @@ SUBTITLE:
 
 ---
 
-## 3. Selective disclosure — proving a fact without revealing the payment (3:10 – 4:10)
+## 3. Selective disclosure, proving a fact without revealing the payment (3:10 to 4:10)
 
 [SCREEN] still in receiver (holder disclosure) or move to the receipt/disclosure area.
 
@@ -145,7 +145,7 @@ SUBTITLE:
 
 ---
 
-## 4. Regulator app — verifying on-chain (4:10 – 5:00)
+## 4. Regulator app, verifying on-chain (4:10 to 5:00)
 
 [SCREEN] open /regulator.
 
@@ -184,7 +184,7 @@ SUBTITLE:
 
 ---
 
-## 5. Operator app — running the corridor (5:00 – 5:40)
+## 5. Operator app, running the corridor (5:00 to 5:40)
 
 [SCREEN] open /operator.
 
@@ -213,7 +213,7 @@ SUBTITLE:
 
 ---
 
-## 6. Close (5:40 – 6:00)
+## 6. Close (5:40 to 6:00)
 
 [SCREEN] back to landing or a summary.
 
@@ -222,6 +222,41 @@ SUBTITLE:
 - "the transfer in between is private, and every step is provable to a regulator on-chain."
 - "Seven circuits, eight contracts, all live on testnet today."
 - "Private in the middle, accountable at the edges."
+
+---
+
+## SHORT CUT (80 to 90 second live-pitch script, matches `scripts/demo-video-out/tukar-shortcut.mp4`)
+
+The tight cut used in the 3-minute live pitch (deck plus demo). These are the exact
+on-screen captions, in order. Read them as the voiceover to stay in sync. About 85s total.
+Everything shown is real: a real testnet key, a real on-chain deposit, a real Reflector
+quote, and a real on-chain verify with a tamper rejected.
+
+Sender:
+- "This is Tukar. Send money home privately, on Stellar. One tap connects a real testnet key."
+- "Enter 500 dollars to Mexico. The amount is capped, and it stays hidden on-chain."
+- "Hit send. The compliance proof builds right on your phone. It shows you're allow-listed and not sanctioned."
+- "Proving privately on the device, then a real on-chain deposit into the shielded pool." (held over the real proving and tx wait)
+- "The deposit lands on-chain, and out comes a bearer claim note."
+
+Receiver:
+- "Back home, the family pastes the note. The Merkle tree rebuilds from the chain."
+- "Now cash out to local fiat. A live Reflector FX quote, read on-chain."
+- "It's the median of five sources, with the spot rate beside it, and a min-receive gate that fails closed."
+
+Disclosure:
+- "Here's the compliant part. Prove one fact, here a range, and nothing else."
+- "The proof is generated in the browser, then you export a receipt for the auditor."
+
+Regulator (climax):
+- "The regulator verifies it twice. Once in the browser, once on Stellar's live contract."
+- "A real receipt passes. It's valid, and bound to an actual on-chain deposit."
+- "Now a forged one. Change a single number."
+- "The verifier rejects it. Invalid, and not bound. You can't fake your way past it."
+
+Operator and close:
+- "The operator console. Pool health, the live FX oracle, and every contract by ID."
+- "Private in the middle, accountable at the edges. Live on Stellar testnet today."
 
 ---
 
