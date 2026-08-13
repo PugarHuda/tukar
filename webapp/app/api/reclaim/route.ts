@@ -4,12 +4,13 @@ import { ReclaimProofRequest } from "@reclaimprotocol/js-sdk";
 // Server route: mints a Reclaim proof-of-personhood request. Reads creds from env only.
 export const dynamic = "force-dynamic";
 
-// Reclaim provider id for the proof we want. Change this to the provider you enable in
-// the Reclaim dashboard (e.g. a gov-ID / uniqueness "proof-of-personhood" provider).
-// ponytail: placeholder constant, swap for your real provider id or pass one in the body.
-const DEFAULT_PROVIDER_ID = "REPLACE_WITH_RECLAIM_PROVIDER_ID";
+// Provider id is server-controlled (env var, or this placeholder constant to swap for your
+// enabled provider). It is deliberately NOT read from the request body, so a caller cannot
+// point our app credentials at an arbitrary Reclaim provider.
+// ponytail: swap the constant for your real provider id, or set RECLAIM_PROVIDER_ID.
+const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID || "REPLACE_WITH_RECLAIM_PROVIDER_ID";
 
-export async function POST(req: Request) {
+export async function POST() {
   const appId = process.env.RECLAIM_APP_ID;
   const appSecret = process.env.RECLAIM_APP_SECRET;
 
@@ -19,17 +20,16 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const providerId: string = body?.providerId || DEFAULT_PROVIDER_ID;
-
-    const proofRequest = await ReclaimProofRequest.init(appId, appSecret, providerId);
+    const proofRequest = await ReclaimProofRequest.init(appId, appSecret, PROVIDER_ID);
     const requestUrl = await proofRequest.getRequestUrl();
     const statusUrl = proofRequest.getStatusUrl();
-
     return NextResponse.json({ configured: true, requestUrl, statusUrl });
   } catch (err) {
+    // Log the real error server-side only; never return it to the client, since an SDK error
+    // that ran with the app secret can carry sensitive detail. The client gets a generic message.
+    console.error("[reclaim] init failed:", err);
     return NextResponse.json(
-      { configured: true, error: err instanceof Error ? err.message : "Failed to create Reclaim request" },
+      { configured: true, error: "Could not create the Reclaim request. Please try again." },
       { status: 500 },
     );
   }
