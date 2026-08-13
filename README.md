@@ -274,7 +274,10 @@ Tukar is deployed and running, not a prototype in a branch.
 
 **Still needed for full Level 4 (real data the team must provide, not fabricated):** at least 10
 real users onboarded with proof of their wallet interactions, and a short user-feedback summary.
-Tukar is a testnet build; real users and their feedback are the honest next step.
+Tukar is a testnet build; real users and their feedback are the honest next step. See
+[`docs/ONBOARDING.md`](docs/ONBOARDING.md) for the Google Form spec, the export-to-README
+process, the proof-of-wallet-interactions method (stellar.expert), and the improvement-plan
+template. The exported responses sheet gets linked here once real testers are collected.
 
 ### Screenshots
 
