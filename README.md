@@ -276,6 +276,19 @@ Tukar is deployed and running, not a prototype in a branch.
 real users onboarded with proof of their wallet interactions, and a short user-feedback summary.
 Tukar is a testnet build; real users and their feedback are the honest next step.
 
+### Screenshots
+
+| Sender (mobile, 390px) | Receiver (mobile, 390px) |
+|---|---|
+| ![Sender, mobile](docs/screenshots/02-sender-mobile.png) | ![Receiver, mobile](docs/screenshots/03-receiver-mobile.png) |
+
+| Operator console (desktop) | Regulator console (desktop) |
+|---|---|
+| ![Operator console](docs/screenshots/04-operator-desktop.png) | ![Regulator console](docs/screenshots/05-regulator-desktop.png) |
+
+Mobile-first Sender and Receiver at 390px, desktop Operator and Regulator consoles. Web
+Analytics and Core Web Vitals appear in the project's Vercel dashboard once traffic arrives.
+
 ## Features and how they work
 
 A quick map of what's in the box and the mechanism behind each. The deep dives follow in the
