@@ -31,6 +31,11 @@ const nextConfig = {
       { source: "/demo/:path*", destination: "/", permanent: true },
     ];
   },
+  async rewrites() {
+    // The static host used cleanUrls to serve public/deck.html at /deck. Next server mode
+    // has no cleanUrls, so serve the deck at its clean URL explicitly (keeps /deck working).
+    return [{ source: "/deck", destination: "/deck.html" }];
+  },
   webpack: (config, { isServer }) => {
     // snarkjs + circomlibjs reference Node builtins that don't exist in the browser.
     // Dynamic-imported client-side, so stub them out for the browser bundle.
