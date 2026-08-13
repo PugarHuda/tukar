@@ -109,6 +109,34 @@ Sources: [World Bank, Migration and Development Brief 39 (Dec 2023)](https://www
 for remittance volume; [World Bank Remittance Prices Worldwide](https://remittanceprices.worldbank.org/)
 for the average cost of sending $200.
 
+### What's next (roadmap, not yet built)
+
+Everything above (7 circuits, 8 contracts, 52 tests, the live corridor, in-circuit
+compliance, four selective-disclosure types, and the oracle gate) runs on testnet today.
+The compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along
+five lines that are **planned, not implemented**:
+
+1. **A compliance-and-privacy layer for anchors, not another app.** Position Tukar as the
+   private, compliant settlement layer a licensed Stellar anchor (e.g. Yellow Card, Cash
+   Abroad, both live anchors) plugs into, with a compliance policy configurable per corridor
+   and jurisdiction. B2B2C infrastructure, so rival privacy apps become integrators rather
+   than competitors.
+2. **FATF Travel Rule.** Map selective disclosure to VASP-to-VASP Travel Rule payloads so two
+   anchors exchange the required originator and beneficiary data without leaking the public
+   payment graph, the compliance step real remittance must meet and that no privacy pool
+   addresses.
+3. **Reusable KYC by composing idOS and Reclaim.** Rather than build KYC, populate the ASP
+   allow-list from [idOS](https://idos.network) (reusable KYC, live on Stellar) and
+   [Reclaim](https://reclaimprotocol.org) (zkTLS proof-of-personhood, live on Stellar). This
+   answers "who does the KYC and curates the allow-list" by reusing existing rails.
+4. **Cross-chain inbound via Circle CCTP** (live on Stellar, 23+ chains). Send privately into
+   the corridor from any supported chain.
+5. **Recurring / scheduled private remittances.** Send money home automatically each month, a
+   consumer feature layered on top of the corridor.
+
+None of these five is implemented yet. They are the path from the working testnet build to a
+production, multi-anchor corridor.
+
 ---
 
 ![Tukar architecture](docs/architecture.svg)

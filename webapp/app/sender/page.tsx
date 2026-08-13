@@ -26,6 +26,7 @@ import {
 } from "@/lib/stellar";
 import { newNote, usdcToStroops, encodeBearerNote, decodePaymentRequest, getPoseidon, makeTree, short, type Note, type Tree } from "@/lib/zk";
 import { qrSvgString } from "@/components/sender/qr";
+import { SavingsNote } from "@/components/SavingsNote";
 
 // The 10 corridors — codes/currencies match app.js CORRIDORS (the receiver keys off `corridor`
 // in the bearer note, so codes must line up). `oracle` = the symbol Reflector's on-chain SEP-40
@@ -568,6 +569,8 @@ function ComposeScreen(props: {
           </div>
           <div className="text-2xl font-black tracking-[-0.02em] text-green-t">{receive > 0 ? fmtLocal(receive, corridor) : "—"}</div>
         </div>
+
+        <SavingsNote usdc={Number(amount)} className="mt-4" />
       </Card>
 
       {request ? (

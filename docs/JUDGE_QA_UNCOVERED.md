@@ -35,7 +35,11 @@ problem, and it's a reason to partner with a compliance vendor rather than roll 
 The licensed anchors at the edges do the KYC and Travel Rule, that is their existing job. We
 give them the private settlement plus the compliance proof and selective disclosure so they
 can meet their obligations without the public ledger leaking every customer. We are the rail,
-not the KYC layer.
+not the KYC layer. The deepening, and this is roadmap, not built, is to map selective
+disclosure directly to FATF Travel Rule payloads so two anchors exchange the required
+originator and beneficiary data VASP-to-VASP without leaking the public payment graph, and
+to populate the ASP allow-list by composing idOS (reusable KYC, live on Stellar) and Reclaim
+(zkTLS proof-of-personhood, live on Stellar) rather than us re-doing KYC ourselves.
 
 **6. If a court orders you to reveal a specific user's transactions, can you?**
 Two layers. The licensed anchor knows the KYC'd identity at the edge. And the regulator can
@@ -45,9 +49,12 @@ disclosure possible and provable, it does not replace a subpoena.
 
 **7. Who curates the allow-list, and what stops it becoming a censorship tool?**
 A licensed compliance operator curates it, and yes, that is a deliberate gatekeeping point,
-it is exactly what separates us from a permissionless mixer. Governance of that list is a
-real production question, and it is the kind of thing an anchor partner and a regulator would
-sign off on, not us alone.
+it is exactly what separates us from a permissionless mixer. Rather than build KYC ourselves,
+the roadmap composes reusable-KYC rails already live on Stellar, idOS (reusable KYC) and
+Reclaim (zkTLS proof-of-personhood), to populate the allow-list, so membership traces back to
+existing verified credentials, not a list we invent. That composition is not built yet.
+Governance of the list is a real production question, and it is the kind of thing an anchor
+partner and a regulator would sign off on, not us alone.
 
 ## Security and keys
 
@@ -102,11 +109,18 @@ the app and surface the set size so no one is misled.
 Your call to name it, the logic is a high-volume, high-cost lane where a licensed anchor
 already operates, so the fee pain is largest and the fiat edges already exist.
 
-**17. What stops the anchor from cutting you out and building this themselves?**
+**17. What stops the anchor from cutting you out and building this themselves? And how are you different from the other privacy pools (Wraith, AnchorShield, Moonlight)?**
 The moat is the compliance-and-privacy stack, seven circuits, four disclosure types, the
-audit registry, which is a year of work, not an anchor product team's afternoon. And we are
-the neutral rail across many anchors, so no single one owns it. It is a real risk we answer
-by moving fast and staying multi-anchor.
+audit registry, which is a year of work, not an anchor product team's afternoon. And we
+position Tukar as the neutral compliant settlement layer that anchors plug into, one policy
+per corridor, across many anchors, so no single one owns it and rival privacy apps become
+integrators rather than competitors. On the crowded field: Wraith and AnchorShield won at
+this hackathon and Moonlight is a live SCF-funded confidential-transactions project, all on
+the compliant-privacy-pool idea, so we differentiate on being a remittance corridor with real
+fiat edges, an oracle-gated off-ramp, and the anchor-layer packaging, plus a roadmap that
+maps disclosure to the FATF Travel Rule and composes idOS and Reclaim for reusable KYC, none
+of which a generic pool touches. It is a real risk we answer by moving fast and staying
+multi-anchor.
 
 **18. Is there a token?**
 No. Revenue is fees on settlement. No token keeps it simple and avoids a whole layer of

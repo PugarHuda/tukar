@@ -55,6 +55,7 @@ import {
   type AuditReceipt,
 } from "@/lib/zk";
 import { CORRIDORS, corridorByCode, fmtLocal, fmtAge, type ClaimedNote, type FxRate } from "./corridors";
+import { SavingsNote } from "@/components/SavingsNote";
 
 type DiscMode = "exact" | "threshold" | "range" | "aggregate";
 
@@ -957,6 +958,8 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
           </div>
         )}
       </div>
+
+      <SavingsNote usdc={usdc} className="mt-4" />
 
       <div className="mt-4 border-t border-line pt-4">
         {note.withdrawing ? (

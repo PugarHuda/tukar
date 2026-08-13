@@ -206,6 +206,22 @@ function PoolHealthSection() {
         />
       </div>
 
+      {health && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-tile border border-line bg-black/20 px-4 py-3 text-[12.5px] leading-relaxed text-tm">
+          <span aria-hidden className="text-green-t">◈</span>
+          <span>
+            <b className="text-tp">{fmtCount(health.commitments)}</b> notes committed,{" "}
+            <b className="text-tp">${fmtUsdc(health.balance)}</b> USDC in custody, publicly verifiable on-chain.
+          </span>
+          <a href={explorer(POOL)} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-orange-l3 hover:text-orange">
+            Pool {short(POOL)} ↗
+          </a>
+          <span className="w-full font-mono text-[10.5px] text-tf">
+            Real testnet USDC held by the pool and the on-chain commitment count, both read live. This is transparency you can check on the ledger, not a cryptographic proof-of-reserves protocol.
+          </span>
+        </div>
+      )}
+
       <SubHead title="Deployed contract inventory" sub="7 BN254 verifiers · pool · oracle · token" />
       <TableWrap>
         <thead>
