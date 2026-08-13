@@ -114,17 +114,25 @@ for the average cost of sending $200.
 Everything above (7 circuits, 8 contracts, 52 tests, the live corridor, in-circuit
 compliance, four selective-disclosure types, and the oracle gate) runs on testnet today.
 The compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along
-five lines that are **planned, not implemented**:
+five lines. Some already ship as **reference demos or illustrative models** in the consoles
+(the Travel Rule reference tab, compliance-policy-as-code, the custody reserves view, flagged
+inline below); the **load-bearing production pieces** are **planned, not implemented**:
 
 1. **A compliance-and-privacy layer for anchors, not another app.** Position Tukar as the
    private, compliant settlement layer a licensed Stellar anchor (e.g. Yellow Card, Cash
    Abroad, both live anchors) plugs into, with a compliance policy configurable per corridor
-   and jurisdiction. B2B2C infrastructure, so rival privacy apps become integrators rather
+   and jurisdiction. The Operator console already demos this as **compliance-policy-as-code**
+   (EU / US / APAC presets, per-corridor policy YAML); the real enforced global policy today
+   is the ASP allow-root and deny-list, and **per-corridor on-chain enforcement is the
+   roadmap piece**. B2B2C infrastructure, so rival privacy apps become integrators rather
    than competitors.
-2. **FATF Travel Rule.** Map selective disclosure to VASP-to-VASP Travel Rule payloads so two
-   anchors exchange the required originator and beneficiary data without leaking the public
-   payment graph, the compliance step real remittance must meet and that no privacy pool
-   addresses.
+2. **FATF Travel Rule network.** The Regulator console already ships a **Travel Rule
+   (reference)** tab that maps a verified disclosure to an IVMS101 payload two anchors would
+   exchange (a reference data-mapping, PII held by the anchor's KYC, not Tukar). What's next
+   is wiring that to a **real VASP-to-VASP Travel Rule network** (TRISA / TRP / OpenVASP), so
+   two anchors exchange the required originator and beneficiary data without leaking the
+   public payment graph, the compliance step real remittance must meet and that no privacy
+   pool addresses.
 3. **Reusable KYC by composing idOS and Reclaim.** Rather than build KYC, populate the ASP
    allow-list from [idOS](https://idos.network) (reusable KYC, live on Stellar) and
    [Reclaim](https://reclaimprotocol.org) (zkTLS proof-of-personhood, live on Stellar). This
@@ -134,8 +142,10 @@ five lines that are **planned, not implemented**:
 5. **Recurring / scheduled private remittances.** Send money home automatically each month, a
    consumer feature layered on top of the corridor.
 
-None of these five is implemented yet. They are the path from the working testnet build to a
-production, multi-anchor corridor.
+The reference demos above show the shape of these; the **load-bearing production pieces** (a
+live Travel Rule network, per-corridor on-chain policy enforcement, cryptographic
+proof-of-reserves, live reusable-KYC, and cross-chain settlement) are not implemented yet.
+They are the path from the working testnet build to a production, multi-anchor corridor.
 
 ---
 
@@ -328,8 +338,21 @@ next two sections.
 - **Four apps.** Sender and Receiver are mobile-first consumer apps (send, claim, cash out);
   Regulator and Operator are desktop consoles (verify plus audit requests; pool health, ASP
   policy, oracle, and config).
+- **Compliance depth in the consoles.** The Regulator has a **Travel Rule (reference)** tab
+  that maps a verified disclosure to the IVMS101 payload two anchors would exchange, with a
+  Download `.json` button and PII shown as placeholders *(held by the anchor's KYC, not by
+  Tukar)*. It is a reference data-mapping, not a live Travel Rule network (TRISA / TRP /
+  OpenVASP is the roadmap target). The Operator has **compliance-policy-as-code** with
+  EU / US / APAC jurisdiction presets and a per-corridor editor that regenerates a policy
+  YAML, plus a **custody reserves** view over the real pool USDC balance and committed count.
+  Honest split: the ASP allow-root and deny-list are the **real enforced global policy**; the
+  per-corridor thresholds and disclosure are an **illustrative model**, not enforced
+  per-corridor on-chain (roadmap); the reserves view is **on-chain transparency**, not a
+  cryptographic proof-of-reserves (roadmap).
 - **Also.** The anonymity set is surfaced in the UI, gasless fee-bump (CAP-15) is a proven
-  primitive, and the corridor spans 10 destinations.
+  primitive, and the corridor spans 10 destinations. The Sender also previews Circle CCTP
+  inbound (badged roadmap, not wired) and a reusable-KYC note composing idOS and Reclaim
+  (also roadmap).
 
 ## What the ZK is doing (load-bearing)
 

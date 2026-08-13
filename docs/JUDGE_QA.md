@@ -1,4 +1,4 @@
-# Tukar, 21 judge questions with answers
+# Tukar, 22 judge questions with answers
 
 Prep for the 2-minute Q&A. Written as if a judge is pushing. Panel is two investors
 (Spartan Group, DWF Ventures), three technical (Stellar DevRel, Noether DEX founders,
@@ -8,8 +8,12 @@ Consumer Applications.
 
 Quick facts to lean on: 7 Circom/Groth16/BN254 circuits, 8 Soroban contracts live on
 testnet, 52 passing contract tests. Real testnet USDC. Fiat edges are simulated. Not
-audited yet. The anchor-layer, Travel Rule, and reusable-KYC framings below are roadmap,
-not built, and are labelled as such.
+audited yet. The consoles now demonstrate a Travel Rule reference tab (maps a verified
+disclosure to an IVMS101 payload two anchors would exchange, a reference data-mapping, not
+a live Travel Rule network), compliance-policy-as-code with jurisdiction presets, and an
+on-chain custody reserves view. The live Travel Rule network, per-corridor on-chain policy
+enforcement, cryptographic proof-of-reserves, the anchor-layer, and reusable-KYC framings
+below remain roadmap, not built, and are labelled as such.
 
 ---
 
@@ -24,11 +28,20 @@ rail, is already live on testnet. A wallet adding a mixer gets privacy with no a
 a regulator. Bolting our compliance layer on is the year of work, not the afternoon. And
 the framing is a layer, not an app: Tukar is the compliant settlement layer a licensed
 anchor plugs into, with a compliance policy configurable per corridor and jurisdiction,
-so rival privacy apps become integrators, not competitors. On the roadmap that layer maps
-selective disclosure to FATF Travel Rule data exchange between anchors, and composes idOS
-(reusable KYC) and Reclaim (zkTLS proof-of-personhood), both live on Stellar, to populate
-the allow-list rather than us re-building KYC. That roadmap is not built yet; what is live
-is the seven circuits, eight contracts, and the four-type disclosure stack.
+so rival privacy apps become integrators, not competitors. You can already see the layer
+taking shape in the consoles: the Operator has compliance-policy-as-code with EU, US, and
+APAC jurisdiction presets and a per-corridor editor that regenerates a policy YAML, plus a
+custody reserves view over the real pool balance, and the Regulator has a Travel Rule
+reference tab that maps a verified disclosure to the IVMS101 payload two anchors exchange.
+Honest split there: the ASP allow-root and deny-list are the real enforced global policy,
+while the per-corridor thresholds and disclosure rules are an illustrative model, the
+reserves view is on-chain transparency not a cryptographic proof-of-reserves, and the
+Travel Rule tab is a reference data-mapping, not a live Travel Rule network. On the roadmap
+that layer maps selective disclosure to FATF Travel Rule data exchange between anchors over
+a real network (TRISA, TRP, OpenVASP), and composes idOS (reusable KYC) and Reclaim (zkTLS
+proof-of-personhood), both live on Stellar, to populate the allow-list rather than us
+re-building KYC. Those network and per-corridor-enforcement pieces are not built yet; what
+is live is the seven circuits, eight contracts, and the four-type disclosure stack.
 
 **2. How do you make money?**
 Tukar is the private settlement leg between anchors, not another consumer app we have to
@@ -69,10 +82,14 @@ local fiat out across ten corridors, an oracle-gated off-ramp that reads Reflect
 and fails closed, four contract-verified selective-disclosure types (exact, threshold,
 aggregate, range), and an on-chain audit-request registry that enforces aggregate
 completeness. And we position it as the compliant settlement layer a licensed anchor plugs
-into, one policy per corridor, rather than a wallet feature. A generic confidential-transfer
-layer is a primitive Tukar could even compose with; the corridor, the fiat edges, the
-oracle gate, and the disclosure-plus-audit stack are the product. Honest note: both are
-early, and ours is testnet and not audited.
+into, one policy per corridor, rather than a wallet feature, and the consoles already show
+that depth: a Regulator Travel Rule reference tab, an Operator compliance-policy-as-code
+editor with jurisdiction presets, and a custody reserves view over the real pool balance.
+A generic confidential-transfer layer is a primitive Tukar could even compose with; the
+corridor, the fiat edges, the oracle gate, and the disclosure-plus-audit stack are the
+product. Honest note: both are early, ours is testnet and not audited, and those console
+pieces are a reference mapping and an illustrative policy model, not a live Travel Rule
+network or per-corridor on-chain enforcement.
 
 **7. Isn't this just Stellar Confidential Tokens with extra steps?**
 Confidential Tokens hide balances and amounts but keep the sender and recipient visible,
@@ -103,9 +120,13 @@ Three things. The fiat on and off ramps are simulated at the edges. The SEP flow
 integrated against SDF's reference anchor, but a production ramp needs a licensed KYC
 anchor, which is a business step. The trusted-setup ceremony is real but we ran the rounds
 on one machine to prove the process. And it is hardened on testnet but not professionally
-audited, so not for real money yet. The Travel Rule mapping, reusable-KYC composition, and
-cross-chain inbound are roadmap, not built. Everything in the middle, the proofs, the
-deposit, the verification, the oracle read, is real.
+audited, so not for real money yet. The Regulator Travel Rule tab is a reference
+data-mapping to an IVMS101 payload, not a live Travel Rule network (TRISA, TRP, OpenVASP is
+the roadmap target), the Operator per-corridor policy thresholds are an illustrative model
+not enforced per-corridor on-chain, and the reserves view is on-chain transparency, not a
+cryptographic proof-of-reserves. The reusable-KYC composition and cross-chain inbound are
+roadmap, not built. Everything in the middle, the proofs, the deposit, the verification,
+the oracle read, is real.
 
 **11. How do you prevent double-spending?**
 Each note reveals a nullifier when it is spent, and the pool contract rejects any nullifier
@@ -186,6 +207,22 @@ reusable KYC via idOS and Reclaim, and CCTP cross-chain inbound. With funding th
 moves are a professional audit, a genuinely distributed trusted-setup ceremony, and one
 licensed-anchor corridor live end to end, which is also the path to a Stellar Community Fund
 build award.
+
+**22. What have you actually built beyond a privacy pool?**
+More than the shielded transfer. Real on testnet: in-circuit ASP allow-plus-deny compliance
+pinned to the depositor's key, four contract-verified disclosure types, an on-chain
+audit-request registry that enforces aggregate completeness, and the oracle-gated off-ramp.
+Reference demos in the consoles: a Regulator Travel Rule tab that maps a verified disclosure
+to the IVMS101 payload two anchors exchange, with a Download .json button and PII shown as
+placeholders held by the anchor's KYC not by Tukar; an Operator compliance-policy-as-code
+editor with EU, US, and APAC jurisdiction presets that regenerates a per-corridor policy
+YAML; and a custody reserves view over the real pool USDC balance and committed count. The
+honest split: the ASP allow-root and deny-list are the real enforced global policy, but the
+per-corridor thresholds and disclosure rules are an illustrative model, not enforced
+per-corridor on-chain yet, and the reserves view is on-chain transparency, not a
+cryptographic proof-of-reserves. Roadmap, not built and shown as clearly badged previews:
+the live Travel Rule network (TRISA, TRP, OpenVASP), reusable KYC composing idOS and
+Reclaim, and Circle CCTP cross-chain inbound.
 
 ---
 
