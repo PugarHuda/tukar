@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Panel, Badge, StatusPill, Skeleton, useToast } from "@/components/ui";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
+import { CORRIDORS as RECEIVER_CORRIDORS } from "@/components/receiver/corridors";
 import {
   readPoolState,
   readCurrentRoot,
@@ -109,14 +110,14 @@ function TableWrap({ children }: { children: React.ReactNode }) {
 const TH = "px-3.5 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-tf";
 const TD = "px-3.5 py-2.5 border-t border-hair align-middle";
 
-function CopyBlock({ text }: { text: string }) {
+function CopyBlock({ text, copiedLabel = "CLI command copied" }: { text: string; copiedLabel?: string }) {
   const { toast } = useToast();
   const [done, setDone] = useState(false);
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); toast("CLI command copied", "success"); setTimeout(() => setDone(false), 1600); })}
+        onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); toast(copiedLabel, "success"); setTimeout(() => setDone(false), 1600); })}
         className={`absolute right-2 top-2 z-10 rounded-md border px-2 py-1 font-mono text-[10px] transition-colors ${done ? "border-green/40 text-green-t" : "border-line-input bg-white/[0.05] text-ts hover:border-orange/50 hover:text-tp"}`}
       >
         {done ? "copied ✓" : "copy"}
@@ -372,6 +373,117 @@ function AdminForms({ policy }: { policy: Policy | null }) {
   );
 }
 
+// DEMONSTRATED reference model — the per-corridor / per-jurisdiction policy an anchor would
+// configure. This is NOT enforced per-corridor on-chain today. The policy that IS enforced on
+// chain is the single global ASP allow-root + deny-list read live above (checked by the
+// compliance circuit on every deposit). The threshold and required-disclosure values below are
+// illustrative, chosen to show the shape of the config, not real regulatory figures. The
+// required-disclosure values map to Tukar's four disclosure circuits (exact / threshold / range
+// / aggregate) a regulator in that jurisdiction could demand.
+type Disclosure = "exact" | "threshold" | "range" | "aggregate";
+const CORRIDOR_POLICY: Record<string, { thresholdUsdc: number; disclosure: Disclosure }> = {
+  MX: { thresholdUsdc: 10000, disclosure: "threshold" },
+  BR: { thresholdUsdc: 10000, disclosure: "range" },
+  AR: { thresholdUsdc: 1000, disclosure: "exact" },
+  PH: { thresholdUsdc: 3000, disclosure: "threshold" },
+  ID: { thresholdUsdc: 5000, disclosure: "threshold" },
+  VN: { thresholdUsdc: 5000, disclosure: "range" },
+  TH: { thresholdUsdc: 3000, disclosure: "threshold" },
+  IN: { thresholdUsdc: 5000, disclosure: "aggregate" },
+  NG: { thresholdUsdc: 1000, disclosure: "exact" },
+  CO: { thresholdUsdc: 10000, disclosure: "range" },
+};
+const DISCLOSURE_NOTE: Record<Disclosure, string> = {
+  exact: "reveal the exact amount",
+  threshold: "prove amount ≤ threshold",
+  range: "prove a band lower ≤ amt ≤ upper",
+  aggregate: "prove Σ portfolio ≤ cap",
+};
+
+// Build the YAML-ish policy-as-code from the SAME model the table renders, so the snippet and
+// the table can never drift. `rootHex` is the live on-chain allow-root (real) when available.
+function policyAsCode(rootHex: string | null): string {
+  const rows = RECEIVER_CORRIDORS.map((c) => {
+    const p = CORRIDOR_POLICY[c.code];
+    if (!p) return null;
+    const pad = (c.code + ":").padEnd(5);
+    return `  ${pad}{ threshold_usdc: ${p.thresholdUsdc}, required_disclosure: ${p.disclosure} }  # ${c.country}`;
+  }).filter(Boolean);
+  return [
+    "# Compliance policy an anchor supplies. Two layers:",
+    "",
+    "# REAL — global, on-chain, enforced by the compliance circuit on every deposit:",
+    `asp_allow_root: ${rootHex ? "0x" + rootHex : "0x… (pool.asp_root)"}`,
+    "sanctions_deny_list: pool.deny_list()   # 8 non-membership field elements",
+    "",
+    "# REFERENCE MODEL — configured per anchor / per jurisdiction,",
+    "# NOT yet enforced per-corridor on-chain (roadmap):",
+    "corridors:",
+    ...rows,
+  ].join("\n");
+}
+
+const DISCLOSURE_TONE: Record<Disclosure, "green" | "amber" | "muted" | "orange"> = {
+  exact: "amber",
+  threshold: "green",
+  range: "muted",
+  aggregate: "orange",
+};
+
+function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
+  return (
+    <>
+      <SubHead title="Per-corridor policy model (reference)" sub="configured per anchor · not yet enforced per-corridor on-chain" />
+      <div className="mb-4 flex items-start gap-3 rounded-tile border border-line bg-black/20 p-4">
+        <span aria-hidden className="mt-0.5 text-tf">◇</span>
+        <p className="text-[12.5px] leading-relaxed text-tm">
+          <b className="text-ts">Reference model, not live enforcement.</b> The allow-root and deny-list above are global and enforced on-chain today. The per-corridor amount threshold and required disclosure below are the config shape a licensed anchor would supply per jurisdiction. Tukar is the compliance and privacy layer that would enforce them. The threshold and disclosure values are illustrative, not real regulatory figures.
+        </p>
+      </div>
+      <TableWrap>
+        <thead>
+          <tr>
+            <th className={TH}>Corridor</th>
+            <th className={TH}>Allowed source</th>
+            <th className={TH}>Sanctions screening</th>
+            <th className={TH}>Amount threshold</th>
+            <th className={TH}>Required disclosure</th>
+          </tr>
+        </thead>
+        <tbody>
+          {RECEIVER_CORRIDORS.map((c) => {
+            const p = CORRIDOR_POLICY[c.code];
+            if (!p) return null;
+            return (
+              <tr key={c.code}>
+                <td className={TD}>
+                  <b className="text-ts">{c.country}</b> <span className="font-mono text-[11px] text-tm">{c.code}</span>
+                </td>
+                <td className={TD}><Badge tone="green">ASP allow-root · global</Badge></td>
+                <td className={TD}><Badge tone="green">deny-list · global</Badge></td>
+                <td className={`${TD} font-mono text-ts`}>≤ {p.thresholdUsdc.toLocaleString("en-US")} <span className="text-tf">USDC</span></td>
+                <td className={TD}>
+                  <Badge tone={DISCLOSURE_TONE[p.disclosure]}>{p.disclosure}</Badge>
+                  <span className="ml-2 font-mono text-[10.5px] text-tf">{DISCLOSURE_NOTE[p.disclosure]}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableWrap>
+      <p className="mb-3 mt-2 font-mono text-[10.5px] text-tf">
+        Allowed source and sanctions screening are the real global on-chain policy (same allow-root + deny-list for every corridor). Amount threshold and required disclosure are the illustrative per-corridor reference model.
+      </p>
+
+      <SubHead title="Policy as code" sub="the config object an anchor supplies · copy" />
+      <p className="mb-3 text-[12.5px] leading-relaxed text-tm">
+        The same policy expressed as the config an anchor would hand the layer. The <code className="font-mono text-ts">asp_allow_root</code> and <code className="font-mono text-ts">sanctions_deny_list</code> lines are the real on-chain values. The <code className="font-mono text-ts">corridors</code> block is the reference model, not enforced per-corridor on-chain today.
+      </p>
+      <CopyBlock text={policyAsCode(rootHex)} copiedLabel="policy config copied" />
+    </>
+  );
+}
+
 function CompliancePolicySection() {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
@@ -432,6 +544,8 @@ function CompliancePolicySection() {
         These are admin-only writes. This browser holds only the non-admin demo key, so nothing is signed here. Each form builds the exact <code className="font-mono text-ts">stellar contract invoke</code> command for the operator key <span className="font-mono text-ts">{short(ADMIN)}</span> to run offline. No admin secret ever touches the page.
       </p>
       <AdminForms key={rootHex ?? status} policy={policy} />
+
+      <DemonstratedPolicy rootHex={rootHex} />
     </Panel>
   );
 }
