@@ -62,6 +62,22 @@ type SendResult = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MAX_USDC = 1_000_000_000; // same cap the send path enforces on-chain
+
+// A saved-on-this-device send plan. It is a reminder only — nothing here executes on-chain.
+type Frequency = "one-time" | "weekly" | "monthly";
+type Schedule = { id: string; amount: string; code: string; recipient: string; frequency: Exclude<Frequency, "one-time">; nextDate: string };
+const SCHEDULES_KEY = "tukar:schedules";
+// Next reminder date from now. Local-only; a real scheduler/relayer would own this on-chain.
+function computeNextDate(freq: Exclude<Frequency, "one-time">): string {
+  const d = new Date();
+  if (freq === "weekly") d.setDate(d.getDate() + 7);
+  else d.setMonth(d.getMonth() + 1);
+  return d.toISOString().slice(0, 10);
+}
+const fmtDate = (iso: string) => {
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
 const fmtRate = (r: number) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
 const fmtLocal = (v: number, c: Corridor) =>
   `${c.symbol}${v.toLocaleString("en-US", { maximumFractionDigits: v >= 1000 ? 0 : 2 })}`;
@@ -74,6 +90,9 @@ export default function SenderPage() {
   const [amount, setAmount] = useState("200");
   const [code, setCode] = useState("MX");
   const [recipient, setRecipient] = useState(CORRIDORS[0].recipient);
+  // Recurring/scheduled send — a saved plan (reminder) only, never auto-executes on-chain.
+  const [frequency, setFrequency] = useState<Frequency>("one-time");
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   // fulfilling a Receiver-issued payment request (tukreq1:) — amount + payee are locked
   const [reqInput, setReqInput] = useState("");
   const [request, setRequest] = useState<{ addr: string; label: string } | null>(null);
@@ -102,6 +121,41 @@ export default function SenderPage() {
   useEffect(() => () => { aliveRef.current = false; }, []);
   // The amount in the field before a payment request overwrote it, restored on Clear.
   const preReqAmount = useRef("200");
+
+  // Load saved plans from this device (SSR/static-export safe: only touched in an effect).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SCHEDULES_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) setSchedules(arr);
+      }
+    } catch {}
+  }, []);
+  function persistSchedules(next: Schedule[]) {
+    setSchedules(next);
+    try {
+      localStorage.setItem(SCHEDULES_KEY, JSON.stringify(next));
+    } catch {}
+  }
+  function saveSchedule() {
+    if (frequency === "one-time" || !(num > 0) || num > MAX_USDC) return;
+    const id = (globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
+    const plan: Schedule = { id, amount: amount.trim(), code, recipient, frequency, nextDate: computeNextDate(frequency) };
+    persistSchedules([plan, ...schedules]);
+    toast("Plan saved on this device", "success");
+  }
+  function removeSchedule(id: string) {
+    persistSchedules(schedules.filter((s) => s.id !== id));
+  }
+  function prefillSchedule(s: Schedule) {
+    setAmount(s.amount);
+    setCode(s.code);
+    setRecipient(s.recipient);
+    setFrequency(s.frequency);
+    if (request) clearRequest();
+    toast("Plan loaded. Review and send it yourself.", "success");
+  }
 
   const corridor = CORRIDORS.find((c) => c.code === code) || CORRIDORS[0];
   const effRate = fx[code]?.rate ?? corridor.rate;
@@ -427,6 +481,12 @@ export default function SenderPage() {
             }}
             recipient={recipient}
             setRecipient={setRecipient}
+            frequency={frequency}
+            setFrequency={setFrequency}
+            schedules={schedules}
+            onSaveSchedule={saveSchedule}
+            onRemoveSchedule={removeSchedule}
+            onPrefillSchedule={prefillSchedule}
             corridor={corridor}
             fxSource={fx[code]?.source}
             effRate={effRate}
@@ -495,6 +555,12 @@ function ComposeScreen(props: {
   onCorridorChange: (v: string) => void;
   recipient: string;
   setRecipient: (v: string) => void;
+  frequency: Frequency;
+  setFrequency: (v: Frequency) => void;
+  schedules: Schedule[];
+  onSaveSchedule: () => void;
+  onRemoveSchedule: (id: string) => void;
+  onPrefillSchedule: (s: Schedule) => void;
   corridor: Corridor;
   fxSource?: "reflector" | "fx-api";
   effRate: number;
@@ -511,7 +577,7 @@ function ComposeScreen(props: {
   continueHint: string;
   onContinue: () => void;
 }) {
-  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
+  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, onSaveSchedule, onRemoveSchedule, onPrefillSchedule, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
   const locked = !!request;
   const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "at the edge";
   return (
@@ -558,6 +624,11 @@ function ComposeScreen(props: {
             ))}
           </Select>
           <Input label="Recipient" id="recipient" maxLength={24} value={recipient} onChange={(e) => setRecipient(e.target.value)} readOnly={locked} aria-label="Recipient name" />
+          <Select label="Repeat" id="frequency" value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)}>
+            <option value="one-time">One time</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </Select>
         </div>
 
         <div className="mt-4 flex items-end justify-between rounded-tile border border-line bg-black/20 p-3.5">
@@ -572,6 +643,61 @@ function ComposeScreen(props: {
 
         <SavingsNote usdc={Number(amount)} className="mt-4" />
       </Card>
+
+      {frequency !== "one-time" && (
+        <div className="mt-4 rounded-tile border border-orange/40 bg-orange/5 p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="font-mono text-[10px] tracking-[0.12em] text-orange uppercase">Schedule a {frequency} send</div>
+            <Badge tone="amber">PREVIEW</Badge>
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-tm">
+            Preview. Your plan is saved on this device as a reminder. Automatic on-chain execution needs a scheduler or relayer and is on the roadmap. Tap a saved plan to pre-fill and send it yourself.
+          </p>
+          <Button variant="reveal" full className="mt-3" disabled={!canContinue} onClick={onSaveSchedule}>
+            Save {frequency} plan for {recipient || "recipient"}
+          </Button>
+        </div>
+      )}
+
+      {schedules.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Scheduled sends</div>
+            <span className="font-mono text-[10px] text-tf">saved on this device</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {schedules.map((s) => {
+              const sc = CORRIDORS.find((c) => c.code === s.code);
+              return (
+                <div key={s.id} className="flex items-center gap-3 rounded-tile border border-line bg-black/20 p-3">
+                  <button
+                    onClick={() => onPrefillSchedule(s)}
+                    className="min-w-0 flex-1 text-left"
+                    title="Tap to pre-fill this plan. It does not send automatically."
+                  >
+                    <div className="truncate text-sm font-semibold text-tp">
+                      ${s.amount} USDC · {sc ? sc.country : s.code}
+                    </div>
+                    <div className="mt-0.5 truncate font-mono text-[11px] text-tf">
+                      {s.frequency} · to {s.recipient || "recipient"} · next {fmtDate(s.nextDate)}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => onRemoveSchedule(s.id)}
+                    aria-label="Remove scheduled plan"
+                    className="shrink-0 rounded-md border border-line-input px-2 py-1 font-mono text-[11px] text-tm transition-colors hover:border-red/50 hover:text-red-t"
+                  >
+                    Remove
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 font-mono text-[11px] leading-relaxed text-tf">
+            Reminders only. Tap a plan to pre-fill the form, then send it yourself. No money moves automatically.
+          </p>
+        </div>
+      )}
 
       {request ? (
         <div className="mt-4 rounded-tile border border-orange/40 bg-orange/5 p-3.5">

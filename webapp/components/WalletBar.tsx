@@ -42,6 +42,35 @@ export function WalletBar() {
       <span className="w-full text-right text-[11px] leading-snug text-tf">
         Testing with others? Connect Freighter for your own key (the built-in testnet key is shared).
       </span>
+      <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
+        <summary className="cursor-pointer list-none text-tm hover:text-orange">
+          Reusable KYC <span className="text-tf">(roadmap)</span>
+        </summary>
+        <p className="mt-1 text-left leading-relaxed">
+          <b className="text-orange">Roadmap, not wired yet.</b> Onboarding will verify identity once
+          through{" "}
+          <a
+            href="https://idos.network"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-tm underline hover:text-orange"
+          >
+            idOS
+          </a>{" "}
+          (reusable KYC, live on Stellar) and{" "}
+          <a
+            href="https://reclaimprotocol.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-tm underline hover:text-orange"
+          >
+            Reclaim
+          </a>{" "}
+          (zkTLS proof-of-personhood, live on Stellar). That result populates the ASP allow-list, so a
+          user proves compliance once and reuses it across corridors, and Tukar never holds KYC data
+          itself.
+        </p>
+      </details>
     </div>
   );
 }

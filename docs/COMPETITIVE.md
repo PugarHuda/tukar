@@ -43,6 +43,76 @@ edges**. Vs the **consumer wallets**, Tukar's edge is adding **privacy + complia
 to cross-border money. We do not claim to know any rival's internals beyond what is
 public, and these descriptions may lag their latest releases.
 
+## Concept-siblings at the same hackathon (Stellar Hacks: Real-World ZK)
+
+Tukar placed **5th** at Stellar Hacks: Real-World ZK. Being honest about that event
+matters, because the "compliant privacy pool" theme was crowded there. Several projects
+shipped the same core idea (a shielded pool plus a compliance gate). We list them with
+public one-liners only and do not claim to know their internals.
+
+| Project | Public one-liner |
+|---|---|
+| **Wraith** | "ZK Privacy on Stellar". Placed 1st ($5k). |
+| **AnchorShield** | Proves KYC, sanctions-clearance, and eligibility without doxxing the user. Placed 2nd ($2k). |
+| **Veil** | "Compliant private payments; mixers get sanctioned, Veil breaks the trade-off". |
+| **Shroud** | Compliant privacy pool with an Association Set Provider (ASP) gateway. |
+| **EclipsePrivacy** | Compliant USDC privacy pool, Groth16/BN254. |
+| **Compliant Privacy Pool** | Private stablecoin transfers tied to a live allow-list. |
+| **Zebra / ZeroWage** | Compliant ZK payroll. |
+
+**Honest takeaway.** The core "privacy pool plus compliance" idea is **not unique**, and
+we should stop positioning on it as if it were. Tukar's real differentiation is the parts
+these siblings do not build: the full **remittance corridor** (real fiat edges via SEP
+anchors, an oracle-gated off-ramp to local currency, four contract-verified disclosure
+types, and an on-chain audit registry), plus the **anchor-layer positioning** (Tukar as
+the layer a licensed anchor plugs into), a concrete **Travel Rule** reference, and
+**compliance-policy-as-code**. Everything above the pool is the moat, not the pool.
+
+## Mature live rivals in the Stellar directory (SCF-funded, Live)
+
+These are past the hackathon stage. They are shipped, funded products, so they are a
+sterner comparison than a weekend build.
+
+| Project | What it is (public) | Where Tukar differs |
+|---|---|---|
+| **Moonlight** | Non-custodial privacy on Stellar using ZK proofs while preserving compliance. **The closest mature rival.** | Moonlight is a **generic confidential-transactions layer**. Tukar is a **remittance corridor with fiat edges and disclosure depth**, positioned as the layer anchors plug into, not a general privacy primitive. Same tier, different product (see also the neighbours table above). |
+| **Zarf** | Non-custodial privacy-preserving token distribution (email payments, vesting). | Zarf's job is private distribution/payouts. Tukar's job is **cross-border remittance** with fiat-in/fiat-out to local currency and a regulator-verifiable disclosure layer. Different edges, different user. |
+
+## The remittance market Tukar enters (Stellar players without privacy)
+
+These are the incumbents on the remittance side. None of them, on public material, ship
+an on-chain privacy plus compliance layer, which is exactly the wedge Tukar adds on top of
+the same corridors.
+
+Felix Pago, Decaf, Chipper, Afriex, ScopeX, RemittEase, PeerPesa, DomiPago, SendIN.
+
+Tukar's angle versus all of them is the **privacy + provable-compliance layer**, not a
+cheaper or faster corridor. They move money; Tukar hides the payment graph while keeping a
+single fact regulator-verifiable on chain.
+
+## Potential partners, not rivals (licensed anchors)
+
+The anchor-layer positioning only works if a **licensed** anchor sits at the fiat edge.
+These are candidates Tukar's roadmap plugs into rather than competes with.
+
+- **Yellow Card** — licensed stablecoin on/off-ramp across roughly 20 African countries.
+- **Cash Abroad** — LATAM cross-border anchor.
+
+Framing for judges: Tukar is the privacy + compliance layer; a licensed anchor is the
+regulated fiat edge. The two compose.
+
+## Composable building blocks (integrate, don't rebuild)
+
+Consistent with the "we reuse, we don't reinvent" line below, here is the concrete
+compose-not-rebuild stack.
+
+| Block | What it gives Tukar | Status |
+|---|---|---|
+| **Reflector SEP-40 oracle** | On-chain FX read that gates off-ramp settlement | **Live** (already used) |
+| **idOS** | Reusable, portable KYC | Roadmap |
+| **Reclaim** | zkTLS proof-of-personhood | Roadmap |
+| **Circle CCTP** | Cross-chain USDC | Roadmap |
+
 ## What the judges verified (the load-bearing facts)
 
 These are checkable in this repo, not claims: **7** Circom/Groth16/BN254 circuits
