@@ -838,6 +838,51 @@ function disclosedFigure(res: ReceiptVerification, r: AuditReceipt): string {
   }
 }
 
+// An IVMS101 naturalPerson block. Every identity field is the anchor-held placeholder — Tukar
+// never sees a real person, so nothing here is ever fabricated. Only the shape follows the spec.
+function placeholderNaturalPerson() {
+  return {
+    name: {
+      nameIdentifier: [
+        { primaryIdentifier: ANCHOR_PII, secondaryIdentifier: ANCHOR_PII, nameIdentifierType: "LEGL" },
+      ],
+    },
+    geographicAddress: [
+      {
+        addressType: "HOME",
+        streetName: ANCHOR_PII,
+        buildingNumber: ANCHOR_PII,
+        postCode: ANCHOR_PII,
+        townName: ANCHOR_PII,
+        country: ANCHOR_PII,
+      },
+    ],
+    nationalIdentification: {
+      nationalIdentifier: ANCHOR_PII,
+      nationalIdentifierType: ANCHOR_PII,
+      countryOfIssue: ANCHOR_PII,
+    },
+    customerIdentification: ANCHOR_PII,
+    dateAndPlaceOfBirth: {
+      dateOfBirth: ANCHOR_PII,
+      placeOfBirth: ANCHOR_PII,
+    },
+  };
+}
+
+// An IVMS101 legalPerson block for a VASP. The role and geographic scope are real (they follow
+// from the corridor and the sending/receiving side); the registered name is a descriptive
+// placeholder because the specific licensed anchor is chosen at production integration time.
+function vaspLegalPerson(name: string, country: string) {
+  return {
+    name: {
+      nameIdentifier: [{ legalPersonName: name, legalPersonNameIdentifierType: "LEGL" }],
+    },
+    countryOfRegistration: country,
+    customerNumber: ANCHOR_PII,
+  };
+}
+
 function buildTravelRulePayload(opts: {
   amount: string;
   reference: string;
@@ -851,39 +896,34 @@ function buildTravelRulePayload(opts: {
     _note: exampleOnly
       ? "REFERENCE / EXAMPLE, no receipt loaded. Verify a disclosure to drive this from a real disclosed figure."
       : "REFERENCE mapping, derived from a verified Tukar disclosure receipt. Tukar holds no PII.",
-    originatingVASP: {
-      role: "Sending anchor (VASP)",
-      description: "Licensed anchor that on-ramped the originator and holds their KYC identity.",
-    },
-    beneficiaryVASP: {
-      role: "Receiving anchor (VASP)",
-      description: `Licensed anchor in ${corridor.country} that off-ramps to ${corridor.currency} and holds the beneficiary's KYC identity.`,
-    },
+    _spec: "IVMS101-shaped data-mapping reference. Not exchanged on a live Travel Rule network (see TRISA / TRP / OpenVASP note).",
     originator: {
-      naturalPerson: {
-        name: ANCHOR_PII,
-        geographicAddress: ANCHOR_PII,
-        nationalIdentification: ANCHOR_PII,
-        customerIdentificationNumber: ANCHOR_PII,
-      },
+      // real: role and side; placeholder: the natural person, held by the anchor's KYC.
+      naturalPerson: placeholderNaturalPerson(),
       accountNumber: ANCHOR_PII,
     },
     beneficiary: {
-      naturalPerson: {
-        name: ANCHOR_PII,
-        geographicAddress: ANCHOR_PII,
-        nationalIdentification: ANCHOR_PII,
-      },
+      naturalPerson: placeholderNaturalPerson(),
       accountNumber: ANCHOR_PII,
+    },
+    originatingVASP: {
+      // real: this is the sending side of the corridor (United States on-ramp anchor).
+      role: "Sending anchor (VASP) — on-ramped the originator, holds their KYC identity",
+      legalPerson: vaspLegalPerson("Sending anchor (licensed USD on-ramp VASP)", "US"),
+    },
+    beneficiaryVASP: {
+      // real: this is the receiving side, fixed by the selected corridor.
+      role: `Receiving anchor (VASP) in ${corridor.country} — off-ramps to ${corridor.currency}, holds the beneficiary's KYC identity`,
+      legalPerson: vaspLegalPerson(`Receiving anchor (licensed ${corridor.currency} off-ramp VASP)`, corridor.code),
     },
     transaction: {
       amount, // real: the disclosed figure from the verified receipt
-      asset: "USDC",
-      settlementLayer: "Stellar",
+      currency: "USDC",
+      network: "Stellar",
+      settlementNetworkPassphrase: network,
       corridor: `United States to ${corridor.country} (${corridor.currency})`,
       transactionReference: reference, // real: the on-chain commitment the disclosure proves against
       onChainAnchorTx: anchorTx || "(receipt not anchored on-chain)",
-      network,
     },
   };
 }
@@ -907,6 +947,18 @@ function TravelRuleTab({
 
   const payload = buildTravelRulePayload({ amount, reference, anchorTx, corridor, network, exampleOnly });
   const json = JSON.stringify(payload, null, 2);
+
+  // Client-side blob download of the exact payload shown. Guarded for the browser (SSR-safe).
+  const downloadJson = () => {
+    if (typeof window === "undefined" || !window.URL?.createObjectURL) return;
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tukar-ivms101-${corridor.code}-${exampleOnly ? "example" : "receipt"}-${Date.now()}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("IVMS101 payload downloaded", "success");
+  };
 
   return (
     <>
@@ -965,14 +1017,19 @@ function TravelRuleTab({
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">IVMS101-shaped Travel Rule payload</div>
-          <Button
-            variant="subtle"
-            onClick={() => {
-              if (navigator.clipboard) navigator.clipboard.writeText(json).then(() => toast("Payload copied", "success")).catch(() => {});
-            }}
-          >
-            Copy payload
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="subtle" onClick={downloadJson}>
+              Download IVMS101 payload (.json)
+            </Button>
+            <Button
+              variant="subtle"
+              onClick={() => {
+                if (navigator.clipboard) navigator.clipboard.writeText(json).then(() => toast("Payload copied", "success")).catch(() => {});
+              }}
+            >
+              Copy payload
+            </Button>
+          </div>
         </div>
         <pre className="mt-2 overflow-x-auto rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[11.5px] leading-relaxed text-tp">
           {json}
@@ -987,6 +1044,7 @@ function TravelRuleTab({
               <li>Corridor and destination currency</li>
               <li>Transaction reference (on-chain commitment)</li>
               <li>On-chain anchor tx, when the receipt is anchored</li>
+              <li>The two VASP roles (sending and receiving side of the corridor)</li>
             </ul>
           </div>
           <div className="rounded-tile border border-amber/30 bg-amber/[0.04] p-4 text-[12.5px] leading-relaxed">
@@ -999,6 +1057,18 @@ function TravelRuleTab({
             </ul>
             <p className="mt-2 text-tm">Tukar never sees these. The licensed anchors run KYC and exchange them out of band.</p>
           </div>
+        </div>
+
+        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4 text-[12.5px] leading-relaxed text-ts">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Where this payload is actually exchanged</div>
+          <p className="mt-2">
+            In production a payload of this shape moves between the sending and receiving VASP over a real Travel Rule messaging
+            protocol. The established networks are{" "}
+            <b className="text-ts">TRISA</b> (Travel Rule Information Sharing Architecture),{" "}
+            <b className="text-ts">TRP</b> (the Travel Rule Protocol), and <b className="text-ts">OpenVASP</b>. Wiring Tukar's
+            selective disclosure to one of these networks is the roadmap. This panel is the data-mapping reference that shows how a
+            Tukar disclosure lines up with the IVMS101 fields those protocols carry; it does not itself send anything.
+          </p>
         </div>
       </CardBox>
     </>

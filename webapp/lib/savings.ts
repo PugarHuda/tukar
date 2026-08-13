@@ -19,6 +19,8 @@ export type Savings = {
   fee: number; // traditional fee in USD
   feeText: string; // formatted fee, e.g. "$31"
   amountText: string; // formatted amount, e.g. "$500"
+  feeAnnual: number; // traditional fee x 12 (a monthly send, one year)
+  feeAnnualText: string; // formatted annual fee, e.g. "$372"
   sentence: string; // one-line honest comparison
 };
 
@@ -29,12 +31,15 @@ export function traditionalRemittanceFee(usdcAmount: number): Savings | null {
   const fee = usdcAmount * TRADITIONAL_REMITTANCE_RATE;
   const feeText = usd(fee);
   const amountText = usd(usdcAmount);
+  const feeAnnual = fee * 12;
   return {
     amount: usdcAmount,
     rate: TRADITIONAL_REMITTANCE_RATE,
     fee,
     feeText,
     amountText,
+    feeAnnual,
+    feeAnnualText: usd(feeAnnual),
     sentence: `Sending ${amountText} the usual way costs about ${feeText} in fees (6.2% global average, World Bank). Tukar settles on-chain for a fraction of a cent plus the live FX rate.`,
   };
 }
@@ -43,6 +48,7 @@ export function traditionalRemittanceFee(usdcAmount: number): Savings | null {
 export function demo() {
   const s = traditionalRemittanceFee(500)!;
   console.assert(Math.round(s.fee) === 31, `500 USDC => ~$31, got ${s.fee}`);
+  console.assert(Math.round(s.feeAnnual) === 372, `500/mo => ~$372/yr, got ${s.feeAnnual}`);
   console.assert(traditionalRemittanceFee(0) === null, "0 => null");
   console.assert(traditionalRemittanceFee(-5) === null, "negative => null");
   console.assert(traditionalRemittanceFee(NaN) === null, "NaN => null");

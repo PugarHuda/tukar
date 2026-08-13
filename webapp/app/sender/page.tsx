@@ -641,7 +641,11 @@ function ComposeScreen(props: {
           <div className="text-2xl font-black tracking-[-0.02em] text-green-t">{receive > 0 ? fmtLocal(receive, corridor) : "—"}</div>
         </div>
 
-        <SavingsNote usdc={Number(amount)} className="mt-4" />
+        <SavingsNote
+          usdc={Number(amount)}
+          monthly={frequency === "monthly" || schedules.some((s) => s.frequency === "monthly")}
+          className="mt-4"
+        />
       </Card>
 
       {frequency !== "one-time" && (
@@ -833,6 +837,8 @@ function SendScreen(props: {
         )}
       </div>
 
+      <CctpPreview className="mt-4" />
+
       <Button variant="ghost" full onClick={onBack} className="mt-5">
         ← Edit payment
       </Button>
@@ -977,6 +983,64 @@ function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () 
 // ---------------------------------------------------------------------------
 // Small presentational bits
 // ---------------------------------------------------------------------------
+
+// Roadmap preview: fund the corridor from another chain over Circle CCTP. Informational only —
+// nothing here touches a wallet or the deposit flow. CCTP burns USDC on the source chain and mints
+// native USDC on Stellar, which would then deposit into the private corridor. Not wired yet.
+const CCTP_CHAINS = ["Ethereum", "Base", "Arbitrum", "Optimism", "Polygon", "Avalanche", "Solana"];
+function CctpPreview({ className = "" }: { className?: string }) {
+  const [open, setOpen] = useState(false);
+  const [chain, setChain] = useState(CCTP_CHAINS[0]);
+  return (
+    <div className={`rounded-tile border border-line bg-black/20 p-3.5 ${className}`}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-[13px] font-semibold text-tp">Fund from another chain (Circle CCTP)</span>
+          <span className="mt-0.5 block font-mono text-[10px] text-tf">Bring USDC in from Ethereum, Base, Solana and more</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <Badge tone="amber">ROADMAP, NOT WIRED YET</Badge>
+          <span aria-hidden className="font-mono text-[11px] text-tm">{open ? "−" : "+"}</span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-3 border-t border-line pt-3">
+          <Select label="Source chain" id="cctp-chain" value={chain} onChange={(e) => setChain(e.target.value)}>
+            {CCTP_CHAINS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+
+          <ol className="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-tm">
+            <li>1 · CCTP burns your USDC on {chain}.</li>
+            <li>2 · Native USDC is minted on Stellar (1:1, no wrapped token).</li>
+            <li>3 · That USDC deposits into the private Tukar corridor.</li>
+          </ol>
+
+          <p className="mt-3 text-[12px] leading-relaxed text-tm">
+            This is a preview of the planned inbound path, not a live transfer. Nothing here moves funds or changes
+            the deposit above. CCTP is live on Stellar across 20+ chains.
+          </p>
+          <a
+            href="https://www.circle.com/cross-chain-transfer-protocol"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-block font-mono text-[11px] text-orange underline underline-offset-2"
+          >
+            Circle Cross-Chain Transfer Protocol ↗
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Recap({ k, v, last }: { k: string; v: React.ReactNode; last?: boolean }) {
   return (

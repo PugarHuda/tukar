@@ -223,6 +223,32 @@ function PoolHealthSection() {
         </div>
       )}
 
+      {health && (() => {
+        let funded = false;
+        try { funded = BigInt(health.balance) > 0n; } catch { funded = false; }
+        return (
+          <>
+            <SubHead title="Reserves" sub="on-chain custody transparency · not a cryptographic proof-of-reserves" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <PoolCard label="USDC in custody" value={`$${fmtUsdc(health.balance)}`} sub="held by the pool contract" accent />
+              <PoolCard label="Notes committed" value={fmtCount(health.commitments)} sub="commitments bound on-chain" />
+              <PoolCard label="Custody backing" value={<span className={funded ? "text-green-t" : "text-tf"}>{funded ? "Funded" : "Unfunded"}</span>} sub="pooled USDC backs every committed note" />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-tile border border-line bg-black/20 px-4 py-3 text-[12px] leading-relaxed text-tm">
+              <span>
+                Every committed note redeems from this one pooled USDC balance, so custody is shared across all notes rather than held per note. Note amounts are shielded, so this is on-chain custody transparency you can check on the ledger, not a cryptographic proof-of-reserves.
+              </span>
+              <a href={explorer(POOL)} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-orange-l3 hover:text-orange">
+                Verify on stellar.expert ↗
+              </a>
+              <span className="w-full font-mono text-[10.5px] text-tf">
+                A real proof-of-reserves (commitment-sum vs on-chain custody) is on the roadmap.
+              </span>
+            </div>
+          </>
+        );
+      })()}
+
       <SubHead title="Deployed contract inventory" sub="7 BN254 verifiers · pool · oracle · token" />
       <TableWrap>
         <thead>
@@ -381,7 +407,8 @@ function AdminForms({ policy }: { policy: Policy | null }) {
 // required-disclosure values map to Tukar's four disclosure circuits (exact / threshold / range
 // / aggregate) a regulator in that jurisdiction could demand.
 type Disclosure = "exact" | "threshold" | "range" | "aggregate";
-const CORRIDOR_POLICY: Record<string, { thresholdUsdc: number; disclosure: Disclosure }> = {
+type PolicyMap = Record<string, { thresholdUsdc: number; disclosure: Disclosure }>;
+const CORRIDOR_POLICY: PolicyMap = {
   MX: { thresholdUsdc: 10000, disclosure: "threshold" },
   BR: { thresholdUsdc: 10000, disclosure: "range" },
   AR: { thresholdUsdc: 1000, disclosure: "exact" },
@@ -399,12 +426,25 @@ const DISCLOSURE_NOTE: Record<Disclosure, string> = {
   range: "prove a band lower ≤ amt ≤ upper",
   aggregate: "prove Σ portfolio ≤ cap",
 };
+const DISCLOSURES: Disclosure[] = ["exact", "threshold", "range", "aggregate"];
+
+// Illustrative jurisdiction presets. These are NOT real regulatory rulesets; they are shapes an
+// anchor could start from and then tune. "Default" is the varied per-corridor baseline; the rest
+// apply one illustrative threshold + disclosure to every corridor so the difference is legible.
+const uniformPolicy = (thresholdUsdc: number, disclosure: Disclosure): PolicyMap =>
+  Object.fromEntries(Object.keys(CORRIDOR_POLICY).map((c) => [c, { thresholdUsdc, disclosure }]));
+const PRESETS: { key: string; label: string; note: string; build: () => PolicyMap }[] = [
+  { key: "default", label: "Default", note: "Tukar illustrative baseline, varied per corridor", build: () => ({ ...CORRIDOR_POLICY }) },
+  { key: "eu", label: "EU (MiCA / TFR)", note: "illustrative EU-style travel-rule shape", build: () => uniformPolicy(1000, "exact") },
+  { key: "us", label: "US (FinCEN)", note: "illustrative US-style CTR reporting shape", build: () => uniformPolicy(10000, "threshold") },
+  { key: "apac", label: "APAC", note: "illustrative APAC mixed shape", build: () => uniformPolicy(3000, "range") },
+];
 
 // Build the YAML-ish policy-as-code from the SAME model the table renders, so the snippet and
 // the table can never drift. `rootHex` is the live on-chain allow-root (real) when available.
-function policyAsCode(rootHex: string | null): string {
+function policyAsCode(rootHex: string | null, policy: PolicyMap): string {
   const rows = RECEIVER_CORRIDORS.map((c) => {
-    const p = CORRIDOR_POLICY[c.code];
+    const p = policy[c.code];
     if (!p) return null;
     const pad = (c.code + ":").padEnd(5);
     return `  ${pad}{ threshold_usdc: ${p.thresholdUsdc}, required_disclosure: ${p.disclosure} }  # ${c.country}`;
@@ -423,23 +463,57 @@ function policyAsCode(rootHex: string | null): string {
   ].join("\n");
 }
 
-const DISCLOSURE_TONE: Record<Disclosure, "green" | "amber" | "muted" | "orange"> = {
-  exact: "amber",
-  threshold: "green",
-  range: "muted",
-  aggregate: "orange",
-};
-
 function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
+  const [presetKey, setPresetKey] = useState("default");
+  const [policy, setPolicy] = useState<PolicyMap>(() => ({ ...CORRIDOR_POLICY }));
+
+  const applyPreset = (key: string) => {
+    const p = PRESETS.find((x) => x.key === key);
+    if (!p) return;
+    setPresetKey(key);
+    setPolicy(p.build());
+  };
+  const editThreshold = (code: string, v: string) => {
+    const n = Math.max(0, Math.round(Number(v) || 0));
+    setPolicy((prev) => ({ ...prev, [code]: { ...prev[code], thresholdUsdc: n } }));
+    setPresetKey("custom");
+  };
+  const editDisclosure = (code: string, d: Disclosure) => {
+    setPolicy((prev) => ({ ...prev, [code]: { ...prev[code], disclosure: d } }));
+    setPresetKey("custom");
+  };
+
+  const cellInput = "rounded-md border border-line-input bg-input px-2 py-1 font-mono text-tp transition-colors focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]";
+  const activeNote = PRESETS.find((x) => x.key === presetKey)?.note ?? "custom edits";
+
   return (
     <>
       <SubHead title="Per-corridor policy model (reference)" sub="configured per anchor · not yet enforced per-corridor on-chain" />
       <div className="mb-4 flex items-start gap-3 rounded-tile border border-line bg-black/20 p-4">
         <span aria-hidden className="mt-0.5 text-tf">◇</span>
         <p className="text-[12.5px] leading-relaxed text-tm">
-          <b className="text-ts">Reference model, not live enforcement.</b> The allow-root and deny-list above are global and enforced on-chain today. The per-corridor amount threshold and required disclosure below are the config shape a licensed anchor would supply per jurisdiction. Tukar is the compliance and privacy layer that would enforce them. The threshold and disclosure values are illustrative, not real regulatory figures.
+          <b className="text-ts">Reference model, not live enforcement.</b> The allow-root and deny-list above are global and enforced on-chain today. The per-corridor amount threshold and required disclosure below are the config shape a licensed anchor would supply per jurisdiction. Tukar is the compliance and privacy layer that would enforce them. The presets, thresholds, and disclosure values are illustrative, not real regulatory figures.
         </p>
       </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.12em] text-tf">Jurisdiction preset (illustrative)</span>
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => applyPreset(p.key)}
+            className={`rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${presetKey === p.key ? "border-orange/60 bg-orange/[0.08] text-orange-l3" : "border-line-input text-ts hover:border-orange/40 hover:text-tp"}`}
+          >
+            {p.label}
+          </button>
+        ))}
+        {presetKey === "custom" && <Badge tone="amber">custom edits</Badge>}
+      </div>
+      <p className="mb-4 font-mono text-[10.5px] text-tf">
+        {activeNote}. Presets are illustrative shapes, not real regulatory rulesets. Edit any threshold or disclosure inline to model a corridor; the table and the policy-as-code below update live and never drift.
+      </p>
+
       <TableWrap>
         <thead>
           <tr>
@@ -452,7 +526,7 @@ function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
         </thead>
         <tbody>
           {RECEIVER_CORRIDORS.map((c) => {
-            const p = CORRIDOR_POLICY[c.code];
+            const p = policy[c.code];
             if (!p) return null;
             return (
               <tr key={c.code}>
@@ -461,9 +535,30 @@ function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
                 </td>
                 <td className={TD}><Badge tone="green">ASP allow-root · global</Badge></td>
                 <td className={TD}><Badge tone="green">deny-list · global</Badge></td>
-                <td className={`${TD} font-mono text-ts`}>≤ {p.thresholdUsdc.toLocaleString("en-US")} <span className="text-tf">USDC</span></td>
+                <td className={`${TD} font-mono text-ts`}>
+                  <span className="text-tf">≤ </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={p.thresholdUsdc}
+                    onChange={(e) => editThreshold(c.code, e.target.value)}
+                    aria-label={`${c.country} amount threshold in USDC`}
+                    className={`${cellInput} w-24 text-[12px]`}
+                  />
+                  <span className="text-tf"> USDC</span>
+                </td>
                 <td className={TD}>
-                  <Badge tone={DISCLOSURE_TONE[p.disclosure]}>{p.disclosure}</Badge>
+                  <select
+                    value={p.disclosure}
+                    onChange={(e) => editDisclosure(c.code, e.target.value as Disclosure)}
+                    aria-label={`${c.country} required disclosure`}
+                    className={`${cellInput} text-[11px]`}
+                  >
+                    {DISCLOSURES.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
                   <span className="ml-2 font-mono text-[10.5px] text-tf">{DISCLOSURE_NOTE[p.disclosure]}</span>
                 </td>
               </tr>
@@ -479,7 +574,7 @@ function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
       <p className="mb-3 text-[12.5px] leading-relaxed text-tm">
         The same policy expressed as the config an anchor would hand the layer. The <code className="font-mono text-ts">asp_allow_root</code> and <code className="font-mono text-ts">sanctions_deny_list</code> lines are the real on-chain values. The <code className="font-mono text-ts">corridors</code> block is the reference model, not enforced per-corridor on-chain today.
       </p>
-      <CopyBlock text={policyAsCode(rootHex)} copiedLabel="policy config copied" />
+      <CopyBlock text={policyAsCode(rootHex, policy)} copiedLabel="policy config copied" />
     </>
   );
 }
