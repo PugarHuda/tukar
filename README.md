@@ -247,6 +247,35 @@ production, multi-anchor corridor.
   caption and voiceover script lives in [`docs/DEMO_VO_SUBTITLES.md`](docs/DEMO_VO_SUBTITLES.md),
   and a slide-by-slide deck script in [`docs/DECK_SCRIPT.md`](docs/DECK_SCRIPT.md).
 
+## Production readiness
+
+Tukar is deployed and running, not a prototype in a branch.
+
+- **Live production deployment.** [https://tukar-six.vercel.app](https://tukar-six.vercel.app)
+  (Next.js static export on Vercel). Pitch deck at [`/deck`](https://tukar-six.vercel.app/deck),
+  demo video at [`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4).
+- **Mobile-responsive.** Sender and Receiver are mobile-first PWAs; Regulator and Operator
+  consoles adapt from desktop to a mobile drawer. No horizontal overflow at 390px on any surface.
+- **Loading and error states.** Every on-chain read shows a skeleton while pending; failures
+  surface as toasts with honest messages (stale oracle, RPC blip, account not allow-listed,
+  insufficient funds), never a silent failure.
+- **Monitoring and analytics.** Vercel Web Analytics and Speed Insights are integrated
+  (`@vercel/analytics` and `@vercel/speed-insights` in `webapp/app/layout.tsx`) for page traffic
+  and Core Web Vitals.
+- **Smart contracts on testnet.** 8 Soroban contracts (pool plus 7 verifiers); addresses in the
+  contract table above and in `deployments/testnet.json`. 52 passing Cargo tests.
+- **Architecture and docs.** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+  [`docs/ONCHAIN.md`](docs/ONCHAIN.md), [`docs/TESTING.md`](docs/TESTING.md).
+- **Real on-chain wallet interactions.** Every send, withdraw, and disclosure is a real testnet
+  transaction. The pool and its activity are publicly verifiable on
+  [stellar.expert](https://stellar.expert/explorer/testnet/contract/CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ).
+  The built-in testnet key and Freighter both sign real transactions.
+- **Commits.** Public repository with well over 15 meaningful commits (see the git history).
+
+**Still needed for full Level 4 (real data the team must provide, not fabricated):** at least 10
+real users onboarded with proof of their wallet interactions, and a short user-feedback summary.
+Tukar is a testnet build; real users and their feedback are the honest next step.
+
 ## Features and how they work
 
 A quick map of what's in the box and the mechanism behind each. The deep dives follow in the

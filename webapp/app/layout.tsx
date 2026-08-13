@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { WalletProvider } from "@/components/WalletProvider";
 import { ToastProvider } from "@/components/ui";
 
@@ -19,6 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <WalletProvider>
           <ToastProvider>{children}</ToastProvider>
         </WalletProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
