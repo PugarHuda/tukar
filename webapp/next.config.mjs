@@ -3,13 +3,34 @@ import { dirname } from "node:path";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Static export: the live domain serves webapp/out as plain static files (no server).
-  // Next headers() don't apply under export — CORS/cache headers live in root vercel.json.
-  output: "export",
+  // Server build (not static export) so we can host the /api/reclaim route.
+  // The root vercel.json's static headers/redirects no longer apply when this app
+  // is served from webapp/, so we reproduce them below via headers()/redirects().
   images: { unoptimized: true },
   // The repo root has its own package-lock; pin tracing to this app so Next doesn't
   // infer the parent as the workspace root.
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
+  async headers() {
+    return [
+      {
+        source: "/.well-known/stellar.toml",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Content-Type", value: "text/plain; charset=utf-8" },
+        ],
+      },
+      {
+        source: "/circuit/(.*)",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      { source: "/demo", destination: "/", permanent: true },
+      { source: "/demo/:path*", destination: "/", permanent: true },
+    ];
+  },
   webpack: (config, { isServer }) => {
     // snarkjs + circomlibjs reference Node builtins that don't exist in the browser.
     // Dynamic-imported client-side, so stub them out for the browser bundle.

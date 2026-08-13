@@ -1,9 +1,57 @@
 "use client";
 
+import { useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { Button, StatusPill, useToast } from "@/components/ui";
 
 const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
+
+type ReclaimState =
+  | { phase: "idle" }
+  | { phase: "loading" }
+  | { phase: "not-configured" }
+  | { phase: "pending"; requestUrl: string }
+  | { phase: "error"; message: string };
+
+/** POSTs to the server route that mints a Reclaim proof-of-personhood request. */
+function ReclaimVerify() {
+  const [state, setState] = useState<ReclaimState>({ phase: "idle" });
+
+  async function verify() {
+    setState({ phase: "loading" });
+    try {
+      const res = await fetch("/api/reclaim", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const data = await res.json();
+      if (data.configured === false) return setState({ phase: "not-configured" });
+      if (data.error || !data.requestUrl) return setState({ phase: "error", message: data.error || "No request URL returned" });
+      window.open(data.requestUrl, "_blank", "noopener,noreferrer");
+      setState({ phase: "pending", requestUrl: data.requestUrl });
+    } catch (e) {
+      setState({ phase: "error", message: e instanceof Error ? e.message : "Request failed" });
+    }
+  }
+
+  return (
+    <div className="mt-2 text-left">
+      <Button variant="subtle" busy={state.phase === "loading"} onClick={verify}>
+        Verify with Reclaim
+      </Button>
+      {state.phase === "not-configured" && (
+        <p className="mt-1 leading-relaxed text-tf">Reclaim is not configured on this deployment yet.</p>
+      )}
+      {state.phase === "pending" && (
+        <p className="mt-1 leading-relaxed text-tm">
+          Complete proof-of-personhood on your phone in the tab that opened (or{" "}
+          <a href={state.requestUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-orange">
+            reopen it
+          </a>
+          ). Once approved, the admin adds your account to the ASP allow-list (<code className="text-orange">set_asp_root</code>).
+        </p>
+      )}
+      {state.phase === "error" && <p className="mt-1 leading-relaxed text-red-t">Reclaim error: {state.message}</p>}
+    </div>
+  );
+}
 
 /** Connect bar: built-in testnet key OR Freighter. Reusable across every route. */
 export function WalletBar() {
@@ -70,6 +118,7 @@ export function WalletBar() {
           user proves compliance once and reuses it across corridors, and Tukar never holds KYC data
           itself.
         </p>
+        <ReclaimVerify />
       </details>
     </div>
   );

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@reclaimprotocol/js-sdk": "^5.8.2",
     "@stellar/freighter-api": "^4.1.0",
     "@stellar/stellar-sdk": "^14.6.1",
     "@vercel/analytics": "^2.0.1",
