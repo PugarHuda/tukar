@@ -43,11 +43,14 @@ import {
   type ReceiptVerification,
 } from "@/lib/zk";
 
-type TabId = "reports" | "verify" | "issue" | "trail";
+import { CORRIDORS, corridorByCode, type Corridor } from "@/components/receiver/corridors";
+
+type TabId = "reports" | "verify" | "issue" | "travel" | "trail";
 const NAV: (NavItem & { id: TabId })[] = [
   { id: "reports", key: "reports", label: "Pool report" },
   { id: "verify", key: "verify", label: "Verify disclosure" },
   { id: "issue", key: "issue", label: "Issue audit request" },
+  { id: "travel", key: "travel", label: "Travel Rule (reference)" },
   { id: "trail", key: "trail", label: "Audit trail" },
 ];
 
@@ -78,6 +81,9 @@ export default function RegulatorPage() {
   const [tab, setTab] = useState<TabId>("reports");
   const [trail, setTrail] = useState<TrailEntry[]>([]);
   const [status, setStatus] = useState("Reading live pool state from Stellar…");
+  // Last receipt the Verify tab confirmed this session, shared with the Travel Rule tab so its
+  // reference payload is driven by a real disclosed figure rather than a mock.
+  const [lastVerified, setLastVerified] = useState<{ res: ReceiptVerification; receipt: AuditReceipt } | null>(null);
 
   // load persisted trail once (client only — avoids SSR localStorage access)
   useEffect(() => {
@@ -136,8 +142,9 @@ export default function RegulatorPage() {
 
         <div className="flex min-w-0 flex-col gap-5">
           {tab === "reports" && <ReportsTab setStatus={setStatus} />}
-          {tab === "verify" && <VerifyTab addTrail={addTrail} />}
+          {tab === "verify" && <VerifyTab addTrail={addTrail} onVerified={setLastVerified} />}
           {tab === "issue" && <IssueTab setStatus={setStatus} addTrail={addTrail} />}
+          {tab === "travel" && <TravelRuleTab last={lastVerified} onGoVerify={() => setTab("verify")} />}
           {tab === "trail" && <TrailTab trail={trail} setTrail={setTrail} />}
         </div>
       </div>
@@ -371,7 +378,13 @@ function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
 }
 
 // ================= 02 · VERIFY A DISCLOSURE =================
-function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void }) {
+function VerifyTab({
+  addTrail,
+  onVerified,
+}: {
+  addTrail: (e: Omit<TrailEntry, "ts">) => void;
+  onVerified: (v: { res: ReceiptVerification; receipt: AuditReceipt } | null) => void;
+}) {
   const { toast } = useToast();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -401,6 +414,9 @@ function VerifyTab({ addTrail }: { addTrail: (e: Omit<TrailEntry, "ts">) => void
       const v = await verifyReceipt(r);
       setRes(v);
       setReceipt(r);
+      // Share a confirmed disclosure with the Travel Rule tab only when it is valid AND bound to
+      // real on-chain state — an unbound/invalid proof must not drive a "real" reference payload.
+      onVerified(v.ok && v.bound ? { res: v, receipt: r } : null);
       addTrail({
         action: "Verified disclosure",
         type: v.type,
@@ -798,7 +814,198 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
   );
 }
 
-// ================= 04 · AUDIT TRAIL =================
+// ================= 04 · TRAVEL RULE (REFERENCE) =================
+// A client-side reference mapping only. Tukar holds NO PII — the licensed anchors at the edges
+// run KYC and would exchange the actual IVMS101 message. Personal fields are shown as clearly
+// marked anchor-held placeholders; the amount/asset/corridor/reference come from a real verified
+// disclosure receipt when one is loaded.
+const ANCHOR_PII = "(held by the anchor's KYC, not by Tukar)";
+
+// The disclosed figure that drives the payload's amount, derived from the proven public signals
+// (not the receipt's own metadata). Non-exact types prove a bound, not a single amount, so they
+// are labelled as such.
+function disclosedFigure(res: ReceiptVerification, r: AuditReceipt): string {
+  const sigs = r.publicSignals.map(String);
+  switch (res.type) {
+    case "exact":
+      return `${fmtUsdc(sigs[1])} (exact amount, disclosed)`;
+    case "threshold":
+      return `at or below ${fmtUsdc(sigs[1])} (proven ceiling, exact amount hidden)`;
+    case "range":
+      return `${fmtUsdc(sigs[1])} to ${fmtUsdc(sigs[2])} band (exact amount hidden)`;
+    default: // aggregate
+      return `portfolio at or below ${fmtUsdc(sigs[10])} (individual amounts hidden)`;
+  }
+}
+
+function buildTravelRulePayload(opts: {
+  amount: string;
+  reference: string;
+  anchorTx?: string;
+  corridor: Corridor;
+  network: string;
+  exampleOnly: boolean;
+}) {
+  const { amount, reference, anchorTx, corridor, network, exampleOnly } = opts;
+  return {
+    _note: exampleOnly
+      ? "REFERENCE / EXAMPLE, no receipt loaded. Verify a disclosure to drive this from a real disclosed figure."
+      : "REFERENCE mapping, derived from a verified Tukar disclosure receipt. Tukar holds no PII.",
+    originatingVASP: {
+      role: "Sending anchor (VASP)",
+      description: "Licensed anchor that on-ramped the originator and holds their KYC identity.",
+    },
+    beneficiaryVASP: {
+      role: "Receiving anchor (VASP)",
+      description: `Licensed anchor in ${corridor.country} that off-ramps to ${corridor.currency} and holds the beneficiary's KYC identity.`,
+    },
+    originator: {
+      naturalPerson: {
+        name: ANCHOR_PII,
+        geographicAddress: ANCHOR_PII,
+        nationalIdentification: ANCHOR_PII,
+        customerIdentificationNumber: ANCHOR_PII,
+      },
+      accountNumber: ANCHOR_PII,
+    },
+    beneficiary: {
+      naturalPerson: {
+        name: ANCHOR_PII,
+        geographicAddress: ANCHOR_PII,
+        nationalIdentification: ANCHOR_PII,
+      },
+      accountNumber: ANCHOR_PII,
+    },
+    transaction: {
+      amount, // real: the disclosed figure from the verified receipt
+      asset: "USDC",
+      settlementLayer: "Stellar",
+      corridor: `United States to ${corridor.country} (${corridor.currency})`,
+      transactionReference: reference, // real: the on-chain commitment the disclosure proves against
+      onChainAnchorTx: anchorTx || "(receipt not anchored on-chain)",
+      network,
+    },
+  };
+}
+
+function TravelRuleTab({
+  last,
+  onGoVerify,
+}: {
+  last: { res: ReceiptVerification; receipt: AuditReceipt } | null;
+  onGoVerify: () => void;
+}) {
+  const { toast } = useToast();
+  const [corridorCode, setCorridorCode] = useState("ID");
+  const corridor = corridorByCode(corridorCode);
+
+  const exampleOnly = !last;
+  const amount = last ? disclosedFigure(last.res, last.receipt) : "250.00 (example figure, verify a receipt to use a real one)";
+  const reference = last ? last.res.commitment : "(commitment hash from the verified disclosure)";
+  const anchorTx = last?.receipt.anchor?.txHash;
+  const network = last?.receipt.network || "Test SDF Network ; September 2015";
+
+  const payload = buildTravelRulePayload({ amount, reference, anchorTx, corridor, network, exampleOnly });
+  const json = JSON.stringify(payload, null, 2);
+
+  return (
+    <>
+      <CardBox
+        title="FATF Travel Rule (reference)"
+        sub="A reference mapping only, not a live Travel Rule network. It shows how one Tukar selective disclosure maps to a FATF Travel Rule (IVMS101) payload that a sending and a receiving anchor would exchange."
+        right={
+          <StatusPill tone={exampleOnly ? "amber" : "green"} label={exampleOnly ? "Example payload" : "Driven by a verified receipt"} />
+        }
+      >
+        <div className="rounded-tile border border-line bg-black/20 p-4 text-[13px] leading-relaxed text-ts">
+          <p>
+            Selective disclosure lets a holder prove one fact to a regulator on-chain. The same mechanism maps to a FATF Travel
+            Rule (IVMS101) payload that a sending and a receiving anchor exchange to meet their VASP obligations. This is a
+            reference mapping; Tukar is the private settlement layer, the anchors run KYC and the Travel Rule exchange. Roadmap:
+            wiring this to a live Travel Rule messaging network.
+          </p>
+          <p className="mt-3 text-tm">
+            Tukar never holds names or addresses, so every personal field below is a marked placeholder{" "}
+            <span className="font-mono text-orange-pale">{ANCHOR_PII}</span>. The amount, asset, corridor, and reference are the
+            real, on-chain facts a disclosure proves.
+          </p>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label htmlFor="tr-corridor" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+              Destination corridor (receiving anchor)
+            </label>
+            <select
+              id="tr-corridor"
+              value={corridorCode}
+              onChange={(e) => setCorridorCode(e.target.value)}
+              className="mt-[7px] rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+            >
+              {CORRIDORS.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.country} ({c.currency})
+                </option>
+              ))}
+            </select>
+          </div>
+          {exampleOnly && (
+            <Button variant="subtle" onClick={onGoVerify}>
+              Verify a disclosure to fill this in
+            </Button>
+          )}
+        </div>
+
+        {!exampleOnly && last && (
+          <p className="mt-3 text-[12.5px] text-tm">
+            Source: a <b className="capitalize text-ts">{last.res.type}</b> disclosure, {last.res.summary}, bound to commitment{" "}
+            <span className="font-mono text-orange-pale">{short(last.res.commitment)}</span>.
+          </p>
+        )}
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">IVMS101-shaped Travel Rule payload</div>
+          <Button
+            variant="subtle"
+            onClick={() => {
+              if (navigator.clipboard) navigator.clipboard.writeText(json).then(() => toast("Payload copied", "success")).catch(() => {});
+            }}
+          >
+            Copy payload
+          </Button>
+        </div>
+        <pre className="mt-2 overflow-x-auto rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[11.5px] leading-relaxed text-tp">
+          {json}
+        </pre>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-tile border border-green/25 bg-green/[0.04] p-4 text-[12.5px] leading-relaxed">
+            <div className="font-mono text-[10px] tracking-[0.12em] text-green-t uppercase">Real, from the disclosure</div>
+            <ul className="mt-2 list-disc pl-4 text-ts">
+              <li>Disclosed amount / proven bound</li>
+              <li>Asset (USDC) and settlement layer (Stellar)</li>
+              <li>Corridor and destination currency</li>
+              <li>Transaction reference (on-chain commitment)</li>
+              <li>On-chain anchor tx, when the receipt is anchored</li>
+            </ul>
+          </div>
+          <div className="rounded-tile border border-amber/30 bg-amber/[0.04] p-4 text-[12.5px] leading-relaxed">
+            <div className="font-mono text-[10px] tracking-[0.12em] text-amber uppercase">Placeholder, held by the anchor</div>
+            <ul className="mt-2 list-disc pl-4 text-ts">
+              <li>Originator and beneficiary names</li>
+              <li>Geographic addresses</li>
+              <li>National identification</li>
+              <li>Account numbers and customer ids</li>
+            </ul>
+            <p className="mt-2 text-tm">Tukar never sees these. The licensed anchors run KYC and exchange them out of band.</p>
+          </div>
+        </div>
+      </CardBox>
+    </>
+  );
+}
+
+// ================= 05 · AUDIT TRAIL =================
 function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: TrailEntry[]) => void }) {
   const { toast } = useToast();
   const linkRef = useRef<HTMLAnchorElement>(null);
