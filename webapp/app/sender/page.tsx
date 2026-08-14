@@ -63,9 +63,12 @@ type SendResult = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MAX_USDC = 1_000_000_000; // same cap the send path enforces on-chain
 
-// A saved-on-this-device send plan. It is a reminder only — nothing here executes on-chain.
+// A saved send plan. In device-local mode it is a reminder only. When the server scheduler is
+// configured (Vercel Blob + cron), the plan is stored server-side and the daily cron executes its
+// deposit + shielded-tree registration on-chain automatically (history carries the run receipts).
 type Frequency = "one-time" | "weekly" | "monthly";
-type Schedule = { id: string; amount: string; code: string; recipient: string; frequency: Exclude<Frequency, "one-time">; nextDate: string };
+type RunReceipt = { at: string; depHash?: string; regOk?: boolean; error?: string };
+type Schedule = { id: string; amount: string; code: string; recipient: string; frequency: Exclude<Frequency, "one-time">; nextDate: string; history?: RunReceipt[] };
 const SCHEDULES_KEY = "tukar:schedules";
 // Next reminder date from now. Local-only; a real scheduler/relayer would own this on-chain.
 function computeNextDate(freq: Exclude<Frequency, "one-time">): string {
@@ -93,6 +96,8 @@ export default function SenderPage() {
   // Recurring/scheduled send — a saved plan (reminder) only, never auto-executes on-chain.
   const [frequency, setFrequency] = useState<Frequency>("one-time");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  // null = still probing; true = server scheduler live (cron executes on-chain); false = device-local reminder.
+  const [serverMode, setServerMode] = useState<boolean | null>(null);
   // fulfilling a Receiver-issued payment request (tukreq1:) — amount + payee are locked
   const [reqInput, setReqInput] = useState("");
   const [request, setRequest] = useState<{ addr: string; label: string } | null>(null);
@@ -122,15 +127,28 @@ export default function SenderPage() {
   // The amount in the field before a payment request overwrote it, restored on Clear.
   const preReqAmount = useRef("200");
 
-  // Load saved plans from this device (SSR/static-export safe: only touched in an effect).
+  // Probe the server scheduler; if it's live, load server-side plans (with run history). Otherwise
+  // fall back to device-local reminders. SSR-safe: only runs in an effect.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SCHEDULES_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) setSchedules(arr);
-      }
-    } catch {}
+    (async () => {
+      try {
+        const r = await fetch("/api/schedules");
+        const j = await r.json();
+        if (j?.configured) {
+          setServerMode(true);
+          if (Array.isArray(j.schedules)) setSchedules(j.schedules);
+          return;
+        }
+      } catch {}
+      setServerMode(false);
+      try {
+        const raw = localStorage.getItem(SCHEDULES_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) setSchedules(arr);
+        }
+      } catch {}
+    })();
   }, []);
   function persistSchedules(next: Schedule[]) {
     setSchedules(next);
@@ -138,13 +156,33 @@ export default function SenderPage() {
       localStorage.setItem(SCHEDULES_KEY, JSON.stringify(next));
     } catch {}
   }
-  function saveSchedule() {
+  async function saveSchedule() {
     if (frequency === "one-time" || !(num > 0) || num > MAX_USDC) return;
-    const id = (globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
+    if (serverMode) {
+      try {
+        const r = await fetch("/api/schedules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: amount.trim(), code, recipient, frequency }),
+        });
+        const j = await r.json();
+        if (j?.schedule) {
+          setSchedules([j.schedule, ...schedules]);
+          toast("Plan scheduled. The daily cron will run it on-chain.", "success");
+        } else {
+          toast(j?.error || "Could not schedule the plan", "error");
+        }
+      } catch {
+        toast("Could not reach the scheduler", "error");
+      }
+      return;
+    }
+    const id = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
     const plan: Schedule = { id, amount: amount.trim(), code, recipient, frequency, nextDate: computeNextDate(frequency) };
     persistSchedules([plan, ...schedules]);
     toast("Plan saved on this device", "success");
   }
+  // Remove is device-local only (the server store is append-only via the API). Hidden in serverMode.
   function removeSchedule(id: string) {
     persistSchedules(schedules.filter((s) => s.id !== id));
   }
@@ -484,6 +522,7 @@ export default function SenderPage() {
             frequency={frequency}
             setFrequency={setFrequency}
             schedules={schedules}
+            serverMode={serverMode}
             onSaveSchedule={saveSchedule}
             onRemoveSchedule={removeSchedule}
             onPrefillSchedule={prefillSchedule}
@@ -558,6 +597,7 @@ function ComposeScreen(props: {
   frequency: Frequency;
   setFrequency: (v: Frequency) => void;
   schedules: Schedule[];
+  serverMode: boolean | null;
   onSaveSchedule: () => void;
   onRemoveSchedule: (id: string) => void;
   onPrefillSchedule: (s: Schedule) => void;
@@ -577,7 +617,7 @@ function ComposeScreen(props: {
   continueHint: string;
   onContinue: () => void;
 }) {
-  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, onSaveSchedule, onRemoveSchedule, onPrefillSchedule, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
+  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, serverMode, onSaveSchedule, onRemoveSchedule, onPrefillSchedule, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
   const locked = !!request;
   const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "at the edge";
   return (
@@ -652,13 +692,15 @@ function ComposeScreen(props: {
         <div className="mt-4 rounded-tile border border-orange/40 bg-orange/5 p-3.5">
           <div className="flex items-center justify-between gap-3">
             <div className="font-mono text-[10px] tracking-[0.12em] text-orange uppercase">Schedule a {frequency} send</div>
-            <Badge tone="amber">PREVIEW</Badge>
+            <Badge tone={serverMode ? "green" : "amber"}>{serverMode ? "AUTOMATED" : "PREVIEW"}</Badge>
           </div>
           <p className="mt-2 text-[13px] leading-relaxed text-tm">
-            Preview. Your plan is saved on this device as a reminder. Automatic on-chain execution needs a scheduler or relayer and is on the roadmap. Tap a saved plan to pre-fill and send it yourself.
+            {serverMode
+              ? "Automated on-chain. A daily cron runs this plan: it mints a note and executes the deposit + shielded-tree registration on-chain for you. Delivering the claim note to the recipient (the withdraw leg) stays a manual step."
+              : "Preview. Your plan is saved on this device as a reminder. Automatic on-chain execution needs a scheduler or relayer and is on the roadmap. Tap a saved plan to pre-fill and send it yourself."}
           </p>
           <Button variant="reveal" full className="mt-3" disabled={!canContinue} onClick={onSaveSchedule}>
-            Save {frequency} plan for {recipient || "recipient"}
+            {serverMode ? "Schedule" : "Save"} {frequency} plan for {recipient || "recipient"}
           </Button>
         </div>
       )}
@@ -667,17 +709,18 @@ function ComposeScreen(props: {
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Scheduled sends</div>
-            <span className="font-mono text-[10px] text-tf">saved on this device</span>
+            <span className="font-mono text-[10px] text-tf">{serverMode ? "runs on-chain daily" : "saved on this device"}</span>
           </div>
           <div className="flex flex-col gap-2">
             {schedules.map((s) => {
               const sc = CORRIDORS.find((c) => c.code === s.code);
+              const last = s.history && s.history[0];
               return (
                 <div key={s.id} className="flex items-center gap-3 rounded-tile border border-line bg-black/20 p-3">
                   <button
                     onClick={() => onPrefillSchedule(s)}
                     className="min-w-0 flex-1 text-left"
-                    title="Tap to pre-fill this plan. It does not send automatically."
+                    title="Tap to pre-fill this plan for a manual send."
                   >
                     <div className="truncate text-sm font-semibold text-tp">
                       ${s.amount} USDC · {sc ? sc.country : s.code}
@@ -685,20 +728,41 @@ function ComposeScreen(props: {
                     <div className="mt-0.5 truncate font-mono text-[11px] text-tf">
                       {s.frequency} · to {s.recipient || "recipient"} · next {fmtDate(s.nextDate)}
                     </div>
+                    {last && (
+                      <div className="mt-0.5 truncate font-mono text-[11px]">
+                        {last.depHash ? (
+                          <a
+                            href={txExplorer(last.depHash)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className={last.regOk ? "text-green-t underline underline-offset-2" : "text-orange underline underline-offset-2"}
+                          >
+                            last run: tx {short(last.depHash)} {last.regOk ? "✓" : "· registering"}
+                          </a>
+                        ) : (
+                          <span className="text-red-t">last run failed: {last.error || "unknown error"}</span>
+                        )}
+                      </div>
+                    )}
                   </button>
-                  <button
-                    onClick={() => onRemoveSchedule(s.id)}
-                    aria-label="Remove scheduled plan"
-                    className="shrink-0 rounded-md border border-line-input px-2 py-1 font-mono text-[11px] text-tm transition-colors hover:border-red/50 hover:text-red-t"
-                  >
-                    Remove
-                  </button>
+                  {!serverMode && (
+                    <button
+                      onClick={() => onRemoveSchedule(s.id)}
+                      aria-label="Remove scheduled plan"
+                      className="shrink-0 rounded-md border border-line-input px-2 py-1 font-mono text-[11px] text-tm transition-colors hover:border-red/50 hover:text-red-t"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
           <p className="mt-2 font-mono text-[11px] leading-relaxed text-tf">
-            Reminders only. Tap a plan to pre-fill the form, then send it yourself. No money moves automatically.
+            {serverMode
+              ? "Runs daily on-chain: each due plan's deposit and shielded-tree registration execute automatically. Handing the claim note to the recipient (the withdraw leg) stays the next step."
+              : "Reminders only. Tap a plan to pre-fill the form, then send it yourself. No money moves automatically."}
           </p>
         </div>
       )}

@@ -10,6 +10,9 @@ const nextConfig = {
   // The repo root has its own package-lock; pin tracing to this app so Next doesn't
   // infer the parent as the workspace root.
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
+  // Ship the wasm/zkey circuit assets in the cron route's serverless bundle so the server
+  // relayer can read them from disk (it proves compliance + amount binding + merkleUpdate).
+  outputFileTracingIncludes: { "/api/cron/recurring": ["./public/circuit/**"] },
   async headers() {
     return [
       {
