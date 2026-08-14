@@ -1,33 +1,38 @@
-// GET  /api/schedules — list saved recurring plans (or { configured:false } when Blob isn't wired).
-// POST /api/schedules — append a plan. Body: { amount, code, recipient, frequency }.
-// The server owns id + nextDate + history so the client can't smuggle secrets or forge run receipts.
+// GET  /api/schedules — list the AUTHENTICATED owner's recurring plans. Requires a valid bearer
+//                        token (sign-in-with-wallet, see /api/schedules/nonce). 401 otherwise.
+// POST /api/schedules — append a plan for the authenticated owner. Body: { amount, code, recipient,
+//                       frequency }. The server owns id + nextDate + history and derives `owner`
+//                       from the token (never the body), so a caller can only touch its own plans.
 //
-// SECURITY SCOPE (honest): this is a testnet-only feature whose relayer signs with the public,
-// allow-listed DEMO_SECRET, and it is inert until an operator provisions BLOB_READ_WRITE_TOKEN.
-// It is NOT per-user authenticated: any caller can create a plan and the stored metadata is
-// world-readable via the public Blob. The blast radius is bounded on purpose (amount + plan-count
-// caps below; no notes/keys are ever stored; the cron is the real privileged gate and fails closed).
-// ponytail: before this handles real value, add wallet-signed sessions + per-owner scoping + a
-// private store. For a bounded testnet demo the caps + cron gate are the proportionate control.
+// SECURITY: production auth. Every fund-moving plan is scoped to the wallet that signed in; the
+// store is private (server-only reads). Caps below (amount + plan-count) are enforced per owner.
+// The cron is the privileged executor and fails closed on CRON_SECRET.
 import { NextResponse } from "next/server";
 import { isConfigured, readSchedules, writeSchedules, computeNextDate, type StoredSchedule, type Frequency } from "@/lib/schedules";
+import { authOwner } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const MAX_AMOUNT_USDC = 100; // per-plan cap: bounds how much the relayer can be made to deposit
-const MAX_ACTIVE_PLANS = 25; // caps total intents so the endpoint can't be flooded
+const MAX_ACTIVE_PLANS = 25; // per-owner cap so one owner can't flood the store
 
-export async function GET() {
+const unauthorized = () => NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+export async function GET(req: Request) {
+  const owner = authOwner(req);
+  if (!owner) return unauthorized();
   if (!isConfigured()) return NextResponse.json({ configured: false });
   try {
-    return NextResponse.json({ configured: true, schedules: await readSchedules() });
+    return NextResponse.json({ configured: true, schedules: await readSchedules(owner) });
   } catch (e: any) {
     return NextResponse.json({ configured: true, error: (e && e.message) || "read failed", schedules: [] }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
+  const owner = authOwner(req);
+  if (!owner) return unauthorized();
   if (!isConfigured()) return NextResponse.json({ configured: false });
   let body: any;
   try {
@@ -54,9 +59,9 @@ export async function POST(req: Request) {
     history: [],
   };
   try {
-    const schedules = await readSchedules();
+    const schedules = await readSchedules(owner);
     if (schedules.length >= MAX_ACTIVE_PLANS) return NextResponse.json({ error: "too many active plans" }, { status: 429 });
-    await writeSchedules([plan, ...schedules]);
+    await writeSchedules(owner, [plan, ...schedules]);
     return NextResponse.json({ configured: true, schedule: plan });
   } catch (e: any) {
     return NextResponse.json({ error: (e && e.message) || "write failed" }, { status: 500 });

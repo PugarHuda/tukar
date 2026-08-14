@@ -10,6 +10,14 @@ export const FIELD_R = 218882428718392752222464057452572750885483644004160343436
 
 // Core pool + BN254 verifiers on Stellar testnet.
 export const POOL = "CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ";
+
+// PREVIEW-TRACK enforced pool (parallel deploy, separate address): identical to POOL but
+// additionally enforces the per-corridor amount cap ON-CHAIN in withdraw — it reads the live
+// policy-registry cross-contract and reverts PolicyExceeded (#16) when the released whole-USDC
+// amount exceeds the corridor's cap_usdc. Nothing in the default path uses this; the live app
+// keeps using POOL. Override only via env for a preview build. Bootstrapped + e2e-verified live
+// (see deployments/testnet.json "poolEnforced"). Also gains an admin-only in-place `upgrade`.
+export const POOL_ENFORCED = process.env.NEXT_PUBLIC_POOL_ENFORCED || "CBIGD4YLHXTUBBMRLK2BSWWGOMOFKR6EA6TFHFSIVH26PGFFDIHXRKTY";
 export const DISCLOSURE_VERIFIER = "CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V";
 export const THRESHOLD_VERIFIER = "CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR";
 export const AGGREGATE_VERIFIER = "CCTN437J4BX6S4JDMGUZFS2IEHV4ECHHK4ZLMM3N6VU5IIX2777AZJYA";

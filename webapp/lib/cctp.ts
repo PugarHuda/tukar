@@ -17,10 +17,15 @@ export const CCTP = {
   // Stellar (Soroban) testnet
   stellarDomain: 27,
   forwarder: "CA66Q2WFBND6V4UEB7RD4SAXSVIWMD6RA4X3U32ELVFGXV5PJK4T4VSZ",
+  // Outbound (Stellar -> EVM): TokenMessengerMinterV2 + native USDC SAC on Stellar testnet.
+  stellarTokenMessenger: "CDNG7HXAPBWICI2E3AUBP3YZWZELJLYSB6F5CC7WLDTLTHVM74SLRTHP",
+  stellarUsdc: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
   // EVM source: Base Sepolia
   evmDomain: 6,
   evmChainId: 84532,
   tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+  // Outbound mint leg: user calls receiveMessage on the Base Sepolia MessageTransmitterV2.
+  evmMessageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
   evmUsdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
   // Attestation service (sandbox / testnet)
   irisApi: "https://iris-api-sandbox.circle.com",
@@ -152,6 +157,186 @@ export async function mintAndForward(messageHex: string, attestationHex: string)
   }
   if (status !== "SUCCESS") throw new Error(`mint_and_forward not confirmed (status ${status}, tx ${hash})`);
   return hash;
+}
+
+// ===========================================================================
+// OUTBOUND: burn USDC on Stellar testnet (domain 27) -> mint on Base Sepolia (domain 6).
+// The Stellar burn is signed by the connected wallet if present, else the funded DEMO_SECRET
+// (matching how the app signs other Stellar writes). The EVM mint (receiveMessage) is
+// permissionless and submitted by the user's own Base Sepolia wallet.
+// Burn encoding verified against circlefin/stellar-cctp examples/stellar.ts depositForBurn:
+//   approve(from, spender, amount, expiration) on the USDC SAC, then
+//   deposit_for_burn(caller, amount:i128, destination_domain:u32, mint_recipient:bytes32,
+//     burn_token:Address, destination_caller:bytes32, max_fee:i128, min_finality_threshold:u32)
+//   with mint_recipient = the 20-byte EVM address left-padded to bytes32.
+// ===========================================================================
+
+// receiveMessage on Base Sepolia MessageTransmitterV2 — verified against
+// circlefin/evm-cctp-contracts src/v2/MessageTransmitterV2.sol. Permissionless: anyone can relay.
+export const MESSAGE_TRANSMITTER_ABI = [
+  {
+    type: "function",
+    name: "receiveMessage",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "message", type: "bytes" },
+      { name: "attestation", type: "bytes" },
+    ],
+    outputs: [{ type: "bool" }],
+  },
+] as const;
+
+export function isValidEvmAddress(addr: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(addr.trim());
+}
+
+/** A 20-byte EVM address left-padded to a 0x-prefixed bytes32 (Circle's mintRecipient encoding). */
+export function evmAddressToBytes32(addr: string): `0x${string}` {
+  const hex = addr.trim().replace(/^0x/, "");
+  if (!/^[0-9a-fA-F]{40}$/.test(hex)) throw new Error(`invalid EVM address: ${addr}`);
+  return `0x${"0".repeat(24)}${hex.toLowerCase()}`;
+}
+
+// A wallet callback (Freighter) for signing a Stellar tx. Absent -> DEMO_SECRET signs.
+export type StellarWallet = {
+  address: string;
+  signTransaction: (xdr: string, opts?: any) => Promise<{ signedTxXdr: string }>;
+};
+
+/** The built-in throwaway demo key's public address (funded testnet USDC + XLM). */
+export function demoStellarAddress(): string {
+  return Sdk.Keypair.fromSecret(DEMO_SECRET).publicKey();
+}
+
+async function waitForSoroban(server: Sdk.rpc.Server, hash: string, label: string): Promise<void> {
+  let status = "PENDING";
+  for (let i = 0; i < 30 && (status === "PENDING" || status === "NOT_FOUND" || status === "TRY_AGAIN_LATER"); i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const g = await server.getTransaction(hash);
+      status = g.status as string;
+      if (status === "FAILED") throw new Error(`${label} failed on-chain (tx ${hash})`);
+    } catch (e) {
+      if (String(e).includes("failed on-chain")) throw e;
+    }
+  }
+  if (status !== "SUCCESS") throw new Error(`${label} not confirmed (status ${status}, tx ${hash})`);
+}
+
+/** Build + sign (wallet or DEMO_SECRET) + send one Soroban invocation. Returns the tx hash. */
+async function submitSoroban(contractId: string, method: string, args: Sdk.xdr.ScVal[], wallet?: StellarWallet): Promise<string> {
+  const server = new Sdk.rpc.Server(RPC);
+  const kp = wallet ? null : Sdk.Keypair.fromSecret(DEMO_SECRET);
+  const address = wallet ? wallet.address : kp!.publicKey();
+  const account = await server.getAccount(address);
+  const contract = new Sdk.Contract(contractId);
+
+  const tx = new Sdk.TransactionBuilder(account, { fee: "10000000", networkPassphrase: PASSPHRASE })
+    .addOperation(contract.call(method, ...args))
+    .setTimeout(120)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (Sdk.rpc.Api.isSimulationError(sim)) throw new Error(`simulation failed (${method}): ${sim.error}`);
+  const prepared = Sdk.rpc.assembleTransaction(tx, sim).build();
+
+  let signed: Sdk.Transaction;
+  if (wallet) {
+    const res = await wallet.signTransaction(prepared.toXDR(), { networkPassphrase: PASSPHRASE, address });
+    signed = Sdk.TransactionBuilder.fromXDR(res.signedTxXdr, PASSPHRASE) as Sdk.Transaction;
+  } else {
+    prepared.sign(kp!);
+    signed = prepared;
+  }
+
+  const sent = await server.sendTransaction(signed);
+  if ((sent.status as string) === "ERROR") throw new Error(`${method} send failed: ${JSON.stringify(sent.errorResult ?? "")}`);
+  await waitForSoroban(server, sent.hash, method);
+  return sent.hash;
+}
+
+/**
+ * Burn USDC on Stellar for a CCTP transfer to Base Sepolia. Two signed Soroban txs: approve the
+ * TokenMessengerMinter to spend the USDC, then deposit_for_burn. destination_caller is zeroed so
+ * the EVM receiveMessage is permissionless (the user submits it from their own wallet). Returns
+ * the burn tx hash (64-hex, no 0x prefix — prepend 0x before handing it to Circle Iris).
+ */
+export async function depositForBurnStellar(opts: { amount: bigint; mintRecipientEvm: string; wallet?: StellarWallet }): Promise<{ burnTx: string; sender: string }> {
+  const { amount, mintRecipientEvm, wallet } = opts;
+  if (amount <= 0n) throw new Error("amount must be positive");
+  if (!isValidEvmAddress(mintRecipientEvm)) throw new Error("enter a valid 0x EVM recipient address");
+  const sender = wallet ? wallet.address : demoStellarAddress();
+  const server = new Sdk.rpc.Server(RPC);
+
+  // 1) approve(from, spender, amount, expiration_ledger) on the USDC SAC.
+  const latest = await server.getLatestLedger();
+  const expiration = latest.sequence + 100_000;
+  await submitSoroban(
+    CCTP.stellarUsdc,
+    "approve",
+    [
+      new Sdk.Address(sender).toScVal(),
+      new Sdk.Address(CCTP.stellarTokenMessenger).toScVal(),
+      Sdk.nativeToScVal(amount, { type: "i128" }),
+      Sdk.nativeToScVal(expiration, { type: "u32" }),
+    ],
+    wallet,
+  );
+
+  // 2) deposit_for_burn — the real burn.
+  const mintRecipient = hexToScvBytes(evmAddressToBytes32(mintRecipientEvm));
+  const destinationCaller = Sdk.xdr.ScVal.scvBytes(Buffer.alloc(32)); // zero => permissionless receive
+  const maxFee = amount / 100n; // 1% ceiling; Circle charges its (lower) minimum for fast transfer
+  const burnTx = await submitSoroban(
+    CCTP.stellarTokenMessenger,
+    "deposit_for_burn",
+    [
+      new Sdk.Address(sender).toScVal(),
+      Sdk.nativeToScVal(amount, { type: "i128" }),
+      Sdk.nativeToScVal(CCTP.evmDomain, { type: "u32" }),
+      mintRecipient,
+      new Sdk.Address(CCTP.stellarUsdc).toScVal(),
+      destinationCaller,
+      Sdk.nativeToScVal(maxFee, { type: "i128" }),
+      Sdk.nativeToScVal(CCTP.minFinalityThreshold, { type: "u32" }),
+    ],
+    wallet,
+  );
+  return { burnTx, sender };
+}
+
+/**
+ * Submit receiveMessage(message, attestation) on the Base Sepolia MessageTransmitterV2 via the
+ * user's connected EVM wallet (viem over window.ethereum). Permissionless — the user pays gas and
+ * USDC lands at the mintRecipient. viem is dynamically imported so nothing loads at SSR.
+ */
+export async function submitReceiveMessageEvm(eth: any, message: string, attestation: string): Promise<{ txHash: string; relayer: string }> {
+  const { createWalletClient, createPublicClient, custom, http } = await import("viem");
+  const { baseSepolia } = await import("viem/chains");
+  const walletClient = createWalletClient({ chain: baseSepolia, transport: custom(eth) });
+  const publicClient = createPublicClient({ chain: baseSepolia, transport: http() });
+
+  const [account] = await walletClient.requestAddresses();
+  if (!account) throw new Error("No account authorized in the wallet.");
+  if ((await walletClient.getChainId()) !== baseSepolia.id) {
+    try {
+      await walletClient.switchChain({ id: baseSepolia.id });
+    } catch {
+      await walletClient.addChain({ chain: baseSepolia });
+      await walletClient.switchChain({ id: baseSepolia.id });
+    }
+  }
+
+  const txHash = await walletClient.writeContract({
+    account,
+    chain: baseSepolia,
+    address: CCTP.evmMessageTransmitter as `0x${string}`,
+    abi: MESSAGE_TRANSMITTER_ABI,
+    functionName: "receiveMessage",
+    args: [message as `0x${string}`, attestation as `0x${string}`],
+  });
+  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  return { txHash, relayer: account };
 }
 
 export const evmTxExplorer = (h: string): string => `https://sepolia.basescan.org/tx/${h}`;

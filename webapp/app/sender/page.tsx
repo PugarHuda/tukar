@@ -28,6 +28,8 @@ import { newNote, usdcToStroops, encodeBearerNote, decodePaymentRequest, getPose
 import { qrSvgString } from "@/components/sender/qr";
 import { SavingsNote } from "@/components/SavingsNote";
 import { CctpFund } from "@/components/CctpFund";
+import { CctpSend } from "@/components/CctpSend";
+import { scheduleSignIn } from "@/lib/auth-client";
 
 // The 10 corridors — codes/currencies match app.js CORRIDORS (the receiver keys off `corridor`
 // in the bearer note, so codes must line up). `oracle` = the symbol Reflector's on-chain SEP-40
@@ -99,6 +101,8 @@ export default function SenderPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   // null = still probing; true = server scheduler live (cron executes on-chain); false = device-local reminder.
   const [serverMode, setServerMode] = useState<boolean | null>(null);
+  // Scheduler bearer token from sign-in-with-wallet. Null until the connected wallet signs in.
+  const [schedToken, setSchedToken] = useState<string | null>(null);
   // fulfilling a Receiver-issued payment request (tukreq1:) — amount + payee are locked
   const [reqInput, setReqInput] = useState("");
   const [request, setRequest] = useState<{ addr: string; label: string } | null>(null);
@@ -128,16 +132,15 @@ export default function SenderPage() {
   // The amount in the field before a payment request overwrote it, restored on Clear.
   const preReqAmount = useRef("200");
 
-  // Probe the server scheduler; if it's live, load server-side plans (with run history). Otherwise
+  // Probe whether the server scheduler is live (Blob + AUTH_SECRET). Per-owner plans are PRIVATE,
+  // so they load only after the connected wallet signs in (the effect below). If not configured,
   // fall back to device-local reminders. SSR-safe: only runs in an effect.
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch("/api/schedules");
-        const j = await r.json();
+        const j = await (await fetch("/api/schedules/nonce")).json();
         if (j?.configured) {
           setServerMode(true);
-          if (Array.isArray(j.schedules)) setSchedules(j.schedules);
           return;
         }
       } catch {}
@@ -151,6 +154,33 @@ export default function SenderPage() {
       } catch {}
     })();
   }, []);
+
+  // Sign in with the connected wallet, then load THIS owner's private plans. Runs once per
+  // connection; on disconnect the token + loaded plans are cleared so no one else sees them.
+  useEffect(() => {
+    if (serverMode !== true) return;
+    if (!connected || !address) {
+      setSchedToken(null);
+      setSchedules([]);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const token = await scheduleSignIn(address, kind);
+        if (!alive || !token) return;
+        setSchedToken(token);
+        const j = await (await fetch("/api/schedules", { headers: { Authorization: `Bearer ${token}` } })).json();
+        if (alive && Array.isArray(j?.schedules)) setSchedules(j.schedules);
+      } catch {
+        if (alive) toast("Could not sign in to the scheduler with this wallet", "error");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverMode, connected, address, kind]);
   function persistSchedules(next: Schedule[]) {
     setSchedules(next);
     try {
@@ -160,10 +190,14 @@ export default function SenderPage() {
   async function saveSchedule() {
     if (frequency === "one-time" || !(num > 0) || num > MAX_USDC) return;
     if (serverMode) {
+      if (!schedToken) {
+        toast("Connect a wallet to schedule (it signs you in).", "error");
+        return;
+      }
       try {
         const r = await fetch("/api/schedules", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${schedToken}` },
           body: JSON.stringify({ amount: amount.trim(), code, recipient, frequency }),
         });
         const j = await r.json();
@@ -903,6 +937,7 @@ function SendScreen(props: {
       </div>
 
       <CctpFund className="mt-4" stellarRecipient={connected && address ? address : ""} />
+      <CctpSend className="mt-3" />
 
       <Button variant="ghost" full onClick={onBack} className="mt-5">
         ← Edit payment

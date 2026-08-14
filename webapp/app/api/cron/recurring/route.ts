@@ -8,7 +8,7 @@
 // recipient or auto-withdraw — that transfer+withdraw leg stays a labeled manual step.
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { isConfigured, readSchedules, writeSchedules, computeNextDate, type RunReceipt } from "@/lib/schedules";
+import { isConfigured, readSchedules, writeSchedules, listAllOwners, computeNextDate, type RunReceipt, type StoredSchedule } from "@/lib/schedules";
 import { relayerDeposit, relayerRegister } from "@/lib/relayer";
 import { newNote, usdcToStroops } from "@/lib/zk";
 
@@ -32,13 +32,23 @@ export async function GET(req: Request) {
   }
   if (!isConfigured()) return NextResponse.json({ configured: false });
 
-  const schedules = await readSchedules();
+  // Sweep every owner's private schedule file and collect the plans due today across all of them.
+  // ponytail: reads each owner file per run (fine for a demo's handful of owners); add an index
+  // if owner count grows. We still process ONE due plan per run to stay under maxDuration.
+  const owners = await listAllOwners();
   const today = new Date().toISOString().slice(0, 10);
-  const due = schedules.filter((s) => s.nextDate <= today);
-  if (due.length === 0) return NextResponse.json({ configured: true, processed: 0, due: 0 });
+  type DuePlan = { owner: string; list: StoredSchedule[]; plan: StoredSchedule };
+  const due: DuePlan[] = [];
+  for (const owner of owners) {
+    const list = await readSchedules(owner);
+    for (const plan of list) if (plan.nextDate <= today) due.push({ owner, list, plan });
+  }
+  if (due.length === 0) return NextResponse.json({ configured: true, processed: 0, due: 0, owners: owners.length });
 
-  const target = due[0];
-  const pending = due.length - 1; // remaining due plans, executed on later runs
+  // Oldest due first, so nothing starves across owners.
+  due.sort((a, b) => a.plan.nextDate.localeCompare(b.plan.nextDate));
+  const { owner, list, plan: target } = due[0];
+  const pending = due.length - 1; // remaining due plans (any owner), executed on later runs
 
   // Mint a fresh note for the plan amount, then deposit + register on-chain.
   const note = await newNote(usdcToStroops(target.amount));
@@ -62,7 +72,8 @@ export async function GET(req: Request) {
   // retries it (and the error is visible in history) rather than silently skipping a payment.
   if (dep.ok) target.nextDate = computeNextDate(target.frequency);
 
-  await writeSchedules(schedules);
+  // `target` is a reference into `list`; persist just this owner's file.
+  await writeSchedules(owner, list);
 
   return NextResponse.json({
     configured: true,
