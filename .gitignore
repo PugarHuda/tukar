@@ -69,3 +69,7 @@ tukar-logo-480.png
 ceremony/**/verify.log
 
 scripts/demo-video-out/
+
+# Local design assets (not og-image)
+frontend/tukar-avatar.png
+frontend/tukar-banner.png
