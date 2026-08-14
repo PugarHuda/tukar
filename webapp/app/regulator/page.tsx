@@ -939,6 +939,15 @@ function TravelRuleTab({
   const [corridorCode, setCorridorCode] = useState("ID");
   const corridor = corridorByCode(corridorCode);
 
+  // Reference exchange state: the acknowledgement (or validation errors) from the stand-in
+  // receiving-VASP endpoint. Reset whenever the payload changes so a stale ack never lingers.
+  const [sending, setSending] = useState(false);
+  const [ack, setAck] = useState<
+    | { ok: true; status: string; ackId: string; receivedAt: string; echoedReference: string }
+    | { ok: false; errors: string[] }
+    | null
+  >(null);
+
   const exampleOnly = !last;
   const amount = last ? disclosedFigure(last.res, last.receipt) : "250.00 (example figure, verify a receipt to use a real one)";
   const reference = last ? last.res.commitment : "(commitment hash from the verified disclosure)";
@@ -947,6 +956,39 @@ function TravelRuleTab({
 
   const payload = buildTravelRulePayload({ amount, reference, anchorTx, corridor, network, exampleOnly });
   const json = JSON.stringify(payload, null, 2);
+
+  // Drop any earlier acknowledgement when the shown payload changes (corridor or source receipt).
+  useEffect(() => {
+    setAck(null);
+  }, [json]);
+
+  // Reference exchange: POST the exact shown payload to the stand-in receiving-VASP endpoint,
+  // which validates its structure and acknowledges it. This demonstrates the VASP-to-VASP
+  // handshake; it does not reach a live Travel Rule network. receivedAt is supplied by the
+  // caller (guarded for the browser) since the endpoint avoids relying on the server clock.
+  const sendToVasp = async () => {
+    setSending(true);
+    setAck(null);
+    try {
+      const receivedAt = typeof window !== "undefined" ? new Date().toISOString() : "";
+      const res = await fetch("/api/travel-rule", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...payload, receivedAt }),
+      });
+      const data = await res.json();
+      if (data.received) {
+        setAck({ ok: true, ...data.ack });
+        toast("Receiving VASP acknowledged the payload", "success");
+      } else {
+        setAck({ ok: false, errors: data.errors || ["Rejected by the receiving VASP."] });
+      }
+    } catch (e: any) {
+      setAck({ ok: false, errors: ["Exchange failed: " + ((e && e.message) || String(e))] });
+    } finally {
+      setSending(false);
+    }
+  };
 
   // Client-side blob download of the exact payload shown. Guarded for the browser (SSR-safe).
   const downloadJson = () => {
@@ -1034,6 +1076,45 @@ function TravelRuleTab({
         <pre className="mt-2 overflow-x-auto rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[11.5px] leading-relaxed text-tp">
           {json}
         </pre>
+
+        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4">
+          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Reference exchange (VASP to VASP)</div>
+          <p className="mt-2 text-[12.5px] leading-relaxed text-tm">
+            Reference exchange. This posts the payload to a stand-in receiving-VASP endpoint that validates and acknowledges it,
+            demonstrating the VASP-to-VASP handshake. It is not connected to a live Travel Rule network (TRISA/TRP/OpenVASP); that
+            wiring stays roadmap.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <Button variant="subtle" busy={sending} onClick={sendToVasp}>
+              Send to receiving VASP (reference)
+            </Button>
+            {sending && <Spinner label="posting to the stand-in receiving VASP…" />}
+          </div>
+
+          {ack?.ok && (
+            <div className="mt-3 animate-tk-pop rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2.5 text-[13px] text-green-t">
+              <b>✓ {ack.status} by the receiving VASP (reference).</b>
+              <div className="mt-1.5 text-ts">
+                ack id <span className="font-mono text-orange-pale">{ack.ackId}</span> · received at{" "}
+                <span className="font-mono">{ack.receivedAt}</span>
+              </div>
+              <div className="mt-1 text-tm">
+                echoed reference <span className="font-mono">{short(ack.echoedReference)}</span>. Structure and transaction fields
+                validated; the personal fields stayed placeholders. No live network exchange happened.
+              </div>
+            </div>
+          )}
+          {ack && !ack.ok && (
+            <div className="mt-3 animate-tk-pop rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2.5 text-[13px] text-red-t">
+              <b>✗ Rejected by the receiving VASP (reference).</b>
+              <ul className="mt-1.5 list-disc pl-4 text-ts">
+                {ack.errors.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-tile border border-green/25 bg-green/[0.04] p-4 text-[12.5px] leading-relaxed">
