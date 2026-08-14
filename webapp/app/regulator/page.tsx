@@ -955,6 +955,18 @@ function TravelRuleTab({
     error?: string;
   } | null>(null);
 
+  // TRISA companion-node send: real TRISA network when the always-on node is deployed and
+  // registered (TRISA_NODE_URL set), else an honest "not deployed, falls back to TRP" note.
+  const [trisaSending, setTrisaSending] = useState(false);
+  const [trisaBeneficiary, setTrisaBeneficiary] = useState("api.bob.vaspbot.net");
+  const [trisa, setTrisa] = useState<{
+    configured: boolean;
+    ok?: boolean;
+    note?: string;
+    error?: string;
+    result?: { envelopeId: string; beneficiary: string; endpoint: string; transferState: string; receivedAt?: string; rejected?: string };
+  } | null>(null);
+
   const exampleOnly = !last;
   const amount = last ? disclosedFigure(last.res, last.receipt) : "250.00 (example figure, verify a receipt to use a real one)";
   const reference = last ? last.res.commitment : "(commitment hash from the verified disclosure)";
@@ -967,6 +979,7 @@ function TravelRuleTab({
   // Drop any earlier response when the shown payload or destination changes.
   useEffect(() => {
     setTrp(null);
+    setTrisa(null);
   }, [json, dest]);
 
   // Real TRP send: POST the IVMS101 payload to our outbound TRP endpoint, which builds a spec
@@ -1004,6 +1017,35 @@ function TravelRuleTab({
       setTrp({ ok: false, mode: dest, note: "", status: 0, requestIdentifier: "—", error: "TRP send failed: " + ((e && e.message) || String(e)) });
     } finally {
       setSending(false);
+    }
+  };
+
+  // Real TRISA send via the always-on companion node. POSTs the IVMS101 payload to the gated
+  // route; when TRISA_NODE_URL is set the node performs a real GDS lookup + sealed Transfer,
+  // otherwise the route reports it is not deployed and the operator uses the TRP send above.
+  const sendTrisa = async () => {
+    setTrisaSending(true);
+    setTrisa(null);
+    try {
+      const res = await fetch("/api/travel-rule/trisa", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ivms101: payload,
+          amount,
+          beneficiaryVASP: trisaBeneficiary.trim(),
+          network: "Stellar",
+          asset: "USDC",
+        }),
+      });
+      const data = await res.json();
+      setTrisa(data);
+      if (data.configured === false) toast("TRISA node not deployed — use the TRP send above", "info");
+      else if (data.ok && data.result && !data.result.rejected) toast("TRISA beneficiary VASP accepted the transfer", "success");
+    } catch (e: any) {
+      setTrisa({ configured: true, ok: false, error: "TRISA send failed: " + ((e && e.message) || String(e)) });
+    } finally {
+      setTrisaSending(false);
     }
   };
 
@@ -1150,6 +1192,74 @@ function TravelRuleTab({
                   request-identifier <span className="font-mono">{trp.requestIdentifier}</span>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-tile border border-orange/25 bg-orange/[0.04] p-4">
+          <div className="flex items-center gap-2">
+            <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Send via TRISA (companion node)</div>
+            <StatusPill tone="amber" label="Real TRISA network when the node is deployed" />
+          </div>
+          <p className="mt-2 text-[12.5px] leading-relaxed text-tm">
+            The FATF Travel Rule also has a second live network, <b className="text-ts">TRISA</b>, which uses mutual-TLS and a
+            certificate directory that a serverless function cannot host. Tukar ships an always-on TRISA companion node
+            (<span className="font-mono text-orange-pale">trisa-node/</span>) that does: it looks the beneficiary VASP up in the
+            Global TRISA Directory, seals the IVMS101 payload to the peer, and performs a real gRPC Transfer. This button drives
+            it when it is deployed and registered; otherwise it reports that honestly and you use the TRP send above.
+          </p>
+
+          <div className="mt-3">
+            <label htmlFor="trisa-ben" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+              Beneficiary VASP (directory common name)
+            </label>
+            <input
+              id="trisa-ben"
+              value={trisaBeneficiary}
+              onChange={(e) => setTrisaBeneficiary(e.target.value)}
+              placeholder="api.bob.vaspbot.net"
+              className="mt-[7px] w-full max-w-sm rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+            />
+            <p className="mt-2 text-[11px] text-tf">
+              A TRISA test peer such as the Alice or Bob rVASP. Requires a registered test VASP and an installed cert (see trisa-node/README).
+            </p>
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <Button variant="subtle" busy={trisaSending} onClick={sendTrisa}>
+              Send via TRISA node
+            </Button>
+            {trisaSending && <Spinner label="performing the TRISA transfer…" />}
+          </div>
+
+          {trisa && trisa.configured === false && (
+            <div className="mt-3 rounded-lg border border-amber/35 bg-amber/[0.05] px-3 py-2.5 text-[13px] text-amber">
+              <b>TRISA companion node not deployed.</b>
+              <div className="mt-1 text-ts">{trisa.note || "Using the self-hosted TRP send above."}</div>
+              <div className="mt-1 text-tm">
+                Deploy and register the node (trisa-node/README), set <span className="font-mono">TRISA_NODE_URL</span>, then this
+                becomes a real TRISA network transfer.
+              </div>
+            </div>
+          )}
+          {trisa && trisa.configured && trisa.result && !trisa.result.rejected && (
+            <div className="mt-3 animate-tk-pop rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2.5 text-[13px] text-green-t">
+              <b>✓ TRISA Transfer accepted by {trisa.result.beneficiary}.</b>
+              <div className="mt-1.5 text-ts">
+                envelope <span className="font-mono text-orange-pale">{short(trisa.result.envelopeId)}</span> · state{" "}
+                <span className="font-mono">{trisa.result.transferState}</span>
+              </div>
+              <div className="mt-1 text-ts">
+                endpoint <span className="font-mono">{trisa.result.endpoint}</span>
+                {trisa.result.receivedAt ? <> · received {trisa.result.receivedAt}</> : null}
+              </div>
+              <div className="mt-1 text-tm">Sealed IVMS101 envelope over mutual-TLS on the real TRISA network.</div>
+            </div>
+          )}
+          {trisa && trisa.configured && (trisa.error || trisa.result?.rejected) && (
+            <div className="mt-3 animate-tk-pop rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2.5 text-[13px] text-red-t">
+              <b>✗ {trisa.result?.rejected ? "TRISA transfer rejected" : "TRISA send failed"}.</b>
+              <div className="mt-1.5 text-ts">{trisa.result?.rejected || trisa.error}</div>
             </div>
           )}
         </div>

@@ -11,11 +11,11 @@
 //    the demo without a wallet. Never reuse this pattern for real funds.
 import * as Sdk from "@stellar/stellar-sdk";
 import { keccak256 } from "js-sha3";
-import { RPC, PASSPHRASE, FIELD_R, DEMO_SECRET, SOURCE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, RESERVES, RESERVES_VERIFIER, ANCHOR, ONRAMPER } from "./constants";
+import { RPC, PASSPHRASE, FIELD_R, DEMO_SECRET, SOURCE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, RESERVES, RESERVES_VERIFIER, RESERVES_AGGREGATE, ANCHOR, ONRAMPER } from "./constants";
 
 // Re-export the public contract-ID / config constants so route code can import them from
 // lib/stellar (their original home) OR lib/constants (a light, SDK-free bundle).
-export { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, RESERVES, RESERVES_VERIFIER, ANCHOR, ONRAMPER, RPC, PASSPHRASE } from "./constants";
+export { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, RESERVES, RESERVES_VERIFIER, RESERVES_AGGREGATE, ANCHOR, ONRAMPER, RPC, PASSPHRASE } from "./constants";
 
 // snarkjs is dynamic-imported (browser-only, heavy) so it never lands in a server bundle.
 let _snarkjs: any = null;
@@ -64,6 +64,41 @@ export async function readReservesAttestation(): Promise<
       reserves: v.reserves.toString(),
       timestamp: Number(v.timestamp),
       solvent: sol.ok ? Boolean(sol.value) : v.liabilities <= v.reserves,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the live VOLUNTARY proof-of-reserves state from the RESERVES_AGGREGATE contract
+ * (on-chain, read-only). Reuses the deployed aggregate-disclosure verifier: depositors each
+ * prove a sum over their OWN notes into a shared round, so `provenLiabilities` is an HONEST
+ * LOWER BOUND covering only `coveredCount` of the pool's `poolLeafCount` notes (M of N). It
+ * grows as depositors opt in, with zero redeploy of the live pool. `solvent` means the proven
+ * (covered) liabilities are within live custody — a conservative signal for the covered subset,
+ * not a whole-pool solvency claim. Returns null if the read fails so the panel can fall back.
+ */
+export async function readVoluntaryReserves(): Promise<
+  { round: number; provenLiabilities: string; coveredCount: number; poolLeafCount: number; poolBalance: string; solvent: boolean } | null
+> {
+  try {
+    const [round, proven, covered, leafCount, balance, solvent] = await Promise.all([
+      simulate(RESERVES_AGGREGATE, "round"),
+      simulate(RESERVES_AGGREGATE, "proven_liabilities"),
+      simulate(RESERVES_AGGREGATE, "covered_count"),
+      simulate(RESERVES_AGGREGATE, "pool_leaf_count"),
+      simulate(RESERVES_AGGREGATE, "pool_balance"),
+      simulate(RESERVES_AGGREGATE, "solvent_for_covered"),
+    ]);
+    if (!proven.ok || !balance.ok) return null;
+    return {
+      round: round.ok ? Number(round.value) : 0,
+      provenLiabilities: proven.value.toString(),
+      coveredCount: covered.ok ? Number(covered.value) : 0,
+      poolLeafCount: leafCount.ok ? Number(leafCount.value) : 0,
+      poolBalance: balance.value.toString(),
+      solvent: solvent.ok ? Boolean(solvent.value) : BigInt(proven.value) <= BigInt(balance.value),
     };
   } catch {
     return null;

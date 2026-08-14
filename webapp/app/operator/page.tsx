@@ -14,6 +14,7 @@ import {
   readCorridorPolicies,
   readReflectorRecords,
   readReservesAttestation,
+  readVoluntaryReserves,
   offrampQuoteTwap,
   offrampQuote,
   explorer,
@@ -27,6 +28,7 @@ import {
   POLICY_REGISTRY,
   RESERVES,
   RESERVES_VERIFIER,
+  RESERVES_AGGREGATE,
 } from "@/lib/stellar";
 
 // Public contract IDs from deployments/testnet.json that lib/stellar doesn't re-export
@@ -161,11 +163,13 @@ function PoolCard({ label, value, sub, accent, children }: { label: string; valu
 }
 
 type ReservesAtt = { liabilities: string; reserves: string; timestamp: number; solvent: boolean } | null;
+type VoluntaryPoR = { round: number; provenLiabilities: string; coveredCount: number; poolLeafCount: number; poolBalance: string; solvent: boolean } | null;
 
 function PoolHealthSection() {
   const [health, setHealth] = useState<PoolHealth | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
   const [reserves, setReserves] = useState<ReservesAtt>(null);
+  const [voluntary, setVoluntary] = useState<VoluntaryPoR>(null);
 
   useEffect(() => {
     let live = true;
@@ -185,6 +189,13 @@ function PoolHealthSection() {
         const att = await readReservesAttestation();
         if (live) setReserves(att);
       } catch { /* fallback: panel shows the mechanism without an attestation */ }
+    })();
+    // Voluntary (aggregate-verifier) reserves read is isolated too, so a failure never breaks the page.
+    (async () => {
+      try {
+        const v = await readVoluntaryReserves();
+        if (live) setVoluntary(v);
+      } catch { /* fallback: voluntary panel simply doesn't render */ }
     })();
     return () => { live = false; };
   }, []);
@@ -271,6 +282,40 @@ function PoolHealthSection() {
               </a>
               <span className="w-full font-mono text-[10.5px] text-tf">
                 Ceiling: the whole leaf set is counted as obligations, which over-counts already-spent notes — this only over-states liabilities, so passing liabilities ≤ custody stays conservative (fail-safe). Subtracting spent notes via nullifiers is the upgrade path.
+              </span>
+            </div>
+          </>
+        );
+      })()}
+
+      {voluntary && (() => {
+        const v = voluntary;
+        const M = v.coveredCount, N = v.poolLeafCount;
+        return (
+          <>
+            <SubHead title="Voluntary reserves attestation" sub="no-redeploy · reuses the aggregate-disclosure verifier · honest lower bound" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+              <PoolCard label="Proven liabilities" value={`$${fmtUsdc(v.provenLiabilities)}`} sub="Σ depositor-attested, bound by proof" accent />
+              <PoolCard label="Notes covered" value={`${M} / ${N}`} sub="depositors who opted in (M of N)" />
+              <PoolCard label="USDC in custody" value={`$${fmtUsdc(v.poolBalance)}`} sub="live pool balance" />
+              <PoolCard
+                label="Solvent for covered"
+                value={<span className={v.solvent ? "text-green-t" : "text-tf"}>{v.solvent ? "Yes" : "No"}</span>}
+                sub={v.solvent ? "proven ≤ custody (covered subset)" : "proven > custody (covered subset)"}
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-tile border border-line bg-black/20 px-4 py-3 text-[12px] leading-relaxed text-tm">
+              <span>
+                Round <b className="text-tp">{v.round}</b>: each depositor voluntarily proves a sum over <b className="text-tp">their own</b> notes into a shared round (a real aggregate-disclosure Groth16 proof, cap = their disclosed sum), and the contract accumulates the proven liabilities and checks them against live custody — <b className="text-tp">no redeploy</b> of the live pool, which cannot hold every depositor&apos;s openings. So far <b className="text-tp">${fmtUsdc(v.provenLiabilities)}</b> is proven across <b className="text-tp">{M} of {N}</b> notes.
+              </span>
+              <a href={explorer(RESERVES_AGGREGATE)} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-orange-l3 hover:text-orange">
+                Voluntary reserves contract {short(RESERVES_AGGREGATE)} ↗
+              </a>
+              <a href={explorer(AGGREGATE_VERIFIER)} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-orange-l3 hover:text-orange">
+                Aggregate verifier {short(AGGREGATE_VERIFIER)} ↗
+              </a>
+              <span className="w-full font-mono text-[10.5px] text-tf">
+                Voluntary lower bound by design: this proves solvency only for the notes that have attested (the covered subset), and each depositor&apos;s figure is an upper bound on their own notes, so proven ≤ custody stays conservative. It grows as more depositors opt in; full-pool proof-of-reserves without holding every opening needs the homomorphic-accumulator upgrade.
               </span>
             </div>
           </>

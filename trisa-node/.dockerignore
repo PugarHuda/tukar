@@ -1,0 +1,7 @@
+.env
+certs/
+*.zip
+*.pem
+*.p12
+*.pfx
+README.md

@@ -41,6 +41,17 @@ export const POLICY_REGISTRY = "CAQ7KBNFJOJI34B5V3GNI7ACW6YEOAD4JRYSOX3EUW5UOXFK
 export const RESERVES = "CCMIHWMVDTO6X4FPJSHXEQBYQQID3QIKCLMNVS5UKMPRHWLPUK4ALXMC";
 export const RESERVES_VERIFIER = "CBCVFPJBKVWACXQMVTWK5LO7UVABUKVAE2EYERGTSXO4ZTHFAT2VD5JI";
 
+// VOLUNTARY proof-of-reserves (additive, read-only over the live pool; not one of the 8 live
+// contracts). REUSES the deployed aggregate-disclosure verifier (no new circuit/ceremony):
+// each depositor proves a sum over THEIR OWN notes into a shared round (prove sum <= cap using
+// the aggregate circuit, cap = disclosed_sum), the contract accumulates the proven liabilities
+// and compares against live custody. proven_liabilities is an HONEST LOWER BOUND covering only
+// the notes that have attested (M of N) — it grows as more depositors opt in, needing no
+// redeploy of the live pool (which cannot hold all openings). This RESERVES_AGGREGATE points at
+// the LIVE pool; the operator console reads its views live (proven_liabilities / covered M-of-N /
+// balance / solvent-for-covered).
+export const RESERVES_AGGREGATE = "CA6Q5SWRAV3P432YNL4OE6IZ52LNBBS5WWE2HILDYRZDGFBY47PKC7XN";
+
 // Public key used only to build read-only simulation transactions.
 export const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS";
 

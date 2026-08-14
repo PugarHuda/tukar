@@ -24,4 +24,15 @@ impl ReservesTestPool {
     pub fn leaves(env: Env) -> Vec<BytesN<32>> {
         env.storage().instance().get(&symbol_short!("lv")).unwrap()
     }
+    // Additive read views the voluntary reserves-aggregate contract reads cross-contract
+    // (the live pool exposes the same). The original reserves contract only calls
+    // balance()/leaves(), so adding these does not affect its e2e.
+    pub fn leaf_count(env: Env) -> u32 {
+        let lv: Vec<BytesN<32>> = env.storage().instance().get(&symbol_short!("lv")).unwrap();
+        lv.len()
+    }
+    pub fn is_commitment_known(env: Env, commitment: BytesN<32>) -> bool {
+        let lv: Vec<BytesN<32>> = env.storage().instance().get(&symbol_short!("lv")).unwrap();
+        lv.iter().any(|c| c == commitment)
+    }
 }

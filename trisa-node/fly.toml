@@ -1,0 +1,46 @@
+# Fly.io config for the always-on TRISA node. It needs a STABLE public endpoint that TRISA
+# peers dial, which is exactly what a serverless function cannot provide.
+#
+# The node speaks mTLS gRPC: Fly must pass raw TCP straight through to the app (NO tls/http
+# handlers — the node terminates mTLS itself). Register this host:port as your TRISA endpoint
+# in the GDS, e.g. tukar-trisa.fly.dev:443.
+#
+# Before first deploy:
+#   fly launch --no-deploy            # or `fly apps create tukar-trisa-node`
+#   fly secrets set TRISA_CERTS_PASSWORD=...    # the PKCS12 password from the GDS
+#   fly volumes create trisa_certs --size 1      # holds the installed cert archive
+# Then install the issued cert archive into the volume and `fly deploy`.
+
+app = "tukar-trisa-node"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  LISTEN_ADDR = ":4433"
+  BRIDGE_ADDR = "127.0.0.1:8091"
+  DIRECTORY = "api.trisatest.net:443"
+  # Point these at the mounted cert archive (see [mounts] below).
+  TRISA_CERTS = "/certs/trisa.identity.zip"
+  TRISA_CHAIN = "/certs/trisa.identity.zip"
+  # TRISA_COMMON_NAME is your registered common name; set it to match the cert.
+  # TRISA_CERTS_PASSWORD is a secret: `fly secrets set TRISA_CERTS_PASSWORD=...`
+
+# Persist the issued certificate archive across deploys. Install it once into the volume.
+[mounts]
+  source = "trisa_certs"
+  destination = "/certs"
+
+# Raw-TCP passthrough for the mTLS gRPC surface. Peers dial <app>.fly.dev:443 -> 4433.
+# No handlers: Fly must not terminate TLS; the node does mutual TLS end to end.
+[[services]]
+  internal_port = 4433
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 443
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"

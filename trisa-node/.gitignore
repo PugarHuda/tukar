@@ -1,0 +1,8 @@
+/trisa-node
+/trisa-node.exe
+.env
+certs/
+*.zip
+*.pem
+*.p12
+*.pfx

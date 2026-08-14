@@ -1,0 +1,27 @@
+[package]
+name = "reserves-aggregate"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+# Same major as the pool + reserves (>= 26) so the SDK/env/BN254 layout matches the live
+# contracts and the deployed aggregate-disclosure verifier it reuses.
+soroban-sdk = { version = "26", features = ["alloc"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "26", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+lto = true
+codegen-units = 1
+panic = "abort"
