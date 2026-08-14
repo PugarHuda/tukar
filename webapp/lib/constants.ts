@@ -18,6 +18,12 @@ export const RANGE_VERIFIER = "CDUONEVPPH7WI7EPSXZE3YXEF4FHHJM7HFJOTZBCJNJSUG26U
 // Reflector — Stellar's decentralized SEP-40 FX oracle (testnet, base = USD).
 export const REFLECTOR_FX = "CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU5NV4W";
 
+// Per-corridor policy registry (additive, separate from the 8 live contracts): stores the
+// per-jurisdiction amount cap + required-disclosure mode as REAL on-chain records the
+// operator console reads live. Admin is the corridor operator key (SOURCE); re-pointed by
+// admin-signed set_policy (no redeploy).
+export const POLICY_REGISTRY = "CAQ7KBNFJOJI34B5V3GNI7ACW6YEOAD4JRYSOX3EUW5UOXFKBDZBDAZ3";
+
 // Public key used only to build read-only simulation transactions.
 export const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS";
 

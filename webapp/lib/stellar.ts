@@ -11,11 +11,11 @@
 //    the demo without a wallet. Never reuse this pattern for real funds.
 import * as Sdk from "@stellar/stellar-sdk";
 import { keccak256 } from "js-sha3";
-import { RPC, PASSPHRASE, FIELD_R, DEMO_SECRET, SOURCE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, ANCHOR, ONRAMPER } from "./constants";
+import { RPC, PASSPHRASE, FIELD_R, DEMO_SECRET, SOURCE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, ANCHOR, ONRAMPER } from "./constants";
 
 // Re-export the public contract-ID / config constants so route code can import them from
 // lib/stellar (their original home) OR lib/constants (a light, SDK-free bundle).
-export { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, ANCHOR, ONRAMPER, RPC, PASSPHRASE } from "./constants";
+export { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, ANCHOR, ONRAMPER, RPC, PASSPHRASE } from "./constants";
 
 // snarkjs is dynamic-imported (browser-only, heavy) so it never lands in a server bundle.
 let _snarkjs: any = null;
@@ -191,6 +191,33 @@ export async function readDenyList(): Promise<string[] | null> {
       for (const x of u) n = (n << 8n) | BigInt(x);
       return n.toString();
     });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the LIVE per-corridor policy from the on-chain policy registry (a REAL contract,
+ * additive to the pool). Returns a map of corridor code -> { capUsdc, disclosure } where
+ * disclosure is the enum 0=exact,1=threshold,2=range,3=aggregate. Reads corridors() once,
+ * then policy(code) for each in parallel. Returns null on ANY read failure so the operator
+ * console can fall back to its hardcoded reference map and never break.
+ */
+export async function readCorridorPolicies(): Promise<Record<string, { capUsdc: number; disclosure: number }> | null> {
+  try {
+    const list = await simulate(POLICY_REGISTRY, "corridors");
+    if (!list.ok || !Array.isArray(list.value)) return null;
+    const codes: string[] = list.value.map((s: any) => String(s));
+    const entries = await Promise.all(
+      codes.map(async (code) => {
+        const p = await simulate(POLICY_REGISTRY, "policy", Sdk.xdr.ScVal.scvSymbol(code));
+        if (!p.ok || p.value == null) return null;
+        return [code, { capUsdc: Number(p.value.cap_usdc), disclosure: Number(p.value.disclosure) }] as const;
+      }),
+    );
+    const out: Record<string, { capUsdc: number; disclosure: number }> = {};
+    for (const e of entries) if (e) out[e[0]] = e[1];
+    return Object.keys(out).length ? out : null;
   } catch {
     return null;
   }

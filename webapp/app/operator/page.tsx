@@ -11,6 +11,7 @@ import {
   readRecentActivity,
   readAspRoot,
   readDenyList,
+  readCorridorPolicies,
   readReflectorRecords,
   offrampQuoteTwap,
   offrampQuote,
@@ -22,6 +23,7 @@ import {
   AGGREGATE_VERIFIER,
   RANGE_VERIFIER,
   REFLECTOR_FX,
+  POLICY_REGISTRY,
 } from "@/lib/stellar";
 
 // Public contract IDs from deployments/testnet.json that lib/stellar doesn't re-export
@@ -128,8 +130,9 @@ function CopyBlock({ text, copiedLabel = "CLI command copied" }: { text: string;
 }
 
 // ---------- 1 · POOL HEALTH ----------
-const CONTRACTS: { role: "pool" | "verifier" | "oracle" | "token"; tone: "orange" | "muted" | "green" | "amber"; name: string; id: string; note: string }[] = [
+const CONTRACTS: { role: "pool" | "verifier" | "oracle" | "token" | "policy"; tone: "orange" | "muted" | "green" | "amber"; name: string; id: string; note: string }[] = [
   { role: "pool", tone: "orange", name: "Corridor pool (custody + tree)", id: POOL, note: "stateful · trustless root advance" },
+  { role: "policy", tone: "amber", name: "Per-corridor policy registry", id: POLICY_REGISTRY, note: "on-chain caps + disclosure · admin set_policy" },
   { role: "verifier", tone: "muted", name: "disclosure", id: DISCLOSURE_VERIFIER, note: "3 inputs · exact-amount" },
   { role: "verifier", tone: "muted", name: "transfer (JoinSplit)", id: TRANSFER_VERIFIER, note: "7 inputs · 2-in/2-out shielded" },
   { role: "verifier", tone: "muted", name: "compliance (allow / deny)", id: COMPLIANCE_VERIFIER, note: "11 inputs · Compliance(10,8)" },
@@ -341,8 +344,8 @@ function ActivityTable() {
 // ---------- 2 · COMPLIANCE POLICY ----------
 type Policy = { rootHex: string | null; denyDec: string[] | null };
 
-function buildCmd(method: string, args: [string, string][]) {
-  const head = ["stellar contract invoke \\", `  --id ${POOL} \\`, `  --source ${ADMIN} \\`, "  --network testnet \\", "  -- \\", `  ${method}`];
+function buildCmd(method: string, args: [string, string][], contractId: string = POOL) {
+  const head = ["stellar contract invoke \\", `  --id ${contractId} \\`, `  --source ${ADMIN} \\`, "  --network testnet \\", "  -- \\", `  ${method}`];
   const argLines = args.map(([n, v]) => `  --${n} ${v}`);
   return head.join("\n") + (argLines.length ? " \\\n" + argLines.join(" \\\n") : "");
 }
@@ -399,15 +402,18 @@ function AdminForms({ policy }: { policy: Policy | null }) {
   );
 }
 
-// DEMONSTRATED reference model — the per-corridor / per-jurisdiction policy an anchor would
-// configure. This is NOT enforced per-corridor on-chain today. The policy that IS enforced on
-// chain is the single global ASP allow-root + deny-list read live above (checked by the
-// compliance circuit on every deposit). The threshold and required-disclosure values below are
-// illustrative, chosen to show the shape of the config, not real regulatory figures. The
-// required-disclosure values map to Tukar's four disclosure circuits (exact / threshold / range
-// / aggregate) a regulator in that jurisdiction could demand.
+// Per-corridor / per-jurisdiction policy: the amount cap + required-disclosure mode a
+// licensed anchor configures per corridor. These are now REAL on-chain records in the policy
+// registry (read live via readCorridorPolicies); the map below is the FALLBACK the console
+// renders if that read fails, so the page never breaks. The globally-enforced policy remains
+// the single ASP allow-root + deny-list read live above (checked by the compliance circuit on
+// every deposit). The cap + disclosure values are illustrative, not real regulatory figures.
+// The required-disclosure values map to Tukar's four disclosure circuits (exact / threshold /
+// range / aggregate) a regulator in that jurisdiction could demand.
 type Disclosure = "exact" | "threshold" | "range" | "aggregate";
 type PolicyMap = Record<string, { thresholdUsdc: number; disclosure: Disclosure }>;
+// Registry disclosure enum -> UI string (index = the u32 the contract stores).
+const DISCLOSURE_BY_NUM: Disclosure[] = ["exact", "threshold", "range", "aggregate"];
 const CORRIDOR_POLICY: PolicyMap = {
   MX: { thresholdUsdc: 10000, disclosure: "threshold" },
   BR: { thresholdUsdc: 10000, disclosure: "range" },
@@ -434,7 +440,7 @@ const DISCLOSURES: Disclosure[] = ["exact", "threshold", "range", "aggregate"];
 const uniformPolicy = (thresholdUsdc: number, disclosure: Disclosure): PolicyMap =>
   Object.fromEntries(Object.keys(CORRIDOR_POLICY).map((c) => [c, { thresholdUsdc, disclosure }]));
 const PRESETS: { key: string; label: string; note: string; build: () => PolicyMap }[] = [
-  { key: "default", label: "Default", note: "Tukar illustrative baseline, varied per corridor", build: () => ({ ...CORRIDOR_POLICY }) },
+  { key: "default", label: "Default (on-chain)", note: "live per-corridor records from the policy registry", build: () => ({ ...CORRIDOR_POLICY }) },
   { key: "eu", label: "EU (MiCA / TFR)", note: "illustrative EU-style travel-rule shape", build: () => uniformPolicy(1000, "exact") },
   { key: "us", label: "US (FinCEN)", note: "illustrative US-style CTR reporting shape", build: () => uniformPolicy(10000, "threshold") },
   { key: "apac", label: "APAC", note: "illustrative APAC mixed shape", build: () => uniformPolicy(3000, "range") },
@@ -456,22 +462,25 @@ function policyAsCode(rootHex: string | null, policy: PolicyMap): string {
     `asp_allow_root: ${rootHex ? "0x" + rootHex : "0x… (pool.asp_root)"}`,
     "sanctions_deny_list: pool.deny_list()   # 8 non-membership field elements",
     "",
-    "# REFERENCE MODEL — configured per anchor / per jurisdiction,",
-    "# NOT yet enforced per-corridor on-chain (roadmap):",
+    "# PER-CORRIDOR — real on-chain records in the policy registry,",
+    "# admin-signed by the corridor operator (set_policy, no redeploy):",
     "corridors:",
     ...rows,
   ].join("\n");
 }
 
-function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
+function DemonstratedPolicy({ rootHex, livePolicy }: { rootHex: string | null; livePolicy: PolicyMap | null }) {
+  // The on-chain registry is the base; CORRIDOR_POLICY is the fallback if the read failed.
+  const base = livePolicy ?? CORRIDOR_POLICY;
   const [presetKey, setPresetKey] = useState("default");
-  const [policy, setPolicy] = useState<PolicyMap>(() => ({ ...CORRIDOR_POLICY }));
+  const [policy, setPolicy] = useState<PolicyMap>(() => ({ ...base }));
 
   const applyPreset = (key: string) => {
     const p = PRESETS.find((x) => x.key === key);
     if (!p) return;
     setPresetKey(key);
-    setPolicy(p.build());
+    // "Default" resets to the live on-chain base; the rest are illustrative uniform shapes.
+    setPolicy(key === "default" ? { ...base } : p.build());
   };
   const editThreshold = (code: string, v: string) => {
     const n = Math.max(0, Math.round(Number(v) || 0));
@@ -488,11 +497,17 @@ function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
 
   return (
     <>
-      <SubHead title="Per-corridor policy model (reference)" sub="configured per anchor · not yet enforced per-corridor on-chain" />
+      <SubHead title="Per-corridor policy registry" sub={livePolicy ? "on-chain policy registry · admin-signed by the corridor operator" : "on-chain read unavailable · showing fallback map"} />
       <div className="mb-4 flex items-start gap-3 rounded-tile border border-line bg-black/20 p-4">
         <span aria-hidden className="mt-0.5 text-tf">◇</span>
         <p className="text-[12.5px] leading-relaxed text-tm">
-          <b className="text-ts">Reference model, not live enforcement.</b> The allow-root and deny-list above are global and enforced on-chain today. The per-corridor amount threshold and required disclosure below are the config shape a licensed anchor would supply per jurisdiction. Tukar is the compliance and privacy layer that would enforce them. The presets, thresholds, and disclosure values are illustrative, not real regulatory figures.
+          <b className="text-ts">On-chain policy registry (admin-signed by the corridor operator).</b>{" "}
+          {livePolicy ? (
+            <>The per-corridor amount cap and required disclosure below are REAL records read live from the policy registry <span className="font-mono text-ts">{short(POLICY_REGISTRY)}</span>, a contract separate from the pool. The corridor operator re-points them with an admin-signed <span className="font-mono text-ts">set_policy</span> (no redeploy), the same admin-op pattern as the allow-root and deny-list above.</>
+          ) : (
+            <>The on-chain registry read is unavailable right now, so this shows the fallback map. The allow-root and deny-list above are global and enforced on-chain today.</>
+          )}{" "}
+          The cap and disclosure values are illustrative, not real regulatory figures.
         </p>
       </div>
 
@@ -575,21 +590,71 @@ function DemonstratedPolicy({ rootHex }: { rootHex: string | null }) {
         The same policy expressed as the config an anchor would hand the layer. The <code className="font-mono text-ts">asp_allow_root</code> and <code className="font-mono text-ts">sanctions_deny_list</code> lines are the real on-chain values. The <code className="font-mono text-ts">corridors</code> block is the reference model, not enforced per-corridor on-chain today.
       </p>
       <CopyBlock text={policyAsCode(rootHex, policy)} copiedLabel="policy config copied" />
+
+      <SubHead title="Admin action: push edits (set_policy)" sub="requires the operator key · build & copy the CLI" />
+      {(() => {
+        // Which corridors did the operator edit away from the live on-chain base? Build one
+        // admin-signed set_policy command per change — the same admin-op pattern as set_asp_root
+        // above (the browser holds only the non-admin demo key, so nothing is signed here).
+        const changed = RECEIVER_CORRIDORS.map((c) => c.code).filter((code) => {
+          const p = policy[code];
+          const b = base[code];
+          return p && (!b || p.thresholdUsdc !== b.thresholdUsdc || p.disclosure !== b.disclosure);
+        });
+        if (!changed.length) {
+          return (
+            <p className="text-[12.5px] leading-relaxed text-tm">
+              Edit any cap or disclosure above, then copy the exact <code className="font-mono text-ts">set_policy</code> command here for the operator key <span className="font-mono text-ts">{short(ADMIN)}</span> to run offline. No admin secret ever touches the page.
+            </p>
+          );
+        }
+        const cmds = changed
+          .map((code) =>
+            buildCmd(
+              "set_policy",
+              [
+                ["corridor", code],
+                ["cap_usdc", String(policy[code].thresholdUsdc)],
+                ["disclosure", String(DISCLOSURE_BY_NUM.indexOf(policy[code].disclosure))],
+              ],
+              POLICY_REGISTRY,
+            ),
+          )
+          .join("\n\n");
+        return (
+          <>
+            <p className="mb-3 text-[12.5px] leading-relaxed text-tm">
+              {changed.length} corridor{changed.length > 1 ? "s" : ""} edited. Run each command with the operator key <span className="font-mono text-ts">{short(ADMIN)}</span> to write the new record to the registry. <code className="font-mono text-ts">disclosure</code> is the enum 0=exact, 1=threshold, 2=range, 3=aggregate.
+            </p>
+            <CopyBlock text={cmds} copiedLabel="set_policy CLI copied" />
+          </>
+        );
+      })()}
     </>
   );
 }
 
 function CompliancePolicySection() {
   const [policy, setPolicy] = useState<Policy | null>(null);
+  const [corridorPolicy, setCorridorPolicy] = useState<PolicyMap | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
 
   useEffect(() => {
     let live = true;
     (async () => {
       try {
-        const [rootHex, denyDec] = await Promise.all([readAspRoot(), readDenyList()]);
+        const [rootHex, denyDec, corridors] = await Promise.all([readAspRoot(), readDenyList(), readCorridorPolicies()]);
         if (!live) return;
         setPolicy({ rootHex, denyDec });
+        // Map the registry's { capUsdc, disclosure:number } records into the UI's PolicyMap.
+        // Null (read failed) -> DemonstratedPolicy falls back to the hardcoded CORRIDOR_POLICY.
+        if (corridors) {
+          const mapped: PolicyMap = {};
+          for (const [code, e] of Object.entries(corridors)) {
+            mapped[code] = { thresholdUsdc: e.capUsdc, disclosure: DISCLOSURE_BY_NUM[e.disclosure] ?? "exact" };
+          }
+          setCorridorPolicy(mapped);
+        }
         setStatus("ok");
       } catch {
         if (live) setStatus("err");
@@ -640,7 +705,7 @@ function CompliancePolicySection() {
       </p>
       <AdminForms key={rootHex ?? status} policy={policy} />
 
-      <DemonstratedPolicy rootHex={rootHex} />
+      <DemonstratedPolicy key={corridorPolicy ? "chain" : status} rootHex={rootHex} livePolicy={corridorPolicy} />
     </Panel>
   );
 }

@@ -20,7 +20,8 @@
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "snarkjs": "^0.7.5"
+    "snarkjs": "^0.7.5",
+    "viem": "^2.55.15"
   },
   "devDependencies": {
     "@types/node": "^22",
