@@ -73,3 +73,6 @@ scripts/demo-video-out/
 # Local design assets (not og-image)
 frontend/tukar-avatar.png
 frontend/tukar-banner.png
+
+# QA screenshot/artifact output (regenerable, not product)
+scripts/qa-shots/
