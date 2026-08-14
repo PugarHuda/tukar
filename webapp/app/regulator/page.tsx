@@ -44,6 +44,7 @@ import {
 } from "@/lib/zk";
 
 import { CORRIDORS, corridorByCode, type Corridor } from "@/components/receiver/corridors";
+import { DEMO_TRAVEL_ADDRESS } from "@/lib/trp";
 
 type TabId = "reports" | "verify" | "issue" | "travel" | "trail";
 const NAV: (NavItem & { id: TabId })[] = [
@@ -939,14 +940,20 @@ function TravelRuleTab({
   const [corridorCode, setCorridorCode] = useState("ID");
   const corridor = corridorByCode(corridorCode);
 
-  // Reference exchange state: the acknowledgement (or validation errors) from the stand-in
-  // receiving-VASP endpoint. Reset whenever the payload changes so a stale ack never lingers.
+  // Real TRP exchange state: the response from the beneficiary VASP (approved/rejected) plus the
+  // request-identifier and which peer it hit. Reset whenever the payload changes.
   const [sending, setSending] = useState(false);
-  const [ack, setAck] = useState<
-    | { ok: true; status: string; ackId: string; receivedAt: string; echoedReference: string }
-    | { ok: false; errors: string[] }
-    | null
-  >(null);
+  const [dest, setDest] = useState<"self" | "notabene">("self");
+  const [trp, setTrp] = useState<{
+    ok: boolean;
+    mode: string;
+    note: string;
+    status: number;
+    requestIdentifier: string;
+    approved?: { address: string; callback: string };
+    rejected?: string;
+    error?: string;
+  } | null>(null);
 
   const exampleOnly = !last;
   const amount = last ? disclosedFigure(last.res, last.receipt) : "250.00 (example figure, verify a receipt to use a real one)";
@@ -957,34 +964,44 @@ function TravelRuleTab({
   const payload = buildTravelRulePayload({ amount, reference, anchorTx, corridor, network, exampleOnly });
   const json = JSON.stringify(payload, null, 2);
 
-  // Drop any earlier acknowledgement when the shown payload changes (corridor or source receipt).
+  // Drop any earlier response when the shown payload or destination changes.
   useEffect(() => {
-    setAck(null);
-  }, [json]);
+    setTrp(null);
+  }, [json, dest]);
 
-  // Reference exchange: POST the exact shown payload to the stand-in receiving-VASP endpoint,
-  // which validates its structure and acknowledges it. This demonstrates the VASP-to-VASP
-  // handshake; it does not reach a live Travel Rule network. receivedAt is supplied by the
-  // caller (guarded for the browser) since the endpoint avoids relying on the server clock.
-  const sendToVasp = async () => {
+  // Real TRP send: POST the IVMS101 payload to our outbound TRP endpoint, which builds a spec
+  // 3.2.1 transfer inquiry, signs the canonical body (Ed25519), sets the three TRP headers, and
+  // forwards it either to the Notabene sandbox (a real independent VASP, when NOTABENE_API_KEY is
+  // set) or to our own inbound TRP endpoint (real protocol, single operator). We then show the
+  // beneficiary's real TRP response.
+  const sendTrp = async () => {
     setSending(true);
-    setAck(null);
+    setTrp(null);
     try {
-      const receivedAt = typeof window !== "undefined" ? new Date().toISOString() : "";
-      const res = await fetch("/api/travel-rule", {
+      const res = await fetch("/api/travel-rule/send", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...payload, receivedAt }),
+        body: JSON.stringify({
+          ivms101: payload,
+          amount,
+          destination: dest === "notabene" ? { notabene: true } : DEMO_TRAVEL_ADDRESS,
+        }),
       });
       const data = await res.json();
-      if (data.received) {
-        setAck({ ok: true, ...data.ack });
-        toast("Receiving VASP acknowledged the payload", "success");
-      } else {
-        setAck({ ok: false, errors: data.errors || ["Rejected by the receiving VASP."] });
-      }
+      const inner = data.response || {};
+      setTrp({
+        ok: Boolean(data.ok),
+        mode: data.mode || "self-hosted",
+        note: data.note || "",
+        status: data.status ?? res.status,
+        requestIdentifier: data.requestIdentifier || inner.requestIdentifier || "—",
+        approved: inner.approved,
+        rejected: inner.rejected,
+        error: data.error,
+      });
+      if (data.ok && inner.approved) toast("Beneficiary VASP approved the transfer inquiry", "success");
     } catch (e: any) {
-      setAck({ ok: false, errors: ["Exchange failed: " + ((e && e.message) || String(e))] });
+      setTrp({ ok: false, mode: dest, note: "", status: 0, requestIdentifier: "—", error: "TRP send failed: " + ((e && e.message) || String(e)) });
     } finally {
       setSending(false);
     }
@@ -1005,8 +1022,8 @@ function TravelRuleTab({
   return (
     <>
       <CardBox
-        title="FATF Travel Rule (reference)"
-        sub="A reference mapping only, not a live Travel Rule network. It shows how one Tukar selective disclosure maps to a FATF Travel Rule (IVMS101) payload that a sending and a receiving anchor would exchange."
+        title="FATF Travel Rule (TRP 3.2.1)"
+        sub="Maps one Tukar selective disclosure to a FATF Travel Rule (IVMS101) payload and sends it over the real OpenVASP TRP 3.2.1 protocol — either to the Notabene sandbox (a real independent VASP) or to our own inbound TRP endpoint (single operator)."
         right={
           <StatusPill tone={exampleOnly ? "amber" : "green"} label={exampleOnly ? "Example payload" : "Driven by a verified receipt"} />
         }
@@ -1014,9 +1031,9 @@ function TravelRuleTab({
         <div className="rounded-tile border border-line bg-black/20 p-4 text-[13px] leading-relaxed text-ts">
           <p>
             Selective disclosure lets a holder prove one fact to a regulator on-chain. The same mechanism maps to a FATF Travel
-            Rule (IVMS101) payload that a sending and a receiving anchor exchange to meet their VASP obligations. This is a
-            reference mapping; Tukar is the private settlement layer, the anchors run KYC and the Travel Rule exchange. Roadmap:
-            wiring this to a live Travel Rule messaging network.
+            Rule (IVMS101) payload that a sending and a receiving anchor exchange to meet their VASP obligations. Tukar is the
+            private settlement layer; the anchors run KYC and the Travel Rule exchange. The Send panel below speaks the real TRP
+            3.2.1 protocol so this is a working VASP-to-VASP handshake, not a mock.
           </p>
           <p className="mt-3 text-tm">
             Tukar never holds names or addresses, so every personal field below is a marked placeholder{" "}
@@ -1078,40 +1095,61 @@ function TravelRuleTab({
         </pre>
 
         <div className="mt-4 rounded-tile border border-line bg-black/20 p-4">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Reference exchange (VASP to VASP)</div>
+          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Send as a TRP message (real protocol)</div>
           <p className="mt-2 text-[12.5px] leading-relaxed text-tm">
-            Reference exchange. This posts the payload to a stand-in receiving-VASP endpoint that validates and acknowledges it,
-            demonstrating the VASP-to-VASP handshake. It is not connected to a live Travel Rule network (TRISA/TRP/OpenVASP); that
-            wiring stays roadmap.
+            This builds a real TRP 3.2.1 transfer inquiry from the IVMS101 payload above, decodes the beneficiary endpoint from a
+            base58 Travel Address, signs the canonical body (Ed25519), sets the three TRP headers (api-version, request-identifier,
+            api-extensions), and POSTs it. The beneficiary VASP answers with a real TRP response (approved or rejected).
           </p>
-          <div className="mt-3 flex items-center gap-3">
-            <Button variant="subtle" busy={sending} onClick={sendToVasp}>
-              Send to receiving VASP (reference)
-            </Button>
-            {sending && <Spinner label="posting to the stand-in receiving VASP…" />}
+
+          <div className="mt-3">
+            <label className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Beneficiary VASP</label>
+            <select
+              value={dest}
+              onChange={(e) => setDest(e.target.value as "self" | "notabene")}
+              className="mt-[7px] rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+            >
+              <option value="self">Our own inbound endpoint (real TRP, single operator)</option>
+              <option value="notabene">Notabene sandbox (real independent VASP — needs NOTABENE_API_KEY)</option>
+            </select>
+            <p className="mt-2 font-mono text-[11px] break-all text-tf">
+              Travel Address: <span className="text-orange-pale">{DEMO_TRAVEL_ADDRESS}</span>
+            </p>
           </div>
 
-          {ack?.ok && (
+          <div className="mt-3 flex items-center gap-3">
+            <Button variant="subtle" busy={sending} onClick={sendTrp}>
+              Send as TRP message
+            </Button>
+            {sending && <Spinner label="posting the TRP transfer inquiry…" />}
+          </div>
+
+          {trp && trp.approved && (
             <div className="mt-3 animate-tk-pop rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2.5 text-[13px] text-green-t">
-              <b>✓ {ack.status} by the receiving VASP (reference).</b>
+              <b>✓ Approved by the beneficiary VASP · TRP {trp.status}.</b>
               <div className="mt-1.5 text-ts">
-                ack id <span className="font-mono text-orange-pale">{ack.ackId}</span> · received at{" "}
-                <span className="font-mono">{ack.receivedAt}</span>
+                request-identifier <span className="font-mono text-orange-pale">{trp.requestIdentifier}</span>
+              </div>
+              <div className="mt-1 text-ts">
+                settlement address <span className="font-mono">{short(trp.approved.address)}</span> · callback{" "}
+                <span className="font-mono">{trp.approved.callback}</span>
               </div>
               <div className="mt-1 text-tm">
-                echoed reference <span className="font-mono">{short(ack.echoedReference)}</span>. Structure and transaction fields
-                validated; the personal fields stayed placeholders. No live network exchange happened.
+                {trp.mode === "notabene"
+                  ? "Sent to the Notabene sandbox — a real, independent VASP over live TRP."
+                  : "Sent to our own inbound TRP endpoint — real TRP protocol, single operator (one node, both ends)."}
               </div>
             </div>
           )}
-          {ack && !ack.ok && (
+          {trp && !trp.approved && (
             <div className="mt-3 animate-tk-pop rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2.5 text-[13px] text-red-t">
-              <b>✗ Rejected by the receiving VASP (reference).</b>
-              <ul className="mt-1.5 list-disc pl-4 text-ts">
-                {ack.errors.map((e, i) => (
-                  <li key={i}>{e}</li>
-                ))}
-              </ul>
+              <b>✗ {trp.rejected ? `Rejected · TRP ${trp.status}` : "TRP send failed"}.</b>
+              <div className="mt-1.5 text-ts">{trp.rejected || trp.error || "No approval returned."}</div>
+              {trp.requestIdentifier !== "—" && (
+                <div className="mt-1 text-tm">
+                  request-identifier <span className="font-mono">{trp.requestIdentifier}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1141,14 +1179,16 @@ function TravelRuleTab({
         </div>
 
         <div className="mt-4 rounded-tile border border-line bg-black/20 p-4 text-[12.5px] leading-relaxed text-ts">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Where this payload is actually exchanged</div>
+          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">What is real here, and what is out of scope</div>
           <p className="mt-2">
-            In production a payload of this shape moves between the sending and receiving VASP over a real Travel Rule messaging
-            protocol. The established networks are{" "}
-            <b className="text-ts">TRISA</b> (Travel Rule Information Sharing Architecture),{" "}
-            <b className="text-ts">TRP</b> (the Travel Rule Protocol), and <b className="text-ts">OpenVASP</b>. Wiring Tukar's
-            selective disclosure to one of these networks is the roadmap. This panel is the data-mapping reference that shows how a
-            Tukar disclosure lines up with the IVMS101 fields those protocols carry; it does not itself send anything.
+            The exchange above speaks real <b className="text-ts">TRP 3.2.1</b> (the OpenVASP Travel Rule Protocol): an HTTPS POST
+            of an IVMS101 transfer inquiry with the three spec headers, a base58 Travel Address, and a signed canonical body. With{" "}
+            <span className="font-mono text-orange-pale">NOTABENE_API_KEY</span> set it reaches the Notabene sandbox, a real
+            independent VASP; without it, both ends are this one operator (a real TRP node talking to itself).
+          </p>
+          <p className="mt-2 text-tm">
+            Out of scope for a serverless deploy: mutual-TLS and a live TRISA/BVN directory, because both need long-lived
+            certificates and a peer registry that a stateless function cannot hold. Identity here is header plus Signed-JSON only.
           </p>
         </div>
       </CardBox>

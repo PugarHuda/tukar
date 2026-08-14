@@ -41,6 +41,11 @@ export default function ReceiverPage() {
   const [reqString, setReqString] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // "Check note status" widget: ask the pool (read-only) whether a note is unregistered,
+  // spendable, or already spent — so a receiver knows before a withdraw, not from a failure.
+  const [nsBusy, setNsBusy] = useState(false);
+  const [nsResult, setNsResult] = useState<{ status: string; reason: string } | null>(null);
+
   const [status, setStatusState] = useState<{ text: string; busy: boolean }>({ text: "Loading the zero-knowledge prover.", busy: true });
   const setStatus = useCallback((text: string, busy = false) => setStatusState({ text, busy }), []);
 
@@ -164,6 +169,31 @@ export default function ReceiverPage() {
     },
     [setStatus],
   );
+
+  // ---- check note status against the live pool (read-only) ----
+  const checkStatus = useCallback(async () => {
+    const s = claimInput.trim();
+    if (!s) {
+      setStatus("Paste a bearer note (or a commitment) to check its status.");
+      return;
+    }
+    setNsBusy(true);
+    setNsResult(null);
+    try {
+      const body = s.startsWith("tukar1:") ? { note: s } : { commitment: s };
+      const r = await fetch("/api/note-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) {
+        setStatus("Status check failed: " + (j.error || r.statusText));
+        return;
+      }
+      setNsResult({ status: j.status, reason: j.reason });
+    } catch (e: any) {
+      setStatus("Status check failed: " + ((e && e.message) || e));
+    } finally {
+      setNsBusy(false);
+    }
+  }, [claimInput, setStatus]);
 
   // ---- create a payment request to share (SAME tukreq1: encoding) ----
   const createRequest = useCallback(() => {
@@ -374,7 +404,23 @@ export default function ReceiverPage() {
           <Button variant="ghost" onClick={toggleScan}>
             {scanning ? "Stop scan" : "Scan QR"}
           </Button>
+          <Button variant="ghost" onClick={checkStatus} disabled={nsBusy}>
+            {nsBusy ? "Checking…" : "Check status"}
+          </Button>
         </div>
+        {nsResult && (
+          <div className="mt-3 rounded-tile border border-line bg-black/20 p-3">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Note status</span>
+              <Badge
+                tone={nsResult.status === "spendable" ? "green" : nsResult.status === "spent" ? "red" : nsResult.status === "unregistered" ? "amber" : "muted"}
+              >
+                {nsResult.status}
+              </Badge>
+            </div>
+            <p className="mt-2 text-[12px] leading-relaxed text-tm">{nsResult.reason}</p>
+          </div>
+        )}
         <video ref={videoRef} playsInline muted className={`mt-3 w-full rounded-tile border border-line ${scanning ? "" : "hidden"}`} />
       </Card>
       </div>

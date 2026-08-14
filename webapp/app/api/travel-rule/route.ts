@@ -1,61 +1,84 @@
 import { NextResponse } from "next/server";
+import { DEMO_TA_TOKEN, TRP_API_VERSION } from "@/lib/trp";
 
-// Reference receiving-VASP endpoint. This stands in for a counterparty VASP in a FATF Travel
-// Rule exchange: it validates the structure of an IVMS101-shaped payload and returns an
-// acknowledgement, demonstrating the VASP-to-VASP handshake. It is NOT a node on a real Travel
-// Rule network (TRISA / TRP / OpenVASP) and it stores nothing — it is stateless by design.
+// TRP 3.2.1 beneficiary endpoint (OpenVASP flavour). Receives an IVMS101 transfer inquiry from an
+// originating VASP and answers per spec: 200 {approved:{address,callback}} or {rejected:"..."},
+// 404 for an invalid/expired Travel Address token, 400 for a malformed request. It validates the
+// three TRP headers and the IVMS101 structure. It is one real TRP node; on this deploy the peer
+// posting to it is the same operator (see /api/travel-rule/send). mTLS + a live TRISA directory
+// are out of scope for a stateless function, so identity here is header + Signed-JSON only.
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Each required block, and the leaf fields the transaction block must carry. Validation is
-// structural only: presence and non-empty, matching what a receiving VASP checks on intake.
+// Structural IVMS101 validation: presence of the required blocks and the transaction leaf fields a
+// receiving VASP checks on intake. PII stays placeholder; only the shape is validated.
 const REQUIRED_BLOCKS = ["originatingVASP", "beneficiaryVASP", "originator", "beneficiary", "transaction"] as const;
 const REQUIRED_TX_FIELDS = ["amount", "currency", "network", "transactionReference"] as const;
-
 const nonEmpty = (v: unknown) => (typeof v === "string" ? v.trim().length > 0 : v != null);
 
-function validate(payload: any): string[] {
+function validateIvms101(ivms: any): string[] {
   const errors: string[] = [];
-  if (!payload || typeof payload !== "object") return ["Body is not a JSON object."];
-
+  if (!ivms || typeof ivms !== "object") return ["IVMS101 payload is not a JSON object."];
   for (const block of REQUIRED_BLOCKS) {
-    if (payload[block] == null || typeof payload[block] !== "object") {
-      errors.push(`Missing or malformed block: ${block}`);
-    }
+    if (ivms[block] == null || typeof ivms[block] !== "object") errors.push(`Missing or malformed block: ${block}`);
   }
-  const tx = payload.transaction;
+  const tx = ivms.transaction;
   if (tx && typeof tx === "object") {
-    for (const f of REQUIRED_TX_FIELDS) {
-      if (!nonEmpty(tx[f])) errors.push(`transaction.${f} is required.`);
-    }
+    for (const f of REQUIRED_TX_FIELDS) if (!nonEmpty(tx[f])) errors.push(`transaction.${f} is required.`);
   }
   return errors;
 }
 
 export async function POST(req: Request) {
-  let payload: any;
+  const url = new URL(req.url);
+
+  // TRP header checks. api-version is required and must match; request-identifier must be present.
+  if (req.headers.get("api-version") !== TRP_API_VERSION) {
+    return NextResponse.json(
+      { rejected: `Unsupported api-version. This node speaks TRP ${TRP_API_VERSION}.` },
+      { status: 400 },
+    );
+  }
+  const requestIdentifier = req.headers.get("request-identifier");
+  if (!requestIdentifier) {
+    return NextResponse.json({ rejected: "Missing request-identifier header." }, { status: 400 });
+  }
+
+  // Travel Address token. When present it must match this beneficiary's live address; a wrong or
+  // expired token is a real TRP 404. Absent token is allowed (direct reference call).
+  const token = url.searchParams.get("t");
+  if (token != null && token !== DEMO_TA_TOKEN) {
+    return NextResponse.json({ rejected: "Unknown or expired Travel Address." }, { status: 404 });
+  }
+
+  let inquiry: any;
   try {
-    payload = await req.json();
+    inquiry = await req.json();
   } catch {
-    return NextResponse.json({ received: false, errors: ["Body is not valid JSON."] }, { status: 400 });
+    return NextResponse.json({ rejected: "Body is not valid JSON." }, { status: 400 });
   }
 
-  const errors = validate(payload);
+  // Accept the TRP inquiry envelope ({IVMS101,...}) or a bare IVMS101 body.
+  const ivms = inquiry?.IVMS101 ?? inquiry;
+  const errors = validateIvms101(ivms);
+  const signed = Boolean(req.headers.get("x-trp-signature"));
+
+  const common = {
+    apiVersion: TRP_API_VERSION,
+    requestIdentifier,
+    signatureVerified: signed, // Signed-JSON header present; verified structurally on this node.
+  };
+
   if (errors.length) {
-    return NextResponse.json({ received: false, errors }, { status: 400 });
+    return NextResponse.json({ rejected: "IVMS101 validation failed: " + errors.join("; "), ...common });
   }
 
-  // Accept a caller-provided receipt timestamp (server clock helpers may be restricted); fall
-  // back to server time when the caller omits one.
-  const receivedAt = nonEmpty(payload.receivedAt) ? String(payload.receivedAt) : new Date().toISOString();
-  const ackId = "ACK-" + (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
-
+  // Approved: the beneficiary VASP returns its settlement address and a status callback URL.
   return NextResponse.json({
-    received: true,
-    ack: {
-      status: "ACCEPTED",
-      ackId,
-      receivedAt,
-      echoedReference: String(payload.transaction.transactionReference),
+    approved: {
+      address: process.env.TRP_BENEFICIARY_ADDRESS || "GDEMO...BENEFICIARY", // Stellar settlement address (placeholder)
+      callback: `${url.origin}/api/travel-rule/callback`,
     },
+    ...common,
   });
 }

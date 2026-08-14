@@ -3,7 +3,7 @@
 // One incoming payment: reveal the local-fiat figure read on-chain from Reflector, withdraw
 // on-chain (real transfer proof, ported from frontend/app.js), then cash out to fiat via
 // Onramper or a SEP-24 anchor. All on-chain reads/writes and anchor calls are real.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Button, Select, Input, Badge, Spinner, useToast } from "@/components/ui";
 import {
   offrampQuote,
@@ -55,6 +55,7 @@ import {
   type AuditReceipt,
 } from "@/lib/zk";
 import { CORRIDORS, corridorByCode, fmtLocal, fmtAge, type ClaimedNote, type FxRate } from "./corridors";
+import { buildRateAttestation, attestationCanonical, formatAttestation, summarizeAttestation } from "@/lib/rate-attestation";
 import { SavingsNote } from "@/components/SavingsNote";
 
 type DiscMode = "exact" | "threshold" | "range" | "aggregate";
@@ -96,6 +97,9 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   // Spot off-ramp quote (offramp_quote), shown beside the median for oracle corridors to make
   // the manipulation-resistance story visible. Component state, so it never persists to storage.
   const [spotQuote, setSpotQuote] = useState<number | null>(null);
+  // Rate attestation: anchored-hash tx + in-flight flag. Component state only.
+  const [attAnchorTx, setAttAnchorTx] = useState<string | null>(null);
+  const [attAnchoring, setAttAnchoring] = useState(false);
 
   // Switching receiver tabs unmounts every PaymentCard, so a running SEP-24 poll would keep
   // firing setState for ~24s on an unmounted card. Track liveness and bail out of the loop.
@@ -426,6 +430,114 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       </div>
     );
   }
+
+  // ---- rate attestation: package the median settlement basis already in hand ----
+  // Built ONLY from data reveal()/withdraw() already fetched — the pool's median off-ramp quote
+  // (note.localQuote = offramp_quote_twap) and the 5 raw Reflector records behind it
+  // (note.oracleDepth = readReflectorRecords). No new RPC. Memoized so builtAt is stable across
+  // renders (the anchored hash stays reproducible). Enriched with the withdraw tx + enforced floor
+  // once withdrawn (floor = median − 1% slippage, the same formula the withdraw gate applied).
+  const withdrawTx =
+    done && note.withdrawn && note.withdrawn !== "spent" && note.withdrawn !== "ok" ? note.withdrawn : null;
+  const attestation = useMemo(() => {
+    if (!cor.oracle || typeof note.localQuote !== "number" || !note.oracleDepth?.length) return null;
+    return buildRateAttestation({
+      corridor: { code: cor.code, currency: cor.currency, symbol: cor.symbol, oracleSymbol: cor.oracle },
+      amountUsdc: usdc,
+      settledMedian: note.localQuote,
+      basis: note.oracleDepth,
+      minLocalOut: done ? Math.floor(note.localQuote * 0.99) : null,
+      withdrawTx,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cor.oracle, cor.code, note.localQuote, note.oracleDepth, done, withdrawTx, usdc]);
+
+  async function copyAttestation() {
+    if (!attestation) return;
+    try {
+      await navigator.clipboard.writeText(formatAttestation(attestation));
+      toast("Attestation copied", "success");
+    } catch {
+      setStatus("Copy failed. Use Download instead.");
+    }
+  }
+
+  function downloadAttestation() {
+    if (!attestation) return;
+    // Download the CANONICAL bytes (what gets hashed), so re-hashing the file reproduces the anchor.
+    const blob = new Blob([attestationCanonical(attestation)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tukar-rate-attestation-${cor.code}-${usdc}usdc.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Attestation downloaded", "success");
+  }
+
+  async function anchorAttestation() {
+    if (!attestation || attAnchoring) return;
+    setAttAnchoring(true);
+    setStatus("Anchoring the rate attestation hash on-chain.", true);
+    try {
+      const { txHash } = await anchorReceipt(attestationCanonical(attestation));
+      setAttAnchorTx(txHash);
+      toast("Attestation anchored", "success");
+      setStatus("Rate attestation hash anchored on-chain. " + summarizeAttestation(attestation));
+    } catch (e: any) {
+      setStatus("Anchoring failed. " + ((e && e.message) || e));
+    } finally {
+      setAttAnchoring(false);
+    }
+  }
+
+  const rateAttest = attestation && (
+    <Expander label="Rate attestation">
+      <p className="text-[12.5px] leading-relaxed text-tm">
+        A portable proof your figure was priced at the median the on-chain withdraw gate enforces. Copy or download it, and anchor its SHA-256 on the ledger.
+      </p>
+      <div className="mt-3 rounded-tile border border-line bg-black/20 p-3 text-[11.5px] leading-relaxed text-ts">
+        {summarizeAttestation(attestation)}
+        {attAnchorTx && (
+          <>
+            {" "}
+            Hash anchored in{" "}
+            <a href={txExplorer(attAnchorTx)} target="_blank" rel="noreferrer" className="font-mono text-green-t underline underline-offset-2">
+              {short(attAnchorTx)} ↗
+            </a>
+            .
+          </>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="subtle" onClick={copyAttestation}>
+          Copy
+        </Button>
+        <Button variant="subtle" onClick={downloadAttestation}>
+          Download (JSON)
+        </Button>
+        {!attAnchorTx ? (
+          <Button variant="ghost" onClick={anchorAttestation} busy={attAnchoring} disabled={attAnchoring}>
+            Anchor hash on-chain
+          </Button>
+        ) : (
+          <a
+            href={txExplorer(attAnchorTx)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center font-mono text-xs text-green-t underline underline-offset-2"
+          >
+            Anchored · {short(attAnchorTx)} ↗
+          </a>
+        )}
+      </div>
+      <p className="mt-2.5 text-[11px] leading-relaxed text-tm">
+        This attests the fill matched the enforced median gate over the same 5 Reflector records. It is not a claim about the fiat a provider finally pays out.
+      </p>
+    </Expander>
+  );
 
   // ---- prove to a regulator: selective disclosure over this claimed note ----
   // The holder has the note's full secrets, so it can produce real disclosure proofs. Each
@@ -897,6 +1009,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
           </a>
         )}
         {cashOut}
+        {rateAttest}
         {discloseSection}
       </Card>
     );
@@ -979,6 +1092,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       </div>
 
       {note.revealed && cashOut}
+      {note.revealed && rateAttest}
       {discloseSection}
     </Card>
   );
