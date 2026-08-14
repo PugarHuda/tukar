@@ -70,6 +70,7 @@ pub enum PoolError {
     NonCanonicalField = 14,
     UnknownAuditRequest = 15,
     PolicyExceeded = 16,
+    AlreadyMigrated = 17,
 }
 
 // The transfer/withdraw JoinSplit is fixed at 2 inputs and 2 outputs (Transfer(10,2,2)).
@@ -125,6 +126,7 @@ enum DataKey {
     Auditor,           // the role allowed to register aggregate audit requests
     AuditRequest(BytesN<32>), // a registered aggregate audit-request hash (regulator-issued)
     PolicyRegistry,    // the per-corridor policy registry this pool enforces caps against
+    Migrated,          // one-shot flag: set once import_state has run, so it can never run again
 }
 
 // ---- Reflector SEP-40 oracle interface (the subset the pool calls) ----
@@ -228,6 +230,100 @@ impl Pool {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
         env.deployer().update_current_contract_wasm(new_wasm_hash);
+    }
+
+    /// Admin-only, ONE-TIME state import — the lossless-migration entrypoint. The LIVE pool
+    /// has NO upgrade hook and NO import-state, so a lossless upgrade means deploying THIS pool
+    /// fresh and re-inserting the source pool's shielded state here, byte-for-byte, before the
+    /// pool takes any deposits. Reproduces exactly the storage `contracts/pool/` and this pool
+    /// build with normal operation (see the field-by-field mapping below), so `leaf_count()` and
+    /// `current_root()` match the source and every migrated note keeps its spend status.
+    ///
+    /// **CORRECTNESS — nullifier completeness (READ THIS).** The spent-nullifier set is the
+    /// load-bearing input. The pool's `withdraw`/`transfer` events publish only
+    /// `(withdraw, recipient)->amount` / `(transfer,)->root` — they DO NOT publish nullifiers —
+    /// and there is no view that enumerates the nullifier set (only `is_nullifier_used(n)`, which
+    /// needs `n` up front). So the spent-nullifier set CANNOT be reconstructed from on-chain data
+    /// alone; the caller MUST supply the COMPLETE set from the operator's own records. If any
+    /// spent nullifier is omitted, its already-spent note becomes spendable again on this pool
+    /// (double-spend). This function is correct ONLY when `nullifiers` is complete; it cannot
+    /// verify completeness on-chain, so completeness is the caller's responsibility.
+    ///
+    /// One-shot + virgin: refuses if `Migrated` is already set OR the pool already has any leaves
+    /// or commitments (`AlreadyMigrated`), so import is always the FIRST state-changing call and
+    /// can never run twice. Sets `Migrated` last.
+    ///
+    /// Note: only the source's CURRENT root is imported (not the full historical-root set), and
+    /// all source leaves are imported, so any note re-proves membership against `current_root()`
+    /// via the reconstructable `leaves()` list — the same discipline `register_root_verified`
+    /// already relies on. Pending change-note outputs that were recorded but never registered as
+    /// leaves are out of scope (import takes the registered tree, its root, and the nullifier set).
+    pub fn import_state(
+        env: Env,
+        leaves: Vec<BytesN<32>>,
+        root: BytesN<32>,
+        nullifiers: Vec<BytesN<32>>,
+        asp_root: BytesN<32>,
+        deny_list: Vec<BytesN<32>>,
+    ) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        // One-shot: never run twice, and only into a virgin pool (no prior deposits/registers),
+        // so migrated leaf indices are exactly [0..leaves.len()) and nothing is imported on top
+        // of existing state.
+        let already = env.storage().instance().has(&DataKey::Migrated);
+        let count: u32 = env.storage().instance().get(&DataKey::Count).unwrap_or(0);
+        let lc: u32 = env.storage().instance().get(&DataKey::LeafCount).unwrap_or(0);
+        if already || count != 0 || lc != 0 {
+            soroban_sdk::panic_with_error!(&env, PoolError::AlreadyMigrated);
+        }
+        if deny_list.len() != DENY_LEN {
+            soroban_sdk::panic_with_error!(&env, PoolError::BadDenyList);
+        }
+        if leaves.len() >= 1u32 << 10 {
+            soroban_sdk::panic_with_error!(&env, PoolError::TreeFull);
+        }
+        // Canonical encodings only, exactly as the normal write paths require — so the migrated
+        // storage keys are byte-identical to what a live deposit/withdraw would have written and
+        // a non-canonical re-encoding can't smuggle a duplicate key past the double-spend guard.
+        Self::require_canonical(&env, &root);
+        // Re-insert each leaf at its source index, rebuilding the tree state (leaves + count +
+        // backing commitment + insert-once guard) exactly as `deposit`+`register_root_verified`
+        // would have left it.
+        let mut i = 0u32;
+        for leaf in leaves.iter() {
+            Self::require_canonical(&env, &leaf);
+            Self::record_commitment(&env, &leaf); // Commitment(leaf) + Count bump + TTL (backing)
+            let ins_key = DataKey::Inserted(leaf.clone());
+            env.storage().persistent().set(&ins_key, &()); // insert-once guard
+            env.storage().persistent().set(&DataKey::Leaf(i), &leaf); // ordered leaf list
+            env.storage().persistent().extend_ttl(&DataKey::Leaf(i), TTL_THRESHOLD, TTL_EXTEND);
+            env.storage().persistent().extend_ttl(&ins_key, TTL_THRESHOLD, TTL_EXTEND);
+            i += 1;
+        }
+        env.storage().instance().set(&DataKey::LeafCount, &i);
+        // Current root: register it known and make it current, so notes verify against it.
+        env.storage().persistent().set(&DataKey::Root(root.clone()), &());
+        env.storage().persistent().extend_ttl(&DataKey::Root(root.clone()), TTL_THRESHOLD, TTL_EXTEND);
+        env.storage().instance().set(&DataKey::CurrentRoot, &root);
+        // Mark every spent nullifier used (completeness is the caller's responsibility, above).
+        // Canonical-check each (as the normal transfer path does before spending), then reuse
+        // spend_nullifiers so duplicates are rejected and the TTL matches the normal path.
+        for n in nullifiers.iter() {
+            Self::require_canonical(&env, &n);
+        }
+        Self::spend_nullifiers(&env, &nullifiers);
+        // Policy state.
+        env.storage().instance().set(&DataKey::AspRoot, &asp_root);
+        env.storage().instance().set(&DataKey::DenyList, &deny_list);
+        // Seal: import can never run again.
+        env.storage().instance().set(&DataKey::Migrated, &true);
+        env.events().publish((symbol_short!("migrated"), i), root);
+    }
+
+    /// Whether the one-time `import_state` migration has already run on this pool.
+    pub fn is_migrated(env: Env) -> bool {
+        env.storage().instance().has(&DataKey::Migrated)
     }
 
     /// Admin-only: set (or replace) the threshold (range) disclosure verifier. Kept a

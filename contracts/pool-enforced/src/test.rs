@@ -1149,3 +1149,130 @@ fn upgrade_requires_admin() {
     env.mock_auths(&[]); // switch off blanket auth: nothing is authorized
     c.pool.upgrade(&BytesN::from_array(&env, &[7u8; 32]));
 }
+
+// ---- lossless state migration (import_state) ----
+// A known source state: two leaves, a chosen current root, two SPENT nullifiers, an asp
+// root, and the 8-entry deny list. import_state must reproduce leaf_count + current_root
+// exactly and mark each imported nullifier used — the losslessness property.
+fn deny8(env: &Env) -> Vec<BytesN<32>> {
+    vec![env, b32(env, 41), b32(env, 42), b32(env, 43), b32(env, 44),
+         b32(env, 45), b32(env, 46), b32(env, 47), b32(env, 48)]
+}
+
+#[test]
+fn import_state_reproduces_root_leaves_and_nullifiers() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61), b32(&env, 62)];
+    let root = b32(&env, 200);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
+    let asp = b32(&env, 123);
+    let deny = deny8(&env);
+
+    assert!(!c.pool.is_migrated());
+    c.pool.import_state(&leaves, &root, &nulls, &asp, &deny);
+    assert!(c.pool.is_migrated());
+
+    // leaf_count + current_root reproduced exactly from the source set.
+    assert_eq!(c.pool.leaf_count(), 3);
+    assert_eq!(c.pool.current_root(), root);
+    assert!(c.pool.is_root_known(&root));
+    // ordered leaves reconstructable, in source order.
+    let got = c.pool.leaves();
+    assert_eq!(got.len(), 3);
+    assert_eq!(got.get(0).unwrap(), b32(&env, 60));
+    assert_eq!(got.get(2).unwrap(), b32(&env, 62));
+    // each leaf is a known (backed) commitment.
+    assert!(c.pool.is_commitment_known(&b32(&env, 61)));
+    // every imported spent nullifier reports used=true (no double-spend on the new pool).
+    assert!(c.pool.is_nullifier_used(&b32(&env, 70)));
+    assert!(c.pool.is_nullifier_used(&b32(&env, 71)));
+    // policy state imported.
+    assert_eq!(c.pool.asp_root(), asp);
+    assert_eq!(c.pool.deny_list(), deny);
+}
+
+// One-shot: a second import_state is rejected (AlreadyMigrated #17), so state can't be
+// re-imported / overwritten after the migration.
+#[test]
+#[should_panic(expected = "Error(Contract, #17)")] // AlreadyMigrated
+fn import_state_is_one_shot() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60)];
+    let root = b32(&env, 200);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 70)];
+    let deny = deny8(&env);
+    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny);
+    // second call must fail
+    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny);
+}
+
+// Virgin-only: importing on top of a pool that already took a deposit is rejected, so
+// import is always the FIRST state-changing call (leaf indices stay [0..n)).
+#[test]
+#[should_panic(expected = "Error(Contract, #17)")] // AlreadyMigrated (non-virgin)
+fn import_state_rejects_nonvirgin_pool() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &100, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60)];
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env));
+}
+
+// import_state is admin-gated: a non-admin call fails auth.
+#[test]
+#[should_panic]
+fn import_state_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]); // nothing authorized
+    c.pool.import_state(&vec![&env, b32(&env, 60)], &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env));
+}
+
+// After import, a still-unspent imported note can be withdrawn against the imported root
+// (fresh nullifiers), releasing tokens — the migrated pool is fully operational.
+#[test]
+fn import_state_then_withdraw_unspent_note_succeeds() {
+    let env = Env::default();
+    let c = setup(&env);
+    let root = b32(&env, 200);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
+    let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    // Fund the migrated pool's custody so a withdraw can release (migration doesn't move tokens).
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
+
+    let recipient = Address::generate(&env);
+    // FRESH nullifiers (not in the imported spent set) — a still-unspent imported note.
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 80), b32(&env, 81)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+    assert_eq!(c.token.balance(&recipient), 120);
+}
+
+// After import, a withdraw that REUSES an imported-spent nullifier is rejected
+// (NullifierUsed #2) — the completeness of the imported nullifier set blocks double-spend.
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")] // NullifierUsed
+fn import_state_then_withdraw_reusing_spent_nullifier_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    let root = b32(&env, 200);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
+    let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
+
+    let recipient = Address::generate(&env);
+    // Reuse an imported-spent nullifier (b32(70)) — must be rejected.
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 81)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
