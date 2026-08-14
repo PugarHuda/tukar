@@ -1,7 +1,7 @@
 # Tukar deck, read this per slide (English, tight)
 
 Word for word, one short block per slide. The whole deck talk (slides 1 to 7 and 9) is
-about 75 to 80 seconds, roughly 10 seconds a slide. Slide 8 is the ~90 second demo. Then
+about 85 to 90 seconds, roughly 10 seconds a slide. Slide 8 is the ~90 second demo. Then
 2 minutes of Q&A. Do not add sentences, this is timed. Read it warm, a little bit sales,
 land the first line at the judges. Push slides 3 and 4, land the ask on slide 7.
 
@@ -33,22 +33,25 @@ browser and verified on-chain."
 "Real testnet money, an oracle-gated off-ramp, and it's checked, not claimed. A genuine proof
 passes, a tampered one is rejected."
 
-**SLIDE 7 — Depth and the ask** (~10s)
-"Every piece here does real work on-chain, it's load-bearing. What we need is one
-licensed-anchor pilot and a Stellar Community Fund award."
+**SLIDE 7 — Depth and the ask** (~14s)
+"Every piece here does real work on-chain, it's load-bearing. This cycle we went deeper, with
+a real Travel Rule exchange, on-chain per-corridor policy, and cryptographic proof-of-reserves.
+What we need is one licensed-anchor pilot and a Stellar Community Fund award."
 
 **SLIDE 8 — Live demo** (~90s)
 "Let me show you." → play the 90 second video, or run it live.
 
-**SLIDE 9 — Close** (~10s)
-"That's Tukar. Private in the middle, compliant at the edges, on Stellar. It's testnet and
-not audited yet, but everything in the middle is real, verify it on-chain now. Thanks."
+**SLIDE 9 — Close** (~15s)
+"That's Tukar. Private in the middle, compliant at the edges, on Stellar. We placed fifth in
+the Real-World ZK hackathon and we're an APAC grand finalist. It's testnet and not audited yet,
+but everything in the middle is real, verify it on-chain now. Thanks."
 
 ---
 
 ## If you are still running long
-Cut slide 4 to the first sentence and slide 6 to the second sentence. Never cut the demo or
-slide 3. The line that must survive: "Private for the user, and provable to a regulator."
+Cut the depth sentence on slide 7 (keep the load-bearing line and the ask), then slide 4 to the
+first sentence and slide 6 to the second sentence. Keep the traction line on slide 9. Never cut
+the demo or slide 3. The line that must survive: "Private for the user, and provable to a regulator."
 
 ## Companion docs
 - `docs/DEMO_VO_SUBTITLES.md`, the demo captions and voiceover, SHORT CUT section.

@@ -23,7 +23,7 @@ End-User Application
 
 **Current Traction**
 ```
-Tukar placed 5th in the Stellar Hacks: Real-World ZK hackathon and is a Grand Finalist in the Stellar APAC hackathon (Payments & Consumer Applications). It is live end to end on Stellar testnet (pre-revenue, no external users yet): 7 Circom/Groth16 circuits and 8 Soroban contracts deployed and exercised on testnet, 52 passing contract tests, a deployed web app with four role apps (sender, receiver, regulator, operator), real on-chain deposit and withdraw, a Reflector oracle-gated off-ramp, and selective disclosure verified on-chain with a tampered proof rejected. Evidence: live app https://tukar-six.vercel.app, deck https://tukar-six.vercel.app/deck, source https://github.com/PugarHuda/tukar. Honest status: not professionally audited, and the fiat on and off ramps are simulated against SDF's reference anchor (a licensed anchor is the production step).
+Tukar placed 5th in the Stellar Privacy: Real-World ZK hackathon (hosted on DoraHacks) and is a Grand Finalist in the Stellar APAC hackathon (Payments & Consumer Applications). It is live end to end on Stellar testnet (pre-mainnet, no external users yet): 8 Circom/Groth16 circuits and 13 Soroban contracts deployed and exercised on testnet, 60+ passing contract tests, a deployed web app with four role apps (sender, receiver, regulator, operator) plus a public receipt verifier, real on-chain deposit and withdraw with a Reflector oracle-gated off-ramp, and selective disclosure verified on-chain with tampered proofs rejected. Compliance depth shipped on testnet: a Travel Rule flow (OpenVASP TRP 3.2.1 plus a TRISA companion node), an on-chain per-corridor policy registry, cryptographic proof-of-reserves, Reclaim proof-of-personhood, and Circle CCTP V2 bidirectional bridging. Evidence: live app https://tukar-six.vercel.app, deck https://tukar-six.vercel.app/deck, source https://github.com/PugarHuda/tukar. Honest status: not professionally audited, and the fiat on and off ramps run against SDF's reference anchor (a licensed anchor is the production step).
 ```
 
 **Website**
@@ -33,7 +33,7 @@ https://tukar-six.vercel.app
 
 **Planned Stellar Integration**
 ```
-Already integrated on testnet, not just planned. Soroban smart contracts in Rust: a pool that custodies real testnet USDC plus seven BN254 Groth16 verifier contracts, using Protocol 25/26 host functions for on-chain pairing checks. SEP-1 (stellar.toml discovery), SEP-10 and SEP-24 (interactive fiat on and off ramp against SDF's reference anchor, with Onramper wired as the licensed off-ramp path), and SEP-41/SAC for USDC. The Reflector SEP-40 FX oracle is read on-chain as a min-receive settlement gate. Native fee-bump (CAP-15) is proven as a gasless primitive. Next steps: swap the reference anchor for a licensed KYC anchor to go live on one corridor, a professional contract audit, and a genuinely distributed trusted-setup ceremony.
+Already integrated on testnet, not just planned. Soroban smart contracts in Rust: a pool that custodies real testnet USDC plus seven BN254 Groth16 verifier contracts, using Protocol 25/26 host functions for on-chain pairing checks. SEP-1 (stellar.toml discovery), SEP-10 and SEP-24 (interactive fiat on and off ramp against SDF's reference anchor, with Onramper wired as the licensed off-ramp path), and SEP-41/SAC for USDC. The Reflector SEP-40 FX oracle is read on-chain as a min-receive settlement gate. Native fee-bump (CAP-15) is proven as a gasless primitive. Circle CCTP V2 (Stellar domain 27) bridges USDC in and out to EVM testnets. Additive Soroban contracts add an on-chain per-corridor policy registry, cryptographic proof-of-reserves that reads the pool cross-contract, and a Travel Rule flow. Next steps: swap the reference anchor for a licensed KYC anchor to go live on one corridor, a professional contract audit, and a genuinely distributed trusted-setup ceremony.
 ```
 
 **Build Track**
@@ -70,16 +70,19 @@ We are a team of [N]. Expertise across zero-knowledge (Circom / Groth16 / snarkj
 ```
 Yes
 ```
-**Referral Code** — **[ISI SENDIRI: kode dari referrer-mu]**
+**Referral Code** (dari Kenny)
 ```
-[masukkan kode unik yang dikasih referrer]
+REF-RISEI-449
 ```
-> Kalau sebenarnya TIDAK ada referrer / kode, ubah jawaban ke **No** dan kosongkan field ini. Jangan isi asal.
+> Referrer: Kenny. Kalau ada form referral terpisah yang dia kirim
+> (https://docs.google.com/forms/d/e/1FAIpQLSfMWF9cALLvIY_RLUagBbmE7abviwdTckxpkqTdvsdMxqhdUg/viewform),
+> isi juga di sana dengan kode yang sama. Platform referrer: https://raven.stellar.buzz/
 
 ---
 
 ## Checklist sebelum submit
-- [ ] Team Description: isi jumlah anggota + LinkedIn
-- [ ] Referral Code: isi kode asli, atau ubah ke "No"
+- [ ] Team Description: isi jumlah anggota + LinkedIn (satu-satunya yang masih placeholder)
+- [x] Referral: Yes + code REF-RISEI-449 (dari Kenny) — di form SCF ubah dari "No" ke "Yes" lalu masukkan kode
+- [ ] Cek juga form referral terpisah dari Kenny (link ada di bagian Referral)
 - [ ] Build Track: pilih Open (atau Integration) sesuai keputusanmu
 - [ ] Cek batas karakter tiap field (kalau kepanjangan, minta aku pendekin)

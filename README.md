@@ -8,9 +8,9 @@ money home to family, made private. It ships as **mobile-first Sender and Receiv
 apps** (`/sender`, `/receiver`) with **real fiat in and out** at the edges, and a
 **private cross-border remittance corridor** underneath. Built for the
 [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)
-hackathon, and entered in the APAC Grand Finale's **Payments & Consumer
-Applications** category, because that is what it is: a way for a person to pay
-another person across a border. Money enters in one country, crosses the corridor
+hackathon, where it **placed 5th**, and a **Grand Finalist** in the Stellar APAC
+hackathon's **Payments & Consumer Applications** category, because that is what it
+is: a way for a person to pay another person across a border. Money enters in one country, crosses the corridor
 with its **amount and counterparties hidden on-chain in the shielded transfer leg**,
 and exits as local fiat in another country. (Deposits and withdrawals are public at
 the edges, by Privacy-Pools design; see
@@ -109,43 +109,52 @@ Sources: [World Bank, Migration and Development Brief 39 (Dec 2023)](https://www
 for remittance volume; [World Bank Remittance Prices Worldwide](https://remittanceprices.worldbank.org/)
 for the average cost of sending $200.
 
-### What's next (roadmap, not yet built)
+### What shipped this session, and what's still ahead
 
-Everything above (7 circuits, 8 contracts, 52 tests, the live corridor, in-circuit
-compliance, four selective-disclosure types, and the oracle gate) runs on testnet today.
-The compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along
-five lines. Some already ship as **reference demos or illustrative models** in the consoles
-(the Travel Rule reference tab, compliance-policy-as-code, the custody reserves view, flagged
-inline below); the **load-bearing production pieces** are **planned, not implemented**:
+The core (7 circuits, 8 contracts, 52 tests, the live corridor, in-circuit compliance, four
+selective-disclosure types, and the oracle gate) runs on testnet today. The
+compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along five
+lines, and this session moved most of them from reference demos into working, testnet-live
+features. Each item below is real and on testnet unless marked, and the honest limits stay in
+the limits section further down.
 
-1. **A compliance-and-privacy layer for anchors, not another app.** Position Tukar as the
-   private, compliant settlement layer a licensed Stellar anchor (e.g. Yellow Card, Cash
-   Abroad, both live anchors) plugs into, with a compliance policy configurable per corridor
-   and jurisdiction. The Operator console already demos this as **compliance-policy-as-code**
-   (EU / US / APAC presets, per-corridor policy YAML); the real enforced global policy today
-   is the ASP allow-root and deny-list, and **per-corridor on-chain enforcement is the
-   roadmap piece**. B2B2C infrastructure, so rival privacy apps become integrators rather
-   than competitors.
-2. **FATF Travel Rule network.** The Regulator console already ships a **Travel Rule
-   (reference)** tab that maps a verified disclosure to an IVMS101 payload two anchors would
-   exchange (a reference data-mapping, PII held by the anchor's KYC, not Tukar). What's next
-   is wiring that to a **real VASP-to-VASP Travel Rule network** (TRISA / TRP / OpenVASP), so
-   two anchors exchange the required originator and beneficiary data without leaking the
-   public payment graph, the compliance step real remittance must meet and that no privacy
-   pool addresses.
-3. **Reusable KYC by composing idOS and Reclaim.** Rather than build KYC, populate the ASP
-   allow-list from [idOS](https://idos.network) (reusable KYC, live on Stellar) and
-   [Reclaim](https://reclaimprotocol.org) (zkTLS proof-of-personhood, live on Stellar). This
-   answers "who does the KYC and curates the allow-list" by reusing existing rails.
-4. **Cross-chain inbound via Circle CCTP** (live on Stellar, 23+ chains). Send privately into
-   the corridor from any supported chain.
-5. **Recurring / scheduled private remittances.** Send money home automatically each month, a
-   consumer feature layered on top of the corridor.
+1. **A compliance-and-privacy layer for anchors, not another app.** Tukar is the private,
+   compliant settlement layer a licensed Stellar anchor (e.g. Yellow Card, Cash Abroad, both
+   live anchors) plugs into, with policy configurable per corridor. There is now an **on-chain
+   per-corridor policy registry** that stores each corridor's compliance policy on-chain, and a
+   **preview enforcement pool** that rejects over-cap withdrawals on-chain. The global ASP
+   allow-root and deny-list stay the enforced policy on the live pool; per-corridor on-chain
+   enforcement ships on a **preview track** because the live pool has no upgrade hook (a state
+   migration is the production step). B2B2C infrastructure, so rival privacy apps become
+   integrators rather than competitors.
+2. **FATF Travel Rule.** Beyond the Regulator's IVMS101 reference tab, Tukar now speaks a **real
+   OpenVASP TRP 3.2.1** Travel Rule exchange with a **TRISA companion node** alongside it, so
+   two anchors exchange the required originator and beneficiary data without leaking the public
+   payment graph. TRISA activation needs the operator to register a test VASP and host the node.
+3. **Proof-of-personhood via Reclaim.** Rather than build KYC, Tukar populates the ASP
+   allow-list from [Reclaim](https://reclaimprotocol.org) (zkTLS proof-of-personhood, live on
+   Stellar): a **server-side verify** checks the Reclaim proof and an **allow-list update loop**
+   has the operator apply `set_asp_root`, so a verified person is added to the on-chain
+   allow-root with no redeploy. (Composing [idOS](https://idos.network) reusable KYC stays
+   roadmap.)
+4. **Cross-chain via Circle CCTP V2.** **Bidirectional** CCTP V2 (EVM <-> Stellar) is wired, so
+   value moves into and out of the corridor across chains. The burn leg needs a user EVM wallet
+   to sign.
+5. **Recurring private remittances.** **Recurring on-chain sends** ship with wallet-signed
+   authorization and a private per-owner store, so a worker can schedule a monthly send.
 
-The reference demos above show the shape of these; the **load-bearing production pieces** (a
-live Travel Rule network, per-corridor on-chain policy enforcement, cryptographic
-proof-of-reserves, live reusable-KYC, and cross-chain settlement) are not implemented yet.
-They are the path from the working testnet build to a production, multi-anchor corridor.
+Two more pieces landed alongside these. **Cryptographic proof-of-reserves**: a full-pool
+circuit proves the shielded liabilities are covered, plus a no-redeploy **voluntary aggregate**
+any set of depositors can contribute to. And a public **/verify receipt verifier** with a
+**note-status double-spend API** lets anyone check a disclosure receipt or a note's spent status
+without trusting the operator, backed by an **oracle-signed rate attestation** on the off-ramp
+quote.
+
+Still ahead: a full-pool *live* proof-of-reserves attestation (it needs depositor opening
+witnesses Tukar does not hold, which is why the voluntary aggregate is the no-redeploy partial),
+per-corridor on-chain enforcement on the live pool (a state migration), idOS reusable-KYC
+composition, and TRISA activation (the operator's VASP cert and host). They are the path from
+the working testnet build to a production, multi-anchor corridor.
 
 ---
 
@@ -338,21 +347,30 @@ next two sections.
 - **Four apps.** Sender and Receiver are mobile-first consumer apps (send, claim, cash out);
   Regulator and Operator are desktop consoles (verify plus audit requests; pool health, ASP
   policy, oracle, and config).
-- **Compliance depth in the consoles.** The Regulator has a **Travel Rule (reference)** tab
-  that maps a verified disclosure to the IVMS101 payload two anchors would exchange, with a
-  Download `.json` button and PII shown as placeholders *(held by the anchor's KYC, not by
-  Tukar)*. It is a reference data-mapping, not a live Travel Rule network (TRISA / TRP /
-  OpenVASP is the roadmap target). The Operator has **compliance-policy-as-code** with
-  EU / US / APAC jurisdiction presets and a per-corridor editor that regenerates a policy
-  YAML, plus a **custody reserves** view over the real pool USDC balance and committed count.
-  Honest split: the ASP allow-root and deny-list are the **real enforced global policy**; the
-  per-corridor thresholds and disclosure are an **illustrative model**, not enforced
-  per-corridor on-chain (roadmap); the reserves view is **on-chain transparency**, not a
-  cryptographic proof-of-reserves (roadmap).
+- **Compliance depth in the consoles.** The Regulator maps a verified disclosure to the
+  IVMS101 payload two anchors would exchange, and now speaks a **real OpenVASP TRP 3.2.1**
+  Travel Rule exchange with a **TRISA companion node** (TRISA activation needs the operator's
+  VASP cert and a hosted node). The Operator has **compliance-policy-as-code** with EU / US /
+  APAC presets, an **on-chain per-corridor policy registry**, and a **preview enforcement pool**
+  that rejects over-cap withdrawals on-chain. The global ASP allow-root and deny-list stay the
+  enforced policy on the live pool; per-corridor enforcement is on a **preview track** because
+  the live pool has no upgrade hook (a state migration is the production step).
+- **Proof-of-personhood (Reclaim).** A person proves personhood with [Reclaim](https://reclaimprotocol.org)
+  zkTLS; a server-side verify checks the proof and an allow-list update loop has the operator
+  apply `set_asp_root`, adding them to the on-chain allow-root with no redeploy.
+- **Proof-of-reserves.** A full-pool circuit proves the shielded liabilities are covered, plus a
+  no-redeploy **voluntary aggregate** any set of depositors can contribute to. The full-pool
+  *live* attestation needs depositor opening witnesses Tukar does not hold, so the voluntary
+  aggregate is the partial that ships today.
+- **Public receipt verifier.** A `/verify` page and a note-status double-spend API let anyone
+  check a disclosure receipt or a note's spent status without trusting the operator; the off-ramp
+  quote carries an **oracle-signed rate attestation**.
+- **Recurring sends.** Schedule a monthly private send with wallet-signed authorization and a
+  private per-owner store, layered on the corridor.
+- **Cross-chain (Circle CCTP V2).** **Bidirectional** CCTP V2 (EVM <-> Stellar) is wired to move
+  value into and out of the corridor across chains; the burn leg needs a user EVM wallet to sign.
 - **Also.** The anonymity set is surfaced in the UI, gasless fee-bump (CAP-15) is a proven
-  primitive, and the corridor spans 10 destinations. The Sender also previews Circle CCTP
-  inbound (badged roadmap, not wired) and a reusable-KYC note composing idOS and Reclaim
-  (also roadmap).
+  primitive, and the corridor spans 10 destinations.
 
 ## What the ZK is doing (load-bearing)
 
@@ -564,6 +582,14 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   since it isn't registered. Honest scope: completeness holds when the auditor is an **independent
   regulator**; in the no-install demo the auditor role is the demo key (every demo role is one
   person), so the demo exercises the mechanism rather than a true separation of parties.
+- **New-feature scope, honestly bounded.** Four of this session's additions ship with a stated
+  ceiling. The **full-pool live proof-of-reserves** attestation needs depositor opening witnesses
+  Tukar does not hold, so the no-redeploy **voluntary aggregate** is the partial that runs today.
+  **Per-corridor on-chain cap enforcement** on the *live* pool needs a state migration (the live
+  pool has no upgrade hook), so it ships on a **preview track** for now. **Circle CCTP V2** is
+  bidirectional and wired, but the burn leg needs a user EVM wallet to sign. The **TRISA companion
+  node** is real code but needs the operator to register a test VASP and host the node before it
+  activates (the OpenVASP TRP 3.2.1 path runs without that).
 - **Not audited. Do not use with real assets.**
 
 Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
