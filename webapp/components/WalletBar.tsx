@@ -6,13 +6,20 @@ import { Button, StatusPill, useToast } from "@/components/ui";
 
 const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
+type AllowlistInfo = {
+  alreadyListed: boolean;
+  leafIndex: number;
+  newRootHex: string;
+  setAspRootCli: string;
+};
+
 type ReclaimState =
   | { phase: "idle" }
   | { phase: "loading" }
   | { phase: "not-configured" }
   | { phase: "pending"; requestUrl: string }
   | { phase: "verifying" }
-  | { phase: "verified"; identity?: string }
+  | { phase: "verified"; identity?: string; allowlist?: AllowlistInfo }
   | { phase: "error"; message: string };
 
 // Pull a human-readable identity (Gmail address) out of the verified proof's extracted params.
@@ -29,6 +36,8 @@ function readIdentity(ctx: any): string | undefined {
  * verification. The client never decides the outcome itself.
  */
 function ReclaimVerify() {
+  const { address } = useWallet();
+  const { toast } = useToast();
   const [state, setState] = useState<ReclaimState>({ phase: "idle" });
   const pollRef = useRef<number | null>(null);
 
@@ -44,10 +53,11 @@ function ReclaimVerify() {
       const res = await fetch("/api/reclaim/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proof, providerVersion }),
+        body: JSON.stringify({ proof, providerVersion, address }),
       });
       const data = await res.json();
-      if (data.verified) setState({ phase: "verified", identity: readIdentity(data.context) });
+      if (data.verified)
+        setState({ phase: "verified", identity: readIdentity(data.context), allowlist: data.allowlist ?? undefined });
       else setState({ phase: "error", message: data.error || "The proof did not verify." });
     } catch (e) {
       setState({ phase: "error", message: e instanceof Error ? e.message : "Verify request failed" });
@@ -121,10 +131,49 @@ function ReclaimVerify() {
           <p className="font-semibold text-green-t">✓ Verified with Reclaim</p>
           <p className="mt-1 text-tm">
             A Gmail identity{state.identity ? <> (<code className="text-orange">{state.identity}</code>)</> : null} was
-            proven with a zkTLS proof, verified cryptographically on our server. Next step (roadmap): the admin adds this
-            account to the ASP allow-list on-chain (<code className="text-orange">set_asp_root</code>). It is not
-            allow-listed yet.
+            proven with a zkTLS proof, verified cryptographically on our server.
           </p>
+          {!address && (
+            <p className="mt-2 text-tf">
+              Connect a wallet to compute this account&apos;s ASP allow-list entry.
+            </p>
+          )}
+          {address && !state.allowlist && (
+            <p className="mt-2 text-tf">Computing the allow-list update for {shortAddr(address)}…</p>
+          )}
+          {state.allowlist?.alreadyListed && (
+            <p className="mt-2 text-tm">
+              This account is already on the ASP allow-list (leaf #{state.allowlist.leafIndex}). It can deposit now — no
+              admin action needed.
+            </p>
+          )}
+          {state.allowlist && !state.allowlist.alreadyListed && (
+            <div className="mt-2">
+              <p className="text-tm">
+                Identity verified. To enable deposits, the corridor operator applies this on-chain (admin-gated,{" "}
+                <code className="text-orange">set_asp_root</code>). The new allow-list root and updated witness are
+                already computed server-side; nothing here is signed.
+              </p>
+              <div className="mt-2 flex items-start gap-2">
+                <pre className="flex-1 overflow-x-auto rounded-tile border border-line bg-black/30 p-2 font-mono text-[11px] leading-relaxed text-ts">
+                  {state.allowlist.setAspRootCli}
+                </pre>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    navigator.clipboard.writeText(state.allowlist!.setAspRootCli);
+                    toast("set_asp_root CLI copied", "success");
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+              <p className="mt-1 text-tf">
+                Until the operator runs this, deposits stay gated by the current allow-list, so this account cannot
+                deposit yet.
+              </p>
+            </div>
+          )}
         </div>
       )}
       {state.phase === "error" && <p className="mt-1 leading-relaxed text-red-t">Reclaim error: {state.message}</p>}
@@ -139,13 +188,21 @@ export function WalletBar() {
 
   if (connected && address) {
     return (
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <span className="font-mono text-xs text-tm">
-          {kind === "demo" ? "testnet key" : "Freighter"} · <b className="text-green-t">{shortAddr(address)}</b>
-        </span>
-        <Button variant="ghost" onClick={disconnect}>
-          Disconnect
-        </Button>
+      <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="font-mono text-xs text-tm">
+            {kind === "demo" ? "testnet key" : "Freighter"} · <b className="text-green-t">{shortAddr(address)}</b>
+          </span>
+          <Button variant="ghost" onClick={disconnect}>
+            Disconnect
+          </Button>
+        </div>
+        <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
+          <summary className="cursor-pointer list-none text-tm hover:text-orange">
+            Verify identity to enable deposits (Reclaim)
+          </summary>
+          <ReclaimVerify />
+        </details>
       </div>
     );
   }

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyProof, type Proof } from "@reclaimprotocol/js-sdk";
+import { computeAllowlistUpdate } from "@/lib/asp";
+
+const G_ADDR = /^G[A-Z2-7]{55}$/;
 
 // Server route: cryptographically verifies a Reclaim proof the client obtained from the portal.
 // The client is never trusted to say it verified; this route re-checks witness signatures and
@@ -11,7 +14,7 @@ export const dynamic = "force-dynamic";
 const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID || "REPLACE_WITH_RECLAIM_PROVIDER_ID";
 
 export async function POST(req: Request) {
-  let body: { proof?: Proof; providerVersion?: string };
+  let body: { proof?: Proof; providerVersion?: string; address?: string };
   try {
     body = await req.json();
   } catch {
@@ -35,7 +38,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ verified: false });
     }
     // data[0] carries the proven identity (extractedParameters) and claim context.
-    return NextResponse.json({ verified: true, context: result.data[0] ?? null });
+    const context = result.data[0] ?? null;
+
+    // On a real verification, if the client passed its connected account, advance the loop:
+    // compute the allow-list update (new ASP root + regenerated witness + the operator's
+    // set_asp_root CLI). We never sign it — the admin applies the write with their own key.
+    let allowlist = null;
+    if (body.address && G_ADDR.test(body.address)) {
+      try {
+        allowlist = await computeAllowlistUpdate(body.address);
+      } catch (e) {
+        console.error("[reclaim] allowlist compute failed:", e);
+      }
+    }
+    return NextResponse.json({ verified: true, context, allowlist });
   } catch (err) {
     // Log server-side only; return a generic message to the client.
     console.error("[reclaim] verify failed:", err);
