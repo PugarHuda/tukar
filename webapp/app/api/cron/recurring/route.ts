@@ -7,6 +7,7 @@
 // becomes spendable on-chain, automatically). It does NOT auto-deliver the claim note to the
 // recipient or auto-withdraw — that transfer+withdraw leg stays a labeled manual step.
 import { NextResponse } from "next/server";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { isConfigured, readSchedules, writeSchedules, computeNextDate, type RunReceipt } from "@/lib/schedules";
 import { relayerDeposit, relayerRegister } from "@/lib/relayer";
 import { newNote, usdcToStroops } from "@/lib/zk";
@@ -15,8 +16,18 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// Constant-time bearer check that also fails closed on a missing/short secret. Comparing raw
+// strings would let `Bearer undefined` through when CRON_SECRET is unset, and would leak length.
+function authorized(req: Request): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || secret.length < 16) return false; // fail closed: no weak/empty secret is ever valid
+  const got = createHash("sha256").update(req.headers.get("authorization") || "").digest();
+  const want = createHash("sha256").update("Bearer " + secret).digest();
+  return timingSafeEqual(got, want);
+}
+
 export async function GET(req: Request) {
-  if (req.headers.get("authorization") !== "Bearer " + process.env.CRON_SECRET) {
+  if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!isConfigured()) return NextResponse.json({ configured: false });
