@@ -1,0 +1,28 @@
+[package]
+name = "reserves-testpool"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+# A deployable test-double for the corridor pool, used ONLY to run the reserves contract's
+# on-chain attest end-to-end against a leaf set whose note openings we control (the live
+# pool's 31 notes are depositor-held, so their openings can't be produced to build a proof).
+# It exposes the same `balance()` / `leaves()` the reserves contract reads. NOT one of the
+# 8 live contracts; touches nothing live.
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { version = "26" }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+lto = true
+codegen-units = 1
+panic = "abort"

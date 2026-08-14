@@ -11,11 +11,11 @@
 //    the demo without a wallet. Never reuse this pattern for real funds.
 import * as Sdk from "@stellar/stellar-sdk";
 import { keccak256 } from "js-sha3";
-import { RPC, PASSPHRASE, FIELD_R, DEMO_SECRET, SOURCE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, ANCHOR, ONRAMPER } from "./constants";
+import { RPC, PASSPHRASE, FIELD_R, DEMO_SECRET, SOURCE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, RESERVES, RESERVES_VERIFIER, ANCHOR, ONRAMPER } from "./constants";
 
 // Re-export the public contract-ID / config constants so route code can import them from
 // lib/stellar (their original home) OR lib/constants (a light, SDK-free bundle).
-export { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, ANCHOR, ONRAMPER, RPC, PASSPHRASE } from "./constants";
+export { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, RESERVES, RESERVES_VERIFIER, ANCHOR, ONRAMPER, RPC, PASSPHRASE } from "./constants";
 
 // snarkjs is dynamic-imported (browser-only, heavy) so it never lands in a server bundle.
 let _snarkjs: any = null;
@@ -40,6 +40,34 @@ async function simulate(contractId: string, method: string, ...args: any[]): Pro
     return { ok: false, error: sim.error };
   }
   return { ok: true, value: Sdk.scValToNative(sim.result!.retval) };
+}
+
+/**
+ * Read the live proof-of-reserves attestation from the RESERVES contract (on-chain, read-only).
+ * Returns the latest cryptographic solvency attestation (liabilities/reserves in USDC stroops,
+ * both bound by a Groth16 proof that the note openings sum to `liabilities`) and whether a valid
+ * attestation is on record, or null if none is posted / the read fails. The panel uses this to
+ * show a REAL proof-of-reserves rather than a display metric.
+ */
+export async function readReservesAttestation(): Promise<
+  { liabilities: string; reserves: string; timestamp: number; solvent: boolean } | null
+> {
+  try {
+    const [att, sol] = await Promise.all([
+      simulate(RESERVES, "latest_attestation"),
+      simulate(RESERVES, "is_solvent"),
+    ]);
+    if (!att.ok || att.value == null) return null;
+    const v = att.value; // { liabilities: bigint, reserves: bigint, timestamp: bigint }
+    return {
+      liabilities: v.liabilities.toString(),
+      reserves: v.reserves.toString(),
+      timestamp: Number(v.timestamp),
+      solvent: sol.ok ? Boolean(sol.value) : v.liabilities <= v.reserves,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Reflector's oracle decimals (queried once, cached). The FX feed reports prices

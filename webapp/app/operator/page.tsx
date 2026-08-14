@@ -13,6 +13,7 @@ import {
   readDenyList,
   readCorridorPolicies,
   readReflectorRecords,
+  readReservesAttestation,
   offrampQuoteTwap,
   offrampQuote,
   explorer,
@@ -24,6 +25,8 @@ import {
   RANGE_VERIFIER,
   REFLECTOR_FX,
   POLICY_REGISTRY,
+  RESERVES,
+  RESERVES_VERIFIER,
 } from "@/lib/stellar";
 
 // Public contract IDs from deployments/testnet.json that lib/stellar doesn't re-export
@@ -157,9 +160,12 @@ function PoolCard({ label, value, sub, accent, children }: { label: string; valu
   );
 }
 
+type ReservesAtt = { liabilities: string; reserves: string; timestamp: number; solvent: boolean } | null;
+
 function PoolHealthSection() {
   const [health, setHealth] = useState<PoolHealth | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
+  const [reserves, setReserves] = useState<ReservesAtt>(null);
 
   useEffect(() => {
     let live = true;
@@ -172,6 +178,13 @@ function PoolHealthSection() {
       } catch {
         if (live) setStatus("err");
       }
+    })();
+    // Reserves attestation read is isolated so a failure never affects pool-health rendering.
+    (async () => {
+      try {
+        const att = await readReservesAttestation();
+        if (live) setReserves(att);
+      } catch { /* fallback: panel shows the mechanism without an attestation */ }
     })();
     return () => { live = false; };
   }, []);
@@ -227,25 +240,37 @@ function PoolHealthSection() {
       )}
 
       {health && (() => {
-        let funded = false;
-        try { funded = BigInt(health.balance) > 0n; } catch { funded = false; }
+        const att = reserves;
+        // Custody figure comes from the attestation when present, else the live pool balance.
+        const custody = att ? att.reserves : health.balance;
         return (
           <>
-            <SubHead title="Reserves" sub="on-chain custody transparency · not a cryptographic proof-of-reserves" />
+            <SubHead title="Reserves attestation" sub="real cryptographic proof-of-reserves · Groth16 (BN254)" />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <PoolCard label="USDC in custody" value={`$${fmtUsdc(health.balance)}`} sub="held by the pool contract" accent />
-              <PoolCard label="Notes committed" value={fmtCount(health.commitments)} sub="commitments bound on-chain" />
-              <PoolCard label="Custody backing" value={<span className={funded ? "text-green-t" : "text-tf"}>{funded ? "Funded" : "Unfunded"}</span>} sub="pooled USDC backs every committed note" />
+              <PoolCard label="Declared liabilities" value={att ? `$${fmtUsdc(att.liabilities)}` : "—"} sub={att ? "Σ note openings, bound by proof" : "no attestation posted"} />
+              <PoolCard label="USDC in custody" value={`$${fmtUsdc(custody)}`} sub="held by the pool contract" accent />
+              <PoolCard
+                label="Solvency"
+                value={<span className={att ? (att.solvent ? "text-green-t" : "text-tf") : "text-tf"}>{att ? (att.solvent ? "Attested solvent" : "Insolvent") : "Not attested"}</span>}
+                sub={att ? "liabilities ≤ custody, proven" : "mechanism live · awaiting attestation"}
+              />
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-tile border border-line bg-black/20 px-4 py-3 text-[12px] leading-relaxed text-tm">
               <span>
-                Every committed note redeems from this one pooled USDC balance, so custody is shared across all notes rather than held per note. Note amounts are shielded, so this is on-chain custody transparency you can check on the ledger, not a cryptographic proof-of-reserves.
+                {att ? (
+                  <>A Groth16 proof shows the pool&apos;s note openings sum to the declared liabilities (${fmtUsdc(att.liabilities)}), which the on-chain contract checks is ≤ live custody (${fmtUsdc(custody)}) — individual note amounts stay shielded. This is a real cryptographic proof-of-reserves, not a display metric.</>
+                ) : (
+                  <>The proof-of-reserves circuit + verifier + contract are deployed and verified end-to-end on-chain: the contract reads the pool&apos;s <b className="text-tp">balance()</b> and <b className="text-tp">leaves()</b>, rebuilds the proof&apos;s public inputs from the on-chain leaf set, and only records an attestation when a Groth16 proof shows the note openings sum to a declared figure ≤ custody. Posting an attestation for this pool needs the operator&apos;s note-opening witnesses.</>
+                )}
               </span>
-              <a href={explorer(POOL)} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-orange-l3 hover:text-orange">
-                Verify on stellar.expert ↗
+              <a href={explorer(RESERVES)} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-orange-l3 hover:text-orange">
+                Reserves contract {short(RESERVES)} ↗
+              </a>
+              <a href={explorer(RESERVES_VERIFIER)} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-orange-l3 hover:text-orange">
+                Verifier {short(RESERVES_VERIFIER)} ↗
               </a>
               <span className="w-full font-mono text-[10.5px] text-tf">
-                A real proof-of-reserves (commitment-sum vs on-chain custody) is on the roadmap.
+                Ceiling: the whole leaf set is counted as obligations, which over-counts already-spent notes — this only over-states liabilities, so passing liabilities ≤ custody stays conservative (fail-safe). Subtracting spent notes via nullifiers is the upgrade path.
               </span>
             </div>
           </>

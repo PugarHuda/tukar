@@ -66,6 +66,16 @@
       "constraints": 939,
       "verifyResult": "true",
       "note": "BN254 verifier for the TWO-SIDED RANGE (band) disclosure circuit — prove lower <= amount <= upper (the payment is in a reportable bracket) WITHOUT revealing the amount. Bound through the pool: pool.disclose_range(commitment, lower, upper, ctx, proof) checks the commitment is a known on-chain deposit, then routes to this verifier (set via admin set_range_verifier). Same commitment scheme Poseidon(amount, pubKey, blinding). Soundness: npm run test:range 5/5 (in-band proves, boundaries inclusive, below/above unprovable, wrong-opening unprovable). Unit tests disclose_range_binds_known_commitment/_rejects_unknown_commitment/_requires_verifier_set. Multi-party ceremony key."
+    },
+    "reserves": {
+      "contractId": "CBCVFPJBKVWACXQMVTWK5LO7UVABUKVAE2EYERGTSXO4ZTHFAT2VD5JI",
+      "deployTx": "eed0e7d0eeb01653508250f89df6517abf7af0711d5877d0a11c1ee7464dd368",
+      "circuit": "circuits/reserves.circom",
+      "publicInputs": ["commitments[32]", "declaredLiabilities"],
+      "constraints": 21471,
+      "verifyResult": "true (real reserves proof verified TRUE on-chain via the reserves contract, tx 23ef747e3a37c3593a505721a954f66426561edcd13b085a32fabdaad4a0a3b2)",
+      "tamperedResult": "rejected on-chain (a byte-flipped proof traps Crypto/InvalidInput; a valid proof with a mismatched declared value traps InvalidProof #0)",
+      "note": "The 8th BN254 verifier — for the proof-of-reserves circuit Reserves(32). Proves the SUM of the pool's note openings EQUALS a public declaredLiabilities WITHOUT revealing any amount (commitment[i]=Poseidon(amount,pubKey,blinding), same scheme as deposit; fixed width N=32 with padding slots = Poseidon(0,0,0)). Built from the circom-groth16-verifier template with this circuit's VK, in an isolated `cargo clean` shell to defeat the stale-VK build-cache bug. MULTI-PARTY phase-2 ceremony key (Hermez powersOfTau28_hez_final_15 phase-1 + 3 independent contributions + public random beacon; ceremony/reserves/*). Deployed by tukar-dep."
     }
   },
   "trustedSetupNote": "threshold, aggregate, and range disclosure verifiers ALL use MULTI-PARTY phase-2 ceremony keys (3 independent contributions + a public random beacon), byte-identical to ceremony/<circuit>/*_final.zkey — so all SEVEN deployed proving keys/verifiers derive from a ceremony, not a single contribution.",
@@ -85,6 +95,21 @@
     },
     "deployTx": "2a867f2ecd4ad550d3bd2b310848691ad4ef878ecd3ae9f3eda8772cb9d58529",
     "verified": "Live on testnet: corridors() returns all 10; policy('MX')={cap_usdc:10000,disclosure:1}; policy('IN')={cap_usdc:5000,disclosure:3}; admin()=GB2CVRVN... (corredor). cargo test 3/3 (constructor seeds, views return seeded values, set_policy requires admin auth, upsert updates)."
+  },
+  "reserves": {
+    "contractId": "CCMIHWMVDTO6X4FPJSHXEQBYQQID3QIKCLMNVS5UKMPRHWLPUK4ALXMC",
+    "wasm": "contracts/reserves/",
+    "circuit": "circuits/reserves.circom",
+    "verifier": "CBCVFPJBKVWACXQMVTWK5LO7UVABUKVAE2EYERGTSXO4ZTHFAT2VD5JI",
+    "pool": "CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ",
+    "admin": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS",
+    "deployedBy": "GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ (tukar-dep throwaway deploy key)",
+    "N": 32,
+    "description": "REAL cryptographic proof-of-reserves — ADDITIVE, reads the LIVE pool read-only (touches none of the 8 live contracts). __constructor(admin, pool, reserves_verifier). attest(proof, declared_liabilities: i128) reads the pool's balance() + leaves() CROSS-CONTRACT, REBUILDS the verifier public-input vector FROM the on-chain leaves itself (binding discipline: [commitments(32), declaredLiabilities], unused slots padded with the constant Poseidon(0,0,0)), verifies a Groth16 proof (via the pool's trap+assert verify pattern) that the note openings sum to declared_liabilities, panics Insolvent (#2) if declared_liabilities > balance, then stores + emits a timestamped Attestation{liabilities,reserves,timestamp}. Views latest_attestation() -> Option<Attestation>, is_solvent() -> bool, plus pool()/verifier()/admin(). This contractId points at the LIVE pool (verified: pool()=CBIYQACY..., verifier()=CBCVFPJB...); its latest_attestation() is currently null because the live pool's 31 notes are DEPOSITOR-held, so their openings aren't ours to prove (the correct privacy property) — posting a live-pool attestation needs the operator's note-opening witnesses.",
+    "ponytailCeiling": "The whole leaf set is treated as obligations, which OVER-counts already-spent notes (a spent note still has a leaf). This only OVER-states liabilities, so passing declared_liabilities <= reserves is conservative (fail-safe). Upgrade path: subtract spent notes via the pool's is_nullifier_used before summing. Also N=32 is a fixed circuit width (covers the live pool's current 31 leaves); a fuller pool needs a bigger ptau or batched/recursive attestation.",
+    "ceremony": "MULTI-PARTY phase-2, matching the repo standard: Hermez powersOfTau28_hez_final_15 phase-1 + snarkjs groth16 setup + 3 independent contributions + a public random beacon + verify (ZKey Ok!) + export VK. Output ceremony/reserves/* (reserves_final.zkey byte-identical to circuits/build/reserves_final.zkey; the deployed verifier embeds the matching VK). Transcript ceremony/reserves/TRANSCRIPT.txt.",
+    "tests": "cargo test 6/6 (constructor_sets_state, attest_records_solvent_and_binds_leaves [asserts the verifier saw exactly 33 public inputs = 32 leaves(+padding) then declared, in order], attest_insolvent_panics #2, attest_rejected_proof_panics #1, attest_too_many_leaves_panics #3, attest_negative_liabilities_panics #4). Circuit soundness node scripts/test-reserves.mjs 6/6 (honest attest proves + no amount leaks; understating/overstating liabilities UNPROVABLE; wrong-opening UNPROVABLE; empty + full-width attest).",
+    "e2eVerified": "END-TO-END ON-CHAIN with a real proof. Because the live pool's notes are depositor-held, the attest flow was exercised against test-double pools (contracts/reserves-testpool, exposing the same balance()/leaves(); NOT one of the 8 live contracts) that return a leaf set whose openings we control. (1) VALID: reserves CBGT4RGRJOLIKGFR4Y6MAVZXNJGXXSZMIXSMM4GHN7DDFSLCC5ZCU7CU -> testpool CBFYA3UI... (balance 1000, leaves [c(500),c(300)]); attest(real proof, declared 800) SUCCEEDED on-chain (tx 23ef747e3a37c3593a505721a954f66426561edcd13b085a32fabdaad4a0a3b2), returned Attestation{liabilities:800,reserves:1000}, latest_attestation()/is_solvent() reflect it (is_solvent=true). This proves the deployed verifier's embedded VK is correct (the stale-VK build-cache bug did NOT bite). (2) OVER-CAP: reserves CBNE4LQHCSWCRXG26GTBVDN6V6IHZTZPC54GD6INX7UZPAZ7DMDABHOL -> testpool CBLVWNRZ... (balance 500), attest(same proof, declared 800) REJECTED Insolvent Error(Contract,#2); nothing stored (is_solvent=false). (3) BINDING/tamper: on reserves CBGT4RGR..., attest(proof-built-for-declared-800, declared_liabilities=700) REJECTED InvalidProof Error(Contract,#0) — the contract rebuilds the public inputs with declared=700 so the 800-proof no longer verifies, proving declared_liabilities is bound to the proof; a byte-flipped proof is likewise rejected (Crypto/InvalidInput trap)."
   },
   "pool": {
     "contractId": "CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ",

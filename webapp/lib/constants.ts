@@ -24,6 +24,15 @@ export const REFLECTOR_FX = "CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU
 // admin-signed set_policy (no redeploy).
 export const POLICY_REGISTRY = "CAQ7KBNFJOJI34B5V3GNI7ACW6YEOAD4JRYSOX3EUW5UOXFKBDZBDAZ3";
 
+// Proof-of-reserves (additive, read-only over the live pool; not one of the 8 live contracts):
+// RESERVES.attest reads the pool's balance() + leaves() cross-contract, rebuilds the reserves
+// circuit's public inputs from the on-chain leaves, verifies a Groth16 proof that the note
+// openings sum to a declared-liabilities figure, and refuses unless liabilities <= custody.
+// RESERVES_VERIFIER is the 10th BN254 verifier (reserves circuit VK). The operator console
+// reads latest_attestation()/is_solvent() live.
+export const RESERVES = "CCMIHWMVDTO6X4FPJSHXEQBYQQID3QIKCLMNVS5UKMPRHWLPUK4ALXMC";
+export const RESERVES_VERIFIER = "CBCVFPJBKVWACXQMVTWK5LO7UVABUKVAE2EYERGTSXO4ZTHFAT2VD5JI";
+
 // Public key used only to build read-only simulation transactions.
 export const SOURCE = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS";
 
