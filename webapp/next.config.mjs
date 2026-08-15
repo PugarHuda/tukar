@@ -48,7 +48,12 @@ const nextConfig = {
   async rewrites() {
     // The static host used cleanUrls to serve public/deck.html at /deck. Next server mode
     // has no cleanUrls, so serve the deck at its clean URL explicitly (keeps /deck working).
-    return [{ source: "/deck", destination: "/deck.html" }];
+    // /favicon.ico: browsers auto-probe it; we ship an SVG icon, so map the probe to it to
+    // avoid a cosmetic 404 on every page (declared icons icon.svg/icon-192 already resolve).
+    return [
+      { source: "/deck", destination: "/deck.html" },
+      { source: "/favicon.ico", destination: "/icon.svg" },
+    ];
   },
   webpack: (config, { isServer }) => {
     // snarkjs + circomlibjs reference Node builtins that don't exist in the browser.
