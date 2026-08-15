@@ -300,16 +300,24 @@ template. The exported responses sheet gets linked here once real testers are co
 
 ### Screenshots
 
-| Sender (mobile, 390px) | Receiver (mobile, 390px) |
+| Landing (desktop) | Sender (desktop) |
 |---|---|
-| ![Sender, mobile](docs/screenshots/02-sender-mobile.png) | ![Receiver, mobile](docs/screenshots/03-receiver-mobile.png) |
+| ![Landing](docs/screenshots/01-landing-desktop.png) | ![Sender](docs/screenshots/02-sender-desktop.png) |
 
-| Operator console (desktop) | Regulator console (desktop) |
+| Operator monitoring (desktop, live testnet reads) | Regulator console (desktop) |
 |---|---|
-| ![Operator console](docs/screenshots/04-operator-desktop.png) | ![Regulator console](docs/screenshots/05-regulator-desktop.png) |
+| ![Operator monitoring](docs/screenshots/03-operator-monitoring-desktop.png) | ![Regulator](docs/screenshots/04-regulator-desktop.png) |
 
-Mobile-first Sender and Receiver at 390px, desktop Operator and Regulator consoles. Web
-Analytics and Core Web Vitals appear in the project's Vercel dashboard once traffic arrives.
+| Sender (mobile, 390px) | Receiver (mobile, 390px) | Operator (mobile, 390px) |
+|---|---|---|
+| ![Sender mobile](docs/screenshots/06-sender-mobile.png) | ![Receiver mobile](docs/screenshots/07-receiver-mobile.png) | ![Operator mobile](docs/screenshots/08-operator-mobile.png) |
+
+Public receipt verifier: ![Verify](docs/screenshots/05-verify-desktop.png)
+
+Mobile-first actor apps at 390px and desktop monitoring consoles, all read live from Stellar
+testnet. The Operator console is the live monitoring surface (pool health, reserves, oracle
+freshness). Web Analytics and Core Web Vitals appear in the project's Vercel dashboard once Web
+Analytics is enabled and traffic arrives.
 
 ## Features and how they work
 
