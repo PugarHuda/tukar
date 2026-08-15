@@ -16,6 +16,17 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Safe baseline hardening on every route: block clickjacking, stop MIME sniffing, trim
+        // referrer leakage. Intentionally NOT a full CSP yet (the app loads inline styles + the
+        // deck media, so a strict policy needs its own testing pass before it ships).
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      {
         source: "/.well-known/stellar.toml",
         headers: [
           { key: "Access-Control-Allow-Origin", value: "*" },
