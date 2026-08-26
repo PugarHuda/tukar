@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const rl = rateLimit(req, { key: "note-status", limit: 30, windowMs: 60_000 });
+  const rl = await rateLimit(req, { key: "note-status", limit: 30, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   let body: any;

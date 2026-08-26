@@ -12,7 +12,7 @@ const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID;
 
 export async function POST(req: Request) {
   // Unauthenticated and triggers an external Reclaim SDK init on each call.
-  const rl = rateLimit(req, { key: "reclaim", limit: 15, windowMs: 60_000 });
+  const rl = await rateLimit(req, { key: "reclaim", limit: 15, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   const appId = process.env.RECLAIM_APP_ID;

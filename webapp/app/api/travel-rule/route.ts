@@ -32,7 +32,7 @@ function validateIvms101(ivms: any): string[] {
 }
 
 export async function POST(req: Request) {
-  const rl = rateLimit(req, { key: "travel-rule", limit: 30, windowMs: 60_000 });
+  const rl = await rateLimit(req, { key: "travel-rule", limit: 30, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   const url = new URL(req.url);

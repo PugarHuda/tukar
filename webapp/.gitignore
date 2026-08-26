@@ -2,5 +2,9 @@
 /.next
 /out
 next-env.d.ts
+
+# local env files (secrets) - never commit
+.env*.local
 *.tsbuildinfo
 .DS_Store
+.env*

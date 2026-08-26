@@ -13,7 +13,7 @@ const NOTABENE_URL = "https://trp.travel-rule.com/transfers/initiate";
 
 export async function POST(req: Request) {
   // Outbound TRP originator: signs a body and POSTs to an external VASP on each call.
-  const rl = rateLimit(req, { key: "travel-rule-send", limit: 20, windowMs: 60_000 });
+  const rl = await rateLimit(req, { key: "travel-rule-send", limit: 20, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   let body: any;

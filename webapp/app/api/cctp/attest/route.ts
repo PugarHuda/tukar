@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   // Open poll route that fans out to Circle Iris; the client polls, so allow a generous rate.
-  const rl = rateLimit(req, { key: "cctp-attest", limit: 30, windowMs: 60_000 });
+  const rl = await rateLimit(req, { key: "cctp-attest", limit: 30, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   let body: any;

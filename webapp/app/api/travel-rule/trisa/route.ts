@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   // Forwards IVMS101 to an external TRISA gRPC bridge on each call.
-  const rl = rateLimit(req, { key: "trisa", limit: 20, windowMs: 60_000 });
+  const rl = await rateLimit(req, { key: "trisa", limit: 20, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
   const nodeUrl = process.env.TRISA_NODE_URL; // read directly, not via constants.ts
