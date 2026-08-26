@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
+import { withSentryConfig } from "@sentry/nextjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -26,6 +27,7 @@ const nextConfig = {
     //   connect-src sepolia.base.org    -> viem Base Sepolia public RPC for the CCTP receive leg (lib/cctp.ts)
     //   connect-src api.onramper.com    -> off-ramp quote fetch on the receiver (lib/stellar.ts onramperQuote)
     //   connect-src api.reclaimprotocol -> Reclaim session-status poll when the ASP flow is configured (components/WalletBar.tsx)
+    //   connect-src *.ingest.sentry.io  -> Sentry browser SDK error/perf ingest, ONLY reached when a DSN is set (no-op otherwise)
     //   img-src https:                  -> og/explorer/remote thumbnails; media-src 'self' -> the deck /demo-id.mp4
     const csp = [
       "default-src 'self'",
@@ -35,7 +37,7 @@ const nextConfig = {
       "font-src 'self' data:",
       "media-src 'self'",
       "worker-src 'self' blob:",
-      "connect-src 'self' https://soroban-testnet.stellar.org https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://api.reclaimprotocol.org",
+      "connect-src 'self' https://soroban-testnet.stellar.org https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://api.reclaimprotocol.org https://*.ingest.sentry.io https://*.ingest.us.sentry.io",
       "frame-ancestors 'self'",
       "object-src 'none'",
       "base-uri 'self'",
@@ -102,4 +104,13 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap with Sentry's build plugin, preserving every option above. Source-map upload runs ONLY when
+// SENTRY_AUTH_TOKEN is present, so a build without it (the current state) still succeeds. The
+// runtime SDK stays a no-op until NEXT_PUBLIC_SENTRY_DSN is set (see the sentry.*.config files).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+});

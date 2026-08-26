@@ -9,6 +9,7 @@ import {
   AGGREGATE_VERIFIER,
   RANGE_VERIFIER,
 } from "@/lib/stellar";
+import { log, requestId, errMsg } from "@/lib/log";
 // NOTE: fmtUsdc + receiptCanonical are copied (verbatim) from lib/zk rather than imported —
 // importing from lib/zk drags circomlibjs/ffjavascript/web-worker into this server route. Both
 // are pure, browser-free, and tiny, so copying keeps the route lean per the task's guidance.
@@ -204,7 +205,10 @@ export async function POST(req: Request) {
   try {
     const result = await verifyReceiptOnChain(receipt as AuditReceipt);
     return NextResponse.json(result);
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: (e && e.message) || String(e) }, { status: 502 });
+  } catch (e) {
+    // Chain-read failure: log server-side with a request id, return a generic message (never the
+    // raw error, which can carry RPC internals) so the client just sees an unverified state.
+    log.error("receipt verify failed", { route: "verify", reqId: requestId(req), err: errMsg(e) });
+    return NextResponse.json({ ok: false, error: "Could not verify the receipt on-chain. Please try again." }, { status: 502 });
   }
 }

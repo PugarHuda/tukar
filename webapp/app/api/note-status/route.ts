@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { noteStatus } from "@/lib/note-status";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { log, requestId, errMsg } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
     return NextResponse.json(res);
   } catch (e) {
     // parseInput() throws only on bad input -> 400. Chain-read failures return status "unknown".
-    console.error("[note-status] request failed:", e);
+    log.error("request failed", { route: "note-status", reqId: requestId(req), err: errMsg(e) });
     return NextResponse.json({ error: "Invalid note or commitment." }, { status: 400 });
   }
 }

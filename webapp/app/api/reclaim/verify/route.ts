@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyProof, type Proof } from "@reclaimprotocol/js-sdk";
 import { computeAllowlistUpdate } from "@/lib/asp";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { log, requestId, errMsg } from "@/lib/log";
 
 const G_ADDR = /^G[A-Z2-7]{55}$/;
 
@@ -61,13 +62,13 @@ export async function POST(req: Request) {
       try {
         allowlist = await computeAllowlistUpdate(body.address);
       } catch (e) {
-        console.error("[reclaim] allowlist compute failed:", e);
+        log.error("allowlist compute failed", { route: "reclaim/verify", reqId: requestId(req), err: errMsg(e) });
       }
     }
     return NextResponse.json({ verified: true, context, allowlist });
   } catch (err) {
     // Log server-side only; return a generic message to the client.
-    console.error("[reclaim] verify failed:", err);
+    log.error("verify failed", { route: "reclaim/verify", reqId: requestId(req), err: errMsg(err) });
     return NextResponse.json({ verified: false, error: "Proof verification failed." }, { status: 500 });
   }
 }

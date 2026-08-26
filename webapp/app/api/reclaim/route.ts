@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ReclaimProofRequest } from "@reclaimprotocol/js-sdk";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { log, requestId, errMsg } from "@/lib/log";
 
 // Server route: mints a Reclaim proof-of-personhood request. Reads creds from env only.
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
   } catch (err) {
     // Log the real error server-side only; never return it to the client, since an SDK error
     // that ran with the app secret can carry sensitive detail. The client gets a generic message.
-    console.error("[reclaim] init failed:", err);
+    log.error("init failed", { route: "reclaim", reqId: requestId(req), err: errMsg(err) });
     return NextResponse.json(
       { configured: true, error: "Could not create the Reclaim request. Please try again." },
       { status: 500 },

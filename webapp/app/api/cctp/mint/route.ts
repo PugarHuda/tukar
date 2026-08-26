@@ -4,6 +4,7 @@
 // Body: { message, attestation } (0x hex, straight from /api/cctp/attest). Returns { txHash }.
 import { NextResponse } from "next/server";
 import { mintAndForward } from "@/lib/cctp";
+import { log, requestId, errMsg } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
     const txHash = await mintAndForward(message, attestation);
     return NextResponse.json({ txHash });
   } catch (e) {
-    console.error("[cctp/mint] mint_and_forward failed:", e);
+    log.error("mint_and_forward failed", { route: "cctp/mint", reqId: requestId(req), err: errMsg(e) });
     return NextResponse.json({ error: "mint_and_forward failed." }, { status: 500 });
   }
 }

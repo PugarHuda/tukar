@@ -12,6 +12,7 @@ import { isConfigured, readSchedules, writeSchedules, listAllOwners, computeNext
 import { relayerDeposit, relayerRegister } from "@/lib/relayer";
 import { newNote, usdcToStroops } from "@/lib/zk";
 import { withLock } from "@/lib/lock";
+import { log, requestId, errMsg } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -95,7 +96,7 @@ export async function GET(req: Request) {
         await writeSchedules(owner, fresh);
       }
     } catch (e) {
-      console.error("[cron] result write-back failed (the deposit already executed on-chain):", e);
+      log.error("result write-back failed (the deposit already executed on-chain)", { route: "cron/recurring", reqId: requestId(req), owner, id: target.id, err: errMsg(e) });
     }
 
     return { depHash: dep.hash, depositOk: dep.ok, regOk, error: receipt.error };

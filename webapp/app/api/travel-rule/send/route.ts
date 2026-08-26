@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildInquiry, canonicalize, decodeTravelAddress, signCanonical, trpHeaders, TRP_API_VERSION } from "@/lib/trp";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { log, requestId, errMsg } from "@/lib/log";
 
 // Outbound TRP originator endpoint. Builds an IVMS101 transfer inquiry, signs the canonical body,
 // sets the three TRP headers, and POSTs it — either to the Notabene sandbox (a REAL independent
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
       response,
     });
   } catch (e) {
-    console.error("[travel-rule/send] POST failed:", e);
+    log.error("POST failed", { route: "travel-rule/send", reqId: requestId(req), mode, err: errMsg(e) });
     return NextResponse.json({ ok: false, mode, error: "TRP POST failed." }, { status: 502 });
   }
 }

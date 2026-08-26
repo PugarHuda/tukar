@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import { isConfigured, readSchedules, writeSchedules, computeNextDate, type StoredSchedule, type Frequency } from "@/lib/schedules";
 import { authOwner } from "@/lib/auth";
+import { log, requestId, errMsg } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
   try {
     return NextResponse.json({ configured: true, schedules: await readSchedules(owner) });
   } catch (e) {
-    console.error("[schedules] read failed:", e);
+    log.error("read failed", { route: "schedules", reqId: requestId(req), err: errMsg(e) });
     return NextResponse.json({ configured: true, error: "Could not read schedules.", schedules: [] }, { status: 500 });
   }
 }
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     await writeSchedules(owner, [plan, ...schedules]);
     return NextResponse.json({ configured: true, schedule: plan });
   } catch (e) {
-    console.error("[schedules] write failed:", e);
+    log.error("write failed", { route: "schedules", reqId: requestId(req), err: errMsg(e) });
     return NextResponse.json({ error: "Could not save the schedule." }, { status: 500 });
   }
 }
