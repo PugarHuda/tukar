@@ -1,0 +1,13 @@
+node_modules
+target
+ceremony
+build-video
+_reference
+tools
+.git
+.next
+.vercel
+contracts
+circuits
+scripts/demo-video-out
+docs/screenshots
