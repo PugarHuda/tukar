@@ -23,7 +23,8 @@ export async function POST(req: Request) {
   try {
     const txHash = await mintAndForward(message, attestation);
     return NextResponse.json({ txHash });
-  } catch (e: any) {
-    return NextResponse.json({ error: (e && e.message) || "mint_and_forward failed" }, { status: 500 });
+  } catch (e) {
+    console.error("[cctp/mint] mint_and_forward failed:", e);
+    return NextResponse.json({ error: "mint_and_forward failed." }, { status: 500 });
   }
 }

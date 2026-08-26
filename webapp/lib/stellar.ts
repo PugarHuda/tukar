@@ -11,6 +11,7 @@
 //    the demo without a wallet. Never reuse this pattern for real funds.
 import * as Sdk from "@stellar/stellar-sdk";
 import { keccak256 } from "js-sha3";
+import { fetchWithTimeout } from "./net";
 import { RPC, PASSPHRASE, FIELD_R, DEMO_SECRET, SOURCE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER, REFLECTOR_FX, POLICY_REGISTRY, RESERVES, RESERVES_VERIFIER, RESERVES_AGGREGATE, ANCHOR, ONRAMPER } from "./constants";
 
 // Re-export the public contract-ID / config constants so route code can import them from
@@ -601,12 +602,12 @@ export function usingWallet(): boolean {
 // JWT + the SEP-24 transfer server. Shared by the on-ramp (deposit) and off-ramp (withdraw).
 async function anchorAuth(): Promise<{ bearer: { Authorization: string }; SEP24: string; address: string }> {
   const address = activeAddress();
-  const toml = await (await fetch(`${ANCHOR.base}/.well-known/stellar.toml`)).text();
+  const toml = await (await fetchWithTimeout(`${ANCHOR.base}/.well-known/stellar.toml`, {}, 15000)).text();
   const grab = (k: string) => (toml.match(new RegExp(`^${k}\\s*=\\s*"([^"]+)"`, "m")) || [])[1];
   const WEB_AUTH = grab("WEB_AUTH_ENDPOINT"),
     SEP24 = grab("TRANSFER_SERVER_SEP0024");
   if (!WEB_AUTH || !SEP24) throw new Error("anchor stellar.toml is missing endpoints");
-  const chal = await (await fetch(`${WEB_AUTH}?account=${address}&home_domain=${ANCHOR.home}`)).json();
+  const chal = await (await fetchWithTimeout(`${WEB_AUTH}?account=${address}&home_domain=${ANCHOR.home}`, {}, 15000)).json();
   if (!chal.transaction) throw new Error("SEP-10 challenge failed: " + (chal.error || "no transaction"));
   const netPass = chal.network_passphrase || PASSPHRASE;
   let signedXdr: string;
@@ -619,11 +620,11 @@ async function anchorAuth(): Promise<{ bearer: { Authorization: string }; SEP24:
     signedXdr = tx.toXDR();
   }
   const jwtRes = await (
-    await fetch(WEB_AUTH, {
+    await fetchWithTimeout(WEB_AUTH, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transaction: signedXdr }),
-    })
+    }, 15000)
   ).json();
   if (!jwtRes.token) throw new Error("SEP-10 auth failed: " + (jwtRes.error || "no token"));
   return { bearer: { Authorization: `Bearer ${jwtRes.token}` }, SEP24, address };
@@ -633,15 +634,15 @@ export type AnchorSession = { url: string; id: string; asset: string; address: s
 
 export async function anchorOnramp(): Promise<AnchorSession> {
   const { bearer, SEP24, address } = await anchorAuth();
-  const info = await (await fetch(`${SEP24}/info`, { headers: bearer })).json();
+  const info = await (await fetchWithTimeout(`${SEP24}/info`, { headers: bearer }, 15000)).json();
   const assets = Object.keys(info.deposit || {});
   const asset = assets.includes("USDC") ? "USDC" : assets[0] || "USDC";
   const intr = await (
-    await fetch(`${SEP24}/transactions/deposit/interactive`, {
+    await fetchWithTimeout(`${SEP24}/transactions/deposit/interactive`, {
       method: "POST",
       headers: { ...bearer, "Content-Type": "application/json" },
       body: JSON.stringify({ asset_code: asset, account: address }),
-    })
+    }, 15000)
   ).json();
   if (!intr.url) throw new Error("SEP-24 interactive deposit failed: " + (intr.error || "no url"));
   return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer };
@@ -659,9 +660,9 @@ export async function onramperQuote(
 ): Promise<{ payout: number; rate: number; fee: number; ramp: string } | null> {
   try {
     const amt = Math.max(1, Math.floor(Number(usdc) || 0));
-    const r = await fetch(`${ONRAMPER.api}/quotes/usdc_stellar/${String(fiat).toLowerCase()}?amount=${amt}&type=sell`, {
+    const r = await fetchWithTimeout(`${ONRAMPER.api}/quotes/usdc_stellar/${String(fiat).toLowerCase()}?amount=${amt}&type=sell`, {
       headers: { Authorization: ONRAMPER.apiKey },
-    });
+    }, 15000);
     const arr = await r.json();
     if (!Array.isArray(arr)) return null;
     const best = arr
@@ -695,15 +696,15 @@ export function onramperOfframpUrl(usdc: number, fiat: string): string {
  */
 export async function anchorOfframp(): Promise<AnchorSession> {
   const { bearer, SEP24, address } = await anchorAuth();
-  const info = await (await fetch(`${SEP24}/info`, { headers: bearer })).json();
+  const info = await (await fetchWithTimeout(`${SEP24}/info`, { headers: bearer }, 15000)).json();
   const assets = Object.keys(info.withdraw || {});
   const asset = assets.includes("USDC") ? "USDC" : assets[0] || "USDC";
   const intr = await (
-    await fetch(`${SEP24}/transactions/withdraw/interactive`, {
+    await fetchWithTimeout(`${SEP24}/transactions/withdraw/interactive`, {
       method: "POST",
       headers: { ...bearer, "Content-Type": "application/json" },
       body: JSON.stringify({ asset_code: asset, account: address }),
-    })
+    }, 15000)
   ).json();
   if (!intr.url) throw new Error("SEP-24 interactive withdraw failed: " + (intr.error || "no url"));
   return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer };
@@ -719,7 +720,7 @@ export async function anchorTxStatus(
   id: string,
 ): Promise<{ status: string; message: string; moreInfoUrl: string; amountOut: string } | null> {
   try {
-    const res = await (await fetch(`${sep24}/transaction?id=${encodeURIComponent(id)}`, { headers: bearer })).json();
+    const res = await (await fetchWithTimeout(`${sep24}/transaction?id=${encodeURIComponent(id)}`, { headers: bearer }, 15000)).json();
     const t = res && (res.transaction || res);
     if (!t || !t.status) return null;
     return { status: t.status, message: t.message || "", moreInfoUrl: t.more_info_url || "", amountOut: t.amount_out || "" };

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import "@/components/landing/landing.css";
 import { HeroCanvas } from "@/components/landing/HeroCanvas";
 import { GridCanvas } from "@/components/landing/GridCanvas";
@@ -65,10 +66,10 @@ export default function Home() {
       {/* ============ HEADER ============ */}
       <header className="header">
         <div className="header-inner">
-          <a href="/" className="brand" aria-label="Tukar home">
+          <Link href="/" className="brand" aria-label="Tukar home">
             <BrandMark size={30} />
             <span className="word">tukar</span>
-          </a>
+          </Link>
           <nav className="nav">
             <a href="#apps">Apps</a>
             <a href="#corridor">Corridor</a>
@@ -365,10 +366,10 @@ export default function Home() {
       <footer className="footer">
         <div className="footer-grid">
           <div>
-            <a href="/" className="brand">
+            <Link href="/" className="brand">
               <BrandMark size={27} />
               <span className="word">tukar</span>
-            </a>
+            </Link>
             <p>Confidential cross-border payment corridors on Stellar. Private in the middle, accountable at the edges.</p>
             <div className="footer-tag">Stellar Hacks: Real-World ZK</div>
             <div className="socials">

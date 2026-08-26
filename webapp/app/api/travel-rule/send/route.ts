@@ -87,10 +87,8 @@ export async function POST(req: Request) {
       signature: { alg: sig.alg, digest: sig.digest },
       response,
     });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, mode, error: "TRP POST failed: " + ((e && e.message) || String(e)) },
-      { status: 502 },
-    );
+  } catch (e) {
+    console.error("[travel-rule/send] POST failed:", e);
+    return NextResponse.json({ ok: false, mode, error: "TRP POST failed." }, { status: 502 });
   }
 }

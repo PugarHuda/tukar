@@ -689,7 +689,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       setDisc({
         fact: (
           <>
-            Proven the <b className="text-green-t">sum of {required.length} payment(s) in the regulator's request is at or below ${fmtUsdc(cap)} USDC</b>. No individual amount was revealed, and the set could not be trimmed.
+            Proven the <b className="text-green-t">sum of {required.length} payment(s) in the regulator&apos;s request is at or below ${fmtUsdc(cap)} USDC</b>. No individual amount was revealed, and the set could not be trimmed.
           </>
         ),
         onchain: oc.verified,
@@ -1067,7 +1067,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
           <Spinner label={`Reading the ${cor.currency} figure on-chain.`} />
         ) : (
           <div className="text-[12.5px] leading-relaxed text-tm">
-            Live {cor.currency} rate unavailable right now. This corridor prices from a live FX API, not on-chain. Cash out below for the provider's live quote.
+            Live {cor.currency} rate unavailable right now. This corridor prices from a live FX API, not on-chain. Cash out below for the provider&apos;s live quote.
           </div>
         )}
       </div>

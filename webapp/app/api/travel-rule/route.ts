@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 const REQUIRED_BLOCKS = ["originatingVASP", "beneficiaryVASP", "originator", "beneficiary", "transaction"] as const;
 const REQUIRED_TX_FIELDS = ["amount", "currency", "network", "transactionReference"] as const;
 const nonEmpty = (v: unknown) => (typeof v === "string" ? v.trim().length > 0 : v != null);
+const G_ADDR = /^G[A-Z2-7]{55}$/;
 
 function validateIvms101(ivms: any): string[] {
   const errors: string[] = [];
@@ -61,22 +62,32 @@ export async function POST(req: Request) {
   // Accept the TRP inquiry envelope ({IVMS101,...}) or a bare IVMS101 body.
   const ivms = inquiry?.IVMS101 ?? inquiry;
   const errors = validateIvms101(ivms);
-  const signed = Boolean(req.headers.get("x-trp-signature"));
+  const signaturePresent = Boolean(req.headers.get("x-trp-signature"));
 
   const common = {
     apiVersion: TRP_API_VERSION,
     requestIdentifier,
-    signatureVerified: signed, // Signed-JSON header present; verified structurally on this node.
+    // The Signed-JSON header is present on the request but is NOT cryptographically verified on this
+    // single-operator node (mTLS + a live TRISA directory are out of scope for a stateless function).
+    signaturePresent,
   };
 
   if (errors.length) {
     return NextResponse.json({ rejected: "IVMS101 validation failed: " + errors.join("; "), ...common });
   }
 
-  // Approved: the beneficiary VASP returns its settlement address and a status callback URL.
+  // Approved: the beneficiary VASP returns its settlement address and a status callback URL. Fail
+  // closed if no real settlement address is configured on this node instead of returning a fake one.
+  const beneficiary = process.env.TRP_BENEFICIARY_ADDRESS || "";
+  if (!G_ADDR.test(beneficiary)) {
+    return NextResponse.json(
+      { rejected: "Beneficiary settlement address is not configured on this node.", ...common },
+      { status: 503 },
+    );
+  }
   return NextResponse.json({
     approved: {
-      address: process.env.TRP_BENEFICIARY_ADDRESS || "GDEMO...BENEFICIARY", // Stellar settlement address (placeholder)
+      address: beneficiary,
       callback: `${url.origin}/api/travel-rule/callback`,
     },
     ...common,

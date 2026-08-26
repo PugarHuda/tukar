@@ -25,8 +25,9 @@ export async function GET(req: Request) {
   if (!isConfigured()) return NextResponse.json({ configured: false });
   try {
     return NextResponse.json({ configured: true, schedules: await readSchedules(owner) });
-  } catch (e: any) {
-    return NextResponse.json({ configured: true, error: (e && e.message) || "read failed", schedules: [] }, { status: 500 });
+  } catch (e) {
+    console.error("[schedules] read failed:", e);
+    return NextResponse.json({ configured: true, error: "Could not read schedules.", schedules: [] }, { status: 500 });
   }
 }
 
@@ -63,7 +64,8 @@ export async function POST(req: Request) {
     if (schedules.length >= MAX_ACTIVE_PLANS) return NextResponse.json({ error: "too many active plans" }, { status: 429 });
     await writeSchedules(owner, [plan, ...schedules]);
     return NextResponse.json({ configured: true, schedule: plan });
-  } catch (e: any) {
-    return NextResponse.json({ error: (e && e.message) || "write failed" }, { status: 500 });
+  } catch (e) {
+    console.error("[schedules] write failed:", e);
+    return NextResponse.json({ error: "Could not save the schedule." }, { status: 500 });
   }
 }

@@ -727,7 +727,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
         )}
       </div>
       <p className="mt-2 text-[12px] text-tm">
-        Commitments are the pool's public Merkle leaves. {selected.length}/{AGG_N} selected.
+        Commitments are the pool&apos;s public Merkle leaves. {selected.length}/{AGG_N} selected.
       </p>
 
       <div className="mt-4 flex items-end gap-3">
@@ -750,7 +750,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
 
       <div className="mt-4">
         <label htmlFor="cap" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-          Cap for the holder's portfolio sum (USDC)
+          Cap for the holder&apos;s portfolio sum (USDC)
         </label>
         <input
           id="cap"

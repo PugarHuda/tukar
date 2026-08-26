@@ -465,7 +465,7 @@ export default function ReceiverPage() {
       )}
 
       <p className="px-1 pb-2 text-[11.5px] leading-relaxed text-tf">
-        Testnet demo. The shielded transfer in the middle is private, while deposits and withdrawals are public at the edges by design. Your local figure is read on-chain from the pool's Reflector quote, and the fiat cash-out runs through a licensed provider (Onramper or a SEP-24 anchor) that does its own KYC.
+        Testnet demo. The shielded transfer in the middle is private, while deposits and withdrawals are public at the edges by design. Your local figure is read on-chain from the pool&apos;s Reflector quote, and the fiat cash-out runs through a licensed provider (Onramper or a SEP-24 anchor) that does its own KYC.
       </p>
 
       {/* Status bar */}

@@ -50,6 +50,18 @@ export async function GET(req: Request) {
   const { owner, list, plan: target } = due[0];
   const pending = due.length - 1; // remaining due plans (any owner), executed on later runs
 
+  // CLAIM FIRST, then move money. Advance nextDate and persist BEFORE any deposit, so a concurrent
+  // run (a Vercel retry after a maxDuration timeout, or a manual trigger) that reads after this
+  // point sees the plan as not-due and skips it. This trades same-day retry-on-failure for a hard
+  // guarantee against depositing a scheduled payment twice, the correct tradeoff when value moves.
+  // A failed deposit is recorded in history and rolls to the next cycle rather than being retried.
+  // ponytail: Vercel Blob has no compare-and-set, so this narrows the double-deposit window to the
+  // read->claim-write latency rather than the whole prove+deposit duration. A true lock needs a KV
+  // with atomic ops if owner/plan volume ever makes the residual window matter.
+  const runAt = new Date().toISOString();
+  target.nextDate = computeNextDate(target.frequency);
+  await writeSchedules(owner, list); // claim: the plan is no longer due for any concurrent run
+
   // Mint a fresh note for the plan amount, then deposit + register on-chain.
   const note = await newNote(usdcToStroops(target.amount));
   const dep = await relayerDeposit(note);
@@ -61,19 +73,24 @@ export async function GET(req: Request) {
     regError = reg.error;
   }
 
+  // Record the result. Re-read this owner's file so a concurrent write to a different plan in the
+  // same file is not clobbered; update only our target's history.
   const receipt: RunReceipt = {
-    at: new Date().toISOString(),
+    at: runAt,
     depHash: dep.hash,
     regOk,
     error: dep.ok ? regError : dep.error, // deposit error, else the (optional) register error
   };
-  target.history = [receipt, ...(target.history || [])].slice(0, 20);
-  // Advance nextDate ONLY when the deposit landed; a failed deposit stays due so the next run
-  // retries it (and the error is visible in history) rather than silently skipping a payment.
-  if (dep.ok) target.nextDate = computeNextDate(target.frequency);
-
-  // `target` is a reference into `list`; persist just this owner's file.
-  await writeSchedules(owner, list);
+  try {
+    const fresh = await readSchedules(owner);
+    const p = fresh.find((x) => x.id === target.id);
+    if (p) {
+      p.history = [receipt, ...(p.history || [])].slice(0, 20);
+      await writeSchedules(owner, fresh);
+    }
+  } catch (e) {
+    console.error("[cron] result write-back failed (the deposit already executed on-chain):", e);
+  }
 
   return NextResponse.json({
     configured: true,

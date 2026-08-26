@@ -346,6 +346,7 @@ export default function SenderPage() {
 
   // ---- the send: proofs + deposit + tree registration, all real ----
   async function doSend() {
+    if (busy) return; // re-entrancy guard: a fast double-click must not fire two deposits
     if (!connected) {
       setSendStatus("Connect above to sign on-chain.");
       return;
@@ -924,7 +925,7 @@ function SendScreen(props: {
         <Button
           full
           busy={busy}
-          disabled={!connected}
+          disabled={!connected || busy}
           title={!connected ? "Connect a wallet or use the testnet key" : undefined}
           onClick={onSend}
         >

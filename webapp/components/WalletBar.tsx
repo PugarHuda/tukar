@@ -183,7 +183,7 @@ function ReclaimVerify() {
 
 /** Connect bar: built-in testnet key OR Freighter. Reusable across every route. */
 export function WalletBar() {
-  const { connected, kind, address, connecting, connectFreighter, useDemoKey, disconnect } = useWallet();
+  const { connected, kind, address, connecting, connectFreighter, connectDemoKey, disconnect } = useWallet();
   const { toast } = useToast();
 
   if (connected && address) {
@@ -220,7 +220,7 @@ export function WalletBar() {
       >
         Connect wallet
       </Button>
-      <Button variant="subtle" onClick={useDemoKey}>
+      <Button variant="subtle" onClick={connectDemoKey}>
         Use testnet key
       </Button>
       <span className="w-full text-right text-[11px] leading-snug text-tf">

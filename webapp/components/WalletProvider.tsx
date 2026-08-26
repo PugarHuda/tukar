@@ -51,7 +51,7 @@ export type WalletState = {
   /** Connect Freighter, install it as signer, and run best-effort testnet funding. */
   connectFreighter: (onStep?: (m: string) => void) => Promise<void>;
   /** Use the built-in throwaway testnet key (real testnet txs, no install). */
-  useDemoKey: () => void;
+  connectDemoKey: () => void;
   disconnect: () => void;
 };
 
@@ -62,7 +62,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
 
-  const useDemoKey = useCallback(() => {
+  const connectDemoKey = useCallback(() => {
     setWalletSigner(null); // built-in demo key is the default signer
     setKind("demo");
     setAddress(activeAddress());
@@ -131,7 +131,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       saved = localStorage.getItem("tukar:conn");
     } catch {}
     if (saved === "demo") {
-      useDemoKey();
+      connectDemoKey();
     } else if (saved === "freighter") {
       (async () => {
         try {
@@ -153,7 +153,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const value: WalletState = { connected: kind !== null, kind, address, connecting, connectFreighter, useDemoKey, disconnect };
+  const value: WalletState = { connected: kind !== null, kind, address, connecting, connectFreighter, connectDemoKey, disconnect };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

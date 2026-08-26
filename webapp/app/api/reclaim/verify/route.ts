@@ -11,9 +11,16 @@ export const dynamic = "force-dynamic";
 
 // Same server-controlled provider id as the request route. Not read from the request body, so a
 // caller cannot point verification at an arbitrary provider.
-const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID || "REPLACE_WITH_RECLAIM_PROVIDER_ID";
+const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID;
 
 export async function POST(req: Request) {
+  // Fail closed when this deployment has no Reclaim credentials: verifying a proof against a
+  // placeholder provider would either throw or, worse, claim a false result. Mirror the request
+  // route so the UI shows a clean not-configured state instead.
+  if (!process.env.RECLAIM_APP_ID || !process.env.RECLAIM_APP_SECRET || !PROVIDER_ID) {
+    return NextResponse.json({ verified: false, configured: false });
+  }
+
   let body: { proof?: Proof; providerVersion?: string; address?: string };
   try {
     body = await req.json();

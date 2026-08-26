@@ -17,8 +17,9 @@ export async function POST(req: Request) {
   try {
     const res = await noteStatus({ note: body?.note, commitment: body?.commitment });
     return NextResponse.json(res);
-  } catch (e: any) {
+  } catch (e) {
     // parseInput() throws only on bad input -> 400. Chain-read failures return status "unknown".
-    return NextResponse.json({ error: (e && e.message) || "bad request" }, { status: 400 });
+    console.error("[note-status] request failed:", e);
+    return NextResponse.json({ error: "Invalid note or commitment." }, { status: 400 });
   }
 }

@@ -9,6 +9,7 @@
 //   - mintAndForward           -> stellar.ts mintAndForward / submitSorobanTx (mint_and_forward)
 import * as Sdk from "@stellar/stellar-sdk";
 import { RPC, PASSPHRASE, DEMO_SECRET } from "./constants";
+import { fetchWithTimeout } from "./net";
 
 const { StrKey } = Sdk;
 
@@ -100,7 +101,7 @@ export type AttestResult =
  */
 export async function fetchAttestation(sourceDomain: number, txHash: string): Promise<AttestResult> {
   const url = `${CCTP.irisApi}/v2/messages/${sourceDomain}?transactionHash=${txHash}`;
-  const res = await fetch(url, { headers: { accept: "application/json" } });
+  const res = await fetchWithTimeout(url, { headers: { accept: "application/json" } }, 15000);
   if (res.status === 404) return { status: "pending" };
   if (!res.ok) return { status: "pending" };
   const json: any = await res.json();

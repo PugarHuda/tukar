@@ -4,18 +4,18 @@ import { ReclaimProofRequest } from "@reclaimprotocol/js-sdk";
 // Server route: mints a Reclaim proof-of-personhood request. Reads creds from env only.
 export const dynamic = "force-dynamic";
 
-// Provider id is server-controlled (env var, or this placeholder constant to swap for your
-// enabled provider). It is deliberately NOT read from the request body, so a caller cannot
-// point our app credentials at an arbitrary Reclaim provider.
-// ponytail: swap the constant for your real provider id, or set RECLAIM_PROVIDER_ID.
-const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID || "REPLACE_WITH_RECLAIM_PROVIDER_ID";
+// Provider id is server-controlled (env var only) and deliberately NOT read from the request
+// body, so a caller cannot point our app credentials at an arbitrary Reclaim provider. If it is
+// unset the route reports not-configured rather than running against a placeholder provider.
+const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID;
 
 export async function POST() {
   const appId = process.env.RECLAIM_APP_ID;
   const appSecret = process.env.RECLAIM_APP_SECRET;
 
-  // Not configured on this deployment: tell the UI honestly instead of throwing.
-  if (!appId || !appSecret) {
+  // Not configured on this deployment (missing app id, secret, or provider id): tell the UI
+  // honestly instead of throwing or, worse, calling Reclaim with a placeholder provider.
+  if (!appId || !appSecret || !PROVIDER_ID) {
     return NextResponse.json({ configured: false });
   }
 
