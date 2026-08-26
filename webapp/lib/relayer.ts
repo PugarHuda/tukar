@@ -85,13 +85,22 @@ async function sendTx(buildAt: () => Promise<any>, attempts = 4): Promise<any> {
   throw lastErr;
 }
 
+// Full PoolError code -> message map, kept in sync with lib/stellar.ts (~1026). Copied rather than
+// imported so this server-only module stays decoupled from the client path; the truncated version
+// used to record raw Error(Contract,#N) for codes 2,5,6,8,11,12 in cron run receipts.
 const POOL_ERRORS: Record<number, string> = {
-  1: "root not recognized on-chain (tree moved on)",
-  3: "unknown commitment (deposit not yet visible)",
-  4: "deny-list check failed",
-  7: "the zero-knowledge proof was rejected on-chain",
-  9: "leaf already inserted or not backed",
-  10: "commitment already deposited",
+  1: "this root isn't recognized on-chain (the tree moved on — re-sync and retry)",
+  2: "this note was already spent — its nullifier is used (double-spend rejected on-chain)",
+  3: "unknown commitment — this note isn't in the pool",
+  4: "the deny-list check failed on-chain",
+  5: "invalid amount",
+  6: "the amount isn't bound to the commitment (binding proof missing)",
+  7: "the zero-knowledge proof was rejected by the on-chain verifier",
+  8: "the corridor tree is full",
+  9: "this leaf isn't a backed deposit, or was already inserted (unbacked-leaf insert rejected)",
+  10: "this commitment was already deposited (duplicate deposit rejected — it would lock funds)",
+  11: "the FX oracle has no live price for this currency (off-ramp quote unavailable)",
+  12: "the live FX rate would deliver less than your minimum (slippage too high — release blocked, note unspent)",
 };
 function poolErr(e: any): { error: string; code: number | null } {
   const msg = _msg(e);

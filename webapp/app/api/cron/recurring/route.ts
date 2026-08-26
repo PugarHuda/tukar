@@ -11,10 +11,14 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { isConfigured, readSchedules, writeSchedules, listAllOwners, computeNextDate, type RunReceipt, type StoredSchedule } from "@/lib/schedules";
 import { relayerDeposit, relayerRegister } from "@/lib/relayer";
 import { newNote, usdcToStroops } from "@/lib/zk";
+import { withLock } from "@/lib/lock";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
+// Lock TTL sits above maxDuration so a runner that dies mid-deposit still holds the lock until well
+// after Vercel would have killed it, then it auto-expires for a later run. (maxDuration is seconds.)
+const LOCK_TTL_MS = 90_000;
 
 // Constant-time bearer check that also fails closed on a missing/short secret. Comparing raw
 // strings would let `Bearer undefined` through when CRON_SECRET is unset, and would leak length.
@@ -50,46 +54,57 @@ export async function GET(req: Request) {
   const { owner, list, plan: target } = due[0];
   const pending = due.length - 1; // remaining due plans (any owner), executed on later runs
 
-  // CLAIM FIRST, then move money. Advance nextDate and persist BEFORE any deposit, so a concurrent
-  // run (a Vercel retry after a maxDuration timeout, or a manual trigger) that reads after this
-  // point sees the plan as not-due and skips it. This trades same-day retry-on-failure for a hard
-  // guarantee against depositing a scheduled payment twice, the correct tradeoff when value moves.
-  // A failed deposit is recorded in history and rolls to the next cycle rather than being retried.
-  // ponytail: Vercel Blob has no compare-and-set, so this narrows the double-deposit window to the
-  // read->claim-write latency rather than the whole prove+deposit duration. A true lock needs a KV
-  // with atomic ops if owner/plan volume ever makes the residual window matter.
-  const runAt = new Date().toISOString();
-  target.nextDate = computeNextDate(target.frequency);
-  await writeSchedules(owner, list); // claim: the plan is no longer due for any concurrent run
+  // DISTRIBUTED LOCK, then CLAIM FIRST, then move money. Two layers against a double deposit:
+  //   1. An Upstash Redis SET NX lock keyed by this plan for today. When Redis is configured this is
+  //      atomic and cluster-wide: a concurrent run or a Vercel retry that hits the same plan cannot
+  //      acquire it and SKIPs without depositing. This makes a double deposit impossible.
+  //   2. Inside the lock, the existing claim-first advance (persist nextDate BEFORE depositing) stays
+  //      as a second layer, and is the ONLY protection when Redis is not configured (withLock then
+  //      runs the body unguarded — see lib/lock.ts). A failed deposit is recorded in history and
+  //      rolls to the next cycle rather than being retried same-day.
+  const lockKey = `recurring:${owner}:${target.id}:${today}`;
+  const outcome = await withLock(lockKey, LOCK_TTL_MS, async () => {
+    const runAt = new Date().toISOString();
+    target.nextDate = computeNextDate(target.frequency);
+    await writeSchedules(owner, list); // claim: the plan is no longer due for any concurrent run
 
-  // Mint a fresh note for the plan amount, then deposit + register on-chain.
-  const note = await newNote(usdcToStroops(target.amount));
-  const dep = await relayerDeposit(note);
-  let regOk = false;
-  let regError: string | undefined;
-  if (dep.ok) {
-    const reg = await relayerRegister(note);
-    regOk = reg.ok;
-    regError = reg.error;
-  }
-
-  // Record the result. Re-read this owner's file so a concurrent write to a different plan in the
-  // same file is not clobbered; update only our target's history.
-  const receipt: RunReceipt = {
-    at: runAt,
-    depHash: dep.hash,
-    regOk,
-    error: dep.ok ? regError : dep.error, // deposit error, else the (optional) register error
-  };
-  try {
-    const fresh = await readSchedules(owner);
-    const p = fresh.find((x) => x.id === target.id);
-    if (p) {
-      p.history = [receipt, ...(p.history || [])].slice(0, 20);
-      await writeSchedules(owner, fresh);
+    // Mint a fresh note for the plan amount, then deposit + register on-chain.
+    const note = await newNote(usdcToStroops(target.amount));
+    const dep = await relayerDeposit(note);
+    let regOk = false;
+    let regError: string | undefined;
+    if (dep.ok) {
+      const reg = await relayerRegister(note);
+      regOk = reg.ok;
+      regError = reg.error;
     }
-  } catch (e) {
-    console.error("[cron] result write-back failed (the deposit already executed on-chain):", e);
+
+    // Record the result. Re-read this owner's file so a concurrent write to a different plan in the
+    // same file is not clobbered; update only our target's history.
+    const receipt: RunReceipt = {
+      at: runAt,
+      depHash: dep.hash,
+      regOk,
+      error: dep.ok ? regError : dep.error, // deposit error, else the (optional) register error
+    };
+    try {
+      const fresh = await readSchedules(owner);
+      const p = fresh.find((x) => x.id === target.id);
+      if (p) {
+        p.history = [receipt, ...(p.history || [])].slice(0, 20);
+        await writeSchedules(owner, fresh);
+      }
+    } catch (e) {
+      console.error("[cron] result write-back failed (the deposit already executed on-chain):", e);
+    }
+
+    return { depHash: dep.hash, depositOk: dep.ok, regOk, error: receipt.error };
+  });
+
+  // Lock already held: a concurrent run / retry is processing this exact plan. Skip without moving
+  // money rather than risk a second deposit.
+  if (!outcome.ran) {
+    return NextResponse.json({ configured: true, processed: 0, skipped: true, reason: outcome.reason, id: target.id, pending });
   }
 
   return NextResponse.json({
@@ -97,9 +112,6 @@ export async function GET(req: Request) {
     processed: 1,
     pending,
     id: target.id,
-    depHash: dep.hash,
-    depositOk: dep.ok,
-    regOk,
-    error: receipt.error,
+    ...outcome.result,
   });
 }
