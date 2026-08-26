@@ -45,9 +45,12 @@
     "test:threshold": "node scripts/test-threshold.mjs",
     "circuit:aggregate": "./tools/bin/circom.exe circuits/aggregateDisclosure.circom --r1cs --wasm --sym -l node_modules -o circuits/build && npx --no-install snarkjs groth16 setup circuits/build/aggregateDisclosure.r1cs circuits/build/pot14_hez.ptau circuits/build/aggregateDisclosure_0.zkey && npx --no-install snarkjs zkey contribute circuits/build/aggregateDisclosure_0.zkey circuits/build/aggregateDisclosure_final.zkey --name=agg -e=\"aggregate key\"",
     "test:aggregate": "node scripts/test-aggregate.mjs",
-    "test:range": "node scripts/test-range.mjs"
+    "test:range": "node scripts/test-range.mjs",
+    "e2e:pw": "playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
     "circomlib": "^2.0.5",
     "circomlibjs": "^0.1.7",
     "playwright-core": "^1.61.1",

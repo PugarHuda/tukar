@@ -76,3 +76,8 @@ frontend/tukar-banner.png
 
 # QA screenshot/artifact output (regenerable, not product)
 scripts/qa-shots/
+
+# Playwright @playwright/test output (reports, traces, browser binaries are all regenerable)
+test-results/
+playwright-report/
+.playwright-mcp/
