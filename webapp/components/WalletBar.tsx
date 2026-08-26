@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { Button, StatusPill, useToast } from "@/components/ui";
+import { IdosConnect } from "@/components/idos/IdosConnect";
 
 const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
@@ -199,8 +200,9 @@ export function WalletBar() {
         </div>
         <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
           <summary className="cursor-pointer list-none text-tm hover:text-orange">
-            Verify identity to enable deposits (Reclaim)
+            Verify identity to enable deposits (idOS or Reclaim)
           </summary>
+          <IdosConnect />
           <ReclaimVerify />
         </details>
       </div>
@@ -228,11 +230,10 @@ export function WalletBar() {
       </span>
       <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
         <summary className="cursor-pointer list-none text-tm hover:text-orange">
-          Reusable KYC <span className="text-tf">(roadmap)</span>
+          Reusable KYC
         </summary>
         <p className="mt-1 text-left leading-relaxed">
-          <b className="text-orange">Roadmap, not wired yet.</b> Onboarding will verify identity once
-          through{" "}
+          Verify identity once and reuse it: connect a wallet, then reuse an existing{" "}
           <a
             href="https://idos.network"
             target="_blank"
@@ -241,7 +242,7 @@ export function WalletBar() {
           >
             idOS
           </a>{" "}
-          (reusable KYC, live on Stellar) and{" "}
+          KYC credential (reusable KYC, live on Stellar), or prove personhood with{" "}
           <a
             href="https://reclaimprotocol.org"
             target="_blank"
@@ -250,10 +251,10 @@ export function WalletBar() {
           >
             Reclaim
           </a>{" "}
-          (zkTLS proof-of-personhood, live on Stellar). That result populates the ASP allow-list, so a
-          user proves compliance once and reuses it across corridors, and Tukar never holds KYC data
-          itself.
+          (zkTLS, live on Stellar). The result populates the ASP allow-list, so a user proves
+          compliance once and reuses it across corridors, and Tukar never holds KYC data itself.
         </p>
+        <IdosConnect />
         <ReclaimVerify />
       </details>
     </div>
