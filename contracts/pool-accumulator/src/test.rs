@@ -1347,19 +1347,20 @@ fn deposit_forged_binding_amount_rejected() {
     pool.deposit(&user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
 }
 
-// OVER-CAP / over-count ceiling: a withdraw reduces custody but NOT the deposit-side
-// accumulator, so total_liabilities can exceed balance. is_solvent flips false and
-// attest_reserves rejects (Insolvent #18) — the fail-safe direction (a PASS is always
-// conservative; only a post-withdrawal FAIL can be a false alarm). Documents the ceiling.
+// EXACTNESS (the core upgrade): a withdraw releases the public amount Z out of custody AND folds
+// -Z into the accumulator, so total_liabilities tracks true live outstanding liabilities exactly
+// and equals balance() after the spend — NOT the deposit-side over-count. attest stays solvent at
+// the exact total. Deposit 300 + 500 = 800, withdraw 120 -> both balance and accumulator = 680.
 #[test]
-fn attest_reserves_over_count_after_withdraw() {
+fn accumulator_exact_after_withdraw() {
     let env = Env::default();
     let c = setup(&env);
     c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
-    assert_eq!(c.pool.total_liabilities(), 300);
-    assert!(c.pool.is_solvent()); // 300 <= 300
+    c.pool.deposit(&c.user, &500, &b32(&env, 2), &dummy_proof(&env), &dummy_proof(&env));
+    assert_eq!(c.pool.total_liabilities(), 800);
+    assert!(c.pool.is_solvent()); // 800 <= 800
 
-    // Spend 120 out via withdraw: balance 300 -> 180, but the accumulator stays 300.
+    // Spend 120 out via withdraw: balance 800 -> 680, and the accumulator folds -120 -> 680.
     let recipient = Address::generate(&env);
     let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
@@ -1367,25 +1368,56 @@ fn attest_reserves_over_count_after_withdraw() {
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
         &nulls, &outs, &recipient, &120, &None, &None,
     );
-    assert_eq!(c.pool.balance(), 180);
-    assert_eq!(c.pool.total_liabilities(), 300); // deposit-side: not decremented on spend
-    assert!(!c.pool.is_solvent()); // 300 > 180
+    assert_eq!(c.pool.balance(), 680);
+    assert_eq!(c.pool.total_liabilities(), 680); // EXACT: decremented by the released amount
+    assert!(c.pool.is_solvent()); // 680 <= 680 — still solvent at the exact total
+
+    let att = c.pool.attest_reserves(); // passes: exact total 680 <= custody 680
+    assert_eq!(att.liabilities, 680);
+    assert_eq!(att.reserves, 680);
 }
 
+// attest_reserves rejects when custody drops out of band (below the exact liabilities). With the
+// accumulator now exact, a withdraw alone can't create insolvency (it debits both sides equally),
+// so we simulate a custody LEAK: tokens transferred out of the pool WITHOUT a withdraw, leaving
+// total_liabilities > balance -> Insolvent #18. This is exactly the failure attest exists to catch.
 #[test]
 #[should_panic(expected = "Error(Contract, #18)")] // Insolvent
 fn attest_reserves_rejects_when_over_custody() {
     let env = Env::default();
     let c = setup(&env);
     c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    // Custody leaks 200 out of band (not via withdraw), so the exact accumulator now exceeds balance.
+    c.token.transfer(&c.pool.address, &Address::generate(&env), &200); // balance 300 -> 100
+    assert_eq!(c.pool.total_liabilities(), 300);
+    assert_eq!(c.pool.balance(), 100);
+    c.pool.attest_reserves(); // total 300 > custody 100 -> Insolvent #18
+}
+
+// The withdraw-side fold never drives the accumulator below zero. A MIGRATED pool seeds the
+// accumulator at 0 (import can't recover hidden amounts — see import_state), so a post-import
+// withdraw folds -Z against 0; the fold clamps at 0 rather than going negative or trapping the
+// withdraw (which would brick the migrated pool). Custody and spend still work normally.
+#[test]
+fn accumulator_clamps_at_zero_on_migrated_withdraw() {
+    let env = Env::default();
+    let c = setup(&env);
+    let root = b32(&env, 200);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
+    let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
+    assert_eq!(c.pool.total_liabilities(), 0); // import doesn't populate the accumulator
+
     let recipient = Address::generate(&env);
-    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
-    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 80), b32(&env, 81)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
     c.pool.withdraw(
-        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
         &nulls, &outs, &recipient, &120, &None, &None,
     );
-    c.pool.attest_reserves(); // total 300 > custody 180 -> Insolvent #18
+    assert_eq!(c.token.balance(&recipient), 120); // withdraw still releases
+    assert_eq!(c.pool.total_liabilities(), 0); // clamped at 0, never negative
 }
 
 // A duplicate-commitment deposit reverts BEFORE folding, so the accumulator never double-counts

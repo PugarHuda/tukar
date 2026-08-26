@@ -1,8 +1,9 @@
 #![no_std]
 
 //! Tukar pool-accumulator — a PARALLEL, preview-track pool (built on the pool-enforced
-//! upgradeable track) that adds FULL-POOL proof-of-reserves via a DEPOSIT-SIDE liability
-//! accumulator. Identical to `contracts/pool-enforced/` (which is itself `contracts/pool/`
+//! upgradeable track) that adds FULL-POOL proof-of-reserves via an EXACT liability
+//! accumulator (deposit folds +amount, withdraw folds -released). Identical to
+//! `contracts/pool-enforced/` (which is itself `contracts/pool/`
 //! plus per-corridor caps + upgrade/import_state) EXCEPT for the accumulator additions
 //! below. Deployed to its OWN address; the 8 live contracts and the live pool are untouched.
 //!
@@ -14,28 +15,32 @@
 //! liabilities AS DEPOSITS HAPPEN, so the pool can attest its full outstanding liabilities with
 //! nobody revealing an amount.
 //!
-//! **Construction (sound, deposit-side).** On every `deposit` the pool folds the deposited
+//! **Construction (sound, EXACT — both sides).** On every `deposit` the pool folds the deposited
 //! `amount` into a running on-chain accumulator `TotalLiabilities += amount`. That `amount` is
 //! the SAME i128 that (a) is pulled in as real tokens and (b) is proven equal to the note's
 //! hidden value by the EXISTING amount-binding proof (the disclosure circuit already verified in
 //! `deposit`: it proves `commitment == Poseidon(amount, pubKey, blinding)` with `amount` public).
-//! So the accumulator equals the true sum of deposited note amounts, and a depositor can neither
-//! inflate nor understate their contribution: fold-amount == token-amount == the amount bound to
-//! their commitment. No new circuit and no new ceremony are required — the amount is already a
-//! PUBLIC figure (a hiding Pedersen commitment would add nothing for a public total), and the
-//! amount<->note binding the accumulator relies on is the disclosure proof the deposit already
-//! carries. `attest_reserves` opens the (already-public) accumulator and checks it against live
-//! custody: `total_liabilities <= balance()`.
+//! On every `withdraw` the pool folds `TotalLiabilities -= released`, where `released` is the SAME
+//! public i128 `amount` that (a) leaves custody as real tokens and (b) is bound to the proof's
+//! `public_amount` (a withdraw's `public_amount == -released`, checked below). A 2-in/2-out
+//! JoinSplit conserves value as `sumIn + public_amount == sumOut`, so with `public_amount = -Z`
+//! the unspent-note set changes by EXACTLY `-Z`: the spent input notes leave the liability set,
+//! the change outputs re-enter, net `-Z`. Folding `-Z` therefore keeps the accumulator equal to
+//! the TRUE live outstanding liabilities (not an over-estimate). A depositor can neither inflate
+//! nor understate a deposit (fold-amount == token-amount == the amount bound to their commitment),
+//! and a withdrawer cannot release more than the proof authorizes (released is bound to
+//! `public_amount`), so neither side can desync the accumulator from real value flow. No new
+//! circuit and no new ceremony are required — both `amount`s are already PUBLIC, proof-bound
+//! figures. `attest_reserves` opens the (already-public) accumulator and checks it against live
+//! custody: `total_liabilities <= balance()`, now a TIGHT solvency statement.
 //!
-//! ponytail: this accumulator is DEPOSIT-SIDE ONLY. It does NOT subtract a note's amount when the
-//! note is later spent (`withdraw`/`transfer`), so after withdrawals `TotalLiabilities` OVER-STATES
-//! true outstanding liabilities. That is the FAIL-SAFE direction: `total_liabilities <= custody`
-//! passing means true_liabilities <= total_liabilities <= custody, i.e. genuinely solvent — a
-//! PASS is strictly conservative (matching `contracts/reserves/`'s ceiling). A FAIL can be a false
-//! alarm (over-stated total exceeds custody though the pool is fine). Upgrade path (the honest next
-//! step, deliberately NOT done here because it is invasive to the core transfer/withdraw circuit):
-//! fold `-amount` into the accumulator inside the withdraw/transfer circuit so it tracks live
-//! liabilities exactly.
+//! ponytail: the withdraw-side fold clamps at 0 rather than trapping on underflow. On a fresh
+//! deposits-from-genesis pool (the intended PoR deployment) `TotalLiabilities >= released` always
+//! holds, so it never underflows and the total is EXACT. A MIGRATED pool (`import_state`) seeds
+//! the accumulator at 0 because import can't recover hidden amounts (see `import_state`), so a
+//! post-import withdraw would fold below 0; we clamp to 0 so migration withdrawals still work
+//! (attest is already documented unsound on a migrated pool). Upgrade path: seed
+//! `TotalLiabilities` in `import_state` from the source's attested total for exact attest there too.
 //!
 //! The stateful corridor contract that orchestrates the three ZK
 //! verifiers and custodies the corridor's tokens.
@@ -159,7 +164,7 @@ enum DataKey {
     AuditRequest(BytesN<32>), // a registered aggregate audit-request hash (regulator-issued)
     PolicyRegistry,    // the per-corridor policy registry this pool enforces caps against
     Migrated,          // one-shot flag: set once import_state has run, so it can never run again
-    TotalLiabilities,  // running deposit-side accumulator: sum of every deposited amount (i128 stroops)
+    TotalLiabilities,  // running exact accumulator: deposits(+amount) minus withdrawals(-released), i128 stroops
     LatestAttestation, // the most recent solvency attestation recorded by attest_reserves
 }
 
@@ -757,10 +762,10 @@ impl Pool {
         // 3. Move the real token amount in.
         Self::token(&env).transfer(&from, &env.current_contract_address(), &amount);
 
-        // 4. Deposit-side liability accumulator (see module header). Fold the SAME `amount`
-        // that just moved in AND was bound to `commitment` by the disclosure proof above. A
-        // depositor therefore cannot fold a value different from the note's amount, so the
-        // accumulated total equals the true sum of deposited note amounts. checked_add gives a
+        // 4. Liability accumulator, deposit side (see module header; withdraw folds -released).
+        // Fold the SAME `amount` that just moved in AND was bound to `commitment` by the disclosure
+        // proof above. A depositor therefore cannot fold a value different from the note's amount,
+        // so the accumulated total tracks the true sum of live note amounts. checked_add gives a
         // typed Overflow rather than a trap (unreachable in practice: amount < 2^64 and i128
         // holds ~2^64 max-size deposits before nearing the bound).
         let prev: i128 = env.storage().instance().get(&DataKey::TotalLiabilities).unwrap_or(0);
@@ -901,6 +906,18 @@ impl Pool {
         for c in out_commitments.iter() {
             Self::record_commitment(&env, &c);
         }
+        // Liability accumulator, withdraw side (see module header). The released `amount` (Z) is
+        // public and bound to the proof's `public_amount == -Z` (checked above), and the JoinSplit
+        // conserves value so the unspent-note set changes by exactly -Z. Fold -Z so the accumulator
+        // stays equal to true live outstanding liabilities. Clamp at 0 (never negative): a
+        // deposits-from-genesis pool always has total >= Z so it never underflows; a MIGRATED pool
+        // seeds the accumulator at 0 (import can't recover hidden amounts), so its first withdraws
+        // would drive it below 0 — clamping keeps migration withdrawals working (attest is already
+        // documented unsound on a migrated pool). ponytail: clamp-at-0; seed TotalLiabilities in
+        // import_state if exact attest on a migrated pool is ever needed.
+        let prev: i128 = env.storage().instance().get(&DataKey::TotalLiabilities).unwrap_or(0);
+        let total = if amount >= prev { 0 } else { prev - amount };
+        env.storage().instance().set(&DataKey::TotalLiabilities, &total);
         Self::token(&env).transfer(&env.current_contract_address(), &recipient, &amount);
         env.events().publish((symbol_short!("withdraw"), recipient), amount);
     }
@@ -1103,20 +1120,20 @@ impl Pool {
         Self::token(&env).balance(&env.current_contract_address())
     }
 
-    // ---- proof-of-reserves (deposit-side accumulator) ----
+    // ---- proof-of-reserves (exact accumulator: deposit +amount, withdraw -released) ----
 
-    /// Total deposit-side liabilities: the running sum of every deposited `amount`, each bound
-    /// to its note commitment by the disclosure proof at deposit time (see module header). This
-    /// is the FULL-POOL figure — it needs no depositor's opening at read time because the
-    /// soundness was established incrementally, one binding proof per deposit. Public by design
-    /// (deposit amounts are already public), so "opening the accumulator" is just this read.
+    /// Total live liabilities: deposits(+amount) minus withdrawals(-released), each `amount` bound
+    /// to a proof at write time (deposit's disclosure binding; withdraw's `public_amount`). See the
+    /// module header. This is the FULL-POOL figure — it needs no depositor's opening at read time
+    /// because the soundness was established incrementally, one bound amount per state change. Public
+    /// by design (both amounts are already public), so "opening the accumulator" is just this read.
     pub fn total_liabilities(env: Env) -> i128 {
         env.storage().instance().get(&DataKey::TotalLiabilities).unwrap_or(0)
     }
 
     /// Live solvency: does custody cover the accumulated liabilities? `total_liabilities <= balance()`.
-    /// ponytail: deposit-side over-count means a PASS is strictly conservative (true liabilities <=
-    /// total <= custody), while a FAIL after withdrawals can be a false alarm. See module header.
+    /// The accumulator is EXACT (deposit +amount, withdraw -released), so on a genesis pool this is a
+    /// tight check: it holds iff the pool truly covers its live outstanding notes. See module header.
     pub fn is_solvent(env: Env) -> bool {
         Self::total_liabilities(env.clone()) <= Self::balance(env)
     }
