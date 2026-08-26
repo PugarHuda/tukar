@@ -14,16 +14,43 @@ const nextConfig = {
   // relayer can read them from disk (it proves compliance + amount binding + merkleUpdate).
   outputFileTracingIncludes: { "/api/cron/recurring": ["./public/circuit/**"] },
   async headers() {
+    // Content-Security-Policy tuned to what the browser actually loads (verified by scripts/qa-csp.mjs).
+    // Non-obvious sources, each present because real code needs it:
+    //   script-src 'wasm-unsafe-eval'   -> snarkjs/circomlibjs compile the circuit WASM in-browser
+    //   script-src cdn.jsdelivr.net     -> sender success screen loads qrcode-generator UMD at runtime (components/sender/qr.ts)
+    //   script/style 'unsafe-inline'    -> Next.js hydration inline scripts + Tailwind/Next inline styles (nonces out of scope)
+    //   worker-src blob:                -> snarkjs proof workers spawn from blob: URLs
+    //   connect-src soroban-testnet     -> live Soroban RPC reads + Reflector FX oracle (lib/constants.ts RPC)
+    //   connect-src open.er-api.com     -> FX-rate fallback fetch (sender/receiver/demo)
+    //   connect-src friendbot           -> one-click testnet XLM funding (components/WalletProvider.tsx)
+    //   connect-src sepolia.base.org    -> viem Base Sepolia public RPC for the CCTP receive leg (lib/cctp.ts)
+    //   connect-src api.onramper.com    -> off-ramp quote fetch on the receiver (lib/stellar.ts onramperQuote)
+    //   connect-src api.reclaimprotocol -> Reclaim session-status poll when the ASP flow is configured (components/WalletBar.tsx)
+    //   img-src https:                  -> og/explorer/remote thumbnails; media-src 'self' -> the deck /demo-id.mp4
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "media-src 'self'",
+      "worker-src 'self' blob:",
+      "connect-src 'self' https://soroban-testnet.stellar.org https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://api.reclaimprotocol.org",
+      "frame-ancestors 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
     return [
       {
         // Safe baseline hardening on every route: block clickjacking, stop MIME sniffing, trim
-        // referrer leakage. Intentionally NOT a full CSP yet (the app loads inline styles + the
-        // deck media, so a strict policy needs its own testing pass before it ships).
+        // referrer leakage, and a real CSP that permits exactly the origins/eval the app uses.
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Content-Security-Policy", value: csp },
         ],
       },
       {
