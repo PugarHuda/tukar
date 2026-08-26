@@ -111,8 +111,8 @@ for the average cost of sending $200.
 
 ### What shipped this session, and what's still ahead
 
-The core (7 circuits, 8 contracts, 52 tests, the live corridor, in-circuit compliance, four
-selective-disclosure types, and the oracle gate) runs on testnet today. The
+The core (8 circuits, 13 Soroban contracts, 60+ passing tests, the live corridor, in-circuit
+compliance, four selective-disclosure types, and the oracle gate) runs on testnet today. The
 compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along five
 lines, and this session moved most of them from reference demos into working, testnet-live
 features. Each item below is real and on testnet unless marked, and the honest limits stay in
