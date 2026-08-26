@@ -1,0 +1,1404 @@
+#![cfg(test)]
+extern crate std;
+use super::*;
+use soroban_sdk::{
+    contract, contractimpl, symbol_short,
+    testutils::{Address as _, Ledger as _},
+    token::{StellarAssetClient, TokenClient},
+    vec, Address, BytesN, Env, Vec,
+};
+
+// Stub verifier that accepts every proof — lets us unit-test the pool's own
+// logic (binding, nullifier set, commitment tracking, token custody).
+#[contract]
+pub struct MockVerifier;
+
+#[contractimpl]
+impl MockVerifier {
+    pub fn verify(_e: Env, _p: Groth16Proof, _pi: Vec<Bn254Fr>) -> bool {
+        true
+    }
+}
+
+// Capturing verifier: accepts every proof but RECORDS the public-input vector it was
+// handed (as canonical bytes) so a test can assert the pool built exactly the right
+// vector, in the right order. This is what makes the "pool binds typed signals into the
+// verifier inputs" security claim actually testable (MockVerifier alone can't see it).
+#[contract]
+pub struct CapturingVerifier;
+
+#[contractimpl]
+impl CapturingVerifier {
+    pub fn verify(e: Env, _p: Groth16Proof, pi: Vec<Bn254Fr>) -> bool {
+        let mut bytes: Vec<BytesN<32>> = vec![&e];
+        for x in pi.iter() {
+            bytes.push_back(x.to_bytes());
+        }
+        e.storage().instance().set(&symbol_short!("PI"), &bytes);
+        true
+    }
+    pub fn captured(e: Env) -> Vec<BytesN<32>> {
+        e.storage().instance().get(&symbol_short!("PI")).unwrap()
+    }
+}
+
+// Stub Reflector SEP-40 oracle: USD-base feed reporting 1 unit = 0.05 USD scaled
+// 10^14 (price 5e12), so 1 USD = 20 local units. Lets us unit-test offramp_quote's
+// on-chain cross-contract read without the live network.
+#[contract]
+pub struct MockOracle;
+
+#[contractimpl]
+impl MockOracle {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        Some(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 })
+    }
+    // Last `n` records (newest first), all at the spot price — the median path the
+    // settlement gate uses sees a stable 5e12 median, matching lastprice.
+    pub fn prices(e: Env, _asset: Asset, n: u32) -> Option<Vec<PriceData>> {
+        let mut v = vec![&e];
+        let mut i = 0u32;
+        while i < n {
+            v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+            i += 1;
+        }
+        Some(v)
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
+// Oracle whose SPOT (lastprice) is a manipulated high outlier (100e12 -> a much
+// smaller local quote) but whose recent history is mostly the honest 5e12. The median
+// path must ignore the outlier and price at 5e12; a spot-based gate would not.
+#[contract]
+pub struct MockOracleOutlier;
+
+#[contractimpl]
+impl MockOracleOutlier {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        Some(PriceData { price: 100_000_000_000_000i128, timestamp: 1_700_000_000u64 })
+    }
+    // 5 records: one manipulated outlier (100e12) + four honest (5e12). Sorted median
+    // (index 2 of [5,5,5,5,100]e12) = 5e12 — the outlier can't move the floor.
+    pub fn prices(e: Env, _asset: Asset, _n: u32) -> Option<Vec<PriceData>> {
+        let mut v = vec![&e];
+        v.push_back(PriceData { price: 100_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+        let mut i = 0u32;
+        while i < 4 {
+            v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+            i += 1;
+        }
+        Some(v)
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
+// Oracle whose feed is too thin for the gate (only 2 records < FX_MIN_RECORDS=3) —
+// the median gate must fail closed rather than degrade to a near-spot read.
+#[contract]
+pub struct MockOracleThin;
+
+#[contractimpl]
+impl MockOracleThin {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        Some(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 })
+    }
+    pub fn prices(e: Env, _asset: Asset, _n: u32) -> Option<Vec<PriceData>> {
+        let mut v = vec![&e];
+        v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+        v.push_back(PriceData { price: 5_000_000_000_000i128, timestamp: 1_700_000_000u64 });
+        Some(v) // only 2 < FX_MIN_RECORDS
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
+// Oracle stub that carries NO price for any asset (lastprice -> None) — models a
+// currency the feed doesn't support, so offramp_quote must return FxUnavailable.
+#[contract]
+pub struct MockOracleEmpty;
+
+#[contractimpl]
+impl MockOracleEmpty {
+    pub fn lastprice(_e: Env, _asset: Asset) -> Option<PriceData> {
+        None
+    }
+    pub fn prices(_e: Env, _asset: Asset, _n: u32) -> Option<Vec<PriceData>> {
+        None
+    }
+    pub fn decimals(_e: Env) -> u32 {
+        14
+    }
+}
+
+// Stub policy registry: returns a fixed per-corridor cap for "MX" (5 whole USDC) and
+// nothing for any other corridor — so a test can prove the enforced pool reads the cap
+// cross-contract and rejects an over-cap withdraw while allowing an under-cap one, and
+// that an unregistered corridor is uncapped.
+#[contract]
+pub struct MockPolicyRegistry;
+
+#[contractimpl]
+impl MockPolicyRegistry {
+    pub fn policy(e: Env, corridor: Symbol) -> Option<PolicyEntry> {
+        if corridor == Symbol::new(&e, "MX") {
+            Some(PolicyEntry { cap_usdc: 5, disclosure: 0 })
+        } else {
+            None
+        }
+    }
+}
+
+fn b32(env: &Env, k: u8) -> BytesN<32> {
+    // Distinct per k, but a canonical BN254 field element (top byte 0 => value < 2^248 < r).
+    // The pool rejects non-canonical field inputs (>= r), so test fixtures must be < r.
+    let mut a = [k; 32];
+    a[0] = 0;
+    BytesN::from_array(env, &a)
+}
+
+// big-endian 32-byte encoding of a small integer (a valid BN254 field element).
+fn b32_dec(env: &Env, n: u8) -> BytesN<32> {
+    let mut a = [0u8; 32];
+    a[31] = n;
+    BytesN::from_array(env, &a)
+}
+
+// The on-chain Poseidon is bitwise-identical to circomlibjs poseidon([1,2]),
+// so a contract-computed Merkle root equals the circuit/frontend root.
+#[test]
+fn poseidon_matches_circomlib() {
+    let env = Env::default();
+    let got = crate::poseidon::hash2(&env, &b32_dec(&env, 1), &b32_dec(&env, 2));
+    // poseidon(1,2) = 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a
+    let want = BytesN::from_array(
+        &env,
+        &[
+            0x11, 0x5c, 0xc0, 0xf5, 0xe7, 0xd6, 0x90, 0x41, 0x3d, 0xf6, 0x4c, 0x6b, 0x96, 0x62,
+            0xe9, 0xcf, 0x2a, 0x36, 0x17, 0xf2, 0x74, 0x32, 0x45, 0x51, 0x9e, 0x19, 0x60, 0x7a,
+            0x44, 0x17, 0x18, 0x9a,
+        ],
+    );
+    assert_eq!(got, want);
+}
+
+// Diagnostic: measure the on-chain cost of Poseidon. One hash fits the per-tx
+// CPU budget; ten (a depth-10 insert) do not — hence the merkleUpdate SNARK.
+#[test]
+fn poseidon_cost_probe() {
+    let env = Env::default();
+    let a = b32_dec(&env, 1);
+    env.cost_estimate().budget().reset_unlimited();
+    let _ = crate::poseidon::hash2(&env, &a, &a);
+    std::println!("[poseidon] ONE HASH cost:\n{:?}", env.cost_estimate().budget());
+    let mut z = BytesN::from_array(&env, &[0u8; 32]);
+    env.cost_estimate().budget().reset_unlimited();
+    for _ in 0..10 {
+        z = crate::poseidon::hash2(&env, &z, &z);
+    }
+    std::println!("[poseidon] TEN HASHES (depth-10 insert) cost:\n{:?}", env.cost_estimate().budget());
+}
+
+fn amt_bytes(env: &Env, amount: i128) -> BytesN<32> {
+    let mut buf = [0u8; 32];
+    let be = amount.to_be_bytes();
+    for i in 0..16 {
+        buf[16 + i] = be[i];
+    }
+    BytesN::from_array(env, &buf)
+}
+
+// Field-negative of `amount` (r - amount), BE — the publicAmount convention a
+// real withdraw proof carries (value leaving the shielded set).
+fn neg_amt_bytes(env: &Env, amount: i128) -> BytesN<32> {
+    const FIELD_R: [u8; 32] = [
+        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58,
+        0x5d, 0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00,
+        0x00, 0x01,
+    ];
+    let amt = amt_bytes(env, amount).to_array();
+    let mut out = [0u8; 32];
+    let mut borrow: i16 = 0;
+    let mut i = 31i32;
+    while i >= 0 {
+        let k = i as usize;
+        let diff = FIELD_R[k] as i16 - amt[k] as i16 - borrow;
+        if diff < 0 {
+            out[k] = (diff + 256) as u8;
+            borrow = 1;
+        } else {
+            out[k] = diff as u8;
+            borrow = 0;
+        }
+        i -= 1;
+    }
+    BytesN::from_array(env, &out)
+}
+
+fn dummy_proof(env: &Env) -> Groth16Proof {
+    Groth16Proof {
+        a: Bn254G1Affine::from_bytes(BytesN::from_array(env, &[0u8; 64])),
+        b: Bn254G2Affine::from_bytes(BytesN::from_array(env, &[0u8; 128])),
+        c: Bn254G1Affine::from_bytes(BytesN::from_array(env, &[0u8; 64])),
+    }
+}
+
+struct Ctx {
+    pool: PoolClient<'static>,
+    token: TokenClient<'static>,
+    user: Address,
+}
+
+fn setup(env: &Env) -> Ctx {
+    env.mock_all_auths();
+    let admin = Address::generate(env);
+    let user = Address::generate(env);
+    let v = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
+    let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_addr = sac.address();
+    StellarAssetClient::new(env, &token_addr).mint(&user, &1_000);
+
+    let deny: Vec<BytesN<32>> = vec![env, b32(env, 91), b32(env, 92), b32(env, 93), b32(env, 94), b32(env, 95), b32(env, 96), b32(env, 97), b32(env, 98)];
+    let id = env.register(
+        Pool,
+        (
+            admin,
+            token_addr.clone(),
+            v.clone(),
+            v.clone(),
+            v.clone(),
+            v.clone(), // update verifier
+            b32(env, 0),   // initial_root
+            b32(env, 100), // asp_root
+            deny,
+            oracle, // fx_oracle (Reflector stub)
+        ),
+    );
+    Ctx {
+        pool: PoolClient::new(env, &id),
+        token: TokenClient::new(env, &token_addr),
+        user,
+    }
+}
+
+// The pool computes the off-ramp figure ON-CHAIN by reading the Reflector oracle
+// (contract-to-contract). With the stub feed (1 USD = 20 local), 100 USDC -> 2000.
+#[test]
+fn offramp_quote_reads_oracle_on_chain() {
+    let env = Env::default();
+    let c = setup(&env);
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    assert_eq!(c.pool.offramp_quote(&sym, &100), 2000);
+    assert_eq!(c.pool.offramp_quote(&sym, &500), 10000);
+    assert_eq!(c.pool.offramp_quote(&sym, &0), 0); // zero quote is well-defined
+}
+
+// A currency the oracle doesn't carry (lastprice -> None) -> FxUnavailable, not a trap.
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable
+fn offramp_quote_unsupported_currency_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    let empty = env.register(MockOracleEmpty, ());
+    c.pool.set_fx_oracle(&empty); // admin (mocked auth) repoints to the empty feed
+    let sym = soroban_sdk::Symbol::new(&env, "JPY");
+    c.pool.offramp_quote(&sym, &100);
+}
+
+// Negative quote input is rejected (bounds match deposit's 64-bit range).
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")] // InvalidAmount
+fn offramp_quote_rejects_negative_amount() {
+    let env = Env::default();
+    let c = setup(&env);
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.offramp_quote(&sym, &-1);
+}
+
+// set_fx_oracle updates the address the quote reads, and fx_oracle() reflects it.
+#[test]
+fn set_fx_oracle_updates_view() {
+    let env = Env::default();
+    let c = setup(&env);
+    let other = env.register(MockOracleEmpty, ());
+    c.pool.set_fx_oracle(&other);
+    assert_eq!(c.pool.fx_oracle(), other);
+}
+
+// Configurable compliance policy (mirrors Confidential Tokens' policy engine):
+// set_asp_root / set_deny_list update the live policy the compliance check reads,
+// and the views reflect it — so policy can change without redeploying the pool.
+#[test]
+fn set_asp_root_updates_view() {
+    let env = Env::default();
+    let c = setup(&env);
+    assert_eq!(c.pool.asp_root(), b32(&env, 100)); // constructor value
+    c.pool.set_asp_root(&b32(&env, 77));
+    assert_eq!(c.pool.asp_root(), b32(&env, 77));
+}
+
+#[test]
+fn set_deny_list_updates_view() {
+    let env = Env::default();
+    let c = setup(&env);
+    let new: Vec<BytesN<32>> = vec![&env, b32(&env, 81), b32(&env, 82), b32(&env, 83), b32(&env, 84), b32(&env, 85), b32(&env, 86), b32(&env, 87), b32(&env, 88)];
+    c.pool.set_deny_list(&new);
+    assert_eq!(c.pool.deny_list(), new);
+}
+
+#[test]
+#[should_panic]
+fn set_deny_list_rejects_wrong_len() {
+    let env = Env::default();
+    let c = setup(&env);
+    // 3 entries != DENY_LEN (8) — must reject so the deny-list always matches the
+    // circuit's fixed public-input count.
+    let bad: Vec<BytesN<32>> = vec![&env, b32(&env, 81), b32(&env, 82), b32(&env, 83)];
+    c.pool.set_deny_list(&bad);
+}
+
+#[test]
+fn deposit_pulls_tokens_and_records_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commit = b32(&env, 1);
+    assert_eq!(c.pool.deposit(&c.user, &300, &commit, &dummy_proof(&env), &dummy_proof(&env)), 0);
+    assert_eq!(c.pool.balance(), 300); // tokens now custodied by the pool
+    assert_eq!(c.token.balance(&c.user), 700);
+    assert!(c.pool.is_commitment_known(&commit));
+}
+
+// A second deposit to the SAME commitment would lock tokens (it can never become a
+// second spendable leaf), so it's rejected before any tokens move.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")] // DuplicateCommitment
+fn deposit_rejects_duplicate_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commit = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &commit, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &commit, &dummy_proof(&env), &dummy_proof(&env)); // dup -> #10
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")] // InvalidAmount
+fn deposit_rejects_amount_over_64_bits() {
+    let env = Env::default();
+    let c = setup(&env);
+    // 2^64 stroops can't fit the disclosure circuit's 64-bit range — rejected early.
+    c.pool.deposit(&c.user, &(1i128 << 64), &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+}
+
+#[test]
+fn withdraw_releases_bound_amount() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    // public_amount must equal the field-negative of the released amount (binding)
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+    assert_eq!(c.token.balance(&recipient), 120);
+    assert_eq!(c.pool.balance(), 180);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")] // AmountNotBound
+fn withdraw_amount_must_match_public_amount() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    // public_amount binds to 50 but caller tries to release 120 -> rejected
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 50),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
+
+// C1 regression: `Bn254Fr::from_bytes` reduces mod r, so a nullifier `n` and its
+// re-encoding `n+r` feed the SAME verifier input and satisfy the SAME proof — but they
+// are different 32-byte storage keys. If accepted, a spent note could be replayed as
+// `n+r` (a key the double-spend guard never finds) to drain the pool. The pool now
+// rejects any non-canonical field input (bytes >= r) up front. 0xFF..FF = 2^256-1 >= r.
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")] // NonCanonicalField
+fn withdraw_rejects_noncanonical_nullifier() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let noncanon = BytesN::from_array(&env, &[0xFFu8; 32]);
+    let nulls: Vec<BytesN<32>> = vec![&env, noncanon, b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
+
+// C1 regression (deposit path): a non-canonical commitment can't back a leaf.
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")] // NonCanonicalField
+fn deposit_rejects_noncanonical_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let noncanon = BytesN::from_array(&env, &[0xFFu8; 32]);
+    c.pool.deposit(&c.user, &300, &noncanon, &dummy_proof(&env), &dummy_proof(&env));
+}
+
+// The min-receive settlement gate: when a withdraw asks for off-ramp slippage
+// protection, the pool reads Reflector ON-CHAIN and only releases if the live local
+// amount meets the floor. With the stub feed (1 USD = 20 local), a 2-USDC withdraw
+// quotes 40 local: a 40 floor passes, a 41 floor is rejected (SlippageExceeded).
+#[test]
+fn withdraw_oracle_gate_passes_when_rate_meets_floor() {
+    let env = Env::default();
+    let c = setup(&env);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128; // 2 whole USDC in 7-dp stroops
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40),
+    );
+    assert_eq!(c.token.balance(&recipient), two_usdc); // released: live rate met the floor
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")] // SlippageExceeded
+fn withdraw_oracle_gate_rejects_below_floor() {
+    let env = Env::default();
+    let c = setup(&env);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    // quote is 40 local; demanding 41 must reject and release nothing.
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(41),
+    );
+}
+
+// Fail-closed on a STALE feed too: a frozen-but-positive price (older than the
+// pool's freshness bound) must not be used as a live rate. The mock prices are
+// stamped at 1_700_000_000; advancing the ledger clock 2h past that makes the feed
+// stale, so a gated withdraw aborts with FxUnavailable rather than settling at a
+// stale rate. (Guards against the "fail-closed" claim being true only for absent feeds.)
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable (stale)
+fn withdraw_oracle_gate_rejects_stale_feed() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.ledger().set_timestamp(1_700_000_000 + 7200); // 2h after the mock price stamp > 3600s bound
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
+    );
+}
+
+// Fail-closed: if the gate is requested but the feed can't price the currency
+// (lastprice -> None), the withdraw aborts (FxUnavailable) rather than releasing
+// funds at an unknown rate. The nullifier is NOT spent, so it stays retryable.
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable
+fn withdraw_oracle_gate_fails_closed_on_dead_feed() {
+    let env = Env::default();
+    let c = setup(&env);
+    let empty = env.register(MockOracleEmpty, ());
+    c.pool.set_fx_oracle(&empty);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
+    );
+}
+
+// OUT-OF-THE-BOX (audit round 9): the settlement gate prices at the MEDIAN of recent
+// records, not spot. Here the oracle's SPOT (lastprice) is a manipulated high outlier
+// (100e12 -> only ~2 local for 2 USDC, which would FAIL a 40 floor), but the median of
+// its recent records is the honest 5e12 -> 40 local -> the legit withdraw PASSES. A
+// spot-based gate would have wrongly rejected; the median gate ignores the outlier.
+#[test]
+fn withdraw_oracle_gate_median_ignores_spot_outlier() {
+    let env = Env::default();
+    let c = setup(&env);
+    let outlier = env.register(MockOracleOutlier, ());
+    c.pool.set_fx_oracle(&outlier);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40),
+    );
+    assert_eq!(c.token.balance(&recipient), two_usdc); // released: median (5e12) met the 40 floor
+}
+
+// Thin feed (fewer than FX_MIN_RECORDS records) -> the median gate fails closed
+// (FxUnavailable) rather than degrading to a near-spot read on too little data.
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")] // FxUnavailable
+fn withdraw_oracle_gate_rejects_thin_feed() {
+    let env = Env::default();
+    let c = setup(&env);
+    let thin = env.register(MockOracleThin, ());
+    c.pool.set_fx_oracle(&thin);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &30_000_000);
+    let two_usdc = 20_000_000i128;
+    c.pool.deposit(&c.user, &two_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
+    );
+}
+
+// The public median view the frontend uses for its floor: with the stub feed
+// (1 USD = 20 local) the median of identical records gives the same 2000 for 100 USDC.
+#[test]
+fn offramp_quote_twap_reads_median_on_chain() {
+    let env = Env::default();
+    let c = setup(&env);
+    let sym = soroban_sdk::Symbol::new(&env, "MXN");
+    assert_eq!(c.pool.offramp_quote_twap(&sym, &100, &5), 2000);
+}
+
+// CRITICAL regression (audit round 7): the Groth16 verifier sees only a FLAT public-
+// input vector, so the contract must pin how many entries are nullifiers vs.
+// commitments. A 2-in/2-out proof's vector [root,pa,edh, n0,n1, o0,o1] is byte-identical
+// whether split (2 nullifiers, 2 commitments) or (1 nullifier, 3 commitments) — so the
+// SAME proof verifies, but `spend_nullifiers` would then burn only n0, leaving n1
+// unspent and double-spendable. Pinning the counts rejects the malformed split.
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")] // BadIoCount
+fn transfer_rejects_shifted_io_split() {
+    let env = Env::default();
+    let c = setup(&env);
+    // attacker shifts a nullifier (n1=b32(11)) into the commitments segment: 1 + 3
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 11), b32(&env, 20), b32(&env, 21)];
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 0), &b32(&env, 0), &b32(&env, 5), &nulls, &outs);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")] // BadIoCount
+fn withdraw_rejects_shifted_io_split() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 11), b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
+
+#[test]
+fn transfer_spends_nullifiers_and_records_outputs() {
+    let env = Env::default();
+    let c = setup(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 0), &b32(&env, 0), &b32(&env, 5), &nulls, &outs);
+    assert!(c.pool.is_nullifier_used(&b32(&env, 10)));
+    assert!(c.pool.is_commitment_known(&b32(&env, 20)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")] // NullifierUsed
+fn transfer_double_spend_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 0), &b32(&env, 0), &b32(&env, 5), &nulls, &outs);
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 0), &b32(&env, 0), &b32(&env, 5), &nulls, &outs);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")] // UnknownRoot
+fn transfer_unknown_root_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 250), &b32(&env, 0), &b32(&env, 5), &nulls, &outs);
+}
+
+// A pure shielded transfer must move zero external value. A positive public_amount
+// with zero-value dummy inputs would otherwise MINT a backed commitment from nothing
+// (the circuit only enforces sumIn + publicAmount == sumOut, and dummy inputs skip
+// the Merkle check). The contract must reject any non-zero public_amount on transfer.
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")] // AmountNotBound
+fn transfer_rejects_nonzero_public_amount() {
+    let env = Env::default();
+    let c = setup(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    // root 0 is the known genesis; public_amount = 5 (non-zero) must be rejected.
+    c.pool.transfer(&dummy_proof(&env), &b32(&env, 0), &b32(&env, 5), &b32(&env, 5), &nulls, &outs);
+}
+
+#[test]
+fn disclose_requires_known_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commit = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &commit, &dummy_proof(&env), &dummy_proof(&env));
+    assert!(c.pool.disclose(&dummy_proof(&env), &commit, &b32(&env, 50), &b32(&env, 42)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn disclose_unknown_commitment_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.disclose(&dummy_proof(&env), &b32(&env, 200), &b32(&env, 50), &b32(&env, 42));
+}
+
+#[test]
+fn register_root_verified_advances_from_known_root() {
+    let env = Env::default();
+    let c = setup(&env);
+    let old = b32(&env, 0); // known initial root
+    let leaf = b32(&env, 42);
+    let newr = b32(&env, 77);
+    assert!(!c.pool.is_root_known(&newr));
+    // The leaf must be a backed commitment first (a real deposit moved tokens in).
+    c.pool.deposit(&c.user, &10, &leaf, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.register_root_verified(&dummy_proof(&env), &old, &leaf, &newr);
+    assert!(c.pool.is_root_known(&newr));
+    assert_eq!(c.pool.current_root(), newr);
+    assert!(c.pool.is_commitment_known(&leaf));
+}
+
+// THE DRAIN DEFENSE: a leaf that was never deposited cannot be inserted into the
+// spendable tree — so an attacker can't mint a note out of thin air and withdraw
+// against it. Without this gate `register_root_verified` would accept any leaf.
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn register_root_verified_rejects_undeposited_leaf() {
+    let env = Env::default();
+    let c = setup(&env);
+    let old = b32(&env, 0);
+    // leaf 200 was never deposited (no tokens backing it) -> rejected.
+    c.pool.register_root_verified(&dummy_proof(&env), &old, &b32(&env, 200), &b32(&env, 77));
+}
+
+// Insert-once: the SAME backed commitment cannot be inserted twice (a second
+// spendable leaf with a different nullifier would double the deposit's value).
+#[test]
+#[should_panic(expected = "Error(Contract, #9)")] // LeafAlreadyInserted
+fn register_root_verified_rejects_double_insert() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaf = b32(&env, 42);
+    c.pool.deposit(&c.user, &10, &leaf, &dummy_proof(&env), &dummy_proof(&env));
+    let g = c.pool.current_root();
+    c.pool.register_root_verified(&dummy_proof(&env), &g, &leaf, &b32(&env, 77));
+    // try to insert the very same commitment again from the new current root
+    let r1 = c.pool.current_root();
+    c.pool.register_root_verified(&dummy_proof(&env), &r1, &leaf, &b32(&env, 88));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")] // UnknownRoot
+fn register_root_verified_rejects_unknown_old_root() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.register_root_verified(&dummy_proof(&env), &b32(&env, 250), &b32(&env, 42), &b32(&env, 77));
+}
+
+// Accumulator semantics: an insert must build on the CURRENT root. Inserting from
+// a now-stale (formerly-current) root is rejected, so the tree is a single global
+// accumulator and its reconstructed root always equals current_root.
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")] // UnknownRoot
+fn register_root_verified_rejects_stale_root() {
+    let env = Env::default();
+    let c = setup(&env);
+    let genesis = c.pool.current_root();
+    c.pool.deposit(&c.user, &10, &b32(&env, 42), &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.register_root_verified(&dummy_proof(&env), &genesis, &b32(&env, 42), &b32(&env, 77));
+    // current_root is now 77; inserting again from the stale genesis must fail
+    // (this fails on the stale root before the leaf-backing check is reached).
+    c.pool.register_root_verified(&dummy_proof(&env), &genesis, &b32(&env, 43), &b32(&env, 88));
+}
+
+// Leaves are stored on-chain in order, so a client can reconstruct the exact tree
+// from contract state (leaves()) without relying on event retention.
+#[test]
+fn register_root_verified_stores_ordered_leaves() {
+    let env = Env::default();
+    let c = setup(&env);
+    assert_eq!(c.pool.leaf_count(), 0);
+    let g = c.pool.current_root();
+    let l0 = b32(&env, 42);
+    let l1 = b32(&env, 43);
+    c.pool.deposit(&c.user, &10, &l0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &10, &l1, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.register_root_verified(&dummy_proof(&env), &g, &l0, &b32(&env, 77));
+    let r1 = c.pool.current_root(); // accumulator: next insert builds on this
+    c.pool.register_root_verified(&dummy_proof(&env), &r1, &l1, &b32(&env, 88));
+    assert_eq!(c.pool.leaf_count(), 2);
+    let ls = c.pool.leaves();
+    assert_eq!(ls.len(), 2);
+    assert_eq!(ls.get(0).unwrap(), l0);
+    assert_eq!(ls.get(1).unwrap(), l1);
+}
+
+// leaf_range returns bounded chunks (for reconstructing large trees) and clamps.
+#[test]
+fn leaf_range_paginates_and_clamps() {
+    let env = Env::default();
+    let c = setup(&env);
+    let mut cur = c.pool.current_root();
+    let mut k = 0u8;
+    while k < 3 {
+        let leaf = b32(&env, 50 + k);
+        let nr = b32(&env, 70 + k);
+        c.pool.deposit(&c.user, &10, &leaf, &dummy_proof(&env), &dummy_proof(&env));
+        c.pool.register_root_verified(&dummy_proof(&env), &cur, &leaf, &nr);
+        cur = nr;
+        k += 1;
+    }
+    assert_eq!(c.pool.leaf_count(), 3);
+    let mid = c.pool.leaf_range(&1, &1);
+    assert_eq!(mid.len(), 1);
+    assert_eq!(mid.get(0).unwrap(), b32(&env, 51));
+    let tail = c.pool.leaf_range(&2, &99); // count past the end is clamped
+    assert_eq!(tail.len(), 1);
+    assert_eq!(tail.get(0).unwrap(), b32(&env, 52));
+}
+
+// ---- binding-order: the pool builds EXACTLY the right verifier public-input vector ----
+// MockVerifier can't see its inputs, so this uses CapturingVerifier as the COMPLIANCE
+// verifier to assert the pool pins [aspRoot, deny0..7, sourceKey=field(from), commitment]
+// in that order. This is the core "typed signals are bound into the proof inputs" claim.
+#[test]
+fn compliance_public_inputs_are_bound_in_order() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let cap = env.register(CapturingVerifier, ());
+    let mock = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
+    let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_addr = sac.address();
+    StellarAssetClient::new(&env, &token_addr).mint(&user, &1_000);
+    let deny: Vec<BytesN<32>> = vec![
+        &env, b32(&env, 91), b32(&env, 92), b32(&env, 93), b32(&env, 94),
+        b32(&env, 95), b32(&env, 96), b32(&env, 97), b32(&env, 98),
+    ];
+    let id = env.register(
+        Pool,
+        (
+            admin, token_addr.clone(),
+            mock.clone(),   // transfer
+            cap.clone(),    // compliance = capturing verifier
+            mock.clone(),   // disclosure
+            mock.clone(),   // update
+            b32(&env, 0), b32(&env, 100), deny.clone(), oracle,
+        ),
+    );
+    let pool = PoolClient::new(&env, &id);
+    let commitment = b32(&env, 1);
+    pool.deposit(&user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+
+    let pi = CapturingVerifierClient::new(&env, &cap).captured();
+    assert_eq!(pi.len(), 11); // aspRoot + 8 deny + sourceKey + bindHash
+    assert_eq!(pi.get(0).unwrap(), b32(&env, 100)); // aspRoot
+    for i in 0..8u32 {
+        assert_eq!(pi.get(1 + i).unwrap(), deny.get(i).unwrap()); // deny0..7
+    }
+    assert_eq!(pi.get(9).unwrap(), pool.source_key_of(&user)); // sourceKey == field(from)
+    assert_eq!(pi.get(10).unwrap(), commitment); // bindHash == commitment
+}
+
+// Admin-gated setters must actually require the admin's auth (not just be documented so).
+#[test]
+#[should_panic]
+fn set_asp_root_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]); // switch off blanket auth: now nothing is authorized
+    c.pool.set_asp_root(&b32(&env, 200));
+}
+
+// M1: threshold (range) disclosure is bound to a KNOWN pool commitment, like disclose().
+#[test]
+fn disclose_threshold_binds_known_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_threshold_verifier(&v);
+    assert!(c.pool.disclose_threshold(&dummy_proof(&env), &commitment, &b32(&env, 50), &b32(&env, 7)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn disclose_threshold_rejects_unknown_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let v = env.register(MockVerifier, ());
+    c.pool.set_threshold_verifier(&v);
+    c.pool.disclose_threshold(&dummy_proof(&env), &b32(&env, 77), &b32(&env, 50), &b32(&env, 7));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")] // ProofRejected: verifier not configured
+fn disclose_threshold_requires_verifier_set() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.disclose_threshold(&dummy_proof(&env), &commitment, &b32(&env, 50), &b32(&env, 7));
+}
+
+// B2: aggregate (portfolio) disclosure is bound to KNOWN pool commitments — every
+// commitment in the sum must be a real on-chain deposit.
+#[test]
+fn disclose_aggregate_binds_known_commitments() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1); let c1 = b32(&env, 2); let c2 = b32(&env, 3);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c2, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
+    // 3 active + 2 inactive padding slots (padding commitments need not be known).
+    let commits: Vec<BytesN<32>> = vec![&env, c0, c1, c2, b32(&env, 90), b32(&env, 91)];
+    let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
+    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8)));
+}
+
+// Variable count: a single active payment (the rest padding) is a valid aggregate.
+#[test]
+fn disclose_aggregate_variable_count_one_active() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
+    let commits: Vec<BytesN<32>> = vec![&env, c0, b32(&env, 90), b32(&env, 91), b32(&env, 92), b32(&env, 93)];
+    let active: Vec<u32> = vec![&env, 1, 0, 0, 0, 0];
+    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment (an ACTIVE slot isn't known)
+fn disclose_aggregate_rejects_unknown_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1); let c1 = b32(&env, 2);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
+    // slot 2 is ACTIVE but b32(9) was never deposited
+    let commits: Vec<BytesN<32>> = vec![&env, c0, c1, b32(&env, 9), b32(&env, 90), b32(&env, 91)];
+    let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")] // BadIoCount (wrong slot count)
+fn disclose_aggregate_rejects_wrong_count() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7));
+    let commits: Vec<BytesN<32>> = vec![&env, c0]; // 1 != AGG_N (5)
+    let active: Vec<u32> = vec![&env, 1];
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
+}
+
+// Registry: an aggregate proof whose auditContextHash was NOT registered by the auditor is
+// rejected on-chain — a holder can't mint their own request for a cherry-picked subset.
+#[test]
+#[should_panic(expected = "Error(Contract, #15)")] // UnknownAuditRequest
+fn disclose_aggregate_rejects_unregistered_request() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1); let c1 = b32(&env, 2); let c2 = b32(&env, 3);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &c2, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    // NOTE: no register_audit_request — the audit_context b32(7) was never issued by the auditor.
+    let commits: Vec<BytesN<32>> = vec![&env, c0, c1, c2, b32(&env, 90), b32(&env, 91)];
+    let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
+}
+
+// The auditor role is admin-gated.
+#[test]
+#[should_panic]
+fn set_auditor_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]);
+    c.pool.set_auditor(&Address::generate(&env));
+}
+
+// C2: two-sided range (band) disclosure is bound to a KNOWN pool commitment.
+#[test]
+fn disclose_range_binds_known_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_range_verifier(&v);
+    assert!(c.pool.disclose_range(&dummy_proof(&env), &commitment, &b32(&env, 10), &b32(&env, 90), &b32(&env, 7)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")] // UnknownCommitment
+fn disclose_range_rejects_unknown_commitment() {
+    let env = Env::default();
+    let c = setup(&env);
+    let v = env.register(MockVerifier, ());
+    c.pool.set_range_verifier(&v);
+    c.pool.disclose_range(&dummy_proof(&env), &b32(&env, 77), &b32(&env, 10), &b32(&env, 90), &b32(&env, 7));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")] // ProofRejected: verifier not configured
+fn disclose_range_requires_verifier_set() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.disclose_range(&dummy_proof(&env), &commitment, &b32(&env, 10), &b32(&env, 90), &b32(&env, 7));
+}
+
+// ---- per-corridor cap enforcement (the enforced-pool addition) ----
+// set_policy_registry points the pool at a registry; withdraw then reads the corridor's
+// cap_usdc cross-contract and rejects an over-cap release BEFORE spending nullifiers.
+// We pass offramp_symbol=Some but min_local_out=None so the slippage gate is skipped and
+// only the cap gate runs (isolating the new behaviour).
+
+// A withdraw whose whole-USDC amount exceeds the corridor cap is rejected (PolicyExceeded).
+#[test]
+#[should_panic(expected = "Error(Contract, #16)")] // PolicyExceeded
+fn withdraw_rejects_over_cap() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    c.pool.set_policy_registry(&reg); // "MX" cap = 5 whole USDC
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &100_000_000);
+    let six_usdc = 60_000_000i128; // 6 whole USDC > 5 cap
+    c.pool.deposit(&c.user, &six_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MX");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, six_usdc),
+        &nulls, &outs, &recipient, &six_usdc, &Some(sym), &None,
+    );
+}
+
+// A withdraw at/under the corridor cap releases normally, and no nullifier is wrongly
+// burned. 5 whole USDC == cap (the check is strictly-greater), so it passes.
+#[test]
+fn withdraw_allows_under_cap() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    c.pool.set_policy_registry(&reg); // "MX" cap = 5 whole USDC
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &100_000_000);
+    let five_usdc = 50_000_000i128; // 5 whole USDC == cap (not > cap) -> allowed
+    c.pool.deposit(&c.user, &five_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MX");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, five_usdc),
+        &nulls, &outs, &recipient, &five_usdc, &Some(sym), &None,
+    );
+    assert_eq!(c.token.balance(&recipient), five_usdc); // released: at/under the cap
+}
+
+// A corridor with NO registry entry is uncapped: the enforced pool allows it (the cap
+// gate only fires when policy(sym) returns Some). "ZZ" isn't in the mock registry.
+#[test]
+fn withdraw_allows_uncapped_corridor() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    c.pool.set_policy_registry(&reg);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &1_000_000_000);
+    let big = 900_000_000i128; // 90 whole USDC, way over any cap — but "ZZ" is uncapped
+    c.pool.deposit(&c.user, &big, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "ZZ");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, big),
+        &nulls, &outs, &recipient, &big, &Some(sym), &None,
+    );
+    assert_eq!(c.token.balance(&recipient), big);
+}
+
+// With NO registry set at all, the pool behaves exactly like the live pool (no cap gate).
+#[test]
+fn withdraw_no_registry_is_unenforced() {
+    let env = Env::default();
+    let c = setup(&env);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &100_000_000);
+    let six_usdc = 60_000_000i128;
+    c.pool.deposit(&c.user, &six_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MX");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, six_usdc),
+        &nulls, &outs, &recipient, &six_usdc, &Some(sym), &None,
+    );
+    assert_eq!(c.token.balance(&recipient), six_usdc); // no registry -> no cap
+}
+
+// set_policy_registry is admin-gated and its view reflects the set address.
+#[test]
+fn set_policy_registry_updates_view() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    c.pool.set_policy_registry(&reg);
+    assert_eq!(c.pool.policy_registry(), Some(reg));
+}
+
+#[test]
+#[should_panic]
+fn set_policy_registry_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    env.mock_auths(&[]); // no auth authorized
+    c.pool.set_policy_registry(&reg);
+}
+
+// The in-place upgrade entrypoint is admin-gated: a non-admin call fails auth.
+#[test]
+#[should_panic]
+fn upgrade_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]); // switch off blanket auth: nothing is authorized
+    c.pool.upgrade(&BytesN::from_array(&env, &[7u8; 32]));
+}
+
+// ---- lossless state migration (import_state) ----
+// A known source state: two leaves, a chosen current root, two SPENT nullifiers, an asp
+// root, and the 8-entry deny list. import_state must reproduce leaf_count + current_root
+// exactly and mark each imported nullifier used — the losslessness property.
+fn deny8(env: &Env) -> Vec<BytesN<32>> {
+    vec![env, b32(env, 41), b32(env, 42), b32(env, 43), b32(env, 44),
+         b32(env, 45), b32(env, 46), b32(env, 47), b32(env, 48)]
+}
+
+#[test]
+fn import_state_reproduces_root_leaves_and_nullifiers() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61), b32(&env, 62)];
+    let root = b32(&env, 200);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
+    let asp = b32(&env, 123);
+    let deny = deny8(&env);
+
+    assert!(!c.pool.is_migrated());
+    c.pool.import_state(&leaves, &root, &nulls, &asp, &deny);
+    assert!(c.pool.is_migrated());
+
+    // leaf_count + current_root reproduced exactly from the source set.
+    assert_eq!(c.pool.leaf_count(), 3);
+    assert_eq!(c.pool.current_root(), root);
+    assert!(c.pool.is_root_known(&root));
+    // ordered leaves reconstructable, in source order.
+    let got = c.pool.leaves();
+    assert_eq!(got.len(), 3);
+    assert_eq!(got.get(0).unwrap(), b32(&env, 60));
+    assert_eq!(got.get(2).unwrap(), b32(&env, 62));
+    // each leaf is a known (backed) commitment.
+    assert!(c.pool.is_commitment_known(&b32(&env, 61)));
+    // every imported spent nullifier reports used=true (no double-spend on the new pool).
+    assert!(c.pool.is_nullifier_used(&b32(&env, 70)));
+    assert!(c.pool.is_nullifier_used(&b32(&env, 71)));
+    // policy state imported.
+    assert_eq!(c.pool.asp_root(), asp);
+    assert_eq!(c.pool.deny_list(), deny);
+}
+
+// One-shot: a second import_state is rejected (AlreadyMigrated #17), so state can't be
+// re-imported / overwritten after the migration.
+#[test]
+#[should_panic(expected = "Error(Contract, #17)")] // AlreadyMigrated
+fn import_state_is_one_shot() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60)];
+    let root = b32(&env, 200);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 70)];
+    let deny = deny8(&env);
+    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny);
+    // second call must fail
+    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny);
+}
+
+// Virgin-only: importing on top of a pool that already took a deposit is rejected, so
+// import is always the FIRST state-changing call (leaf indices stay [0..n)).
+#[test]
+#[should_panic(expected = "Error(Contract, #17)")] // AlreadyMigrated (non-virgin)
+fn import_state_rejects_nonvirgin_pool() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &100, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60)];
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env));
+}
+
+// import_state is admin-gated: a non-admin call fails auth.
+#[test]
+#[should_panic]
+fn import_state_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]); // nothing authorized
+    c.pool.import_state(&vec![&env, b32(&env, 60)], &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env));
+}
+
+// After import, a still-unspent imported note can be withdrawn against the imported root
+// (fresh nullifiers), releasing tokens — the migrated pool is fully operational.
+#[test]
+fn import_state_then_withdraw_unspent_note_succeeds() {
+    let env = Env::default();
+    let c = setup(&env);
+    let root = b32(&env, 200);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
+    let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    // Fund the migrated pool's custody so a withdraw can release (migration doesn't move tokens).
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
+
+    let recipient = Address::generate(&env);
+    // FRESH nullifiers (not in the imported spent set) — a still-unspent imported note.
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 80), b32(&env, 81)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+    assert_eq!(c.token.balance(&recipient), 120);
+}
+
+// After import, a withdraw that REUSES an imported-spent nullifier is rejected
+// (NullifierUsed #2) — the completeness of the imported nullifier set blocks double-spend.
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")] // NullifierUsed
+fn import_state_then_withdraw_reusing_spent_nullifier_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    let root = b32(&env, 200);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
+    let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
+
+    let recipient = Address::generate(&env);
+    // Reuse an imported-spent nullifier (b32(70)) — must be rejected.
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 81)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+}
+
+// ---- deposit-side proof-of-reserves accumulator ----
+
+// Verifier that REJECTS every proof (returns false) — used to prove the deposit's amount
+// binding actually gates the accumulator: a proof that doesn't verify folds nothing.
+#[contract]
+pub struct RejectingVerifier;
+#[contractimpl]
+impl RejectingVerifier {
+    pub fn verify(_e: Env, _p: Groth16Proof, _pi: Vec<Bn254Fr>) -> bool {
+        false
+    }
+}
+
+// The core invariant: the on-chain accumulator EQUALS the true sum of deposited amounts, and
+// attest_reserves succeeds when total <= custody. Three deposits of known amounts; balance and
+// total_liabilities both equal the sum; the attestation reflects it and is_solvent is true.
+#[test]
+fn accumulator_equals_sum_and_attest_solvent() {
+    let env = Env::default();
+    let c = setup(&env);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &1_000_000);
+    assert_eq!(c.pool.total_liabilities(), 0);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &100, &b32(&env, 2), &dummy_proof(&env), &dummy_proof(&env));
+    c.pool.deposit(&c.user, &500, &b32(&env, 3), &dummy_proof(&env), &dummy_proof(&env));
+
+    // Accumulator equals the true sum, and equals custody (deposit-only: balance == accumulator).
+    assert_eq!(c.pool.total_liabilities(), 900);
+    assert_eq!(c.pool.balance(), 900);
+    assert!(c.pool.is_solvent());
+
+    let att = c.pool.attest_reserves();
+    assert_eq!(att.liabilities, 900);
+    assert_eq!(att.reserves, 900);
+    assert_eq!(c.pool.latest_attestation(), Some(att));
+}
+
+// A forged/understated/inflated contribution is REJECTED: if the amount-binding (disclosure)
+// proof does not verify, deposit reverts (ProofRejected #7) and folds NOTHING — so a depositor
+// cannot fold an amount different from the one bound to their note commitment.
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")] // ProofRejected (binding proof rejected)
+fn deposit_forged_binding_amount_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let ok = env.register(MockVerifier, ());       // compliance passes
+    let reject = env.register(RejectingVerifier, ()); // disclosure (binding) FAILS
+    let oracle = env.register(MockOracle, ());
+    let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_addr = sac.address();
+    StellarAssetClient::new(&env, &token_addr).mint(&user, &1_000);
+    let deny: Vec<BytesN<32>> = vec![&env, b32(&env, 91), b32(&env, 92), b32(&env, 93), b32(&env, 94), b32(&env, 95), b32(&env, 96), b32(&env, 97), b32(&env, 98)];
+    let id = env.register(
+        Pool,
+        (
+            admin, token_addr.clone(),
+            ok.clone(),     // transfer
+            ok.clone(),     // compliance
+            reject.clone(), // disclosure = REJECTS (the amount binding)
+            ok.clone(),     // update
+            b32(&env, 0), b32(&env, 100), deny, oracle,
+        ),
+    );
+    let pool = PoolClient::new(&env, &id);
+    // The binding proof can't verify -> deposit reverts, accumulator never moves.
+    pool.deposit(&user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+}
+
+// OVER-CAP / over-count ceiling: a withdraw reduces custody but NOT the deposit-side
+// accumulator, so total_liabilities can exceed balance. is_solvent flips false and
+// attest_reserves rejects (Insolvent #18) — the fail-safe direction (a PASS is always
+// conservative; only a post-withdrawal FAIL can be a false alarm). Documents the ceiling.
+#[test]
+fn attest_reserves_over_count_after_withdraw() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    assert_eq!(c.pool.total_liabilities(), 300);
+    assert!(c.pool.is_solvent()); // 300 <= 300
+
+    // Spend 120 out via withdraw: balance 300 -> 180, but the accumulator stays 300.
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+    assert_eq!(c.pool.balance(), 180);
+    assert_eq!(c.pool.total_liabilities(), 300); // deposit-side: not decremented on spend
+    assert!(!c.pool.is_solvent()); // 300 > 180
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #18)")] // Insolvent
+fn attest_reserves_rejects_when_over_custody() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None,
+    );
+    c.pool.attest_reserves(); // total 300 > custody 180 -> Insolvent #18
+}
+
+// A duplicate-commitment deposit reverts BEFORE folding, so the accumulator never double-counts
+// a rejected deposit (the fold happens only after the whole deposit succeeds).
+#[test]
+fn accumulator_unchanged_on_rejected_duplicate() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    assert_eq!(c.pool.total_liabilities(), 300);
+    // Second deposit to the same commitment reverts (DuplicateCommitment) — caught here so the
+    // test can assert the accumulator did not move.
+    let r = c.pool.try_deposit(&c.user, &100, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    assert!(r.is_err());
+    assert_eq!(c.pool.total_liabilities(), 300); // unchanged: no partial fold
+}
