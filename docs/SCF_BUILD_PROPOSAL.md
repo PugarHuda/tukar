@@ -48,10 +48,10 @@ Tukar applies under the **Open Track**.
 
 The Open Track fits because Tukar ships net-new zero-knowledge primitives, not an
 application wired together from existing building blocks. The work funded here extends
-those primitives: a homomorphic liability-accumulator circuit for full-pool
-proof-of-reserves, a production migration of the shielded pool onto an upgradeable
-contract, and a compliant shielded-pool corridor as a reusable primitive that anchors
-plug into. That is protocol and circuit development, which is what the Open Track is
+those primitives: a withdraw-side subtraction upgrade so the already-live deposit-side
+proof-of-reserves accumulator stays exact after withdrawals, a production migration of the
+shielded pool onto an upgradeable contract, and a compliant shielded-pool corridor as a
+reusable primitive that anchors plug into. That is protocol and circuit development, which is what the Open Track is
 for, and Open Track awards go to Community Vote, which the #46 rule changes leave
 unchanged.
 
@@ -106,8 +106,9 @@ phase-1 ptau plus a multi-party phase-2 ceremony whose keys are the deployed key
 | reserves-aggregate | voluntary no-redeploy proof-of-reserves | `CA6Q5SWRAV3P432YNL4OE6IZ52LNBBS5WWE2HILDYRZDGFBY47PKC7XN` |
 | policy-registry | on-chain per-corridor compliance policy | `CAQ7KBNFJOJI34B5V3GNI7ACW6YEOAD4JRYSOX3EUW5UOXFKBDZBDAZ3` |
 | pool-enforced (preview) | upgradeable pool with per-corridor cap enforcement and `import_state` | `CBIGD4YLHXTUBBMRLK2BSWWGOMOFKR6EA6TFHFSIVH26PGFFDIHXRKTY` |
+| pool-accumulator (preview) | full-pool proof-of-reserves via a deposit-side liability accumulator | `CATRHKRHMAHPGKCAQXKB57ETXCRVKPKEOJ6NRCF4HBT5HFRWQSWBBL5D` |
 
-That is 13 Soroban contracts across the core corridor and the additive productionization
+That is 14 Soroban contracts across the core corridor and the additive productionization
 track. The identity/admin key is `corredor`
 (`GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS`).
 
@@ -189,36 +190,36 @@ issue mapping each deliverable below to a verifiable artifact.
 Harden the existing testnet system into a production-grade core and move it onto an
 upgradeable pool, so mainnet is a deployment step rather than a rebuild.
 
-- **Full-pool proof-of-reserves via a homomorphic liability-accumulator.** The current
-  full-pool reserves attestation is blocked because it would need every depositor's note
-  opening at once, which Tukar does not hold (that is the privacy property). The voluntary
-  aggregate (`reserves-aggregate`, `CA6Q5SWR...`) is the honest partial that runs today.
-  Tranche 1 builds the homomorphic-accumulator upgrade named as the path in the
-  repository (accumulate proven sums under a commitment rather than a plain integer), so
-  the pool can attest coverage of its full shielded liabilities without any depositor
-  revealing an amount. Verifiable: the new circuit compiles and soundness-tests pass, and
-  a full-pool attestation verifies TRUE on-chain on testnet with a byte-flipped or
-  understated proof rejected.
-- **Migrate onto an upgradeable pool using the already-built `import_state` tooling.** The
-  live pool has no upgrade hook. The `pool-enforced` preview contract (`CBIGD4YL...`)
-  already has an admin `upgrade` entrypoint and a one-shot `import_state`, and the
-  end-to-end migration is already proven against a test-double source pool
-  (`scripts/migrate-pool.mjs --test-double`). Tranche 1 runs a real migration of the
-  shielded tree, nullifier set, and policy onto the upgradeable pool on testnet.
-  Verifiable: target `leaf_count`, `current_root`, and every spent nullifier match the
-  source, and a note spent on the source is rejected as `NullifierUsed` on the migrated
-  pool. Includes the honest completeness control from the repository (the nullifier set is
-  operator-supplied and cannot be reconstructed from on-chain data alone; the migration
-  requires and logs the full list).
-- **Harden deposit / withdraw / disclosure for production.** Land the unshipped hardening
-  items already identified in the threat model: a Content-Security-Policy and related
-  security headers on the app, and a documented admin-key management posture toward a
-  multisig or timelock on the policy setters. Verifiable: security headers present on all
-  routes, and the pool contract tests plus the live end-to-end suite still pass on the
-  migrated pool.
+- **Execute the state migration of the live corridor onto the upgradeable pool.** The live
+  pool has no upgrade hook. The `pool-enforced` preview contract (`CBIGD4YL...`) already has
+  an admin `upgrade` entrypoint and a one-shot `import_state`, and the end-to-end migration is
+  already proven against a test-double source pool (`scripts/migrate-pool.mjs --test-double`).
+  Tranche 1 runs a real migration of the shielded tree, nullifier set, and policy onto the
+  upgradeable pool on testnet, which is the step that repoints the live corridor. Verifiable:
+  target `leaf_count`, `current_root`, and every spent nullifier match the source, and a note
+  spent on the source is rejected as `NullifierUsed` on the migrated pool. Includes the honest
+  completeness control from the repository (the nullifier set is operator-supplied and cannot be
+  reconstructed from on-chain data alone; the migration requires and logs the operator's full
+  nullifier list).
+- **Withdraw-side accumulator subtraction so full-pool proof-of-reserves stays exact after
+  withdrawals.** Full-pool proof-of-reserves already runs on testnet via the deposit-side
+  liability accumulator (`pool-accumulator`, `CATRHKRHM...`), which folds each deposit's proven
+  amount into an on-chain total; its ceiling is that the deposit-side total over-counts after a
+  withdrawal (the fail-safe direction). Tranche 1 folds `-amount` into the accumulator inside the
+  core transfer/withdraw circuit, the invasive upgrade named in the repository, so the total
+  tracks true liabilities exactly after withdrawals. Verifiable: the upgraded circuit compiles and
+  soundness-tests pass, and a deposit-then-withdraw sequence leaves `total_liabilities` equal to
+  the true remaining sum on-chain on testnet, with `attest_reserves` no longer over-counting.
+- **Admin-key hardening toward a multisig or timelock on the privileged setters.** The admin
+  setters (`set_asp_root`, `set_deny_list`, `set_fx_oracle`, `set_auditor`, and the verifier
+  setters) are single-key admin-gated today. Tranche 1 moves the privileged setters behind a
+  multisig or a timelock. Verifiable: a setter call requires the multisig or observes the
+  timelock delay on testnet, and the pool contract tests plus the live end-to-end suite still pass
+  on the migrated pool.
 
-Tranche 1 outcome: a production-grade upgradeable corridor with full-pool
-proof-of-reserves, delivered and tested on testnet.
+Tranche 1 outcome: the live corridor migrated onto the upgradeable pool, full-pool
+proof-of-reserves exact after withdrawals, and the admin setters hardened, delivered and tested
+on testnet.
 
 ### Tranche 2, testnet expansion, anchor flow, and monitoring (30%)
 
@@ -288,7 +289,7 @@ the amounts below to fit the team in Section 8 and its rates; do not pad toward 
 | Milestone | Payment | Budget categories (Build Award DOs) | Amount |
 |---|---|---|---|
 | M0 acceptance | 10% | Kickoff and tranche planning | **[ISI SENDIRI]** |
-| T1 MVP | 20% | Core dev (accumulator circuit, pool migration, hardening), testing and verification (unit and integration tests, QA) | **[ISI SENDIRI]** |
+| T1 MVP | 20% | Core dev (pool migration, withdraw-side accumulator subtraction, admin-key hardening), testing and verification (unit and integration tests, QA) | **[ISI SENDIRI]** |
 | T2 Testnet | 30% | Core dev (anchor adapter, TRISA node, indexer), backend and monitoring/alerting stack, frontend/UX for the anchor flow | **[ISI SENDIRI]** |
 | T3 Mainnet | 40% | Deployment and release (mainnet deploy, SDK/API, docs), go-live monitoring | **[ISI SENDIRI]** |
 | **Total** | **100%** | Capped at $150k XLM, timeline 6 months or less | **[ISI SENDIRI: total]** |
@@ -317,7 +318,7 @@ the team's real capacity.
 | Period | Focus | Milestone |
 |---|---|---|
 | Month 0 | Acceptance, kickoff, public tranche tracking | M0 |
-| Months 1–2 | Accumulator circuit, pool migration onto the upgradeable contract, production hardening | T1 MVP |
+| Months 1–2 | Pool migration onto the upgradeable contract, withdraw-side accumulator subtraction, admin-key hardening | T1 MVP |
 | Months 3–4 | Candidate-anchor flow, TRISA node, monitoring stack, finalized threat model, scoped pilot | T2 Testnet |
 | Months 5–6 | Mainnet deploy and verification, licensed-anchor corridor go-live, SDK/API and docs, go-live monitoring | T3 Mainnet |
 
@@ -354,18 +355,20 @@ over-scoped plan relative to the team performs poorly in review.
   every circuit and its keys are the deployed keys, but the demo ran all rounds on one
   machine to prove the process. The one-honest-party soundness guarantee needs genuinely
   independent contributors, which the production ceremony before mainnet provides.
-- **Full-pool proof-of-reserves is a partial today.** The voluntary aggregate is the
-  honest partial that runs now; the full-pool live attestation needs the
-  homomorphic-accumulator upgrade, which is exactly Tranche 1 work.
+- **Full-pool proof-of-reserves is live via the deposit-side accumulator.** Its ceiling is that
+  the deposit-side total over-counts after withdrawals (the fail-safe direction, so a pass stays
+  conservative); withdraw-side subtraction in the core transfer circuit is the remaining exactness
+  upgrade, which is exactly Tranche 1 work.
 - **Live-pool per-corridor enforcement needs the migration.** It ships on a preview track
   because the live pool has no upgrade hook. Tranche 1's migration onto the upgradeable
   pool is the step that makes it enforceable in place.
 - **Testnet only, no users or revenue yet.** The market sizing in Section 1 is the
   opportunity and the model, not traction. The scoped pilot in Tranche 2 is the first real
   usage, and mainnet volume follows Tranche 3.
-- **Operational hardening items.** No Content-Security-Policy or admin multisig/timelock is
-  live today, and the relayer and demo keys are intentionally public testnet keys. These
-  are named in the threat model and are Tranche 1 and Tranche 2 work, not live controls.
+- **Operational hardening items.** A Content-Security-Policy and baseline security headers now
+  ship on all routes. Admin multisig or timelock on the privileged setters is not live today, and
+  the relayer and demo keys are intentionally public testnet keys. The open items are named in the
+  threat model and the admin hardening is Tranche 1 work, not a live control.
 
 The path from here to mainnet is deliberately short because the architecture is already
 built. Tranche 1 makes the core production-grade and upgradeable, Tranche 2 puts it on a

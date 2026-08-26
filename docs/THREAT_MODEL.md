@@ -255,12 +255,18 @@ This is called out as future work and is not yet exercised on the live pool.
 Mitigation (live). All privileged logic is server-only (`import "server-only"` on `relayer.ts`,
 `auth.ts`, `schedules.ts`), so secrets never reach the browser. Proving is client-side and
 secrets stay on the device. Wallet sign-in uses domain-separated HMAC (nonce vs token) with
-`timingSafeEqual` and fails closed. The app is a Next.js server deployment on Vercel.
-Residual risk. There is no Content-Security-Policy or `X-Frame-Options` header configured today.
-The `headers()` block in `next.config.mjs` sets only CORS on `stellar.toml` and long cache on the
-circuit assets. Adding a CSP, frame-ancestors, and related security headers is a concrete,
-unshipped hardening item (Section 4). The browser demo loads snarkjs and circomlibjs from a public
-ESM CDN (esm.sh), which is an external code dependency at runtime.
+`timingSafeEqual` and fails closed. The app is a Next.js server deployment on Vercel. The
+`headers()` block in `next.config.mjs` now sets a Content-Security-Policy on every route with an
+explicit origin allowlist (the Soroban testnet RPC and Reflector, the FX fallback, friendbot, the
+CCTP Base Sepolia RPC, the off-ramp quote host, and Reclaim), plus `X-Frame-Options: SAMEORIGIN`,
+`X-Content-Type-Options: nosniff`, and `Referrer-Policy`. The CSP was tuned to what the app
+actually loads and verified with zero violations across all pages while live reads stayed intact
+(`scripts/qa-csp.mjs`).
+Residual risk. The CSP keeps `'unsafe-inline'` for scripts and styles (Next.js hydration inline
+scripts and Tailwind/Next inline styles) and allows `'wasm-unsafe-eval'` plus a `blob:` worker
+source for in-browser snarkjs proving, so it is not a nonce-strict policy. The browser demo loads
+snarkjs and circomlibjs from a public ESM CDN (esm.sh), which is an external code dependency at
+runtime.
 
 ---
 
@@ -277,15 +283,18 @@ These are the honest limits, consistent with `README.md` and `docs/SECURITY.md`.
 - Reference anchor is not licensed. On testnet the SEP anchor is SDF's reference anchor and does no
   real KYC, so the fiat edges are simulated. Going live requires a licensed KYC anchor (a business
   step, not a code step).
-- Full-pool live proof-of-reserves needs witnesses Tukar does not hold. The no-redeploy voluntary
-  aggregate is the partial that runs today; the full-pool live attestation needs depositor opening
-  witnesses.
+- Full-pool proof-of-reserves is live via a deposit-side liability accumulator that folds each
+  deposit's proven amount into an on-chain total, so `attest_reserves` needs no depositor opening
+  witnesses at read time. Its honest ceiling is that the deposit-side total over-counts after
+  withdrawals (the fail-safe direction, so a pass stays conservative); withdraw-side subtraction in
+  the core transfer circuit is the remaining exactness upgrade.
 - Live-pool per-corridor enforcement needs a migration. It ships on a preview track because the
   live pool has no upgrade hook.
 - Testnet only. No users and no revenue yet. Metrics in Section 5 are the plan to implement, not
   a claim of collected data.
-- No CSP / security-header hardening, no admin multisig or timelock, and the relayer / demo key are
-  intentionally public testnet keys. All three are production hardening items, not live controls.
+- A Content-Security-Policy and baseline security headers now ship on all routes (Section 3.10).
+  Admin multisig or timelock on the privileged setters is not yet live, and the relayer / demo key
+  are intentionally public testnet keys; these remain production hardening items.
 
 ---
 

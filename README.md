@@ -111,7 +111,7 @@ for the average cost of sending $200.
 
 ### What shipped this session, and what's still ahead
 
-The core (8 circuits, 13 Soroban contracts, 60+ passing tests, the live corridor, in-circuit
+The core (8 circuits, 14 Soroban contracts, 60+ passing tests, the live corridor, in-circuit
 compliance, four selective-disclosure types, and the oracle gate) runs on testnet today. The
 compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along five
 lines, and this session moved most of them from reference demos into working, testnet-live
@@ -143,18 +143,22 @@ the limits section further down.
 5. **Recurring private remittances.** **Recurring on-chain sends** ship with wallet-signed
    authorization and a private per-owner store, so a worker can schedule a monthly send.
 
-Two more pieces landed alongside these. **Cryptographic proof-of-reserves**: a full-pool
-circuit proves the shielded liabilities are covered, plus a no-redeploy **voluntary aggregate**
-any set of depositors can contribute to. And a public **/verify receipt verifier** with a
-**note-status double-spend API** lets anyone check a disclosure receipt or a note's spent status
-without trusting the operator, backed by an **oracle-signed rate attestation** on the off-ramp
-quote.
+Two more pieces landed alongside these. **Full-pool cryptographic proof-of-reserves** now runs
+on testnet via a deposit-side liability accumulator that folds each deposit's proven amount into
+an on-chain running total, so `attest_reserves` checks the total against custody with no depositor
+opening witnesses at read time; a no-redeploy **voluntary aggregate** any set of depositors can
+contribute to also ships. The accumulator is deposit-side, so after a withdrawal the total
+over-counts, which is the fail-safe direction (a pass means true liabilities are at or below the
+total, which is at or below custody); withdraw-side subtraction is the remaining exactness upgrade.
+And a public **/verify receipt verifier** with a **note-status double-spend API** lets anyone check
+a disclosure receipt or a note's spent status without trusting the operator, backed by an
+**oracle-signed rate attestation** on the off-ramp quote.
 
-Still ahead: a full-pool *live* proof-of-reserves attestation (it needs depositor opening
-witnesses Tukar does not hold, which is why the voluntary aggregate is the no-redeploy partial),
-per-corridor on-chain enforcement on the live pool (a state migration), idOS reusable-KYC
-composition, and TRISA activation (the operator's VASP cert and host). They are the path from
-the working testnet build to a production, multi-anchor corridor.
+Still ahead: withdraw-side accumulator subtraction so full-pool proof-of-reserves stays exact
+after withdrawals (an invasive core-transfer-circuit upgrade), per-corridor on-chain enforcement
+on the live pool (a state migration), idOS reusable-KYC composition, and TRISA activation (the
+operator's VASP cert and host). They are the path from the working testnet build to a production,
+multi-anchor corridor.
 
 ---
 
@@ -366,10 +370,13 @@ next two sections.
 - **Proof-of-personhood (Reclaim).** A person proves personhood with [Reclaim](https://reclaimprotocol.org)
   zkTLS; a server-side verify checks the proof and an allow-list update loop has the operator
   apply `set_asp_root`, adding them to the on-chain allow-root with no redeploy.
-- **Proof-of-reserves.** A full-pool circuit proves the shielded liabilities are covered, plus a
-  no-redeploy **voluntary aggregate** any set of depositors can contribute to. The full-pool
-  *live* attestation needs depositor opening witnesses Tukar does not hold, so the voluntary
-  aggregate is the partial that ships today.
+- **Proof-of-reserves.** A deposit-side liability accumulator folds each deposit's proven amount
+  into an on-chain running total, so the pool attests full-pool reserves (`attest_reserves` checks
+  the total against custody) with no depositor opening witnesses at read time. The total is
+  deposit-side, so it over-counts after a withdrawal, a conservative fail-safe ceiling (a pass
+  means true liabilities are at or below the total, at or below custody); withdraw-side subtraction
+  is the next upgrade. A no-redeploy **voluntary aggregate** any set of depositors can contribute
+  to also ships.
 - **Public receipt verifier.** A `/verify` page and a note-status double-spend API let anyone
   check a disclosure receipt or a note's spent status without trusting the operator; the off-ramp
   quote carries an **oracle-signed rate attestation**.
@@ -378,7 +385,8 @@ next two sections.
 - **Cross-chain (Circle CCTP V2).** **Bidirectional** CCTP V2 (EVM <-> Stellar) is wired to move
   value into and out of the corridor across chains; the burn leg needs a user EVM wallet to sign.
 - **Also.** The anonymity set is surfaced in the UI, gasless fee-bump (CAP-15) is a proven
-  primitive, and the corridor spans 10 destinations.
+  primitive, a tuned Content-Security-Policy ships on all routes, and the corridor spans 10
+  destinations.
 
 ## What the ZK is doing (load-bearing)
 
@@ -591,8 +599,10 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   regulator**; in the no-install demo the auditor role is the demo key (every demo role is one
   person), so the demo exercises the mechanism rather than a true separation of parties.
 - **New-feature scope, honestly bounded.** Four of this session's additions ship with a stated
-  ceiling. The **full-pool live proof-of-reserves** attestation needs depositor opening witnesses
-  Tukar does not hold, so the no-redeploy **voluntary aggregate** is the partial that runs today.
+  ceiling. **Full-pool proof-of-reserves** is live via a deposit-side liability accumulator; its
+  honest ceiling is that the deposit-side total over-counts after withdrawals (the fail-safe
+  direction, so a pass stays conservative), and withdraw-side subtraction inside the core transfer
+  circuit is the remaining exactness upgrade.
   **Per-corridor on-chain cap enforcement** on the *live* pool needs a state migration (the live
   pool has no upgrade hook), so it ships on a **preview track** for now. **Circle CCTP V2** is
   bidirectional and wired, but the burn leg needs a user EVM wallet to sign. The **TRISA companion
