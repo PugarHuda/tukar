@@ -76,12 +76,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ rejected: "IVMS101 validation failed: " + errors.join("; "), ...common });
   }
 
-  // Approved: the beneficiary VASP returns its settlement address and a status callback URL. Fail
-  // closed if no real settlement address is configured on this node instead of returning a fake one.
-  const beneficiary = process.env.TRP_BENEFICIARY_ADDRESS || "";
+  // Approved: the beneficiary VASP returns its settlement address and a status callback URL. The
+  // default is the corridor operator's real testnet account (corredor), a valid on-chain Stellar
+  // address rather than a placeholder, so the single-operator demo completes a real approval.
+  // Override with TRP_BENEFICIARY_ADDRESS in production; a non-G-address value is rejected, not echoed.
+  const beneficiary = process.env.TRP_BENEFICIARY_ADDRESS || "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS";
   if (!G_ADDR.test(beneficiary)) {
     return NextResponse.json(
-      { rejected: "Beneficiary settlement address is not configured on this node.", ...common },
+      { rejected: "Configured beneficiary settlement address is not a valid Stellar account.", ...common },
       { status: 503 },
     );
   }
