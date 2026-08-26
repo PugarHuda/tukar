@@ -149,21 +149,20 @@ the limits section further down.
    authorization and a private per-owner store, so a worker can schedule a monthly send.
 
 Two more pieces landed alongside these. **Full-pool cryptographic proof-of-reserves** now runs
-on testnet via a deposit-side liability accumulator that folds each deposit's proven amount into
-an on-chain running total, so `attest_reserves` checks the total against custody with no depositor
-opening witnesses at read time; a no-redeploy **voluntary aggregate** any set of depositors can
-contribute to also ships. The accumulator is deposit-side, so after a withdrawal the total
-over-counts, which is the fail-safe direction (a pass means true liabilities are at or below the
-total, which is at or below custody); withdraw-side subtraction is the remaining exactness upgrade.
+on testnet via an exact liability accumulator that folds each deposit's proven amount into an
+on-chain running total AND subtracts the public off-ramp amount on each withdraw, so
+`attest_reserves` checks the total against custody with no depositor opening witnesses at read
+time; a no-redeploy **voluntary aggregate** any set of depositors can contribute to also ships. The
+accumulator folds +amount on deposit and -released (the public, proof-bound off-ramp amount) on
+withdraw, so the on-chain total equals the exact live outstanding liabilities, a tight solvency
+statement rather than an over-count.
 And a public **/verify receipt verifier** with a **note-status double-spend API** lets anyone check
 a disclosure receipt or a note's spent status without trusting the operator, backed by an
 **oracle-signed rate attestation** on the off-ramp quote.
 
-Still ahead: withdraw-side accumulator subtraction so full-pool proof-of-reserves stays exact
-after withdrawals (an invasive core-transfer-circuit upgrade), per-corridor on-chain enforcement
-on the live pool (a state migration), idOS reusable-KYC composition, and TRISA activation (the
-operator's VASP cert and host). They are the path from the working testnet build to a production,
-multi-anchor corridor.
+Still ahead: per-corridor on-chain enforcement on the live pool (a state migration), idOS
+reusable-KYC composition, and TRISA activation (the operator's VASP cert and host). They are the
+path from the working testnet build to a production, multi-anchor corridor.
 
 ---
 
@@ -372,13 +371,13 @@ next two sections.
 - **Proof-of-personhood (Reclaim).** A person proves personhood with [Reclaim](https://reclaimprotocol.org)
   zkTLS; a server-side verify checks the proof and an allow-list update loop has the operator
   apply `set_asp_root`, adding them to the on-chain allow-root with no redeploy.
-- **Proof-of-reserves.** A deposit-side liability accumulator folds each deposit's proven amount
-  into an on-chain running total, so the pool attests full-pool reserves (`attest_reserves` checks
-  the total against custody) with no depositor opening witnesses at read time. The total is
-  deposit-side, so it over-counts after a withdrawal, a conservative fail-safe ceiling (a pass
-  means true liabilities are at or below the total, at or below custody); withdraw-side subtraction
-  is the next upgrade. A no-redeploy **voluntary aggregate** any set of depositors can contribute
-  to also ships.
+- **Proof-of-reserves.** An exact liability accumulator folds each deposit's proven amount into an
+  on-chain running total and subtracts the public off-ramp amount on each withdraw, so the pool
+  attests full-pool reserves (`attest_reserves` checks the total against custody) with no depositor
+  opening witnesses at read time. The total folds +amount on deposit and -released on withdraw, so
+  it equals the exact live outstanding liabilities, a tight solvency statement rather than an
+  over-count. A no-redeploy **voluntary aggregate** any set of depositors can contribute to also
+  ships.
 - **Public receipt verifier.** A `/verify` page and a note-status double-spend API let anyone
   check a disclosure receipt or a note's spent status without trusting the operator; the off-ramp
   quote carries an **oracle-signed rate attestation**.
@@ -601,10 +600,10 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   regulator**; in the no-install demo the auditor role is the demo key (every demo role is one
   person), so the demo exercises the mechanism rather than a true separation of parties.
 - **New-feature scope, honestly bounded.** Four of this session's additions ship with a stated
-  ceiling. **Full-pool proof-of-reserves** is live via a deposit-side liability accumulator; its
-  honest ceiling is that the deposit-side total over-counts after withdrawals (the fail-safe
-  direction, so a pass stays conservative), and withdraw-side subtraction inside the core transfer
-  circuit is the remaining exactness upgrade.
+  ceiling. **Full-pool proof-of-reserves** is live and exact via a liability accumulator that folds
+  +amount on deposit and -released on withdraw, so the on-chain total equals the exact live
+  outstanding liabilities and `attest_reserves` is a tight solvency statement; applying it to the
+  live pool needs the state migration (the accumulator ships on the preview track).
   **Per-corridor on-chain cap enforcement** on the *live* pool needs a state migration (the live
   pool has no upgrade hook), so it ships on a **preview track** for now. **Circle CCTP V2** is
   bidirectional and wired, but the burn leg needs a user EVM wallet to sign. The **TRISA companion

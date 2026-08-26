@@ -48,10 +48,9 @@ Tukar applies under the **Open Track**.
 
 The Open Track fits because Tukar ships net-new zero-knowledge primitives, not an
 application wired together from existing building blocks. The work funded here extends
-those primitives: a withdraw-side subtraction upgrade so the already-live deposit-side
-proof-of-reserves accumulator stays exact after withdrawals, a production migration of the
-shielded pool onto an upgradeable contract, and a compliant shielded-pool corridor as a
-reusable primitive that anchors plug into. That is protocol and circuit development, which is what the Open Track is
+those primitives: a production migration of the shielded pool onto an upgradeable contract that
+also applies the already-exact full-pool proof-of-reserves accumulator to the live pool, and a
+compliant shielded-pool corridor as a reusable primitive that anchors plug into. That is protocol and circuit development, which is what the Open Track is
 for, and Open Track awards go to Community Vote, which the #46 rule changes leave
 unchanged.
 
@@ -106,7 +105,7 @@ phase-1 ptau plus a multi-party phase-2 ceremony whose keys are the deployed key
 | reserves-aggregate | voluntary no-redeploy proof-of-reserves | `CA6Q5SWRAV3P432YNL4OE6IZ52LNBBS5WWE2HILDYRZDGFBY47PKC7XN` |
 | policy-registry | on-chain per-corridor compliance policy | `CAQ7KBNFJOJI34B5V3GNI7ACW6YEOAD4JRYSOX3EUW5UOXFKBDZBDAZ3` |
 | pool-enforced (preview) | upgradeable pool with per-corridor cap enforcement and `import_state` | `CBIGD4YLHXTUBBMRLK2BSWWGOMOFKR6EA6TFHFSIVH26PGFFDIHXRKTY` |
-| pool-accumulator (preview) | full-pool proof-of-reserves via a deposit-side liability accumulator | `CATRHKRHMAHPGKCAQXKB57ETXCRVKPKEOJ6NRCF4HBT5HFRWQSWBBL5D` |
+| pool-accumulator (preview) | full-pool proof-of-reserves via an exact liability accumulator (deposit +amount, withdraw -released) | `CBZOGXYS4X45SRWM45ZMUDM2KSJJQI3OQAP5BBC2CQXRRVSVUVO6A3YK` |
 | pool-timelock (preview) | admin timelock (propose, delay, execute) on the five compliance setters | `CDTE5CHIKXNJLTCJFBV6F3HLVD2B2GGYZ7NFTDW24DCQNK6F63H56FJ2` |
 
 That is 15 Soroban contracts across the core corridor and the additive productionization
@@ -202,15 +201,16 @@ upgradeable pool, so mainnet is a deployment step rather than a rebuild.
   completeness control from the repository (the nullifier set is operator-supplied and cannot be
   reconstructed from on-chain data alone; the migration requires and logs the operator's full
   nullifier list).
-- **Withdraw-side accumulator subtraction so full-pool proof-of-reserves stays exact after
-  withdrawals.** Full-pool proof-of-reserves already runs on testnet via the deposit-side
-  liability accumulator (`pool-accumulator`, `CATRHKRHM...`), which folds each deposit's proven
-  amount into an on-chain total; its ceiling is that the deposit-side total over-counts after a
-  withdrawal (the fail-safe direction). Tranche 1 folds `-amount` into the accumulator inside the
-  core transfer/withdraw circuit, the invasive upgrade named in the repository, so the total
-  tracks true liabilities exactly after withdrawals. Verifiable: the upgraded circuit compiles and
-  soundness-tests pass, and a deposit-then-withdraw sequence leaves `total_liabilities` equal to
-  the true remaining sum on-chain on testnet, with `attest_reserves` no longer over-counting.
+- **Apply the exact full-pool proof-of-reserves accumulator to the live pool.** Full-pool
+  proof-of-reserves already runs EXACT on testnet via the liability accumulator (`pool-accumulator`,
+  `CBZOGXYS...`), which folds `+amount` on each deposit AND subtracts the public off-ramp `released`
+  amount on each withdraw, so the on-chain total equals the exact live outstanding liabilities
+  (a contract-only change, no circuit or ceremony change; cargo 71/71, deposit-then-withdraw
+  e2e-proven on-chain). It ships on the preview track, so what remains is carrying the exact
+  accumulator onto the live pool as part of the migration above, alongside the per-corridor cap
+  enforcement and the admin timelock. Verifiable: on the migrated pool a deposit-then-withdraw
+  sequence leaves `total_liabilities` equal to the true remaining sum on-chain, and
+  `attest_reserves` succeeds at the exact post-withdraw total.
 - **Admin-key hardening applied to the live pool.** The admin timelock is already built and
   deployed on the preview track (`pool-timelock`, `CDTE5CHI...`): the five compliance-critical
   setters (`set_asp_root`, `set_deny_list`, `set_fx_oracle`, `set_auditor`, `set_policy_registry`)
@@ -221,9 +221,9 @@ upgradeable pool, so mainnet is a deployment step rather than a rebuild.
   the delay on testnet), the admin is a multisig account, and the pool contract tests plus the live
   end-to-end suite still pass on the migrated pool.
 
-Tranche 1 outcome: the live corridor migrated onto the upgradeable pool, full-pool
-proof-of-reserves exact after withdrawals, and the admin setters hardened, delivered and tested
-on testnet.
+Tranche 1 outcome: the live corridor migrated onto the upgradeable pool, the exact full-pool
+proof-of-reserves accumulator applied to the live pool, and the admin setters hardened, delivered
+and tested on testnet.
 
 ### Tranche 2, testnet expansion, anchor flow, and monitoring (30%)
 
@@ -293,7 +293,7 @@ the amounts below to fit the team in Section 8 and its rates; do not pad toward 
 | Milestone | Payment | Budget categories (Build Award DOs) | Amount |
 |---|---|---|---|
 | M0 acceptance | 10% | Kickoff and tranche planning | **[ISI SENDIRI]** |
-| T1 MVP | 20% | Core dev (pool migration, withdraw-side accumulator subtraction, admin-key hardening), testing and verification (unit and integration tests, QA) | **[ISI SENDIRI]** |
+| T1 MVP | 20% | Core dev (pool migration incl. applying the exact proof-of-reserves accumulator to the live pool, admin-key hardening), testing and verification (unit and integration tests, QA) | **[ISI SENDIRI]** |
 | T2 Testnet | 30% | Core dev (anchor adapter, TRISA node, indexer), backend and monitoring/alerting stack, frontend/UX for the anchor flow | **[ISI SENDIRI]** |
 | T3 Mainnet | 40% | Deployment and release (mainnet deploy, SDK/API, docs), go-live monitoring | **[ISI SENDIRI]** |
 | **Total** | **100%** | Capped at $150k XLM, timeline 6 months or less | **[ISI SENDIRI: total]** |
@@ -322,7 +322,7 @@ the team's real capacity.
 | Period | Focus | Milestone |
 |---|---|---|
 | Month 0 | Acceptance, kickoff, public tranche tracking | M0 |
-| Months 1–2 | Pool migration onto the upgradeable contract, withdraw-side accumulator subtraction, admin-key hardening | T1 MVP |
+| Months 1–2 | Pool migration onto the upgradeable contract (incl. the exact proof-of-reserves accumulator), admin-key hardening | T1 MVP |
 | Months 3–4 | Candidate-anchor flow, TRISA node, monitoring stack, finalized threat model, scoped pilot | T2 Testnet |
 | Months 5–6 | Mainnet deploy and verification, licensed-anchor corridor go-live, SDK/API and docs, go-live monitoring | T3 Mainnet |
 
@@ -359,10 +359,10 @@ over-scoped plan relative to the team performs poorly in review.
   every circuit and its keys are the deployed keys, but the demo ran all rounds on one
   machine to prove the process. The one-honest-party soundness guarantee needs genuinely
   independent contributors, which the production ceremony before mainnet provides.
-- **Full-pool proof-of-reserves is live via the deposit-side accumulator.** Its ceiling is that
-  the deposit-side total over-counts after withdrawals (the fail-safe direction, so a pass stays
-  conservative); withdraw-side subtraction in the core transfer circuit is the remaining exactness
-  upgrade, which is exactly Tranche 1 work.
+- **Full-pool proof-of-reserves is live and exact on the preview track.** The liability accumulator
+  folds `+amount` on deposit and `-released` (the public off-ramp amount) on withdraw, so the
+  on-chain total equals the exact live outstanding liabilities, not an over-count. Applying it to
+  the live pool needs the Tranche 1 migration.
 - **Live-pool per-corridor enforcement needs the migration.** It ships on a preview track
   because the live pool has no upgrade hook. Tranche 1's migration onto the upgradeable
   pool is the step that makes it enforceable in place.

@@ -293,11 +293,11 @@ These are the honest limits, consistent with `README.md` and `docs/SECURITY.md`.
 - Reference anchor is not licensed. On testnet the SEP anchor is SDF's reference anchor and does no
   real KYC, so the fiat edges are simulated. Going live requires a licensed KYC anchor (a business
   step, not a code step).
-- Full-pool proof-of-reserves is live via a deposit-side liability accumulator that folds each
-  deposit's proven amount into an on-chain total, so `attest_reserves` needs no depositor opening
-  witnesses at read time. Its honest ceiling is that the deposit-side total over-counts after
-  withdrawals (the fail-safe direction, so a pass stays conservative); withdraw-side subtraction in
-  the core transfer circuit is the remaining exactness upgrade.
+- Full-pool proof-of-reserves is live and exact via a liability accumulator that folds +amount on
+  deposit and -released (the public, proof-bound off-ramp amount) on withdraw, so the on-chain total
+  equals the exact live outstanding liabilities and `attest_reserves` needs no depositor opening
+  witnesses at read time. Applying it to the live pool needs the state migration; the accumulator
+  ships on the preview track.
 - Live-pool per-corridor enforcement needs a migration. It ships on a preview track because the
   live pool has no upgrade hook.
 - Testnet only. No users and no revenue yet. Metrics in Section 5 are the plan to implement, not
