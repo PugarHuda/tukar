@@ -12,14 +12,9 @@ import * as Sdk from "@stellar/stellar-sdk";
 import { RPC, PASSPHRASE, POOL, DEMO_SECRET } from "./constants";
 import { addrField, readDenyList, loadLeavesFromChain, readCurrentRoot, type WriteResult } from "./stellar";
 import { getPoseidon, makeTree, type Note } from "./zk";
-
-// ---- snarkjs proof -> Soroban contract args (same encoding as lib/stellar.ts) ----
-const fe = (d: string | bigint): string => BigInt(d).toString(16).padStart(64, "0");
-const g1 = (pt: any): string => fe(pt[0]) + fe(pt[1]);
-const g2 = (pt: any): string => fe(pt[0][1]) + fe(pt[0][0]) + fe(pt[1][1]) + fe(pt[1][0]);
-const buf = (hex: string): Uint8Array => Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
-const buf32 = (dec: string | bigint): Uint8Array => buf(BigInt(dec).toString(16).padStart(64, "0"));
-const scProof = (p: any) => ({ a: buf(g1(p.pi_a)), b: buf(g2(p.pi_b)), c: buf(g1(p.pi_c)) });
+// snarkjs proof -> Soroban contract args: the ONE shared server-safe copy (was re-implemented here).
+import { g1, g2, buf, buf32, scProof } from "./soroban/proof";
+import { POOL_ERRORS } from "./soroban/errors";
 
 // Circuit assets ship in the serverless bundle (see next.config.mjs outputFileTracingIncludes).
 const asset = (name: string): string => path.join(process.cwd(), "public", "circuit", name);
@@ -85,23 +80,8 @@ async function sendTx(buildAt: () => Promise<any>, attempts = 4): Promise<any> {
   throw lastErr;
 }
 
-// Full PoolError code -> message map, kept in sync with lib/stellar.ts (~1026). Copied rather than
-// imported so this server-only module stays decoupled from the client path; the truncated version
-// used to record raw Error(Contract,#N) for codes 2,5,6,8,11,12 in cron run receipts.
-const POOL_ERRORS: Record<number, string> = {
-  1: "this root isn't recognized on-chain (the tree moved on — re-sync and retry)",
-  2: "this note was already spent — its nullifier is used (double-spend rejected on-chain)",
-  3: "unknown commitment — this note isn't in the pool",
-  4: "the deny-list check failed on-chain",
-  5: "invalid amount",
-  6: "the amount isn't bound to the commitment (binding proof missing)",
-  7: "the zero-knowledge proof was rejected by the on-chain verifier",
-  8: "the corridor tree is full",
-  9: "this leaf isn't a backed deposit, or was already inserted (unbacked-leaf insert rejected)",
-  10: "this commitment was already deposited (duplicate deposit rejected — it would lock funds)",
-  11: "the FX oracle has no live price for this currency (off-ramp quote unavailable)",
-  12: "the live FX rate would deliver less than your minimum (slippage too high — release blocked, note unspent)",
-};
+// Full PoolError code -> message map: shared server-safe copy from ./soroban/errors (was copied
+// here). This wrapper still returns { error, code } combined for the cron run receipts.
 function poolErr(e: any): { error: string; code: number | null } {
   const msg = _msg(e);
   const m = msg.match(/Error\(Contract,\s*#(\d+)\)/);

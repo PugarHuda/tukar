@@ -8,7 +8,7 @@
   --text: #f5f1ec;
   --text-2: #cfc8c1;
   --muted: #8a847e;
-  --faint: #6b645e;
+  --faint: #8a8078; /* was #6b645e (~3.4:1, failed WCAG AA); ~5:1 on the card bg, still muted */
   --orange: #ff7a1a;
   --orange-2: #ff8a3d;
   --orange-3: #ff9445;

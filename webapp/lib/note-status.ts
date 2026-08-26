@@ -1,11 +1,13 @@
 // Server-safe bearer-note status helper for /api/note-status. NO browser deps: it reads the
 // pool with read-only RPC simulations via @stellar/stellar-sdk and derives the nullifier with
 // Poseidon (circomlibjs, dynamic-imported). It deliberately re-implements the few RPC-only bits
-// it needs (the same simulate + leaf pagination + buf32 that lib/stellar.ts uses, and the same
+// it needs (its own POOL-fixed simulate that PROPAGATES errors, plus leaf pagination, and the same
 // tukar1: decode + nullifier = Poseidon(commitment, leafIndex, privKey) that the receiver uses)
 // instead of importing lib/stellar.ts / lib/zk.ts, whose module graphs pull browser-only code.
+// buf32 comes from the browser-free lib/soroban/proof (shared, no drift).
 import * as Sdk from "@stellar/stellar-sdk";
 import { RPC, PASSPHRASE, POOL, SOURCE } from "./constants";
+import { buf32 } from "./soroban/proof"; // shared server-safe copy (was re-implemented below)
 
 const server = new Sdk.rpc.Server(RPC);
 
@@ -28,9 +30,6 @@ const bytesToBig = (u8: Iterable<number>): bigint => {
   for (const b of u8) x = (x << 8n) | BigInt(b);
   return x;
 };
-// decimal field element -> 32-byte big-endian ScVal-bytes (BytesN<32> args)
-const buf32 = (dec: string | bigint): Uint8Array =>
-  Uint8Array.from(BigInt(dec).toString(16).padStart(64, "0").match(/.{2}/g)!.map((b) => parseInt(b, 16)));
 const u32 = (x: number) => Sdk.nativeToScVal(x, { type: "u32" });
 const isFieldStr = (s: unknown): s is string => typeof s === "string" && /^\d{1,78}$/.test(s);
 
