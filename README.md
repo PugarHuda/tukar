@@ -252,10 +252,7 @@ multi-anchor corridor.
   - **Operator** (`/operator`), a corridor-operator dashboard over pool activity and
     state.
 
-  The vanilla [`frontend/`](frontend/) site still exists and shares the **same live
-  pool** and contracts; it's an alternate front end, not a fork.
-- **Run locally in 3 commands:** `npm install && npm run circuit:all && npm run serve`
-  → http://localhost:8000.
+- **Run locally:** `cd webapp && npm install && npm run dev` → http://localhost:3000.
 - **Gasless, natively:** fees can be sponsored by a relayer via Stellar's native
   **fee-bump** (CAP-15), the no-gated-token alternative to a Launchtube paymaster.
   Proven on testnet: `npm run demo:feebump` (a tx signed by one account, fee paid by
@@ -499,7 +496,7 @@ professionally audited, see the caveats below). What that means concretely:
   it at ~13.6M CPU/hash, so a depth-10 insert (~135M) exceeds the per-tx budget,
   which is *why* the tree is advanced with a cheap `merkleUpdate` SNARK rather than
   hashed on-chain. See [`onChainPoseidonFinding`](deployments/testnet.json).
-- **Optional real wallet.** [`frontend/wallet.js`](frontend/wallet.js) adds an
+- **Optional real wallet.** [`webapp/components/WalletProvider.tsx`](webapp/components/WalletProvider.tsx) adds an
   optional **Freighter** connection (sign deposits with your own wallet, with a
   one-click testnet faucet); the embedded throwaway key stays the no-install
   default.
@@ -536,7 +533,7 @@ soundness suites: threshold **4/4**, two-sided range **5/5**, aggregate **6/6**)
 proving flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
 
 **Live real-click e2e (`npm run test:e2e`): 11/11** against the deployed site (or a
-local `npm run serve`). Playwright drives genuine clicks through the full on-chain
+local `webapp` dev server). Playwright drives genuine clicks through the full on-chain
 flow (deposit → reveal → withdraw → disclose → tamper-rejected), on-chain ASP
 forge-rejection, corridor switching, graceful junk-input handling, UI gating, and a
 **cross-wallet double-spend**: export a bearer note, reset to a second holder, import,
@@ -557,7 +554,7 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 
 - **Fiat anchors are mocked in the demo flow** (the corridor assumes testnet USDC at
   the edges). But the anchor **SEP protocols are really integrated**. Tukar publishes
-  a [SEP-1 `stellar.toml`](frontend/.well-known/stellar.toml), and `npm run sep:anchor`
+  a [SEP-1 `stellar.toml`](webapp/public/.well-known/stellar.toml), and `npm run sep:anchor`
   authenticates (SEP-10 JWT) and opens a real interactive USDC on-ramp (SEP-24) against
   SDF's reference anchor, plus SEP-6/SEP-31 `/info`, **5/5 live** ([`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) §6).
   It's also **wired into the demo UI**. A "Fund via a real anchor (SEP-24)" button on
@@ -648,8 +645,8 @@ contracts/pool/  Stateful corridor pool (Rust/Soroban) — orchestrates verifier
 deployments/     testnet.json — live contract ids + findings
 webapp/          Unified Next.js app — landing + four role apps (sender, receiver,
                  regulator, operator) + /deck; in-browser ZK proving (the live site)
-frontend/        Vanilla Corridor Console demo + landing page; in-browser ZK proving;
-                 stellar.js (chain), wallet.js (optional Freighter), tree.js
+frontend/        Committed ZK artifacts for CI: circuit/ (no-circom prove/verify
+                 fallback) + tree.js (client Poseidon Merkle tree)
 scripts/         build / prove / convert / deploy / browser-test helpers
 docs/            ARCHITECTURE.md, SECURITY.md (threat model), ONCHAIN.md, TESTING.md, DEMO_SCRIPT.md
 _reference/      Nethermind stellar-private-payments (study only, gitignored)
@@ -672,15 +669,12 @@ npm run circuit:all                 # or circuit:disclosure / :transfer / :compl
 npm run test:proving
 npm run test:negative               # full QA report: docs/TESTING.md
 
-# C) Launch the corridor demo (in-browser ZK proving)
-npm run serve                       # -> http://localhost:8000
+# C) Launch the app (in-browser ZK proving)
+cd webapp && npm install && npm run dev   # -> http://localhost:3000
 ```
 
-> The browser demo loads `snarkjs` and `circomlibjs` from **esm.sh** (a browser-
-> ESM CDN that polyfills Node built-ins — jsDelivr's `+esm` bundles reference
-> `Stream`/`process` and fail in the browser). It needs internet for those two
-> libraries; circuit artifacts and everything else are served locally. Verified
-> end-to-end in a headless browser (`scripts/browser-test.mjs`).
+> The Next.js app bundles `snarkjs` and `circomlibjs` and serves the circuit
+> artifacts locally, so proving runs entirely in the browser.
 
 **On-chain** (the contracts are already deployed — IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`

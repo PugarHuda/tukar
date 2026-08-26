@@ -30,7 +30,6 @@
     "test:landing": "node scripts/landing-check.mjs https://tukar-six.vercel.app",
     "test:pages": "node scripts/test-pages.mjs https://tukar-six.vercel.app",
     "test:offramp": "node scripts/test-offramp.mjs https://tukar-six.vercel.app",
-    "serve": "node frontend/serve.mjs",
     "video:deck-vo": "python scripts/deck-vo.py",
     "video:deck": "node scripts/record-deck.mjs https://tukar-six.vercel.app",
     "video:final": "python scripts/build-final.py",
