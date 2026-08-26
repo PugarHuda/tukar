@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { DEMO_TA_TOKEN, TRP_API_VERSION } from "@/lib/trp";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 
 // TRP 3.2.1 beneficiary endpoint (OpenVASP flavour). Receives an IVMS101 transfer inquiry from an
 // originating VASP and answers per spec: 200 {approved:{address,callback}} or {rejected:"..."},
@@ -31,6 +32,9 @@ function validateIvms101(ivms: any): string[] {
 }
 
 export async function POST(req: Request) {
+  const rl = rateLimit(req, { key: "travel-rule", limit: 30, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   const url = new URL(req.url);
 
   // TRP header checks. api-version is required and must match; request-identifier must be present.

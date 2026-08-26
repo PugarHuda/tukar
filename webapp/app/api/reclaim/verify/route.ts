@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyProof, type Proof } from "@reclaimprotocol/js-sdk";
 import { computeAllowlistUpdate } from "@/lib/asp";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 
 const G_ADDR = /^G[A-Z2-7]{55}$/;
 
@@ -14,6 +15,11 @@ export const dynamic = "force-dynamic";
 const PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID;
 
 export async function POST(req: Request) {
+  // Unauthenticated + runs cryptographic proof verification and an external allow-list rebuild:
+  // the worst compute-amplification target, so it gets the tightest limit.
+  const rl = rateLimit(req, { key: "reclaim-verify", limit: 15, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   // Fail closed when this deployment has no Reclaim credentials: verifying a proof against a
   // placeholder provider would either throw or, worse, claim a false result. Mirror the request
   // route so the UI shows a clean not-configured state instead.

@@ -4,11 +4,16 @@
 // an unindexed / unknown tx just reads as "pending" so the client keeps polling harmlessly.
 import { NextResponse } from "next/server";
 import { fetchAttestation, CCTP } from "@/lib/cctp";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  // Open poll route that fans out to Circle Iris; the client polls, so allow a generous rate.
+  const rl = rateLimit(req, { key: "cctp-attest", limit: 30, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   let body: any;
   try {
     body = await req.json();

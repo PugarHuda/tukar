@@ -3,11 +3,15 @@
 // force-dynamic + nodejs: every call hits live chain state, and the Stellar SDK needs Node.
 import { NextResponse } from "next/server";
 import { noteStatus } from "@/lib/note-status";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const rl = rateLimit(req, { key: "note-status", limit: 30, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   let body: any;
   try {
     body = await req.json();

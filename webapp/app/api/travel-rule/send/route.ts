@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildInquiry, canonicalize, decodeTravelAddress, signCanonical, trpHeaders, TRP_API_VERSION } from "@/lib/trp";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 
 // Outbound TRP originator endpoint. Builds an IVMS101 transfer inquiry, signs the canonical body,
 // sets the three TRP headers, and POSTs it — either to the Notabene sandbox (a REAL independent
@@ -11,6 +12,10 @@ export const dynamic = "force-dynamic";
 const NOTABENE_URL = "https://trp.travel-rule.com/transfers/initiate";
 
 export async function POST(req: Request) {
+  // Outbound TRP originator: signs a body and POSTs to an external VASP on each call.
+  const rl = rateLimit(req, { key: "travel-rule-send", limit: 20, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   let body: any;
   try {
     body = await req.json();

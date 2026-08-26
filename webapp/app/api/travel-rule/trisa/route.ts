@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 
 // Bridge to the Tukar TRISA companion node (trisa-node/). A serverless function cannot host
 // the two things a real TRISA Travel Rule exchange needs: a stable mTLS gRPC endpoint peers
@@ -11,6 +12,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // Forwards IVMS101 to an external TRISA gRPC bridge on each call.
+  const rl = rateLimit(req, { key: "trisa", limit: 20, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   const nodeUrl = process.env.TRISA_NODE_URL; // read directly, not via constants.ts
   if (!nodeUrl) {
     return NextResponse.json({
