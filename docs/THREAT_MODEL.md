@@ -187,10 +187,20 @@ setters. The trustless tree removed the admin root-override, so the root advance
 `register_root_verified` with a valid merkleUpdate proof; there is no admin backdoor to mint
 a root or a leaf. Operator admin writes in the app build an offline-signed command, so the
 admin key never enters the browser.
-Residual risk. A compromised admin key could re-point the ASP root or deny-list (change who
-may deposit) or the FX oracle address. It cannot forge a root, mint a leaf, or move custodied
-funds directly. Key management for the admin is an operator responsibility; there is no
-on-chain multisig or timelock on the setters today, which is a production hardening item.
+Mitigation (preview). An admin timelock now ships on a preview-track pool
+(`contracts/pool-timelock`, `CDTE5CHIKXNJLTCJFBV6F3HLVD2B2GGYZ7NFTDW24DCQNK6F63H56FJ2`). It puts
+the five compliance-critical setters (`set_asp_root`, `set_deny_list`, `set_fx_oracle`,
+`set_auditor`, `set_policy_registry`) behind propose then a mandatory delay then execute, with
+cancel and pending views. The instant setter is removed on that track, so a stolen admin key can
+no longer flip the allow/deny controls in one transaction; a change is visible as a pending
+proposal for the whole delay before it can apply. This is e2e-proven on-chain (propose, an
+over-early execute rejected with `TimelockNotReady` (#20), an after-eta execute applied, and
+cancel) and in cargo (78/78, timestamp-controlled before/after-eta tests).
+Residual risk. A compromised admin key on the live pool could still re-point the ASP root or
+deny-list (change who may deposit) or the FX oracle address instantly, because the timelock is on
+the preview track, not the live pool. It cannot forge a root, mint a leaf, or move custodied funds
+directly. What remains is applying the timelock to the live pool via the state migration (Section
+3.9), and pairing the admin with a Stellar multisig account (an account-config step, not code).
 
 ### 3.6 Relayer abuse in recurring sends
 Mitigation (live). The cron endpoint (`/api/cron/recurring`) authorizes with a constant-time
@@ -293,8 +303,11 @@ These are the honest limits, consistent with `README.md` and `docs/SECURITY.md`.
 - Testnet only. No users and no revenue yet. Metrics in Section 5 are the plan to implement, not
   a claim of collected data.
 - A Content-Security-Policy and baseline security headers now ship on all routes (Section 3.10).
-  Admin multisig or timelock on the privileged setters is not yet live, and the relayer / demo key
-  are intentionally public testnet keys; these remain production hardening items.
+  An admin timelock on the privileged setters now ships on the preview-track pool
+  (`contracts/pool-timelock`, propose then delay then execute on the five compliance setters,
+  e2e-proven); what remains is applying it to the live pool via the migration and pairing the admin
+  with a Stellar multisig account. The relayer / demo key are intentionally public testnet keys;
+  these remain production hardening items.
 
 ---
 

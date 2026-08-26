@@ -111,7 +111,7 @@ for the average cost of sending $200.
 
 ### What shipped this session, and what's still ahead
 
-The core (8 circuits, 14 Soroban contracts, 60+ passing tests, the live corridor, in-circuit
+The core (8 circuits, 15 Soroban contracts, 60+ passing tests, the live corridor, in-circuit
 compliance, four selective-disclosure types, and the oracle gate) runs on testnet today. The
 compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along five
 lines, and this session moved most of them from reference demos into working, testnet-live
@@ -125,8 +125,13 @@ the limits section further down.
    **preview enforcement pool** that rejects over-cap withdrawals on-chain. The global ASP
    allow-root and deny-list stay the enforced policy on the live pool; per-corridor on-chain
    enforcement ships on a **preview track** because the live pool has no upgrade hook (a state
-   migration is the production step). B2B2C infrastructure, so rival privacy apps become
-   integrators rather than competitors.
+   migration is the production step). An **admin timelock** ships on the same preview track: the
+   five compliance-critical setters (`set_asp_root`, `set_deny_list`, `set_fx_oracle`,
+   `set_auditor`, `set_policy_registry`) are behind propose then a mandatory delay then execute,
+   with cancel and pending views, so a stolen admin key can no longer flip the allow/deny controls
+   in one transaction (e2e-proven on-chain, cargo 78/78). Applying it to the live pool via the
+   migration and pairing the admin with a Stellar multisig account is the remaining step. B2B2C
+   infrastructure, so rival privacy apps become integrators rather than competitors.
 2. **FATF Travel Rule.** Beyond the Regulator's IVMS101 reference tab, Tukar now speaks a **real
    OpenVASP TRP 3.2.1** Travel Rule exchange with a **TRISA companion node** alongside it, so
    two anchors exchange the required originator and beneficiary data without leaking the public

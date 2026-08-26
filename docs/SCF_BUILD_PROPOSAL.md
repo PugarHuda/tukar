@@ -107,8 +107,9 @@ phase-1 ptau plus a multi-party phase-2 ceremony whose keys are the deployed key
 | policy-registry | on-chain per-corridor compliance policy | `CAQ7KBNFJOJI34B5V3GNI7ACW6YEOAD4JRYSOX3EUW5UOXFKBDZBDAZ3` |
 | pool-enforced (preview) | upgradeable pool with per-corridor cap enforcement and `import_state` | `CBIGD4YLHXTUBBMRLK2BSWWGOMOFKR6EA6TFHFSIVH26PGFFDIHXRKTY` |
 | pool-accumulator (preview) | full-pool proof-of-reserves via a deposit-side liability accumulator | `CATRHKRHMAHPGKCAQXKB57ETXCRVKPKEOJ6NRCF4HBT5HFRWQSWBBL5D` |
+| pool-timelock (preview) | admin timelock (propose, delay, execute) on the five compliance setters | `CDTE5CHIKXNJLTCJFBV6F3HLVD2B2GGYZ7NFTDW24DCQNK6F63H56FJ2` |
 
-That is 14 Soroban contracts across the core corridor and the additive productionization
+That is 15 Soroban contracts across the core corridor and the additive productionization
 track. The identity/admin key is `corredor`
 (`GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS`).
 
@@ -210,12 +211,15 @@ upgradeable pool, so mainnet is a deployment step rather than a rebuild.
   tracks true liabilities exactly after withdrawals. Verifiable: the upgraded circuit compiles and
   soundness-tests pass, and a deposit-then-withdraw sequence leaves `total_liabilities` equal to
   the true remaining sum on-chain on testnet, with `attest_reserves` no longer over-counting.
-- **Admin-key hardening toward a multisig or timelock on the privileged setters.** The admin
-  setters (`set_asp_root`, `set_deny_list`, `set_fx_oracle`, `set_auditor`, and the verifier
-  setters) are single-key admin-gated today. Tranche 1 moves the privileged setters behind a
-  multisig or a timelock. Verifiable: a setter call requires the multisig or observes the
-  timelock delay on testnet, and the pool contract tests plus the live end-to-end suite still pass
-  on the migrated pool.
+- **Admin-key hardening applied to the live pool.** The admin timelock is already built and
+  deployed on the preview track (`pool-timelock`, `CDTE5CHI...`): the five compliance-critical
+  setters (`set_asp_root`, `set_deny_list`, `set_fx_oracle`, `set_auditor`, `set_policy_registry`)
+  are behind propose then a mandatory delay then execute, with cancel and pending views, e2e-proven
+  on-chain (cargo 78/78). What remains is applying the timelock to the live pool via the migration
+  above, and configuring a Stellar multisig admin account (an account-config step, not code).
+  Verifiable: the migrated live pool routes those setters through the timelock (a setter observes
+  the delay on testnet), the admin is a multisig account, and the pool contract tests plus the live
+  end-to-end suite still pass on the migrated pool.
 
 Tranche 1 outcome: the live corridor migrated onto the upgradeable pool, full-pool
 proof-of-reserves exact after withdrawals, and the admin setters hardened, delivered and tested
@@ -366,9 +370,11 @@ over-scoped plan relative to the team performs poorly in review.
   opportunity and the model, not traction. The scoped pilot in Tranche 2 is the first real
   usage, and mainnet volume follows Tranche 3.
 - **Operational hardening items.** A Content-Security-Policy and baseline security headers now
-  ship on all routes. Admin multisig or timelock on the privileged setters is not live today, and
-  the relayer and demo keys are intentionally public testnet keys. The open items are named in the
-  threat model and the admin hardening is Tranche 1 work, not a live control.
+  ship on all routes. The admin timelock on the privileged setters now ships on the preview track
+  (`pool-timelock`, propose then delay then execute on the five compliance setters, e2e-proven);
+  applying it to the live pool via the migration and pairing the admin with a Stellar multisig
+  account is the remaining step. The relayer and demo keys are intentionally public testnet keys.
+  The open items are named in the threat model and the live-pool admin hardening is Tranche 1 work.
 
 The path from here to mainnet is deliberately short because the architecture is already
 built. Tranche 1 makes the core production-grade and upgradeable, Tranche 2 puts it on a
