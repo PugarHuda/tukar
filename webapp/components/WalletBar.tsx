@@ -182,9 +182,9 @@ function ReclaimVerify() {
   );
 }
 
-/** Connect bar: built-in testnet key OR Freighter. Reusable across every route. */
+/** Connect bar: built-in testnet key OR any supported Stellar wallet. Reusable across every route. */
 export function WalletBar() {
-  const { connected, kind, address, connecting, connectFreighter, connectDemoKey, disconnect } = useWallet();
+  const { connected, walletName, address, connecting, connectWallet, connectDemoKey, disconnect } = useWallet();
   const { toast } = useToast();
 
   if (connected && address) {
@@ -192,7 +192,7 @@ export function WalletBar() {
       <div className="flex flex-col items-end gap-2">
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="font-mono text-xs text-tm">
-            {kind === "demo" ? "testnet key" : "Freighter"} · <b className="text-green-t">{shortAddr(address)}</b>
+            {walletName || "wallet"} · <b className="text-green-t">{shortAddr(address)}</b>
           </span>
           <Button variant="ghost" onClick={disconnect}>
             Disconnect
@@ -215,8 +215,8 @@ export function WalletBar() {
         variant="ghost"
         busy={connecting}
         onClick={() =>
-          connectFreighter().catch((e) =>
-            toast((e && e.message) || "Freighter not detected. Install it, or use the testnet key.", "error"),
+          connectWallet().catch((e) =>
+            toast((e && e.message) || "Could not connect a wallet. Pick one, or use the testnet key.", "error"),
           )
         }
       >
@@ -226,7 +226,7 @@ export function WalletBar() {
         Use testnet key
       </Button>
       <span className="w-full text-right text-[11px] leading-snug text-tf">
-        Testing with others? Connect Freighter for your own key (the built-in testnet key is shared).
+        Testing with others? Connect your own wallet (Freighter, xBull, Albedo, Rabet, Lobstr, Hana) for your own key — the built-in testnet key is shared.
       </span>
       <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
         <summary className="cursor-pointer list-none text-tm hover:text-orange">

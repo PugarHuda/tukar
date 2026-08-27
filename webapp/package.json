@@ -10,6 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@blend-capital/blend-sdk": "^3.3.0",
+    "@creit.tech/stellar-wallets-kit": "^2.5.0",
     "@idos-network/client": "^1.5.0",
     "@idos-network/consumer": "^1.5.0",
     "@idos-network/credentials": "^1.5.0",

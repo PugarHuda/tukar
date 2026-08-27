@@ -39,7 +39,7 @@ async function signFreighter(nonce: string, address: string): Promise<string> {
  * `kind` selects the signer: "freighter" uses the extension, anything else uses the demo key.
  * Returns null if the server scheduler is not configured. Throws on a rejected/failed sign-in.
  */
-export async function scheduleSignIn(address: string, kind: "freighter" | "demo" | null): Promise<string | null> {
+export async function scheduleSignIn(address: string, kind: string | null): Promise<string | null> {
   const nres = await fetch(`/api/schedules/nonce?address=${encodeURIComponent(address)}`);
   const nj = await nres.json();
   if (!nj?.configured) return null;

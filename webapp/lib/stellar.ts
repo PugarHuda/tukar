@@ -67,6 +67,12 @@ export function activeAddress(): string {
 export function usingWallet(): boolean {
   return !!_wallet;
 }
+/** The active wallet signer (Freighter when connected, else null → demo key). Lets a sibling
+ *  on-chain integration (lib/blend) sign through the SAME signer WalletProvider installed here,
+ *  instead of reimplementing wallet signing. Additive read-only accessor. */
+export function walletSigner(): WalletSigner | null {
+  return _wallet;
+}
 
 // ---- SEP anchor on-ramp (REAL, no mock) ----
 // ANCHOR config (imported from ./constants) = the fiat on/off-ramp's SEP home. Swapping
