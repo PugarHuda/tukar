@@ -29,6 +29,18 @@ These three are on `main`, verified locally, waiting for a deployment slot:
 - Landing WCAG AA color-contrast fix (`--faint` #6b645e -> #8a8078). Verified axe 6/6 pages on
   localhost. The Playwright a11y test against live still reports the old value until this deploys.
 
+## 2b. Deepening pass (committed, verified locally; pending the next deploy slot)
+
+All real, no mock, verified against live testnet or localhost:
+
+- Observability deepened: Sentry (@sentry/nextjs, gated on NEXT_PUBLIC_SENTRY_DSN) + a structured JSON logger (lib/log.ts). Sentry is LIVE (in the 11h-ago deploy); it collects once you accept the Sentry marketplace terms and set the DSN.
+- Multi-wallet: @creit.tech/stellar-wallets-kit replaces Freighter-only (Freighter, xBull, Albedo, Rabet, Lobstr, Hana + the demo key). Signer contract preserved, qa6 66/0.
+- Real Blend Capital testnet yield in the savings feature: supply/withdraw USDC to the live testnet lending pool `CCEBVDYM32YNYCVNRXQKDFFPISJJCV557CDZEIRBEE4NCV4KHPQ44HGF` via @blend-capital/blend-sdk, with live position/APY reads (verified: pool APY 0.00213764, TVL ~128940 USDC). Kept the honest fee calculator alongside.
+- idOS reusable-KYC consumer (@idos-network v1.5.0): real playground-testnet reads (has_profile, getGrants), server read+verify feeds the ASP allow-list. Needs the consumer env (webapp/.env.local locally; set IDOS_* + IDOS_ACCEPTED_ISSUERS in Vercel for prod) and a user-held credential from a trusted issuer.
+- Playwright multi-browser + resilience/edge-input e2e (chromium/firefox/webkit + mobile + axe). App verified resilient, zero defects.
+
+To activate in prod: accept the Sentry marketplace terms; set the idOS consumer env vars; then deploy (the three newest integrations deploy on the next available slot).
+
 ## 3. New testnet contracts deployed this session (additive, the 8 live core addresses untouched)
 
 | Contract | Address |
