@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!-- Tukar, The Balikbayan Parcel. Alpha mask for a strip of packing tape: both ends torn by hand,
-     the body fully opaque, a slightly ragged lower edge. Used as a CSS mask-image over the tape fill.
-     Authored by hand as SVG on 2026-08-28; no image generator involved. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40" viewBox="0 0 400 40" preserveAspectRatio="none">
-  <path fill="#000" d="M6 2 L9 6 L5 9 L10 13 L4 18 L9 22 L6 27 L11 31 L7 36 L12 39 L388 39.5 L394 36 L390 31 L396 27 L391 22 L397 17 L392 12 L398 8 L393 4 L396 1 L60 0.5 L58 2 L54 0.6 Z" />
-</svg>

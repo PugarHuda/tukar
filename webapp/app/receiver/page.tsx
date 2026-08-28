@@ -353,9 +353,8 @@ export default function ReceiverPage() {
   const tapeCut = claimInput.trim().length > 0;
 
   return (
-    // Flex column at least one viewport tall with the closing note pushed to the end (mt-auto):
-    // the note always ends >= pb-28 (112px) above the page bottom, so the fixed status strip
-    // (2px rule + 24px padding + up to three 13px lines, ~84px) can never cover it, at any width.
+    // Flex column at least one viewport tall; the closing note is pushed to the end (mt-auto) and
+    // the status strip is the in-flow last child, so nothing is ever overlaid.
     <div className="mx-auto flex min-h-screen max-w-[520px] flex-col px-4 pb-28 pt-5">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-3">

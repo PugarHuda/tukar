@@ -64,8 +64,6 @@ const config: Config = {
         // Corrugate flutes: one soft shadow line every 9px, plus the box's edge vignette.
         flute:
           "repeating-linear-gradient(180deg, rgba(22,19,17,0) 0 8px, rgba(22,19,17,0.07) 8px 9px), radial-gradient(120% 90% at 50% 0%, rgba(255,240,214,0.18), rgba(22,19,17,0) 60%)",
-        // Brown packing tape: translucent, with a sheen band and a slightly darker core.
-        tape: "linear-gradient(180deg, rgba(120,78,36,0.55), rgba(150,100,48,0.62) 30%, rgba(120,78,36,0.6) 70%, rgba(95,60,26,0.66))",
         // Red and white FRAGILE stripes.
         "tape-fragile": "repeating-linear-gradient(-45deg, #d8342b 0 22px, #f6f1e7 22px 44px)",
         // Card highlight kept as a legacy alias (now a whisper of paper grain).

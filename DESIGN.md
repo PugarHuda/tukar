@@ -224,7 +224,7 @@ Two papers and three inks, with each ink held at two strengths plus a 10% wash.
 
 ### Neutral
 - **Kraft** (`kraft`, #d4a468): the box. Page background (under the grain tile), the hero box, the launch dialog. Deep Kraft (`kraft-deep`, #c08e54) is the 10px inset flap band of the hero box; Dark Kraft (`kraft-dark`, #a97a45) is the scrollbar thumb and the clipboard clip; Kraft Edge (`kraft-edge`, #8d6236) is the box's edge border, the `scrollbar-color`, the `amber` alias, and the "pending" Badge border.
-- **Label Paper** (`label`, #f6f1e7): everything readable sits on it. Cards, Panels, Sheets, stubs, the header strip, the footer flap, the sidebar. Label 2 (`label-2`, #efe8da) is the sidebar hover and the muted Badge fill; Label 3 (`label-3`, #e6ddca) is the disabled field and disabled primary button. Field paper (`input`, #fffdf8) is one step whiter for Input, Select, textarea, and `pre` blocks.
+- **Label Paper** (`label`, #f6f1e7): everything readable sits on it. Cards, Panels, Sheets, stubs, the header strip, the footer flap, the sidebar. Label 2 (`label-2`, #efe8da) is the sidebar hover and the muted Badge fill; Label 3 (`label-3`, #e6ddca) is the disabled field and disabled primary button. Field paper (`input`, #fffdf8) is one step whiter for Input, Select, textarea, and `pre` blocks. Label paper is also the light module color of the claim-link and verification-link QR codes (ink modules on #f6f1e7, never black on white), and at alpha it is the skeleton's light sweep (rgba(246,241,231,0.7)) and the typed caption on the ink primary stub (rgba(246,241,231,0.78)).
 - **Stencil Ink** (`ink`, #161311): all text, borders, the label bar, the active nav item, the primary stub, the redaction bar, the ink-toned stamp. Ink 2 (`ink-2`, #3d3731) is captions and secondary copy; Ink 3 (`ink-3`, #5a5148) is typed notes and units; Ink 4 (`ink-4`, #6b6159) is placeholders and disabled text. Rules are ink at alpha: 12% hairline (`hair`), 16% line, 25% ruled-field rows (`border-ink/25`), 38% field stroke (`line-input`, applied as `border-ink/45` in the components), 100% at the end of a list (`border-ink`).
 
 ### Legacy aliases
@@ -272,9 +272,9 @@ One content column of `1240px` (`--wrap`, `max-w-wrap`) with `28px` side padding
 
 Inside a label the rhythm is the label margin: `18px` from the sheet edge to content (`.label-fields`, `.manifest-rows`, `.stubs`, `.slip .stub`), and `16px` (`p-4`) or `24px` (`p-6`) inside Cards and Panels. Field rows are `9px` to `10px` vertical padding with a 25% ink rule between them and a full ink rule closing the list. Everything is a grid with a `ch`-measured first column (`9ch` captions, `12ch` steps, `16ch` role names, `3ch` indices) so typed captions align like a form.
 
-Consoles (`DashboardShell`) are a fixed `264px` clipboard rail on the left with the kraft desk scrolling independently on the right at `lg` and up; below `lg` the rail becomes a sticky label strip along the top with a hamburger opening the same Sidebar as a focus-trapped drawer (`max-w-[88vw]`). The public verify page is a single `max-w-2xl` sheet. The sender is a two-column box (label column plus a cost-and-policy column) that stacks on mobile.
+Consoles (`DashboardShell`) are a fixed `264px` clipboard rail on the left with the kraft desk scrolling independently on the right at `lg` and up; below `lg` the rail becomes a sticky label strip along the top with a hamburger opening the same Sidebar as a focus-trapped drawer (`max-w-[88vw]`). The public verify page is a single `max-w-2xl` sheet. The sender is a two-column box (label column plus a cost-and-policy column) that stacks on mobile. The receiver is a single `520px` column (`max-w-[520px]`, `px-4`) laid out as a flex column at least one viewport tall; its last child is the status strip, in the flow, so nothing is fixed or sticky on that page.
 
-Breakpoints actually used: 560px, 900px, 1100px in `landing.css`; Tailwind `sm` (640px) and `lg` (1024px) in the app. Print (`@media print`) shows only the `.tk-print` panel, black on white, with all animation, transform, and shadow removed.
+Breakpoints actually used: 560px, 900px, 1100px in `landing.css`; 600px in `deck.html`; Tailwind `sm` (640px) and `lg` (1024px) in the app. Print (`@media print`) shows only the `.tk-print` panel, black on white (#000 text, #fff paper, #bbb rules), with all animation, transform, and shadow removed. Those three print literals, and the `theme(fontFamily.*)` references in `globals.css`, are recorded detector exceptions in `.impeccable/config.json`, not palette tokens.
 
 ## Elevation & Depth
 
@@ -299,7 +299,7 @@ Cut paper and a rubber stamp. Corners are nearly square: 3px on stubs, stamps, a
 
 Recurring silhouettes, all drawn in CSS or hand-authored SVG:
 - **The perforated edge.** Primary buttons carry `.tk-perf` (a 2px dashed ink rule on the left); landing stubs go further with real punched notches (`mask: radial-gradient(5px at 0 50%, transparent 97%, #000) 0 0 / 100% 18px repeat-y`) and a dashed tear line 14px in. Attached slips separate with a 2px dashed top rule (`SLIP`).
-- **The tape strip.** `.tk-tape`: a translucent brown gradient masked by `webapp/public/world/tape-mask.svg` (hand-torn ends, a ragged lower edge), with `transform-origin: left center` so it unrolls. Rotated at the call site (`-0.6deg` on a Sheet, `-24deg` across the hero corner). `.tk-tape-fragile` is the red and white 45-degree stripe.
+- **The tape strip.** One produced asset, `webapp/public/world/tape.svg` (a 400x40 hand-authored strip: translucent amber gradient body, fractal-noise fibre streaks, a pale sheen band, both ends torn), stretched to the strip with `center / 100% 100% no-repeat`. In the app (`.tk-tape` at 28px, the landing `.tape` at 36px) it sits on `mix-blend-mode: multiply` so kraft, label, and ink rules show through, with `transform-origin: left center` so it unrolls. Rotated at the call site (`-0.6deg` on a Sheet, `-24deg` across the hero corner via `.tape-corner`, `1.5deg` each way when the receiver's two tape halves are cut). On the deck the same asset is `.hero .sheet::before`, a 62px strip (44px at or under 600px) inside the sheet crossing the black bar and the paper, normal blending at 90% opacity, rotated `-7deg`. `.tk-tape-fragile` is the red and white 45-degree stripe.
 - **The rubber stamp.** `.tk-stamp`: a 2px border plus a 1px outline 2px out, stencil caps at 13px, rotated -4deg, `mix-blend-mode: multiply`, and the `#tk-ink` SVG filter from `layout.tsx` (fractal-noise displacement so the impression bleeds and thins unevenly). Three inks via `.tk-stamp-red` and `.tk-stamp-ink`; larger and smaller sizes via `.stamp-big`, `.stamp-small`, `.stamp-xs` or the `Stamp` component's `size`.
 - **The redaction bar.** `.tk-redact`: a 0.95em ink bar with a 1px radius, used for FROM and TO.
 - **The slight tilt.** Sheets are rotated by fractions of a degree (`-0.6deg` on the hero label, `0.5deg` on the packing slip, alternating `0.4deg` on app cards); hover straightens or nudges them along the same clock.
@@ -314,11 +314,12 @@ The parcel's controls: a stub to tear, an outline on paper, a stamp-blue coupon,
 - **Reveal** (`variant="reveal"`): stamp blue fill, `stamp-deep` border, label text, 13px bold, `shadow-btn`. Hover: `stamp-deep`, lifts 1px. Disabled: 20% ink fill. Used for the money moments (reveal an amount, confirm a claim).
 - **Subtle** (`variant="subtle"`): label paper, 35% ink border, `ink-2` Courier at 12px, `px-3.5 py-2`. Hover: full ink border and text.
 - **Busy**: a 12px ink ring with one open segment spins on the left (`animate-tk-spin`), the button dims to 80%.
-- **Landing stubs** (`.stub`, `.stub-primary`): the same idea at hero scale, with punched notches, a stencil 22px title and a typed 10.5px caption. `.stub-primary` is ink with label text and turns stamp blue on hover; hover slides 4px right with a -0.6deg tilt (the tear). `.btn-cta` in the header is the compact ink version.
+- **Landing stubs** (`.stub`, `.stub-primary`): the same idea at hero scale, with punched notches, a stencil 22px title and a typed 10.5px caption. `.stub-primary` is ink with label text (its typed caption dimmed to rgba(246,241,231,0.78)) and turns stamp blue on hover; hover slides 4px right with a -0.6deg tilt (the tear). `.btn-cta` in the header is the compact ink version.
 
 ### Badges and status
 - **Badge**: a typed tag, Courier 10.5px bold uppercase at `0.06em`, `rounded-[2px]`, 1px border, `px-[7px] py-[3px]`. Tones: `muted` (label-2 paper, 35% ink border), `green` and `orange` (both stamp wash, stamp border, `stamp-deep` text: cleared or live), `red` (tape wash, tape border, `tape-deep` text), `amber` (kraft at 30%, kraft-edge border: pending).
 - **StatusPill**: Courier 12px `ink-2` text with an 8px square (not round) dot that breathes on `tk-pulse` (2.4s). Dot color follows the tone: stamp, tape, kraft-edge, or ink-4.
+- **Status strip** (receiver): a label strip along the bottom edge of the box, rendered in the flow as the page's last child (no fixed or sticky positioning, so it never overlays anything). A 2px ink top rule on label paper, `mt-4`, contents aligned to the 520px content column (`max-w-[520px]`, `px-4 py-3`), 13px Barlow in ink, a Spinner in place of the text while busy, and the view's 16px Seal on the right. It is the `role="status"` `aria-live="polite"` region, so changes are announced wherever the reader is.
 
 ### Cards / Containers
 - **Card**: `.tk-surface` (label paper with a faint top highlight), 25% ink border, 6px radius, `shadow-card`, enters on `tk-pop`. `hover` lifts 2px to `shadow-lift`.
@@ -327,6 +328,7 @@ The parcel's controls: a stub to tear, an outline on paper, a stamp-blue coupon,
 - **Field rows**: a `dl` grid, `9ch` Courier caption plus value, `py-2.5`, 25% ink rule beneath, no rule on the last (`Field` in `Label.tsx`); the desk's `Field` stacks caption over a 19px Courier value with a unit in `ink-3`.
 - **Ledger**: a table with an ink header row (Courier 11px uppercase) and 25% ink rules between rows, scrolling inside its own `overflow-x-auto` frame with a 40% ink border.
 - **NOTICE**: a pending or attention note on kraft (`bg-kraft/25`, `kraft-edge` border, 12.5px `ink-2`). Never an error; errors are `tape-deep` text.
+- **QR codes**: the claim-link QR on the sender receipt and the verification-link QR on a payment card are drawn as SVG in the world's inks, dark modules `#161311` on label paper `#f6f1e7`, not black on white.
 
 ### Inputs / Fields
 - **Style**: field paper (`#fffdf8`), 45% ink border, 4px radius, `shadow-inset`, `px-3.5 py-3`, 14px Barlow (`Input`) or 13px (`Select`) or Courier 12.5px (`fieldCls` on the desk), placeholder in `ink-4`. Caption above: Courier 11px bold uppercase at `0.08em` in `ink-2`, `mt-1.5` gap.
@@ -338,6 +340,7 @@ The parcel's controls: a stub to tear, an outline on paper, a stamp-blue coupon,
 ### Navigation
 - **Landing header** (`.header`): a sticky label strip, label paper, 2px ink bottom rule, soft drop. Nav links are Barlow 600 13px uppercase at `0.04em`, 3px radius, and invert to ink on hover. Typed Courier links (GitHub, Pool contract) sit right with an ink `.btn-cta`. Nav and typed links hide under 900px.
 - **Console clipboard** (`Sidebar`): label paper under a drawn bulldog clip (`Clip`, kraft-dark with an ink stroke), the Wordmark, a Courier 11px console title. Nav items are a `3ch` Courier index plus a 17px stencil name, 20% ink rule between; the active item inverts to ink with label text (`aria-current="page"`), hover is `label-2`. "Back to home" and the WalletBar pin to the bottom above 1.5px ink rules.
+- **WalletBar** (console rail, sender and receiver headers): a Courier 12px line of wallet name and `stamp-deep` short address beside a ghost Disconnect button. Disconnect renders where the connect action just was, so it stays `disabled` for the first 600ms after connecting; an accidental double-tap cannot undo a connection, a deliberate click a moment later works. This is an interaction guard, not motion, and is the only timing in the app outside the 420ms clock.
 - **Consumer header** (sender, receiver): a ghost "Home" stub, the Wordmark, and a Courier route tag.
 - **Tabs** (`.tab`, receiver tabs): stencil 15px uppercase, transparent until selected, then ink fill with label text and an ink border joining a 1.5px ink baseline rule.
 - **Deck chrome** (`#chrome`): a small label strip at the bottom centre with 32px ink-bordered buttons and 8px square dots; the current dot is stamp blue at 1.3x.
@@ -347,16 +350,16 @@ A label slip at the bottom right: label paper, 2px border in the tone's ink (ink
 
 ### Loading
 - **Spinner**: a 14px ink ring with one open segment, `tk-spin` 0.9s, beside a Courier 12px label.
-- **Skeleton**: `.tk-skeleton`, 8% ink paper with a white light sweep (`tk-shimmer`, 1.5s), sized to the final content so the label does not jump.
+- **Skeleton**: `.tk-skeleton`, 8% ink paper with a label-paper light sweep (`linear-gradient(90deg, transparent, rgba(246,241,231,0.7), transparent)` on `tk-shimmer`, 1.5s), sized to the final content so the label does not jump.
 
 ### Seal (signature)
-`components/ui/Seal.tsx`: a 56x28 SVG strip of packing tape with one folded corner, kraft fill (`#b8834a` at 85%, fold `#8d6236`) with a 1.5px ink stroke and two pale creases. It is the landmark mark and appears exactly once per rendered view, where the eye lands last: the footer bottom-right on the landing, the sheet foot on verify and receiver, the corner of the current screen on the sender (each screen branch renders its own), the console foot on operator and regulator. It has `role="img"` and a title; it is never an emoji or a glyph.
+`components/ui/Seal.tsx`: a 56x28 SVG strip of packing tape with one folded corner, kraft fill (`#b8834a` at 85%, fold `#8d6236`) with a 1.5px ink stroke and two pale creases. It is the landmark mark and appears exactly once per rendered view, where the eye lands last: the footer bottom-right on the landing, the sheet foot on verify, the right end of the in-flow status strip that closes the receiver page, the corner of the current screen on the sender (each screen branch renders its own), the console foot on operator and regulator. It has `role="img"` and a title; it is never an emoji or a glyph.
 
 ### Stamp (signature)
 `.tk-stamp` and the `Stamp` component: the verdict device. Blue for cleared, verified, delivered; red for rejected or fragile; ink for neutral facts ("Private in transit", "Admin key offline", "Not attested"). `land` (or `.stamp-big`) plays `tk-ring`: scale 1.5 and -9deg to 0.96 and -4deg to rest, 420ms, with a 240ms delay on the landing so the tape has unrolled first. A `sub` line beneath is Courier 10px at `0.08em` to `0.1em`.
 
 ### Wordmark (brand)
-`components/landing/Wordmark.tsx`: a 108x30 label box with TUKAR in the stencil face and a short kraft tape seal across the top-right corner, drawn in SVG. The favicon (`ICON_DATA_URI`) is the box outline with a stencilled T and a red tape stroke. These are the only brand assets besides `og-image.png` (rendered from hand-authored HTML in this world by `scripts/render-og.mjs`; the PNG carries an `impeccable:prompt` tEXt chunk stating so) and the demo video.
+`components/landing/Wordmark.tsx`: a 108x30 label box with TUKAR in the stencil face and a corner of packing tape crossing the top-right edge, drawn in SVG: a 50% amber shape (`#b07a40`), two pale fibre streaks (`#fff3dd` at 50%), and a torn inner edge, on `mix-blend-mode: multiply` so the label edge shows through it. The favicon (`ICON_DATA_URI`) is the box outline with a stencilled T and a red tape stroke. These are the only brand assets besides `og-image.png` (rendered from hand-authored HTML in this world by `scripts/render-og.mjs`; the PNG carries an `impeccable:prompt` tEXt chunk stating so) and the demo video.
 
 ## Do's and Don'ts
 
