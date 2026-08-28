@@ -1,6 +1,6 @@
 "use client";
 
-// Tukar Receiver — a mobile-first consumer "receive money and cash out" app. Claim a bearer
+// Tukar Receiver, a mobile-first consumer "receive money and cash out" app. Claim a bearer
 // note (or share a payment request), reveal the local-fiat figure read on-chain from the
 // pool's Reflector quote, withdraw on-chain with a real transfer proof, then cash out to fiat
 // through a licensed provider. Ports frontend/receiver.js + the proven flow in frontend/app.js
@@ -8,7 +8,8 @@
 // app and the vanilla site are claimable here. Reads/writes and anchor calls are all real.
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Card, Button, Input, Badge, Spinner, useToast } from "@/components/ui";
+import { Button, Input, Badge, Spinner, Seal, useToast } from "@/components/ui";
+import { Wordmark } from "@/components/landing/Wordmark";
 import { WalletBar } from "@/components/WalletBar";
 import { useWallet } from "@/components/WalletProvider";
 import {
@@ -27,6 +28,15 @@ type Prover = { poseidon: any; F: any; tree: { root: (l: bigint[]) => bigint; pa
 const STORE_KEY = `tukar:rcv:notes:${POOL}`;
 // Drop a handled #claim= bearer payload from the address bar (and history entry).
 const dropHash = () => history.replaceState(null, "", location.pathname + location.search);
+
+// The parcel vocabulary on a phone: every readable thing is a white label stuck to the box. A
+// label has an ink header strip (the bar), stencilled headings, typed captions in Courier.
+const SHEET = "rounded-[3px] border border-ink bg-label shadow-card animate-tk-pop";
+const BAR = "flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-t-[2px] bg-ink px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-label";
+const CAP = "font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2";
+const H2 = "font-stencil text-[22px] uppercase leading-none tracking-[0.02em] text-ink";
+const FIELD =
+  "mt-1.5 w-full rounded-tile border border-ink/45 bg-input px-3.5 py-3 font-mono text-[12.5px] text-ink shadow-inset transition-[border-color,box-shadow] duration-clock ease-clock placeholder:text-ink-4 hover:border-ink focus:border-stamp focus:outline-none focus:shadow-[inset_0_1px_2px_rgba(22,19,17,0.14),0_0_0_3px_rgba(42,79,168,0.18)]";
 
 export default function ReceiverPage() {
   const { connected } = useWallet();
@@ -51,7 +61,7 @@ export default function ReceiverPage() {
   const [copied, setCopied] = useState(false);
 
   // "Check note status" widget: ask the pool (read-only) whether a note is unregistered,
-  // spendable, or already spent — so a receiver knows before a withdraw, not from a failure.
+  // spendable, or already spent, so a receiver knows before a withdraw, not from a failure.
   const [nsBusy, setNsBusy] = useState(false);
   const [nsResult, setNsResult] = useState<{ status: string; reason: string } | null>(null);
 
@@ -339,46 +349,62 @@ export default function ReceiverPage() {
 
   const prover = proverReady ? proverRef.current : null;
 
+  // The tape across the box: whole while the claim box is empty, cut once a note is in it.
+  const tapeCut = claimInput.trim().length > 0;
+
   return (
-    <div className="mx-auto max-w-[520px] px-4 pb-28 pt-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+    // Flex column at least one viewport tall with the closing note pushed to the end (mt-auto):
+    // the note always ends >= pb-28 (112px) above the page bottom, so the fixed status strip
+    // (2px rule + 24px padding + up to three 13px lines, ~84px) can never cover it, at any width.
+    <div className="mx-auto flex min-h-screen max-w-[520px] flex-col px-4 pb-28 pt-5">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <Link
             href="/"
             aria-label="Back to home"
-            className="flex items-center gap-1 rounded-md border border-line-input px-2 py-1 font-mono text-[11px] tracking-[0.08em] text-tm transition-colors hover:border-orange/50 hover:text-tp"
+            className="inline-flex items-center gap-1.5 rounded-stub border border-ink bg-label px-2.5 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink transition-colors duration-clock ease-clock hover:bg-ink hover:text-label"
           >
-            <span aria-hidden>←</span> Home
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M7.5 1.5 3 6l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Home
           </Link>
-          <span className="text-lg font-extrabold tracking-[-0.01em]">Tukar</span>
-          <span className="rounded-md border border-line-input px-[7px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-tf">RECEIVE</span>
+          <Wordmark height={26} />
+          <span className="font-mono text-[11px] font-bold tracking-[0.12em] text-ink-2">RECEIVE</span>
         </div>
-        {/* Header shows wallet status only once connected; the body Connect card is the CTA before that (no duplicate bar). */}
+        {/* Header shows wallet status only once connected; the body Connect label is the CTA before that (no duplicate bar). */}
         {connected && <WalletBar />}
       </header>
 
-      <div className="mb-6">
-        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.18em] text-orange uppercase">Receive &amp; cash out · Stellar testnet</p>
-        <h1 className="text-[clamp(26px,7vw,34px)] font-extrabold leading-[1.05] tracking-[-0.02em]">Receive money</h1>
-        <p className="mt-3 text-sm leading-relaxed text-tm">
-          Claim an incoming private payment, see it in your local currency read on-chain, withdraw on-chain, and cash out to fiat.
-        </p>
-      </div>
+      {/* The address label on this box */}
+      <section className={`${SHEET} mb-4`}>
+        <div className={BAR}>
+          <span>Tukar</span>
+          <span>Receive &amp; cash out</span>
+          <span className="ml-auto">Stellar testnet</span>
+        </div>
+        <div className="px-5 pb-5 pt-5">
+          <h1 className="font-stencil text-[clamp(30px,9vw,42px)] uppercase leading-[0.98] tracking-[0.01em] text-ink">Receive money</h1>
+          <p className="mt-3 text-[14px] leading-relaxed text-ink-2">
+            Claim an incoming private payment, see it in your local currency read on-chain, withdraw on-chain, and cash out to fiat.
+          </p>
+        </div>
+      </section>
 
       {!connected && (
-        <Card className="mb-4 p-5">
-          <div className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">Connect</div>
-          <p className="mt-2 text-[13px] leading-relaxed text-tm">
+        <section className={`${SHEET} mb-4 p-5`}>
+          <h2 className={H2}>Connect</h2>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
             Use the built-in testnet key for real testnet transactions with no install, or connect your own Freighter wallet. Funds withdraw to whichever account you connect.
           </p>
           <div className="mt-3">
             <WalletBar />
           </div>
-        </Card>
+        </section>
       )}
 
       {/* Segmented tabs: show one section at a time to unclutter the scroll. */}
-      <div role="tablist" aria-label="Receiver sections" className="mb-4 flex w-full gap-1 rounded-xl border border-line bg-surface p-1">
+      <div role="tablist" aria-label="Receiver sections" className="mb-4 flex w-full border-b-2 border-ink">
         {([
           { id: "payments", label: ordered.length ? `Payments (${ordered.length})` : "Payments" },
           { id: "claim", label: "Claim" },
@@ -391,8 +417,8 @@ export default function ReceiverPage() {
             aria-selected={tab === t.id}
             aria-controls={`panel-${t.id}`}
             onClick={() => setTab(t.id)}
-            className={`min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-[13px] font-semibold transition-colors ${
-              tab === t.id ? "bg-orange text-bg" : "text-tm hover:text-tp"
+            className={`-mb-[2px] min-w-0 flex-1 truncate rounded-t-[3px] border-2 border-b-0 px-1 py-2.5 font-stencil text-[12px] uppercase tracking-[0.02em] transition-colors duration-clock ease-clock sm:px-2 sm:text-[14px] sm:tracking-[0.04em] ${
+              tab === t.id ? "border-ink bg-label text-ink" : "border-transparent text-ink-2 hover:text-ink"
             }`}
           >
             {t.label}
@@ -420,17 +446,16 @@ export default function ReceiverPage() {
             ))}
           </div>
         ) : (
-          <Card className="mb-4 p-8 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-orange/25 bg-orange/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-              <svg width="34" height="34" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-                <path d="M28 16 22 5.6 10 5.6 4 16 10 26.4 22 26.4Z" stroke="#ff8a3d" strokeWidth="2" strokeLinejoin="round" />
-                <path d="M1 16H12M20 16H31" stroke="#ffb070" strokeWidth="2" strokeLinecap="round" />
-                <path d="M16 11 21 16 16 21 11 16Z" fill="#ff7a1a" />
-                <path d="M16 13.2 18.8 16 16 18.8 13.2 16Z" fill="#0a0705" />
-              </svg>
-            </div>
-            <div className="mt-4 font-mono text-[10px] tracking-[0.14em] text-orange uppercase">No payments yet</div>
-            <p className="mx-auto mt-2 max-w-[360px] text-[13px] leading-relaxed text-tm">
+          <section className={`${SHEET} mb-4 p-6 text-center`}>
+            {/* An empty box, flaps open, in one stroke. */}
+            <svg width="60" height="46" viewBox="0 0 60 46" className="mx-auto block text-ink" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+              <path d="M10 19h40v25H10z" />
+              <path d="M10 19 3 9h22l5 10" />
+              <path d="M50 19l7-10H35l-5 10" />
+              <path d="M30 19v25" />
+            </svg>
+            <h2 className={`${H2} mt-3`}>No payments yet</h2>
+            <p className="mx-auto mt-2 max-w-[360px] text-[13.5px] leading-relaxed text-ink-2">
               Claimed and incoming payments show up here. Paste a bearer note in Claim, or make a request in Request.
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -441,29 +466,34 @@ export default function ReceiverPage() {
                 Request a payment
               </Button>
             </div>
-          </Card>
+          </section>
         )}
         </div>
       )}
 
-      {/* Claim */}
+      {/* Claim: opening the box. Paste or scan the note to cut the tape. */}
       {tab === "claim" && (
       <div id="panel-claim" role="tabpanel" aria-labelledby="tab-claim">
-      <Card className="mb-4 border-orange/[0.28] p-5">
-        <div className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">Claim a payment</div>
-        <p className="mt-2 text-[13px] leading-relaxed text-tm">
-          Paste the bearer note (<span className="font-mono text-ts">tukar1:…</span>) the sender gave you, or scan its QR. Whoever holds the note can receive it.
+      <section className={`${SHEET} mb-4`}>
+        <div className={BAR}>
+          <span>Claim</span>
+          <span>Cut the tape to open the box</span>
+        </div>
+        <div className="p-5">
+        <h2 className={H2}>Claim a payment</h2>
+        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+          Paste the bearer note (<span className="font-mono text-ink">tukar1:…</span>) the sender gave you, or scan its QR. Whoever holds the note can receive it.
         </p>
         {pinPayload && (
           <form
-            className="mt-3 rounded-tile border border-orange/40 bg-black/20 p-3"
+            className="mt-4 border-t border-ink/25 pt-4"
             onSubmit={(e) => {
               e.preventDefault();
               unlockPin();
             }}
           >
-            <div className="font-mono text-[10px] tracking-[0.12em] text-orange uppercase">PIN-protected claim link</div>
-            <p className="mt-2 text-[12px] leading-relaxed text-tm">
+            <div className={CAP}>PIN-protected claim link</div>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
               This link carries your payment as an encrypted bearer note. Enter the 6-digit PIN the sender gave you to unlock it in your browser. Nothing is sent anywhere.
             </p>
             <div className="mt-3">
@@ -488,12 +518,17 @@ export default function ReceiverPage() {
                 Cancel
               </Button>
             </div>
-            {pinError && <p className="mt-2 text-[12px] text-red-t">{pinError}</p>}
+            {pinError && <p className="mt-2 text-[13px] text-tape-deep">{pinError}</p>}
           </form>
         )}
-        <label htmlFor="claimNote" className="mt-3 block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+        <label htmlFor="claimNote" className={`${CAP} mt-4 block`}>
           Bearer note
         </label>
+        {/* Packing tape across the box. It parts on the shared clock once a note is in the box. */}
+        <div className="mt-1.5 flex" aria-hidden="true" style={{ gap: tapeCut ? 16 : 0, transition: "gap var(--tk-clock) var(--tk-ease)" }}>
+          <span className="tk-tape h-[14px] flex-1 transition-transform duration-clock ease-clock" style={{ transformOrigin: "right center", transform: tapeCut ? "rotate(-1.5deg)" : undefined }} />
+          <span className="tk-tape h-[14px] flex-1 transition-transform duration-clock ease-clock" style={{ transform: tapeCut ? "rotate(1.5deg)" : undefined }} />
+        </div>
         <textarea
           id="claimNote"
           ref={claimBoxRef}
@@ -503,9 +538,10 @@ export default function ReceiverPage() {
           autoComplete="off"
           spellCheck={false}
           rows={3}
-          className="mt-[7px] w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)] focus:outline-none"
+          className={`${FIELD} resize-y`}
         />
-        <div className="mt-2.5 flex gap-2">
+        <p className="mt-1.5 font-mono text-[11px] text-ink-3">{tapeCut ? "Tape cut. Claim to open the box." : "Sealed. Paste or scan the note to cut the tape."}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
           <Button variant="primary" onClick={() => claim(claimInput)}>
             Claim payment
           </Button>
@@ -517,29 +553,35 @@ export default function ReceiverPage() {
           </Button>
         </div>
         {nsResult && (
-          <div className="mt-3 rounded-tile border border-line bg-black/20 p-3">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Note status</span>
+          <div className="mt-4 border-t border-ink/25 pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={CAP}>Note status</span>
               <Badge
                 tone={nsResult.status === "spendable" ? "green" : nsResult.status === "spent" ? "red" : nsResult.status === "unregistered" ? "amber" : "muted"}
               >
                 {nsResult.status}
               </Badge>
             </div>
-            <p className="mt-2 text-[12px] leading-relaxed text-tm">{nsResult.reason}</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{nsResult.reason}</p>
           </div>
         )}
-        <video ref={videoRef} playsInline muted className={`mt-3 w-full rounded-tile border border-line ${scanning ? "" : "hidden"}`} />
-      </Card>
+        <video ref={videoRef} playsInline muted className={`mt-3 w-full rounded-tile border border-ink/45 ${scanning ? "" : "hidden"}`} />
+        </div>
+      </section>
       </div>
       )}
 
       {/* Request */}
       {tab === "request" && (
       <div id="panel-request" role="tabpanel" aria-labelledby="tab-request">
-      <Card className="mb-4 p-5">
-        <div className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">Request a payment</div>
-        <p className="mt-2 text-[13px] leading-relaxed text-tm">
+      <section className={`${SHEET} mb-4`}>
+        <div className={BAR}>
+          <span>Request</span>
+          <span>Ask a sender for a box</span>
+        </div>
+        <div className="p-5">
+        <h2 className={H2}>Request a payment</h2>
+        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
           Make a request to hand a sender. Loading it in the sender app prefills the amount and shows you as the payee. Whoever holds the bearer note it creates can claim it.
         </p>
         <div className="mt-3">
@@ -559,27 +601,30 @@ export default function ReceiverPage() {
           Create request
         </Button>
         {reqString && (
-          <div className="mt-3 rounded-tile border border-line bg-black/20 p-3">
+          <div className="mt-4 border-t border-ink/25 pt-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Payment request</span>
+              <span className={CAP}>Payment request</span>
               <Badge tone={copied ? "green" : "muted"}>{copied ? "copied" : "share this"}</Badge>
             </div>
-            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10.5px] leading-relaxed text-ts">{reqString}</pre>
-            <p className="mt-2 text-[11.5px] leading-relaxed text-tm">Hand this string to the sender. Loading it prefills the amount and shows you as the payee. Whoever holds the resulting bearer note can claim it.</p>
+            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11.5px] leading-relaxed text-ink">{reqString}</pre>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-ink-2">Hand this string to the sender. Loading it prefills the amount and shows you as the payee. Whoever holds the resulting bearer note can claim it.</p>
           </div>
         )}
-      </Card>
+        </div>
+      </section>
       </div>
       )}
 
-      <p className="px-1 pb-2 text-[11.5px] leading-relaxed text-tf">
+      <p className="mt-auto px-1 pb-2 text-[12.5px] leading-relaxed text-ink-2">
         Testnet demo. The shielded transfer in the middle is private, while deposits and withdrawals are public at the edges by design. Your local figure is read on-chain from the pool&apos;s Reflector quote, and the fiat cash-out runs through a licensed provider (Onramper or a SEP-24 anchor) that does its own KYC.
       </p>
 
-      {/* Status bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 backdrop-blur">
-        <div role="status" aria-live="polite" className="mx-auto flex max-w-[520px] items-center gap-2 px-4 py-3 text-[12.5px] text-ts">
-          {status.busy ? <Spinner label={status.text} /> : <span className="break-words">{status.text}</span>}
+      {/* Status bar: a label strip along the bottom edge of the box, in the flow as the last child
+          so it never overlays anything. The live region still announces changes wherever the user is. */}
+      <div className="mt-4 border-t-2 border-ink bg-label">
+        <div role="status" aria-live="polite" className="mx-auto flex max-w-[520px] items-center gap-3 px-4 py-3 text-[13px] text-ink">
+          {status.busy ? <Spinner label={status.text} className="min-w-0 flex-1" /> : <span className="min-w-0 flex-1 break-words">{status.text}</span>}
+          <Seal size={16} className="shrink-0" />
         </div>
       </div>
     </div>

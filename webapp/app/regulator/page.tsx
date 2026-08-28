@@ -1,14 +1,15 @@
 "use client";
 
-// Tukar — Regulator / Compliance dashboard (React/TS port of frontend/regulator.{html,js}).
-// Read-heavy desktop console: read live pool + policy state, independently re-verify any
-// selective-disclosure receipt (in-browser snarkjs AND the live on-chain verifier, routed
-// per type by lib/zk.verifyReceipt), register aggregate audit requests on-chain, and keep a
-// session audit trail. No new on-chain logic — every call routes through the shared libs.
+// Tukar Regulator / Compliance console: the customs desk. Read-heavy desktop console: read live
+// pool + policy state, independently re-verify any selective-disclosure receipt (in-browser
+// snarkjs AND the live on-chain verifier, routed per type by lib/zk.verifyReceipt), register
+// aggregate audit requests on-chain, and keep a session audit trail. No new on-chain logic; every
+// call routes through the shared libs. A receipt is a label presented at the desk; the verdict
+// lands as a stamp; audit requests are printed forms; the trail is the desk ledger.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
-import { Button, Spinner, StatusPill, Skeleton, useToast } from "@/components/ui";
+import { Button, Input, Select, Seal, Spinner, StatusPill, Skeleton, useToast } from "@/components/ui";
 import {
   registerAuditRequest,
   anchorReceipt,
@@ -48,6 +49,7 @@ import { DEMO_TRAVEL_ADDRESS } from "@/lib/trp";
 import { scheduleSignIn } from "@/lib/auth-client";
 import { ViewNoteCard } from "@/components/regulator/ViewNoteCard";
 import { ComplianceExportCard } from "@/components/regulator/ComplianceExportCard";
+import { Sheet, Stamp, Ledger, Field, Out, captionCls, fieldCls, preCls, noteCls, td } from "@/components/regulator/desk";
 import { disclosureFromReceipt, type DisclosureRecord, type AuditRequestRecord } from "@/lib/compliance-export";
 
 type TabId = "reports" | "verify" | "issue" | "travel" | "trail";
@@ -66,21 +68,22 @@ const VERIFIER_MAP: { type: string; id: string }[] = [
   { type: "range", id: RANGE_VERIFIER },
 ];
 
-const ACT: Record<string, { label: string; color: string }> = {
-  deposit: { label: "Deposit into corridor", color: "#ff9445" },
-  transfer: { label: "Shielded transfer", color: "#ffb070" },
-  root: { label: "Tree advanced (merkle proof)", color: "#8ab4ff" },
-  withdraw: { label: "Off-ramp withdrawal", color: "#37d67a" },
+// Event kinds as typed ledger codes (ink only; the kind is text, not a colour).
+const ACT: Record<string, { label: string; code: string }> = {
+  deposit: { label: "Deposit into corridor", code: "DEP" },
+  transfer: { label: "Shielded transfer", code: "XFER" },
+  root: { label: "Tree advanced (merkle proof)", code: "ROOT" },
+  withdraw: { label: "Off-ramp withdrawal", code: "WDR" },
 };
 
 // ---- session audit trail (localStorage-persisted, per pool) ----
 type TrailEntry = { ts: string; action: string; type?: string; detail?: string; result: string; ref?: string };
 const TRAIL_KEY = `tukar:regulator-trail:${POOL}`;
 
-const link = "text-orange-l3 underline underline-offset-2 hover:text-orange";
-
 // Thousands-separated count (matches the Operator console). Leaves non-numeric values ("?") as-is.
 const fmtCount = (s: string) => (/^\d+$/.test(s) ? Number(s).toLocaleString("en-US") : s);
+
+const code = "inline-block border border-ink/40 px-1.5 py-[1px] font-mono text-[10.5px] font-bold text-ink-2";
 
 export default function RegulatorPage() {
   const [tab, setTab] = useState<TabId>("reports");
@@ -97,7 +100,7 @@ export default function RegulatorPage() {
   const addDisclosure = useCallback((d: DisclosureRecord) => setDisclosures((prev) => [...prev, d]), []);
   const addAuditRequest = useCallback((a: AuditRequestRecord) => setAuditRequests((prev) => [...prev, a]), []);
 
-  // load persisted trail once (client only — avoids SSR localStorage access)
+  // load persisted trail once (client only; avoids SSR localStorage access)
   useEffect(() => {
     try {
       setTrail(JSON.parse(localStorage.getItem(TRAIL_KEY) || "[]"));
@@ -112,7 +115,7 @@ export default function RegulatorPage() {
       try {
         localStorage.setItem(TRAIL_KEY, JSON.stringify(next));
       } catch {
-        /* storage full — in-memory only */
+        /* storage full: in-memory only */
       }
       return next;
     });
@@ -120,39 +123,34 @@ export default function RegulatorPage() {
 
   return (
     <DashboardShell title="Regulator console" nav={NAV} active={tab} onSelect={(k) => setTab(k as TabId)}>
-      <div className="mx-auto max-w-wrap px-6 py-8">
+      <div className="mx-auto min-w-0 max-w-wrap px-4 py-6 sm:px-6 sm:py-8">
         <section className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-[640px]">
-            <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Compliance · Selective disclosure</p>
-            <h1 className="m-0 text-[clamp(24px,3vw,36px)] font-extrabold leading-tight tracking-[-0.02em]">
+            <h1 className="m-0 font-stencil text-[clamp(26px,3.4vw,40px)] leading-[0.98] tracking-[0.01em] text-ink uppercase">
               Regulator / Compliance console
             </h1>
-            <p className="mt-3 text-sm leading-relaxed text-tm">
+            <p className="mt-3 max-w-[62ch] text-[14.5px] leading-relaxed text-ink-2">
               A read-heavy oversight view of the Tukar corridor. Read live pool and policy state from the ledger, independently
               re-verify any disclosure receipt in your browser and on the live Stellar verifier, and register aggregate audit
               requests on-chain.
             </p>
           </div>
-          <StatusPill tone="green" label="Live on Stellar testnet" />
+          <div className="flex items-center gap-4">
+            <StatusPill tone="green" label="Live on Stellar testnet" />
+            <Seal size={24} />
+          </div>
         </section>
 
-        <div className="mb-6 flex gap-3 rounded-card border border-line bg-surface p-4 text-[13px] leading-relaxed text-ts">
-          <span aria-hidden className="text-orange">
-            &#9873;
-          </span>
-          <div>
-            <b>Honest scope.</b> On this testnet deployment the auditor role is the shared demo key, so the no-install console
-            can register audit requests. In production the auditor is an independent regulator key. Completeness is enforced by
-            the contract, not by trusting this UI: <span className="font-mono text-orange-pale">disclose_aggregate</span> rejects
-            any audit hash that was never registered on-chain.
-          </div>
+        <div className="tk-surface mb-4 rounded-card border border-ink/40 px-5 py-3.5 text-[13px] leading-relaxed text-ink-2 shadow-card">
+          <b className="text-ink">Honest scope.</b> On this testnet deployment the auditor role is the shared demo key, so the no-install
+          console can register audit requests. In production the auditor is an independent regulator key. Completeness is enforced
+          by the contract, not by trusting this UI: <span className="font-mono text-ink">disclose_aggregate</span> rejects any audit
+          hash that was never registered on-chain.
         </div>
 
-        <div className="mb-6 rounded-card border border-line bg-black/20 px-4 py-2.5 font-mono text-[11px] text-tm">
-          {status}
-        </div>
+        <div className="mb-6 rounded-tile border border-ink/40 bg-label-2 px-4 py-2 font-mono text-[12px] text-ink-2">{status}</div>
 
-        <div className="flex min-w-0 flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-6">
           {tab === "reports" && <ReportsTab setStatus={setStatus} disclosures={disclosures} auditRequests={auditRequests} />}
           {tab === "verify" && <VerifyTab addTrail={addTrail} onVerified={setLastVerified} onDisclosure={addDisclosure} />}
           {tab === "issue" && <IssueTab setStatus={setStatus} addTrail={addTrail} onAuditRequest={addAuditRequest} />}
@@ -164,46 +162,7 @@ export default function RegulatorPage() {
   );
 }
 
-// ---- shared bits ----
-function CardBox({ title, sub, children, right }: { title: string; sub?: string; children: React.ReactNode; right?: React.ReactNode }) {
-  return (
-    <section className="rounded-card border border-line bg-surface p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="tk-eyebrow text-lg font-extrabold tracking-[-0.01em]">{title}</h2>
-          {sub && <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-tm">{sub}</p>}
-        </div>
-        {right}
-      </div>
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
-
-function Kpi({ k, v, u, title }: { k: string; v: React.ReactNode; u?: string; title?: string }) {
-  return (
-    <div className="rounded-tile border border-line bg-black/20 p-3.5">
-      <div className="font-mono text-[9px] tracking-[0.1em] text-tf uppercase">{k}</div>
-      <div className="mt-1 break-all text-xl font-black tracking-[-0.02em] text-tp" title={title}>
-        {v}
-        {u && <span className="ml-1 text-xs font-semibold text-tm">{u}</span>}
-      </div>
-    </div>
-  );
-}
-
-const thCls = "px-3 py-2 text-left font-mono text-[10px] tracking-[0.1em] text-tf uppercase";
-const tdCls = "px-3 py-2.5 align-top text-[13px] text-ts";
-
-function TableWrap({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overflow-x-auto rounded-tile border border-line">
-      <table className="w-full border-collapse text-sm">{children}</table>
-    </div>
-  );
-}
-
-// ================= 01 · REPORTS / POOL VIEW =================
+// ================= REPORTS / POOL VIEW =================
 function ReportsTab({
   setStatus,
   disclosures,
@@ -261,8 +220,9 @@ function ReportsTab({
 
   return (
     <>
-      <CardBox
+      <Sheet
         title="Live pool state"
+        meta="Stellar testnet"
         sub="Read directly from the shielded pool contract on Stellar testnet. No indexer, no trusted relay."
         right={
           <Button variant="subtle" busy={loading} onClick={load}>
@@ -270,111 +230,88 @@ function ReportsTab({
           </Button>
         }
       >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi k="Commitments" v={pool ? fmtCount(pool.commitments) : loading ? <Skeleton className="h-6 w-14" /> : "—"} />
-          <Kpi
+        <dl className="grid grid-cols-2 gap-x-6 border-t-2 border-ink sm:grid-cols-4">
+          <Field k="Commitments" v={pool ? fmtCount(pool.commitments) : loading ? <Skeleton className="h-6 w-14" /> : "…"} />
+          <Field
             k="Leaf count"
             v={leafCount != null ? leafCount.toLocaleString("en-US") : loading ? <Skeleton className="h-6 w-12" /> : "unavailable"}
             title={leafCount == null && !loading ? "Could not read the pool leaves from the chain. Refresh from chain to retry." : undefined}
           />
-          <Kpi
+          <Field
             k="Custody balance"
-            v={pool ? (pool.balance === "?" ? "?" : fmtUsdc(pool.balance)) : loading ? <Skeleton className="h-6 w-20" /> : "—"}
+            v={pool ? (pool.balance === "?" ? "?" : fmtUsdc(pool.balance)) : loading ? <Skeleton className="h-6 w-20" /> : "…"}
             u="USDC"
           />
-          <Kpi k="Current root" v={root != null ? shortHash(root.toString()) : loading ? <Skeleton className="h-6 w-28" /> : "—"} title={root?.toString()} />
-        </div>
-        {err && <p className="mt-3 text-[13px] text-red-t">{err}</p>}
-        <p className="mt-4 text-[13px] text-tm">
-          Pool contract:{" "}
-          <a href={explorer(POOL)} target="_blank" rel="noreferrer" className={`font-mono text-xs break-all ${link}`}>
-            {POOL} ↗
-          </a>
+          <Field k="Current root" v={root != null ? shortHash(root.toString()) : loading ? <Skeleton className="h-6 w-28" /> : "…"} title={root?.toString()} />
+        </dl>
+        {err && <p className="mt-3 text-[13px] text-tape-deep">{err}</p>}
+        <p className="mt-4 text-[13px] text-ink-3">
+          Pool contract: <Out href={explorer(POOL)} className="text-xs break-all">{POOL}</Out>
         </p>
-      </CardBox>
+      </Sheet>
 
-      <CardBox
+      <Sheet
         title="Compliance policy (on-chain)"
+        meta={policyReadAt ? `Read ${policyReadAt.slice(11, 19)} UTC` : "Reading"}
         sub="The corridor's allow-list root and sanctions deny-list, read live from the pool. This is the same policy the deposit ZK proof is checked against."
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Kpi
+        <dl className="grid grid-cols-1 gap-x-6 border-t-2 border-ink sm:grid-cols-2">
+          <Field
             k="ASP allow-list root"
-            v={aspRoot ? "0x" + aspRoot.slice(0, 8) + "…" + aspRoot.slice(-6) : loading ? <Skeleton className="h-6 w-32" /> : "—"}
+            v={aspRoot ? "0x" + aspRoot.slice(0, 8) + "…" + aspRoot.slice(-6) : loading ? <Skeleton className="h-6 w-32" /> : "…"}
             title={aspRoot ?? undefined}
           />
-          <Kpi k="Deny-list entries" v={deny ? deny.length : loading ? <Skeleton className="h-6 w-10" /> : "—"} />
-        </div>
-        <p className="mt-4 mb-2 text-[13px] text-tm">Sanctions deny-list (field elements, non-membership enforced in-circuit):</p>
-        <TableWrap>
-          <thead>
-            <tr className="border-b border-line">
-              <th className={`${thCls} w-12`}>#</th>
-              <th className={thCls}>Deny-list entry (field element)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {deny && deny.length ? (
-              deny.map((d, i) => (
-                <tr key={i} className="border-b border-line/60 last:border-0">
-                  <td className={`${tdCls} text-tf`}>{i}</td>
-                  <td className={tdCls}>
-                    <span className="font-mono text-orange-pale">{shortHash(d)}</span>
-                    <span className="ml-3 font-mono text-[11px] text-tf">{d.slice(0, 24)}…</span>
-                  </td>
-                </tr>
-              ))
-            ) : loading ? (
-              <SkeletonRows cols={2} rows={3} />
-            ) : (
-              <EmptyRow cols={2}>{deny ? "No deny-list entries." : "Deny-list read unavailable."}</EmptyRow>
-            )}
-          </tbody>
-        </TableWrap>
-      </CardBox>
+          <Field k="Deny-list entries" v={deny ? deny.length : loading ? <Skeleton className="h-6 w-10" /> : "…"} />
+        </dl>
+        <p className="mt-4 mb-2 text-[13px] text-ink-3">Sanctions deny-list (field elements, non-membership enforced in-circuit):</p>
+        <Ledger head={["#", "Deny-list entry (field element)"]}>
+          {deny && deny.length ? (
+            deny.map((d, i) => (
+              <tr key={i}>
+                <td className={`${td} w-12 font-mono text-ink-3`}>{i}</td>
+                <td className={td}>
+                  <span className="font-mono">{shortHash(d)}</span>
+                  <span className="ml-3 font-mono text-[11px] text-ink-3">{d.slice(0, 24)}…</span>
+                </td>
+              </tr>
+            ))
+          ) : loading ? (
+            <SkeletonRows cols={2} rows={3} />
+          ) : (
+            <EmptyRow cols={2}>{deny ? "No deny-list entries." : "Deny-list read unavailable."}</EmptyRow>
+          )}
+        </Ledger>
+      </Sheet>
 
-      <CardBox
+      <Sheet
         title="Recent corridor activity"
+        meta={activity.length ? `${activity.length} events` : undefined}
         sub="On-chain events (deposit / withdraw / shielded transfer / tree advance) from RPC getEvents. Amounts stay shielded; only the public on/off-ramp edges are visible. Testnet RPC retains only recent ledgers."
       >
-        <TableWrap>
-          <thead>
-            <tr className="border-b border-line">
-              <th className={thCls}>Event</th>
-              <th className={thCls}>Ledger</th>
-              <th className={thCls}>Transaction</th>
-            </tr>
-          </thead>
-          <tbody>
-            {activity.length ? (
-              activity.map((e, i) => {
-                const a = ACT[e.kind] || { label: e.kind, color: "#8a847e" };
-                return (
-                  <tr key={i} className="border-b border-line/60 last:border-0">
-                    <td className={tdCls}>
-                      <span style={{ color: a.color }}>●</span> {a.label}
-                    </td>
-                    <td className={`${tdCls} text-tf`}>{e.ledger}</td>
-                    <td className={tdCls}>
-                      {e.txHash ? (
-                        <a href={txExplorer(e.txHash)} target="_blank" rel="noreferrer" className={`font-mono text-xs ${link}`}>
-                          {short(e.txHash)} ↗
-                        </a>
-                      ) : (
-                        <span className="text-tf">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            ) : loading ? (
-              <SkeletonRows cols={3} rows={4} />
-            ) : (
-              <EmptyRow cols={3}>No recent on-chain events (testnet RPC retains only recent ledgers).</EmptyRow>
-            )}
-          </tbody>
-        </TableWrap>
-      </CardBox>
+        <Ledger head={["Event", "Ledger", "Transaction"]}>
+          {activity.length ? (
+            activity.map((e, i) => {
+              const a = ACT[e.kind] || { label: e.kind, code: "EVT" };
+              return (
+                <tr key={i}>
+                  <td className={td}>
+                    <span className={`${code} mr-2`}>{a.code}</span>
+                    {a.label}
+                  </td>
+                  <td className={`${td} font-mono`}>{e.ledger}</td>
+                  <td className={td}>
+                    {e.txHash ? <Out href={txExplorer(e.txHash)} className="text-xs">{short(e.txHash)}</Out> : <span className="text-ink-3">no tx</span>}
+                  </td>
+                </tr>
+              );
+            })
+          ) : loading ? (
+            <SkeletonRows cols={3} rows={4} />
+          ) : (
+            <EmptyRow cols={3}>No recent on-chain events (testnet RPC retains only recent ledgers).</EmptyRow>
+          )}
+        </Ledger>
+      </Sheet>
 
       <ComplianceExportCard disclosures={disclosures} auditRequests={auditRequests} policy={policy} />
     </>
@@ -384,21 +321,21 @@ function ReportsTab({
 function EmptyRow({ cols, children }: { cols: number; children: React.ReactNode }) {
   return (
     <tr>
-      <td colSpan={cols} className="px-3 py-6 text-center text-[13px] text-tf">
+      <td colSpan={cols} className="px-3 py-6 text-center text-[13px] text-ink-3">
         {children}
       </td>
     </tr>
   );
 }
 
-// Pulsing placeholder rows while a table's on-chain read is pending.
+// Paper placeholder rows while a table's on-chain read is pending.
 function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, r) => (
-        <tr key={r} className="border-b border-line/60 last:border-0">
+        <tr key={r}>
           {Array.from({ length: cols }).map((_, c) => (
-            <td key={c} className={tdCls}>
+            <td key={c} className={td}>
               <Skeleton className="h-4 w-full max-w-[220px]" />
             </td>
           ))}
@@ -408,7 +345,7 @@ function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
   );
 }
 
-// ================= 02 · VERIFY A DISCLOSURE =================
+// ================= VERIFY A DISCLOSURE =================
 function VerifyTab({
   addTrail,
   onVerified,
@@ -448,7 +385,7 @@ function VerifyTab({
       setRes(v);
       setReceipt(r);
       // Share a confirmed disclosure with the Travel Rule tab only when it is valid AND bound to
-      // real on-chain state — an unbound/invalid proof must not drive a "real" reference payload.
+      // real on-chain state: an unbound/invalid proof must not drive a "real" reference payload.
       onVerified(v.ok && v.bound ? { res: v, receipt: r } : null);
       if (v.ok && v.bound) onDisclosure(disclosureFromReceipt(v, r));
       addTrail({
@@ -484,16 +421,16 @@ function VerifyTab({
     }
   }, [receipt, addTrail, toast]);
 
-  const mark = (b: boolean) =>
-    b ? <b className="text-green-t">✓ valid</b> : <b className="text-red-t">✗ invalid</b>;
+  const mark = (b: boolean) => (b ? <b className="text-stamp-deep">valid</b> : <b className="text-tape-deep">invalid</b>);
 
   return (
     <>
-      <CardBox
+      <Sheet
         title="Verify a disclosure receipt"
+        meta="Present the receipt at the desk"
         sub="Paste any Tukar audit receipt (exact, threshold, aggregate, or range). It is re-verified two ways, with no trust in Tukar: a Groth16 check runs in your browser, then the same proof runs against the live Stellar verifier for its type. If the receipt carries an on-chain anchor, its content match is checked too."
       >
-        <label htmlFor="receipt" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+        <label htmlFor="receipt" className={captionCls}>
           Audit receipt JSON
         </label>
         <textarea
@@ -502,125 +439,117 @@ function VerifyTab({
           onChange={(e) => setText(e.target.value)}
           spellCheck={false}
           placeholder={'{ "kind": "tukar-audit-receipt", "type": "threshold", "proof": { … }, "publicSignals": [ … ], "verifier": "C…" }'}
-          className="mt-2 h-40 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] leading-relaxed text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+          className={`${fieldCls} h-40 resize-y`}
         />
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button onClick={run} busy={busy} disabled={!text.trim()} title={!text.trim() ? "Paste an audit receipt to verify" : undefined}>
             Re-verify in browser and on-chain
           </Button>
           {busy && <Spinner label="re-verifying in your browser and on Stellar…" />}
         </div>
 
-        {!res && !error && !busy && (
-          <p className="mt-3 text-[12.5px] leading-relaxed text-tm">Paste an audit receipt exported by a holder to verify it here.</p>
-        )}
+        {!res && !error && !busy && <p className={noteCls}>Paste an audit receipt exported by a holder to verify it here.</p>}
 
-        {error && <p className="mt-4 text-[13px] text-red-t">{error}</p>}
+        {error && <p className="mt-4 text-[13px] text-tape-deep">{error}</p>}
 
         {res && (
-          <div className="mt-4 rounded-tile border border-line bg-black/20 p-4 text-[13px]">
-            <div>
-              <b className="capitalize">{res.type}</b> disclosure · In your browser: {mark(res.local)} · On the live Stellar
-              verifier: {mark(res.onChain)}
-            </div>
-            <div className="mt-1.5 text-tm">
-              commitment <span className="font-mono">{short(res.commitment)}</span> · {res.summary}
+          <div className="mt-5 border-t-2 border-ink pt-4 text-[13px]">
+            <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+              <div className="min-w-0 flex-1">
+                <div>
+                  <b className="capitalize">{res.type}</b> disclosure · In your browser: {mark(res.local)} · On the live Stellar verifier:{" "}
+                  {mark(res.onChain)}
+                </div>
+                <div className="mt-1.5 text-ink-3">
+                  commitment <span className="font-mono text-ink">{short(res.commitment)}</span> · {res.summary}
+                </div>
+              </div>
+              {/* The verdict lands as a stamp: proof-valid is not enough, it must be BOUND to real on-chain state. */}
+              {!res.ok ? (
+                <Stamp tone="red" size="lg" land sub="nothing disclosed">
+                  Rejected
+                </Stamp>
+              ) : res.bound ? (
+                <Stamp size="lg" land sub="bound on-chain">
+                  Cleared
+                </Stamp>
+              ) : (
+                <Stamp tone="ink" size="lg" land sub="valid proof">
+                  Not bound
+                </Stamp>
+              )}
             </div>
 
-            {/* F1: proof-valid is not enough — show whether it is BOUND to real on-chain state. */}
             {!res.ok ? (
-              <div className="mt-3 animate-tk-pop rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2 text-red-t">
-                <b>✗ Not valid.</b> The proof was rejected, so nothing is disclosed.
-              </div>
+              <p className="mt-3 text-tape-deep">
+                <b>Not valid.</b> The proof was rejected, so nothing is disclosed.
+              </p>
             ) : res.bound ? (
-              <div className="mt-3 animate-tk-ring rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2 text-green-t">
-                <b>✓ Verified and bound to real on-chain state.</b>{" "}
-                <span className="text-ts">{res.boundReason}.</span>
-              </div>
+              <p className="mt-3">
+                <b className="text-stamp-deep">Verified and bound to real on-chain state.</b> <span className="text-ink-2">{res.boundReason}.</span>
+              </p>
             ) : (
-              <div className="mt-3 animate-tk-pop rounded-lg border border-amber/40 bg-amber/[0.05] px-3 py-2 text-amber">
-                <b>⚠ Proof is valid but NOT bound to on-chain state.</b>{" "}
-                <span className="text-ts">{res.boundReason}. This is not a confirmed disclosure of a real deposit — treat it as unverified.</span>
-              </div>
+              <p className="mt-3">
+                <b>Proof is valid but NOT bound to on-chain state.</b>{" "}
+                <span className="text-ink-2">{res.boundReason}. This is not a confirmed disclosure of a real deposit; treat it as unverified.</span>
+              </p>
             )}
 
             {res.anchor && (
               <div className="mt-1.5">
                 On-chain anchor:{" "}
-                {res.anchor.matches ? (
-                  <b className="text-green-t">✓ confirmed on-chain</b>
-                ) : (
-                  <b className="text-amber">✗ not confirmed on-chain</b>
-                )}{" "}
-                <span className="text-tm">({res.anchor.reason})</span> ·{" "}
-                {res.anchor.txHash ? (
-                  <a href={txExplorer(res.anchor.txHash)} target="_blank" rel="noreferrer" className={link}>
-                    {short(res.anchor.txHash)} ↗
-                  </a>
-                ) : (
-                  "(no tx)"
-                )}
+                {res.anchor.matches ? <b className="text-stamp-deep">confirmed on-chain</b> : <b className="text-tape-deep">not confirmed on-chain</b>}{" "}
+                <span className="text-ink-3">({res.anchor.reason})</span> ·{" "}
+                {res.anchor.txHash ? <Out href={txExplorer(res.anchor.txHash)}>{short(res.anchor.txHash)}</Out> : "(no tx)"}
               </div>
             )}
 
             {res.ok && res.bound && receipt && !receipt.anchor && (
-              <div className="mt-3 border-t border-line pt-3">
-                <p className="text-tm">
-                  Anchor this receipt on-chain to timestamp a tamper-evident SHA-256 of its canonical bytes (signed by the demo
-                  key on testnet).
+              <div className="mt-3 border-t border-ink/25 pt-3">
+                <p className="text-ink-3">
+                  Anchor this receipt on-chain to timestamp a tamper-evident SHA-256 of its canonical bytes (signed by the demo key
+                  on testnet).
                 </p>
-                <div className="mt-2 flex items-center gap-3">
+                <div className="mt-2 flex flex-wrap items-center gap-3">
                   <Button variant="subtle" onClick={anchor} busy={anchorState.busy}>
                     Anchor on-chain
                   </Button>
                   {anchorState.txHash && (
-                    <span className="text-green-t">
-                      ✓ anchored ·{" "}
-                      <a href={txExplorer(anchorState.txHash)} target="_blank" rel="noreferrer" className={link}>
-                        {short(anchorState.txHash)} ↗
-                      </a>
+                    <span className="text-stamp-deep">
+                      anchored · <Out href={txExplorer(anchorState.txHash)}>{short(anchorState.txHash)}</Out>
                     </span>
                   )}
-                  {anchorState.error && <span className="text-red-t">{anchorState.error}</span>}
+                  {anchorState.error && <span className="text-tape-deep">{anchorState.error}</span>}
                 </div>
               </div>
             )}
           </div>
         )}
-      </CardBox>
+      </Sheet>
 
       <ViewNoteCard addTrail={addTrail} onDisclosure={onDisclosure} />
 
-      <CardBox
+      <Sheet
         title="How routing works"
+        meta="4 verifiers"
         sub="Each receipt type maps to its own verification key and on-chain verifier contract. The exact type uses the disclosure verifier; threshold, aggregate, and range each have their own BN254 verifier, deployed additively."
       >
-        <TableWrap>
-          <thead>
-            <tr className="border-b border-line">
-              <th className={thCls}>Receipt type</th>
-              <th className={thCls}>On-chain verifier</th>
+        <Ledger head={["Receipt type", "On-chain verifier"]}>
+          {VERIFIER_MAP.map((v) => (
+            <tr key={v.type}>
+              <td className={`${td} capitalize`}>{v.type}</td>
+              <td className={td}>
+                <Out href={explorer(v.id)} className="text-xs">{short(v.id)}</Out>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {VERIFIER_MAP.map((v) => (
-              <tr key={v.type} className="border-b border-line/60 last:border-0">
-                <td className={`${tdCls} capitalize`}>{v.type}</td>
-                <td className={tdCls}>
-                  <a href={explorer(v.id)} target="_blank" rel="noreferrer" className={`font-mono text-xs ${link}`}>
-                    {short(v.id)} ↗
-                  </a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </TableWrap>
-      </CardBox>
+          ))}
+        </Ledger>
+      </Sheet>
     </>
   );
 }
 
-// ================= 03 · ISSUE AUDIT REQUEST =================
+// ================= ISSUE AUDIT REQUEST =================
 function IssueTab({
   setStatus,
   addTrail,
@@ -702,24 +631,25 @@ function IssueTab({
       setOut({
         ok: true,
         html: (
-          <>
-            <b className="text-green-t">✓ Audit request registered on-chain.</b>
-            <div className="mt-1.5 text-ts">
-              Audit hash <span className="font-mono text-orange-pale">{shortHash(issuedHash)}</span> · {selected.length}/{AGG_N}{" "}
-              slots active ·{" "}
-              {reg.hash ? (
-                <a href={txExplorer(reg.hash)} target="_blank" rel="noreferrer" className={link}>
-                  {short(reg.hash)} ↗
-                </a>
-              ) : (
-                "(no tx hash)"
-              )}
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <div className="min-w-0 flex-1">
+              <div className={captionCls}>Request no. (audit hash)</div>
+              <div className="mt-1 font-mono text-[22px] leading-tight text-ink">{shortHash(issuedHash)}</div>
+              <div className="mt-2">
+                <b className="text-stamp-deep">Audit request registered on-chain.</b>
+              </div>
+              <div className="mt-1.5 text-ink-2">
+                {selected.length}/{AGG_N} slots active · {reg.hash ? <Out href={txExplorer(reg.hash)}>{short(reg.hash)}</Out> : "(no tx hash)"}
+              </div>
+              <div className="mt-1.5 text-ink-3">
+                The pool now accepts only an aggregate disclosure whose audit hash equals this one, so a holder cannot prove a
+                trimmed subset.
+              </div>
             </div>
-            <div className="mt-1.5 text-tm">
-              The pool now accepts only an aggregate disclosure whose audit hash equals this one, so a holder cannot prove a
-              trimmed subset.
-            </div>
-          </>
+            <Stamp size="lg" land sub="on-chain">
+              Registered
+            </Stamp>
+          </div>
         ),
       });
       addTrail({
@@ -738,27 +668,24 @@ function IssueTab({
   }, [selected, nonce, cap, setStatus, addTrail, onAuditRequest]);
 
   return (
-    <CardBox
+    <Sheet
       title="Issue an aggregate audit request"
+      meta={`Form · ${selected.length}/${AGG_N} selected`}
       sub="Register an audit request on-chain for a holder's payment set. The audit hash is Poseidon(ctxNonce, commitments[5], active[5]) over the full required set. Once registered, disclose_aggregate only accepts a proof whose audit hash matches, so a holder cannot cherry-pick a subset. On this deploy the request is signed by the demo (auditor) key."
     >
-      <label className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-        Select up to 5 on-chain commitments (the required set)
-      </label>
-      <div className="mt-2 max-h-64 overflow-y-auto rounded-tile border border-line bg-black/20 p-2">
+      <div className={captionCls}>Select up to 5 on-chain commitments (the required set)</div>
+      <div className="mt-2 max-h-64 overflow-y-auto border-y-2 border-ink">
         {loadingLeaves ? (
-          <div className="p-4 text-center text-[13px] text-tf">Loading on-chain leaves…</div>
+          <div className="p-4 text-center text-[13px] text-ink-3">Loading on-chain leaves…</div>
         ) : leaves == null ? (
-          <div className="flex items-center justify-center gap-3 p-4 text-center text-[13px] text-amber">
+          <div className="flex flex-wrap items-center justify-center gap-3 p-4 text-center text-[13px] text-ink-2">
             Could not read the pool leaves from the chain.
             <Button variant="subtle" onClick={loadLeaves}>
               Retry
             </Button>
           </div>
         ) : !leaves.length ? (
-          <div className="p-4 text-center text-[13px] text-tf">
-            No commitments in the pool yet. Deposit one through the Sender route first.
-          </div>
+          <div className="p-4 text-center text-[13px] text-ink-3">No commitments in the pool yet. Deposit one through the Sender route first.</div>
         ) : (
           leaves.map((c, i) => {
             const dec = c.toString();
@@ -767,33 +694,31 @@ function IssueTab({
             return (
               <label
                 key={i}
-                className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] ${
-                  disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-white/[0.03]"
-                }`}
+                className={`flex items-center gap-3 border-b border-ink/25 px-2.5 py-2 text-[13px] last:border-0 ${
+                  disabled ? "cursor-not-allowed text-ink-4" : "cursor-pointer hover:bg-label-2"
+                } ${on ? "bg-stamp-wash" : ""}`}
               >
-                <input type="checkbox" checked={on} disabled={disabled} onChange={() => toggle(dec)} className="accent-orange" />
-                <span className="font-mono text-[11px] text-tf">{i}</span>
-                <span className="font-mono text-orange-pale">{shortHash(dec)}</span>
+                <input type="checkbox" checked={on} disabled={disabled} onChange={() => toggle(dec)} />
+                <span className="w-6 font-mono text-[11px] text-ink-3">{i}</span>
+                <span className="font-mono">{shortHash(dec)}</span>
               </label>
             );
           })
         )}
       </div>
-      <p className="mt-2 text-[12px] text-tm">
+      <p className={noteCls}>
         Commitments are the pool&apos;s public Merkle leaves. {selected.length}/{AGG_N} selected.
       </p>
 
-      <div className="mt-4 flex items-end gap-3">
-        <div className="flex-1">
-          <label htmlFor="nonce" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-            Context nonce (period / regulator id · field element)
-          </label>
-          <input
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="min-w-0 flex-1">
+          <Input
             id="nonce"
+            label="Context nonce (period / regulator id · field element)"
             value={nonce}
             onChange={(e) => setNonce(e.target.value)}
             placeholder="e.g. 20260729"
-            className="mt-[7px] w-full rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+            className="font-mono"
           />
         </div>
         <Button variant="subtle" onClick={randomNonce}>
@@ -802,11 +727,9 @@ function IssueTab({
       </div>
 
       <div className="mt-4">
-        <label htmlFor="cap" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-          Cap for the holder&apos;s portfolio sum (USDC)
-        </label>
-        <input
+        <Input
           id="cap"
+          label="Cap for the holder's portfolio sum (USDC)"
           type="number"
           min="0"
           step="0.01"
@@ -814,19 +737,17 @@ function IssueTab({
           value={cap}
           onChange={(e) => setCap(e.target.value)}
           placeholder="e.g. 5000"
-          className="mt-[7px] w-full rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+          className="font-mono"
         />
-        <p className="mt-2 text-[12px] text-tm">
+        <p className={noteCls}>
           The holder proves the sum of the selected payments is at or below this cap, without revealing any individual amount. The
           cap rides in the shared request; it is a public circuit input, not part of the audit hash.
         </p>
       </div>
 
-      {!connected && (
-        <p className="mt-4 text-[13px] text-amber">Connect the testnet key (top right) to sign the on-chain registration.</p>
-      )}
+      {!connected && <p className="mt-4 text-[13px] text-ink-2">Connect the testnet key (top right) to sign the on-chain registration.</p>}
 
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button onClick={issue} busy={busy} disabled={!connected} title={!connected ? "Connect the auditor key first" : undefined}>
           Compute hash and register on-chain
         </Button>
@@ -834,23 +755,15 @@ function IssueTab({
       </div>
 
       {out && (
-        <div className={`mt-4 rounded-tile border p-4 text-[13px] ${out.ok ? "border-green/35 bg-green/[0.05]" : "border-red/40 bg-red/[0.05] text-red-t"}`}>
-          {out.html}
-        </div>
+        <div className={`mt-5 border-t-2 border-ink pt-4 text-[13px] ${out.ok ? "" : "text-tape-deep"}`}>{out.html}</div>
       )}
 
       {auditStr && (
-        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4">
-          <label htmlFor="audit-str" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+        <div className="mt-4 border-t border-ink/25 pt-4">
+          <label htmlFor="audit-str" className={captionCls}>
             Audit request to share (tukaudit1:)
           </label>
-          <textarea
-            id="audit-str"
-            readOnly
-            value={auditStr}
-            spellCheck={false}
-            className="mt-2 h-24 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[11px] leading-relaxed break-all text-tp"
-          />
+          <textarea id="audit-str" readOnly value={auditStr} spellCheck={false} className={`${fieldCls} h-24 resize-y text-[11px] break-all`} />
           <div className="mt-2 flex items-center gap-3">
             <Button
               variant="subtle"
@@ -861,18 +774,18 @@ function IssueTab({
               Copy audit request
             </Button>
           </div>
-          <p className="mt-2 text-[12px] leading-relaxed text-tm">
+          <p className={noteCls}>
             Share this audit request with the holder. They prove their portfolio sum is within the cap against this exact request;
             they cannot cherry-pick.
           </p>
         </div>
       )}
-    </CardBox>
+    </Sheet>
   );
 }
 
-// ================= 04 · TRAVEL RULE (REFERENCE) =================
-// A client-side reference mapping only. Tukar holds NO PII — the licensed anchors at the edges
+// ================= TRAVEL RULE (REFERENCE) =================
+// A client-side reference mapping only. Tukar holds NO PII: the licensed anchors at the edges
 // run KYC and would exchange the actual IVMS101 message. Personal fields are shown as clearly
 // marked anchor-held placeholders; the amount/asset/corridor/reference come from a real verified
 // disclosure receipt when one is loaded.
@@ -895,7 +808,7 @@ function disclosedFigure(res: ReceiptVerification, r: AuditReceipt): string {
   }
 }
 
-// An IVMS101 naturalPerson block. Every identity field is the anchor-held placeholder — Tukar
+// An IVMS101 naturalPerson block. Every identity field is the anchor-held placeholder: Tukar
 // never sees a real person, so nothing here is ever fabricated. Only the shape follows the spec.
 function placeholderNaturalPerson() {
   return {
@@ -965,12 +878,12 @@ function buildTravelRulePayload(opts: {
     },
     originatingVASP: {
       // real: this is the sending side of the corridor (United States on-ramp anchor).
-      role: "Sending anchor (VASP) — on-ramped the originator, holds their KYC identity",
+      role: "Sending anchor (VASP), on-ramped the originator, holds their KYC identity",
       legalPerson: vaspLegalPerson("Sending anchor (licensed USD on-ramp VASP)", "US"),
     },
     beneficiaryVASP: {
       // real: this is the receiving side, fixed by the selected corridor.
-      role: `Receiving anchor (VASP) in ${corridor.country} — off-ramps to ${corridor.currency}, holds the beneficiary's KYC identity`,
+      role: `Receiving anchor (VASP) in ${corridor.country}, off-ramps to ${corridor.currency}, holds the beneficiary's KYC identity`,
       legalPerson: vaspLegalPerson(`Receiving anchor (licensed ${corridor.currency} off-ramp VASP)`, corridor.code),
     },
     transaction: {
@@ -1142,7 +1055,7 @@ function TravelRuleTab({
       });
       const data = await res.json();
       setTrisa(data);
-      if (data.configured === false) toast("TRISA node not deployed — use the TRP send above", "info");
+      if (data.configured === false) toast("TRISA node not deployed, use the TRP send on the beneficiary copy", "info");
       else if (data.ok && data.result && !data.result.rejected) toast("TRISA beneficiary VASP accepted the transfer", "success");
     } catch (e: any) {
       setTrisa({ configured: true, ok: false, error: "TRISA send failed: " + ((e && e.message) || String(e)) });
@@ -1165,124 +1078,101 @@ function TravelRuleTab({
 
   return (
     <>
-      <CardBox
-        title="FATF Travel Rule (TRP 3.2.1)"
-        sub="Maps one Tukar selective disclosure to a FATF Travel Rule (IVMS101) payload and sends it over the real OpenVASP TRP 3.2.1 protocol — either to the Notabene sandbox (a real independent VASP) or to our own inbound TRP endpoint (single operator)."
-        right={
-          <StatusPill tone={exampleOnly ? "amber" : "green"} label={exampleOnly ? "Example payload" : "Driven by a verified receipt"} />
-        }
-      >
-        <div className="rounded-tile border border-line bg-black/20 p-4 text-[13px] leading-relaxed text-ts">
-          <p>
-            Selective disclosure lets a holder prove one fact to a regulator on-chain. The same mechanism maps to a FATF Travel
-            Rule (IVMS101) payload that a sending and a receiving anchor exchange to meet their VASP obligations. Tukar is the
-            private settlement layer; the anchors run KYC and the Travel Rule exchange. The Send panel below speaks the real TRP
-            3.2.1 protocol so this is a working VASP-to-VASP handshake, not a mock.
+      {/* The exchange is a two-copy carbon form: the originator copy carries the payload, the
+          beneficiary copy (tinted carbon) carries the peer's answer and its lifecycle line. */}
+      <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-2">
+        <Sheet
+          title="FATF Travel Rule (TRP 3.2.1)"
+          meta={`Originator copy · ${exampleOnly ? "Example payload" : "Driven by a verified receipt"}`}
+          sub="Maps one Tukar selective disclosure to a FATF Travel Rule (IVMS101) payload and sends it over the real OpenVASP TRP 3.2.1 protocol, either to the Notabene sandbox (a real independent VASP) or to our own inbound TRP endpoint (single operator)."
+        >
+          <p className="text-[13px] leading-relaxed text-ink-2">
+            Selective disclosure lets a holder prove one fact to a regulator on-chain. The same mechanism maps to a FATF Travel Rule
+            (IVMS101) payload that a sending and a receiving anchor exchange to meet their VASP obligations. Tukar is the private
+            settlement layer; the anchors run KYC and the Travel Rule exchange. The beneficiary copy speaks the real TRP 3.2.1
+            protocol so this is a working VASP-to-VASP handshake, not a mock.
           </p>
-          <p className="mt-3 text-tm">
+          <p className="mt-3 text-[13px] leading-relaxed text-ink-3">
             Tukar never holds names or addresses, so every personal field below is a marked placeholder{" "}
-            <span className="font-mono text-orange-pale">{ANCHOR_PII}</span>. The amount, asset, corridor, and reference are the
-            real, on-chain facts a disclosure proves.
-          </p>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <div>
-            <label htmlFor="tr-corridor" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-              Destination corridor (receiving anchor)
-            </label>
-            <select
-              id="tr-corridor"
-              value={corridorCode}
-              onChange={(e) => setCorridorCode(e.target.value)}
-              className="mt-[7px] rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
-            >
-              {CORRIDORS.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.country} ({c.currency})
-                </option>
-              ))}
-            </select>
-          </div>
-          {exampleOnly && (
-            <Button variant="subtle" onClick={onGoVerify}>
-              Verify a disclosure to fill this in
-            </Button>
-          )}
-        </div>
-
-        {!exampleOnly && last && (
-          <p className="mt-3 text-[12.5px] text-tm">
-            Source: a <b className="capitalize text-ts">{last.res.type}</b> disclosure, {last.res.summary}, bound to commitment{" "}
-            <span className="font-mono text-orange-pale">{short(last.res.commitment)}</span>.
-          </p>
-        )}
-
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">IVMS101-shaped Travel Rule payload</div>
-          <div className="flex gap-2">
-            <Button variant="subtle" onClick={downloadJson}>
-              Download IVMS101 payload (.json)
-            </Button>
-            <Button
-              variant="subtle"
-              onClick={() => {
-                if (navigator.clipboard) navigator.clipboard.writeText(json).then(() => toast("Payload copied", "success")).catch(() => {});
-              }}
-            >
-              Copy payload
-            </Button>
-          </div>
-        </div>
-        <pre className="mt-2 overflow-x-auto rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[11.5px] leading-relaxed text-tp">
-          {json}
-        </pre>
-
-        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Send as a TRP message (real protocol)</div>
-          <p className="mt-2 text-[12.5px] leading-relaxed text-tm">
-            This builds a real TRP 3.2.1 transfer inquiry from the IVMS101 payload above, decodes the beneficiary endpoint from a
-            base58 Travel Address, signs the canonical body (Ed25519), sets the three TRP headers (api-version, request-identifier,
-            api-extensions), and POSTs it. The beneficiary VASP answers with a real TRP response (approved or rejected).
+            <span className="font-mono text-ink">{ANCHOR_PII}</span>. The amount, asset, corridor, and reference are the real, on-chain
+            facts a disclosure proves.
           </p>
 
-          <div className="mt-3">
-            <label htmlFor="trp-dest" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-              Beneficiary VASP
-            </label>
-            <select
-              id="trp-dest"
-              value={dest}
-              onChange={(e) => setDest(e.target.value as "self" | "notabene")}
-              className="mt-[7px] rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
-            >
-              <option value="self">Our own inbound endpoint (real TRP, single operator)</option>
-              <option value="notabene">Notabene sandbox (real independent VASP — needs NOTABENE_API_KEY)</option>
-            </select>
-            <p className="mt-2 font-mono text-[11px] break-all text-tf">
-              Travel Address: <span className="text-orange-pale">{DEMO_TRAVEL_ADDRESS}</span>
-            </p>
-            {dest === "notabene" && !connected && (
-              <p className="mt-2 text-[12.5px] text-amber">Connect a wallet to send to the Notabene sandbox.</p>
+          <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-ink/25 pt-4">
+            <div className="w-full max-w-xs">
+              <Select id="tr-corridor" label="Destination corridor (receiving anchor)" value={corridorCode} onChange={(e) => setCorridorCode(e.target.value)}>
+                {CORRIDORS.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.country} ({c.currency})
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {exampleOnly && (
+              <Button variant="subtle" onClick={onGoVerify}>
+                Verify a disclosure to fill this in
+              </Button>
             )}
           </div>
 
-          <div className="mt-3">
-            <label htmlFor="trp-txid" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-              Settlement transaction hash (optional, sends the TRP confirmation)
-            </label>
-            <input
+          {!exampleOnly && last && (
+            <p className="mt-3 text-[12.5px] text-ink-3">
+              Source: a <b className="capitalize text-ink">{last.res.type}</b> disclosure, {last.res.summary}, bound to commitment{" "}
+              <span className="font-mono text-ink">{short(last.res.commitment)}</span>.
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className={captionCls}>IVMS101-shaped Travel Rule payload</div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="subtle" onClick={downloadJson}>
+                Download IVMS101 payload (.json)
+              </Button>
+              <Button
+                variant="subtle"
+                onClick={() => {
+                  if (navigator.clipboard) navigator.clipboard.writeText(json).then(() => toast("Payload copied", "success")).catch(() => {});
+                }}
+              >
+                Copy payload
+              </Button>
+            </div>
+          </div>
+          <pre className={`${preCls} max-h-[420px]`}>{json}</pre>
+        </Sheet>
+
+        <Sheet
+          title="Beneficiary copy"
+          meta="Carbon copy · real TRP response"
+          className="bg-label-2"
+          sub="This builds a real TRP 3.2.1 transfer inquiry from the IVMS101 payload on the originator copy, decodes the beneficiary endpoint from a base58 Travel Address, signs the canonical body (Ed25519), sets the three TRP headers (api-version, request-identifier, api-extensions), and POSTs it. The beneficiary VASP answers with a real TRP response (approved or rejected)."
+        >
+          <div className={captionCls}>Send as a TRP message (real protocol)</div>
+          <div className="mt-3 w-full max-w-xl">
+            <Select id="trp-dest" label="Beneficiary VASP" value={dest} onChange={(e) => setDest(e.target.value as "self" | "notabene")}>
+              <option value="self">Our own inbound endpoint (real TRP, single operator)</option>
+              <option value="notabene">Notabene sandbox (real independent VASP, needs NOTABENE_API_KEY)</option>
+            </Select>
+            <p className="mt-2 font-mono text-[11px] break-all text-ink-3">
+              Travel Address: <span className="text-ink">{DEMO_TRAVEL_ADDRESS}</span>
+            </p>
+            {dest === "notabene" && !connected && <p className="mt-2 text-[12.5px] text-ink-2">Connect a wallet to send to the Notabene sandbox.</p>}
+          </div>
+
+          <div className="mt-3 w-full max-w-xl">
+            <Input
               id="trp-txid"
+              label="Settlement transaction hash (optional, sends the TRP confirmation)"
               value={txid}
               onChange={(e) => setTxid(e.target.value)}
               spellCheck={false}
               placeholder="64-hex Stellar tx hash of the settled withdraw"
-              className="mt-[7px] w-full max-w-xl rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+              className="font-mono"
             />
-            {txid.trim() && !txidOk && <p className="mt-1 text-[11px] text-amber">Not a 64-hex transaction hash; the confirmation will not be sent.</p>}
+            {txid.trim() && !txidOk && <p className="mt-1 text-[11px] text-tape-deep">Not a 64-hex transaction hash; the confirmation will not be sent.</p>}
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <Button variant="subtle" busy={sending} onClick={sendTrp}>
               Send as TRP message
             </Button>
@@ -1290,128 +1180,152 @@ function TravelRuleTab({
           </div>
 
           {trp && trp.approved && (
-            <div className="mt-3 animate-tk-pop rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2.5 text-[13px] text-green-t">
-              <b>✓ Approved by the beneficiary VASP · TRP {trp.status}.</b>
-              <div className="mt-1.5 text-ts">
-                request-identifier <span className="font-mono text-orange-pale">{trp.requestIdentifier}</span>
-              </div>
-              <div className="mt-1 text-ts">
-                settlement address <span className="font-mono">{short(trp.approved.address)}</span> · callback{" "}
-                <span className="font-mono">{trp.approved.callback}</span>
-              </div>
-              {trp.confirmation && (
-                <div className={`mt-1 ${trp.confirmation.ok ? "text-ts" : "text-amber"}`}>
-                  Transfer confirmation (txid) {trp.confirmation.ok ? "accepted" : "not accepted"} by the beneficiary callback · HTTP {trp.confirmation.status}
+            <div className="mt-5 border-t-2 border-ink pt-4 text-[13px]">
+              <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+                <div className="min-w-0 flex-1">
+                  <b className="text-stamp-deep">Approved by the beneficiary VASP · TRP {trp.status}.</b>
+                  <div className="mt-1.5 text-ink-2">
+                    request-identifier <span className="font-mono text-ink">{trp.requestIdentifier}</span>
+                  </div>
+                  <div className="mt-1 text-ink-2">
+                    settlement address <span className="font-mono">{short(trp.approved.address)}</span> · callback{" "}
+                    <span className="font-mono break-all">{trp.approved.callback}</span>
+                  </div>
+                  {trp.confirmation && (
+                    <div className={`mt-1 ${trp.confirmation.ok ? "text-ink-2" : "text-tape-deep"}`}>
+                      Transfer confirmation (txid) {trp.confirmation.ok ? "accepted" : "not accepted"} by the beneficiary callback · HTTP {trp.confirmation.status}
+                    </div>
+                  )}
                 </div>
-              )}
-              <div className="mt-2 flex items-center gap-3">
+                <Stamp size="lg" land sub={`TRP ${trp.status}`}>
+                  Approved
+                </Stamp>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-ink/25 pt-3">
+                <span className={captionCls}>Lifecycle</span>
                 <Button variant="subtle" onClick={checkLifecycle} busy={lifecycleBusy}>
                   Check lifecycle
                 </Button>
                 {lifecycle &&
                   (lifecycle.status === 404 ? (
-                    <span className="text-tm">No lifecycle record for this request-identifier yet (404).</span>
+                    <span className="text-ink-3">No lifecycle record for this request-identifier yet (404).</span>
                   ) : (
-                    <span className="text-tm">HTTP {lifecycle.status || "network error"}</span>
+                    <span className="font-mono text-ink-2">HTTP {lifecycle.status || "network error"}</span>
                   ))}
               </div>
               {lifecycle && lifecycle.status !== 404 && (
-                <pre className="mt-2 overflow-x-auto rounded-lg border border-line-input bg-input px-3 py-2 font-mono text-[11px] text-tp">
-                  {typeof lifecycle.body === "string" ? lifecycle.body : JSON.stringify(lifecycle.body, null, 2)}
-                </pre>
+                <pre className={`${preCls} text-[11px]`}>{typeof lifecycle.body === "string" ? lifecycle.body : JSON.stringify(lifecycle.body, null, 2)}</pre>
               )}
-              <div className="mt-1 text-tm">
+              <div className="mt-2 text-ink-3">
                 {trp.mode === "notabene"
-                  ? "Sent to the Notabene sandbox — a real, independent VASP over live TRP."
-                  : "Sent to our own inbound TRP endpoint — real TRP protocol, single operator (one node, both ends)."}
+                  ? "Sent to the Notabene sandbox, a real, independent VASP over live TRP."
+                  : "Sent to our own inbound TRP endpoint, real TRP protocol, single operator (one node, both ends)."}
               </div>
             </div>
           )}
           {trp && !trp.approved && (
-            <div className="mt-3 animate-tk-pop rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2.5 text-[13px] text-red-t">
-              <b>✗ {trp.rejected ? `Rejected · TRP ${trp.status}` : "TRP send failed"}.</b>
-              <div className="mt-1.5 text-ts">{trp.rejected || trp.error || "No approval returned."}</div>
-              {trp.requestIdentifier !== "—" && (
-                <div className="mt-1 text-tm">
-                  request-identifier <span className="font-mono">{trp.requestIdentifier}</span>
+            <div className="mt-5 border-t-2 border-ink pt-4 text-[13px]">
+              <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+                <div className="min-w-0 flex-1">
+                  <b className="text-tape-deep">{trp.rejected ? `Rejected · TRP ${trp.status}` : "TRP send failed"}.</b>
+                  <div className="mt-1.5 text-ink-2">{trp.rejected || trp.error || "No approval returned."}</div>
+                  {trp.requestIdentifier !== "—" && (
+                    <div className="mt-1 text-ink-3">
+                      request-identifier <span className="font-mono">{trp.requestIdentifier}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+                <Stamp tone="red" size="lg" land sub={trp.rejected ? `TRP ${trp.status}` : "no response"}>
+                  {trp.rejected ? "Rejected" : "Failed"}
+                </Stamp>
+              </div>
             </div>
           )}
+        </Sheet>
+      </div>
+
+      <Sheet title="Send via TRISA (companion node)" meta="Real TRISA network when the node is deployed">
+        <p className="text-[13px] leading-relaxed text-ink-2">
+          The FATF Travel Rule also has a second live network, <b className="text-ink">TRISA</b>, which uses mutual-TLS and a certificate
+          directory that a serverless function cannot host. Tukar ships an always-on TRISA companion node (
+          <span className="font-mono text-ink">trisa-node/</span>) that does: it looks the beneficiary VASP up in the Global TRISA
+          Directory, seals the IVMS101 payload to the peer, and performs a real gRPC Transfer. This button drives it when it is deployed
+          and registered; otherwise it reports that honestly and you use the TRP send on the beneficiary copy.
+        </p>
+
+        <div className="mt-4 w-full max-w-sm">
+          <Input
+            id="trisa-ben"
+            label="Beneficiary VASP (directory common name)"
+            value={trisaBeneficiary}
+            onChange={(e) => setTrisaBeneficiary(e.target.value)}
+            placeholder="api.bob.vaspbot.net"
+            className="font-mono"
+          />
+          <p className="mt-2 text-[11.5px] text-ink-3">
+            A TRISA test peer such as the Alice or Bob rVASP. Requires a registered test VASP and an installed cert (see trisa-node/README).
+          </p>
         </div>
 
-        <div className="mt-4 rounded-tile border border-orange/25 bg-orange/[0.04] p-4">
-          <div className="flex items-center gap-2">
-            <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Send via TRISA (companion node)</div>
-            <StatusPill tone="amber" label="Real TRISA network when the node is deployed" />
-          </div>
-          <p className="mt-2 text-[12.5px] leading-relaxed text-tm">
-            The FATF Travel Rule also has a second live network, <b className="text-ts">TRISA</b>, which uses mutual-TLS and a
-            certificate directory that a serverless function cannot host. Tukar ships an always-on TRISA companion node
-            (<span className="font-mono text-orange-pale">trisa-node/</span>) that does: it looks the beneficiary VASP up in the
-            Global TRISA Directory, seals the IVMS101 payload to the peer, and performs a real gRPC Transfer. This button drives
-            it when it is deployed and registered; otherwise it reports that honestly and you use the TRP send above.
-          </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button variant="subtle" busy={trisaSending} onClick={sendTrisa}>
+            Send via TRISA node
+          </Button>
+          {trisaSending && <Spinner label="performing the TRISA transfer…" />}
+        </div>
 
-          <div className="mt-3">
-            <label htmlFor="trisa-ben" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-              Beneficiary VASP (directory common name)
-            </label>
-            <input
-              id="trisa-ben"
-              value={trisaBeneficiary}
-              onChange={(e) => setTrisaBeneficiary(e.target.value)}
-              placeholder="api.bob.vaspbot.net"
-              className="mt-[7px] w-full max-w-sm rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
-            />
-            <p className="mt-2 text-[11px] text-tf">
-              A TRISA test peer such as the Alice or Bob rVASP. Requires a registered test VASP and an installed cert (see trisa-node/README).
-            </p>
-          </div>
-
-          <div className="mt-3 flex items-center gap-3">
-            <Button variant="subtle" busy={trisaSending} onClick={sendTrisa}>
-              Send via TRISA node
-            </Button>
-            {trisaSending && <Spinner label="performing the TRISA transfer…" />}
-          </div>
-
-          {trisa && trisa.configured === false && (
-            <div className="mt-3 rounded-lg border border-amber/35 bg-amber/[0.05] px-3 py-2.5 text-[13px] text-amber">
+        {trisa && trisa.configured === false && (
+          <div className="mt-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-t-2 border-ink pt-4 text-[13px]">
+            <div className="min-w-0 flex-1">
               <b>TRISA companion node not deployed.</b>
-              <div className="mt-1 text-ts">{trisa.note || "Using the self-hosted TRP send above."}</div>
-              <div className="mt-1 text-tm">
-                Deploy and register the node (trisa-node/README), set <span className="font-mono">TRISA_NODE_URL</span>, then this
+              <div className="mt-1 text-ink-2">{trisa.note || "Using the self-hosted TRP send on the beneficiary copy."}</div>
+              <div className="mt-1 text-ink-3">
+                Deploy and register the node (trisa-node/README), set <span className="font-mono text-ink">TRISA_NODE_URL</span>, then this
                 becomes a real TRISA network transfer.
               </div>
             </div>
-          )}
-          {trisa && trisa.configured && trisa.result && !trisa.result.rejected && (
-            <div className="mt-3 animate-tk-pop rounded-lg border border-green/35 bg-green/[0.05] px-3 py-2.5 text-[13px] text-green-t">
-              <b>✓ TRISA Transfer accepted by {trisa.result.beneficiary}.</b>
-              <div className="mt-1.5 text-ts">
-                envelope <span className="font-mono text-orange-pale">{short(trisa.result.envelopeId)}</span> · state{" "}
+            <Stamp tone="ink" size="lg" land sub="honest state">
+              Not deployed
+            </Stamp>
+          </div>
+        )}
+        {trisa && trisa.configured && trisa.result && !trisa.result.rejected && (
+          <div className="mt-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-t-2 border-ink pt-4 text-[13px]">
+            <div className="min-w-0 flex-1">
+              <b className="text-stamp-deep">TRISA Transfer accepted by {trisa.result.beneficiary}.</b>
+              <div className="mt-1.5 text-ink-2">
+                envelope <span className="font-mono text-ink">{short(trisa.result.envelopeId)}</span> · state{" "}
                 <span className="font-mono">{trisa.result.transferState}</span>
               </div>
-              <div className="mt-1 text-ts">
-                endpoint <span className="font-mono">{trisa.result.endpoint}</span>
+              <div className="mt-1 text-ink-2">
+                endpoint <span className="font-mono break-all">{trisa.result.endpoint}</span>
                 {trisa.result.receivedAt ? <> · received {trisa.result.receivedAt}</> : null}
               </div>
-              <div className="mt-1 text-tm">Sealed IVMS101 envelope over mutual-TLS on the real TRISA network.</div>
+              <div className="mt-1 text-ink-3">Sealed IVMS101 envelope over mutual-TLS on the real TRISA network.</div>
             </div>
-          )}
-          {trisa && trisa.configured && (trisa.error || trisa.result?.rejected) && (
-            <div className="mt-3 animate-tk-pop rounded-lg border border-red/40 bg-red/[0.05] px-3 py-2.5 text-[13px] text-red-t">
-              <b>✗ {trisa.result?.rejected ? "TRISA transfer rejected" : "TRISA send failed"}.</b>
-              <div className="mt-1.5 text-ts">{trisa.result?.rejected || trisa.error}</div>
+            <Stamp size="lg" land sub="sealed envelope">
+              Accepted
+            </Stamp>
+          </div>
+        )}
+        {trisa && trisa.configured && (trisa.error || trisa.result?.rejected) && (
+          <div className="mt-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-t-2 border-ink pt-4 text-[13px]">
+            <div className="min-w-0 flex-1">
+              <b className="text-tape-deep">{trisa.result?.rejected ? "TRISA transfer rejected" : "TRISA send failed"}.</b>
+              <div className="mt-1.5 text-ink-2">{trisa.result?.rejected || trisa.error}</div>
             </div>
-          )}
-        </div>
+            <Stamp tone="red" size="lg" land>
+              {trisa.result?.rejected ? "Rejected" : "Failed"}
+            </Stamp>
+          </div>
+        )}
+      </Sheet>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-tile border border-green/25 bg-green/[0.04] p-4 text-[12.5px] leading-relaxed">
-            <div className="font-mono text-[10px] tracking-[0.12em] text-green-t uppercase">Real, from the disclosure</div>
-            <ul className="mt-2 list-disc pl-4 text-ts">
+      <Sheet title="What is real here, and what is out of scope" meta="Legend">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-5 border-t-2 border-ink pt-4 sm:grid-cols-2">
+          <div className="text-[13px] leading-relaxed">
+            <h3 className="m-0 font-stencil text-[15px] tracking-[0.02em] text-stamp-deep uppercase">Real, from the disclosure</h3>
+            <ul className="mt-2 list-disc pl-4 text-ink-2 marker:text-stamp">
               <li>Disclosed amount / proven bound</li>
               <li>Asset (USDC) and settlement layer (Stellar)</li>
               <li>Corridor and destination currency</li>
@@ -1420,37 +1334,36 @@ function TravelRuleTab({
               <li>The two VASP roles (sending and receiving side of the corridor)</li>
             </ul>
           </div>
-          <div className="rounded-tile border border-amber/30 bg-amber/[0.04] p-4 text-[12.5px] leading-relaxed">
-            <div className="font-mono text-[10px] tracking-[0.12em] text-amber uppercase">Placeholder, held by the anchor</div>
-            <ul className="mt-2 list-disc pl-4 text-ts">
+          <div className="text-[13px] leading-relaxed">
+            <h3 className="m-0 font-stencil text-[15px] tracking-[0.02em] text-ink uppercase">Placeholder, held by the anchor</h3>
+            <ul className="mt-2 list-disc pl-4 text-ink-2">
               <li>Originator and beneficiary names</li>
               <li>Geographic addresses</li>
               <li>National identification</li>
               <li>Account numbers and customer ids</li>
             </ul>
-            <p className="mt-2 text-tm">Tukar never sees these. The licensed anchors run KYC and exchange them out of band.</p>
+            <p className="mt-2 text-ink-3">Tukar never sees these. The licensed anchors run KYC and exchange them out of band.</p>
           </div>
         </div>
 
-        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4 text-[12.5px] leading-relaxed text-ts">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">What is real here, and what is out of scope</div>
-          <p className="mt-2">
-            The exchange above speaks real <b className="text-ts">TRP 3.2.1</b> (the OpenVASP Travel Rule Protocol): an HTTPS POST
-            of an IVMS101 transfer inquiry with the three spec headers, a base58 Travel Address, and a signed canonical body. With{" "}
-            <span className="font-mono text-orange-pale">NOTABENE_API_KEY</span> set it reaches the Notabene sandbox, a real
-            independent VASP; without it, both ends are this one operator (a real TRP node talking to itself).
+        <div className="mt-5 border-t border-ink/25 pt-4 text-[13px] leading-relaxed text-ink-2">
+          <p className="m-0">
+            The exchange above speaks real <b className="text-ink">TRP 3.2.1</b> (the OpenVASP Travel Rule Protocol): an HTTPS POST of an
+            IVMS101 transfer inquiry with the three spec headers, a base58 Travel Address, and a signed canonical body. With{" "}
+            <span className="font-mono text-ink">NOTABENE_API_KEY</span> set it reaches the Notabene sandbox, a real independent VASP;
+            without it, both ends are this one operator (a real TRP node talking to itself).
           </p>
-          <p className="mt-2 text-tm">
-            Out of scope for a serverless deploy: mutual-TLS and a live TRISA/BVN directory, because both need long-lived
-            certificates and a peer registry that a stateless function cannot hold. Identity here is header plus Signed-JSON only.
+          <p className="mt-2 text-ink-3">
+            Out of scope for a serverless deploy: mutual-TLS and a live TRISA/BVN directory, because both need long-lived certificates
+            and a peer registry that a stateless function cannot hold. Identity here is header plus Signed-JSON only.
           </p>
         </div>
-      </CardBox>
+      </Sheet>
     </>
   );
 }
 
-// ================= 05 · AUDIT TRAIL =================
+// ================= AUDIT TRAIL =================
 function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: TrailEntry[]) => void }) {
   const { toast } = useToast();
   const linkRef = useRef<HTMLAnchorElement>(null);
@@ -1480,24 +1393,28 @@ function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: Trai
     setTrail([]);
   };
 
-  const pill = (res: string) => {
+  // Each ledger line carries its verdict as a small stamp: blue cleared, red rejected, ink otherwise.
+  const verdict = (res: string) => {
     const tone =
       res === "valid + bound" || res === "valid" || res === "registered" || res === "anchored"
-        ? "border-green/35 text-green-t"
+        ? "blue"
         : res === "invalid" || res === "failed"
-          ? "border-red/40 text-red-t"
-          : res === "valid, not bound"
-            ? "border-amber/40 text-amber"
-            : "border-line-input text-tm";
-    return <span className={`inline-block rounded-md border px-2 py-0.5 font-mono text-[10px] ${tone}`}>{res}</span>;
+          ? "red"
+          : "ink";
+    return (
+      <Stamp tone={tone} size="sm" className="whitespace-nowrap">
+        {res}
+      </Stamp>
+    );
   };
 
   return (
-    <CardBox
+    <Sheet
       title="Session audit trail"
+      meta={`Desk ledger · ${trail.length} ${trail.length === 1 ? "entry" : "entries"}`}
       sub="Every disclosure this console verified, every audit request it issued, and every receipt it anchored this session. Persisted locally so a reload keeps the record."
       right={
-        <div className="flex gap-2">
+        <>
           <Button variant="subtle" onClick={exportJson} disabled={!trail.length} title={!trail.length ? "No audit actions recorded yet" : undefined}>
             Export JSON
           </Button>
@@ -1507,38 +1424,26 @@ function TrailTab({ trail, setTrail }: { trail: TrailEntry[]; setTrail: (t: Trai
           <Button variant="subtle" onClick={clear} disabled={!trail.length} title={!trail.length ? "No audit actions recorded yet" : undefined}>
             Clear
           </Button>
-        </div>
+        </>
       }
     >
       <a ref={linkRef} className="hidden" />
-      <TableWrap>
-        <thead>
-          <tr className="border-b border-line">
-            <th className={thCls}>Time</th>
-            <th className={thCls}>Action</th>
-            <th className={thCls}>Type</th>
-            <th className={thCls}>Detail</th>
-            <th className={thCls}>Result</th>
-            <th className={thCls}>Ref</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trail.length ? (
-            trail.map((t, i) => (
-              <tr key={i} className="border-b border-line/60 last:border-0">
-                <td className={`${tdCls} whitespace-nowrap text-tf`}>{new Date(t.ts).toLocaleString()}</td>
-                <td className={tdCls}>{t.action}</td>
-                <td className={`${tdCls} capitalize`}>{t.type || "—"}</td>
-                <td className={`${tdCls} text-tm`}>{t.detail || ""}</td>
-                <td className={tdCls}>{pill(t.result)}</td>
-                <td className={`${tdCls} font-mono text-[11px] text-tf`}>{t.ref || ""}</td>
-              </tr>
-            ))
-          ) : (
-            <EmptyRow cols={6}>No audit actions yet this session.</EmptyRow>
-          )}
-        </tbody>
-      </TableWrap>
-    </CardBox>
+      <Ledger head={["Time", "Action", "Type", "Detail", "Result", "Ref"]}>
+        {trail.length ? (
+          trail.map((t, i) => (
+            <tr key={i}>
+              <td className={`${td} font-mono text-[11.5px] whitespace-nowrap text-ink-3`}>{new Date(t.ts).toLocaleString()}</td>
+              <td className={td}>{t.action}</td>
+              <td className={`${td} capitalize`}>{t.type || ""}</td>
+              <td className={`${td} text-ink-3`}>{t.detail || ""}</td>
+              <td className={td}>{verdict(t.result)}</td>
+              <td className={`${td} font-mono text-[11px] text-ink-3`}>{t.ref || ""}</td>
+            </tr>
+          ))
+        ) : (
+          <EmptyRow cols={6}>No audit actions yet this session.</EmptyRow>
+        )}
+      </Ledger>
+    </Sheet>
   );
 }

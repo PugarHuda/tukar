@@ -1,9 +1,9 @@
 "use client";
 
-// Shared desktop-dashboard shell for the Tukar Regulator / Operator consoles.
-// Fixed left sidebar (brand, nav, wallet) + independently scrolling main content.
-// Below `lg` the rail collapses to a top bar with a hamburger that opens the same
-// Sidebar as an overlay drawer.
+// Shared desk frame for the Tukar Regulator / Operator consoles: the clipboard (Sidebar) pinned
+// on the left, kraft ground with label sheets scrolling on the right. Below `lg` the clipboard
+// collapses to a label strip along the top with a hamburger that opens the same Sidebar as an
+// overlay drawer.
 import { useEffect, useRef, useState } from "react";
 import { Sidebar, type NavItem } from "./Sidebar";
 import { trapTab } from "@/lib/focus-trap";
@@ -63,27 +63,27 @@ export function DashboardShell({
 
   return (
     <div className="lg:flex lg:h-screen lg:overflow-hidden">
-      {/* Desktop rail — fixed width, full height */}
-      <aside className="hidden w-[264px] shrink-0 border-r border-line bg-surface lg:block">
+      {/* Desktop clipboard: fixed width, full height, an ink rule where it meets the desk */}
+      <aside className="hidden w-[264px] shrink-0 border-r-[1.5px] border-ink bg-label shadow-[6px_0_18px_-12px_rgba(22,19,17,0.6)] lg:block">
         <Sidebar title={title} nav={nav} active={active} onSelect={onSelect} />
       </aside>
 
-      {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur lg:hidden">
+      {/* Mobile top strip: a label along the top edge of the box */}
+      <div className="sticky top-0 z-30 flex items-center gap-3 border-b-2 border-ink bg-label px-4 py-2.5 shadow-[0_6px_14px_-10px_rgba(22,19,17,0.5)] lg:hidden">
         <button
           ref={hamburgerRef}
           type="button"
           aria-label="Open navigation"
           aria-expanded={open}
           onClick={() => setOpen(true)}
-          className="rounded-lg border border-line-input p-2 text-ts hover:border-orange/50 hover:text-tp"
+          className="rounded-stub border border-ink p-2 text-ink transition-[background-color,color] duration-clock ease-clock hover:bg-ink hover:text-label"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span className="font-mono text-[10px] tracking-[0.16em] text-tf uppercase">{title}</span>
-        <span className="ml-auto text-[13px] font-semibold text-tp">{activeLabel}</span>
+        <span className="min-w-0 truncate font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-2">{title}</span>
+        <span className="ml-auto shrink-0 font-stencil text-[15px] uppercase leading-none text-ink">{activeLabel}</span>
       </div>
 
       {/* Mobile drawer */}
@@ -92,21 +92,21 @@ export function DashboardShell({
           <button
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
-            className="absolute inset-0 h-full w-full bg-black/60"
+            className="absolute inset-0 h-full w-full bg-ink/55"
           />
           <div
             ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="absolute inset-y-0 left-0 w-[264px] border-r border-line bg-bg shadow-xl"
+            className="absolute inset-y-0 left-0 w-[264px] max-w-[88vw] border-r-[1.5px] border-ink bg-label shadow-lift"
           >
             <Sidebar title={title} nav={nav} active={active} onSelect={select} />
           </div>
         </div>
       )}
 
-      {/* Main content — scrolls independently on desktop */}
+      {/* Main: the kraft desk, scrolls independently on desktop */}
       <main className="min-w-0 flex-1 lg:h-screen lg:overflow-y-auto">{children}</main>
     </div>
   );

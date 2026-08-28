@@ -11,7 +11,8 @@
 // No EVM wallet -> we show the burn + attestation are complete and hand over message + attestation
 // to submit from a Base Sepolia wallet. We never fake the mint.
 import { useEffect, useRef, useState } from "react";
-import { Button, Input, Badge } from "@/components/ui";
+import { Button, Card, Input, Badge } from "@/components/ui";
+import { Ext, Mark, NOTICE, TYPED } from "@/components/sender/Label";
 import { useWallet } from "@/components/WalletProvider";
 import { walletSigner } from "@/lib/stellar";
 import { usdcToStroops } from "@/lib/zk";
@@ -159,44 +160,45 @@ export function CctpSend({ className = "" }: { className?: string }) {
     }).catch(() => {});
   }
 
+  // An attached form on the same label paper: the whole head is the toggle.
   return (
-    <div className={`rounded-tile border border-line bg-black/20 p-3.5 ${className}`}>
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
+    <Card className={className}>
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 p-4 text-left">
         <span className="min-w-0">
-          <span className="block text-[13px] font-semibold text-tp">Send out to another chain (Circle CCTP)</span>
-          <span className="mt-0.5 block font-mono text-[10px] text-tf">Real Circle CCTP V2, Stellar testnet → Base Sepolia</span>
+          <span className="block text-[14px] font-semibold text-ink">Send out to another chain (Circle CCTP)</span>
+          <span className={`mt-0.5 block ${TYPED}`}>Real Circle CCTP V2, Stellar testnet → Base Sepolia</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <Badge tone="green">LIVE · TESTNET</Badge>
-          <span aria-hidden className="font-mono text-[11px] text-tm">{open ? "−" : "+"}</span>
+          <Mark kind={open ? "minus" : "plus"} className="text-ink" />
         </span>
       </button>
 
       {open && (
-        <div className="mt-3 border-t border-line pt-3">
-          <ol className="mb-3 flex flex-col gap-1.5 font-mono text-[11px] leading-relaxed text-tm">
+        <div className="border-t border-ink px-4 pb-4 pt-3">
+          <ol className={`mb-3 flex flex-col gap-1.5 ${TYPED} text-ink-2`}>
             <li>1 · Burn USDC on Stellar (approve + deposit_for_burn).</li>
             <li>2 · Circle attests the burn (Iris).</li>
             <li>3 · Your Base Sepolia wallet calls receiveMessage; USDC mints to the recipient.</li>
           </ol>
 
-          <p className="mb-3 rounded-lg border border-line bg-black/20 p-2.5 text-[12px] leading-relaxed text-tf">
+          <p className="mb-3 text-[12px] leading-relaxed text-ink-3">
             The Stellar burn spends testnet USDC from {ownWallet ? "your connected wallet" : "the built-in testnet key"}. The mint on Base Sepolia needs your own EVM wallet for gas.
           </p>
 
           {hasEvmWallet === false && (
-            <p className="mb-3 rounded-lg border border-amber/30 bg-amber/[0.06] p-2.5 text-[12px] leading-relaxed text-ts">
+            <p className={`mb-3 ${NOTICE}`}>
               No EVM wallet detected. The burn + attestation still run; you will get the message + attestation to submit{" "}
               <b>receiveMessage</b> from any Base Sepolia wallet (a little test ETH for gas from{" "}
-              <a href="https://faucet.circle.com" target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">faucet.circle.com ↗</a>).
+              <Ext href="https://faucet.circle.com">faucet.circle.com</Ext>).
             </p>
           )}
 
           <div className="mt-1 flex flex-col gap-3">
-            <Input label="Amount (USDC)" id="cctp-out-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} />
+            <Input label="Amount (USDC)" id="cctp-out-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} className="font-mono" />
             <div>
-              <Input label="EVM recipient (0x…)" id="cctp-out-recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="0x… Base Sepolia address" disabled={busy} />
-              {recipient && !recipientOk && <p className="mt-1 font-mono text-[10px] text-red-t">Not a valid 0x EVM address.</p>}
+              <Input label="EVM recipient (0x…)" id="cctp-out-recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="0x… Base Sepolia address" disabled={busy} className="font-mono" />
+              {recipient && !recipientOk && <p className="mt-1 font-mono text-[10.5px] text-tape-deep">Not a valid 0x EVM address.</p>}
             </div>
 
             <Button full busy={busy} disabled={busy} onClick={run}>
@@ -205,42 +207,40 @@ export function CctpSend({ className = "" }: { className?: string }) {
           </div>
 
           {phase === "need-evm" && message && (
-            <div className="mt-3 rounded-lg border border-amber/30 bg-amber/[0.06] p-2.5">
-              <p className="text-[12px] leading-relaxed text-ts">
+            <div className={`mt-3 ${NOTICE}`}>
+              <p>
                 Burn attested. Finish by calling <b>receiveMessage(message, attestation)</b> on the Base Sepolia
                 MessageTransmitterV2 (<span className="font-mono">{short(CCTP.evmMessageTransmitter)}</span>) from a funded wallet.
               </p>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <Button variant="subtle" onClick={retryMint}>Mint now (if a wallet is connected)</Button>
-                <Button variant="ghost" onClick={copyProof}>{copied ? "Copied ✓" : "Copy message + attestation"}</Button>
+                <Button variant="ghost" onClick={copyProof}>{copied ? "Copied" : "Copy message + attestation"}</Button>
               </div>
             </div>
           )}
 
           {(status || error) && (
             <div className="mt-3 flex flex-col gap-1.5 text-[12px] leading-relaxed">
-              {status && !error && <p className="text-ts" role="status" aria-live="polite">{status}</p>}
-              {error && <p className="text-red-t" role="alert">{error}</p>}
+              {status && !error && <p className="text-ink-2" role="status" aria-live="polite">{status}</p>}
+              {error && <p className="text-tape-deep" role="alert">{error}</p>}
               {burnTx && (
-                <p className="font-mono text-[11px] text-tf">
-                  Stellar burn ·{" "}
-                  <a href={stellarTxExplorer(burnTx)} target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">{short(burnTx)} ↗</a>
+                <p className={TYPED}>
+                  Stellar burn · <Ext href={stellarTxExplorer(burnTx)}>{short(burnTx)}</Ext>
                 </p>
               )}
               {mintTx && (
-                <p className="font-mono text-[11px] text-tf">
-                  Base Sepolia mint ·{" "}
-                  <a href={evmTxExplorer(mintTx)} target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">{short(mintTx)} ↗</a>
+                <p className={TYPED}>
+                  Base Sepolia mint · <Ext href={evmTxExplorer(mintTx)}>{short(mintTx)}</Ext>
                 </p>
               )}
             </div>
           )}
 
-          <a href="https://developers.circle.com/stablecoins/cctp-getting-started" target="_blank" rel="noreferrer" className="mt-3 inline-block font-mono text-[11px] text-orange underline underline-offset-2">
-            Circle Cross-Chain Transfer Protocol V2 ↗
-          </a>
+          <Ext href="https://developers.circle.com/stablecoins/cctp-getting-started" className="mt-3 font-mono text-[11px]">
+            Circle Cross-Chain Transfer Protocol V2
+          </Ext>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

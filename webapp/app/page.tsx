@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "@/components/landing/landing.css";
-import { HeroCanvas } from "@/components/landing/HeroCanvas";
-import { GridCanvas } from "@/components/landing/GridCanvas";
-import { GlobeCanvas } from "@/components/landing/GlobeCanvas";
 import { CircuitsTabs } from "@/components/landing/CircuitsTabs";
 import { LaunchButton } from "@/components/landing/LaunchModal";
+import { Wordmark, ICON_DATA_URI } from "@/components/landing/Wordmark";
+import { Seal } from "@/components/ui/Seal";
+import { CORRIDORS } from "@/components/receiver/corridors";
 import { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "@/lib/constants";
 
 const POOL_URL = `https://stellar.expert/explorer/testnet/contract/${POOL}`;
@@ -27,73 +27,67 @@ const LIVE_CONTRACTS = [
 ];
 // One entry per circuits/*.circom file in the repo.
 const CIRCUITS = ["transfer", "compliance", "disclosure", "merkleUpdate", "thresholdDisclosure", "aggregateDisclosure", "rangeDisclosure", "reserves"];
-// `cargo test` total across the contract crates on 2026-08-27 (pool 52, pool-enforced 65,
-// pool-timelock 78, pool-accumulator 71, policy-registry 3, reserves 6, reserves-aggregate 9).
-// Refresh: run `cargo test` in each contracts/* crate and sum. Shown floored to tens with a "+"
-// because the crates keep gaining tests.
-const CONTRACT_TESTS = 284;
+// `cargo test` total across the contract crates (pool 52, pool-enforced 71, pool-timelock 89,
+// pool-accumulator 78, policy-registry 6, reserves 6, reserves-aggregate 12) on 2026-08-28.
+// Refresh: run `cargo test` in each contracts/* crate and sum. Shown floored to tens with a "+".
+const CONTRACT_TESTS = 314;
 const CONTRACT_TESTS_LABEL = `${Math.floor(CONTRACT_TESTS / 10) * 10}+`;
 
-// Metadata ported verbatim from frontend/index.html <head> (copy already cleaned).
 export const metadata: Metadata = {
   metadataBase: new URL("https://tukar-six.vercel.app"),
-  title: "Tukar. Confidential cross-border corridor on Stellar",
+  title: "Tukar. Send money home, sealed.",
   description:
-    "Tukar is a confidential cross-border payment corridor on Stellar. USDC crosses in a shielded transfer that hides amounts and counterparties (deposits/withdrawals public at the edges), proven compliant with zero-knowledge and verified on-chain by a live Stellar BN254 Groth16 verifier.",
+    "Tukar is a private cross-border remittance corridor on Stellar. USDC crosses in a shielded transfer that hides amounts and counterparties (deposits and withdrawals public at the edges), proven compliant with zero-knowledge and verified on-chain by live Stellar BN254 Groth16 verifiers.",
   manifest: "/manifest.webmanifest",
   alternates: { canonical: "/" },
-  icons: {
-    apple: "/icon-192.png",
-    icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M28 16 22 5.6 10 5.6 4 16 10 26.4 22 26.4Z' stroke='%23ff8a3d' stroke-width='2' fill='none' stroke-linejoin='round'/%3E%3Cpath d='M1 16H12M20 16H31' stroke='%23ffb070' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M16 11 21 16 16 21 11 16Z' fill='%23ff7a1a'/%3E%3Cpath d='M16 13.2 18.8 16 16 18.8 13.2 16Z' fill='%230a0705'/%3E%3C/svg%3E",
-  },
+  icons: { apple: "/icon-192.png", icon: ICON_DATA_URI },
   openGraph: {
     type: "website",
     url: "https://tukar-six.vercel.app/",
-    title: "Tukar. Private money, across borders.",
+    title: "Tukar. Send money home, sealed.",
     description:
-      "Confidential cross-border payment corridors on Stellar. Shielded transfers hide amounts and counterparties (edges public by design), with compliance proven in ZK and verified on-chain.",
+      "Private cross-border remittance corridors on Stellar. Shielded transfers hide amounts and counterparties (edges public by design), with compliance proven in ZK and verified on-chain.",
     images: [{ url: "https://tukar-six.vercel.app/og-image.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tukar. Private money, across borders.",
-    description:
-      "Confidential cross-border payment corridors on Stellar. Shielded transfers hide amounts and counterparties (edges public by design), with compliance proven in ZK.",
+    title: "Tukar. Send money home, sealed.",
+    description: "Private cross-border remittance corridors on Stellar. Shielded in the middle, stamped compliant on-chain.",
     images: ["https://tukar-six.vercel.app/og-image.png"],
   },
 };
 
-export const viewport: Viewport = { themeColor: "#0a0705" };
+export const viewport: Viewport = { themeColor: "#d4a468" };
 
-const MARK = "M28 16 22 5.6 10 5.6 4 16 10 26.4 22 26.4Z";
-const MARK_LINE = "M1 16H12M20 16H31";
-const MARK_DIAMOND = "M16 11 21 16 16 21 11 16Z";
-const MARK_INNER = "M16 13.2 18.8 16 16 18.8 13.2 16Z";
+const MARQUEE = ["Stellar", "Soroban", "Circom", "Groth16", "BN254", "Poseidon", "snarkjs", "circomlib", "zk-SNARK", "WASM", "Protocol 28"];
 
-function BrandMark({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-      <path d={MARK} stroke="#ff8a3d" strokeWidth="2" strokeLinejoin="round" />
-      <path d={MARK_LINE} stroke="#ffb070" strokeWidth="2" strokeLinecap="round" />
-      <path d={MARK_DIAMOND} fill="#ff7a1a" />
-      <path d={MARK_INNER} fill="#0a0705" />
-    </svg>
-  );
-}
+// The box's journey, in the order it happens on-chain. Every status is a real property of the
+// deployed contracts (see the contract table in README.md and the tests behind it).
+const JOURNEY = [
+  { step: "Pack", what: "The sender deposits USDC with a compliance proof: the source is on the ASP allow-list and not on the deny-list, bound to this deposit.", stamp: "PROOF BOUND" },
+  { step: "Seal", what: "The note becomes a commitment in the shielded Merkle tree. A trustless merkleUpdate proof advances the root on-chain; a fake root is rejected.", stamp: "SEALED" },
+  { step: "Ship", what: "In transit, only nullifiers are revealed. No amount, no counterparties, no payment graph. Deposits and withdrawals stay public at the edges by design.", stamp: "PRIVATE" },
+  { step: "Customs", what: "A regulator can ask for a selective disclosure: exact, at-or-below a figure, within a band, or a portfolio sum. Each is a separate proof verified on-chain and bound to the audit request.", stamp: "CLEARED" },
+  { step: "Open", what: "The receiver proves ownership and withdraws. The released amount is bound to the proof, then cashes out through the anchor to local money.", stamp: "DELIVERED" },
+];
 
-const MARQUEE = ["Stellar", "Soroban", "Circom", "Groth16", "BN254", "Poseidon", "snarkjs", "circomlib", "zk-SNARK", "WASM", "Protocol 26"];
+const PROVES = [
+  { k: "TRANSFER", q: "A spent note can never be spent twice. Its nullifier is bound to the proof.", name: "No double-spend", sub: "pool, double-spend rejected" },
+  { k: "COMPLIANCE", q: "The source is on the ASP allow-list and not on the deny-list, bound to the transfer.", name: "Compliant source", sub: "compliance verifier, verify returns true" },
+  { k: "DISCLOSURE", q: "This commitment opens to exactly this amount, for this auditor and no one else.", name: "Selective disclosure", sub: "disclosure verifier, tampered input rejected" },
+  { k: "PRIVACY", q: "The payment graph stays hidden. The in-corridor transfer reveals no amount or counterparty.", name: "No graph leak", sub: "shielded, private by construction" },
+];
 
 export default function Home() {
   return (
     <>
-      {/* ============ HEADER ============ */}
+      {/* ============ HEADER: the label strip along the top edge of the box ============ */}
       <header className="header">
         <div className="header-inner">
           <Link href="/" className="brand" aria-label="Tukar home">
-            <BrandMark size={30} />
-            <span className="word">tukar</span>
+            <Wordmark height={30} />
           </Link>
-          <nav className="nav">
+          <nav className="nav" aria-label="Sections">
             <a href="#apps">Apps</a>
             <a href="#corridor">Corridor</a>
             <a href="#circuits">Circuits</a>
@@ -102,310 +96,249 @@ export default function Home() {
           <div className="header-spacer" />
           <div className="header-right">
             <a className="link" href={REPO} target="_blank" rel="noopener">GitHub</a>
-            <a className="link" href={POOL_URL} target="_blank" rel="noopener">Pool ↗</a>
-            <LaunchButton className="btn-cta">Launch app ↗</LaunchButton>
+            <a className="link" href={POOL_URL} target="_blank" rel="noopener">Pool contract</a>
+            <LaunchButton className="btn-cta">Launch app</LaunchButton>
           </div>
         </div>
       </header>
 
-      {/* ============ HERO ============ */}
-      <section className="hero">
-        <HeroCanvas />
-        <div className="hero-fade" />
+      {/* ============ HERO: the top of one sealed box ============ */}
+      <section className="hero" aria-labelledby="hero-title">
         <div className="hero-inner">
-          <div>
-            <div className="eyebrow">Confidential corridors</div>
-            <h1>
-              Send money home, privately.
-              <br />
-              <span className="dim">Private in the middle, accountable at the edges.</span>
-            </h1>
-            <div className="hero-ctas">
-              <LaunchButton className="btn-primary">Launch the live apps <span>↗</span></LaunchButton>
-              <a className="btn-ghost" href={REPO} target="_blank" rel="noopener">View on GitHub <span>↗</span></a>
+          <div className="box">
+            <span className="tape tape-corner" aria-hidden="true" />
+            <div className="label label-main">
+              <div className="label-bar">
+                <span>Tukar</span>
+                <span>Private remittance on Stellar</span>
+                <span className="label-bar-right">Testnet</span>
+              </div>
+              <h1 id="hero-title">
+                Send money home,<br />sealed.
+              </h1>
+              <dl className="label-fields">
+                <div><dt>From</dt><dd><span className="tk-redact" style={{ minWidth: "11ch" }} role="img" aria-label="hidden" /></dd></div>
+                <div><dt>To</dt><dd><span className="tk-redact" style={{ minWidth: "9ch" }} role="img" aria-label="hidden" /></dd></div>
+                <div><dt>Contents</dt><dd>USDC, amount sealed</dd></div>
+                <div><dt>Route</dt><dd>Fiat in, shielded pool across, fiat out</dd></div>
+              </dl>
+              <p className="label-copy">
+                Deposits and withdrawals are public at the edges, by design. The crossing in between is private: no amount,
+                no counterparties, no payment graph. Every transfer carries a zero-knowledge compliance proof that a live Stellar
+                contract verifies before the money moves.
+              </p>
+              <div className="stamps">
+                <span className="tk-stamp stamp-big">Compliance cleared<small>proof on-chain</small></span>
+                <span className="tk-stamp tk-stamp-ink stamp-small">Private in transit</span>
+              </div>
+            </div>
+            <div className="stubs">
+              <LaunchButton className="stub stub-primary">
+                <span className="stub-t">Send a box home</span>
+                <span className="stub-k">Sender, builds the proof on your phone</span>
+              </LaunchButton>
+              <a className="stub" href="/receiver">
+                <span className="stub-t">Open a box</span>
+                <span className="stub-k">Receiver, claim and cash out</span>
+              </a>
             </div>
           </div>
-          <div className="hero-side">
-            <p>Fiat in → shielded USDC → fiat out. The corridor crossing is private, with amounts and counterparties hidden. Deposits and withdrawals stay public at the edges, and every transfer is proven compliant with zero-knowledge.</p>
-            <div className="hr-thin" />
-            <div className="hero-stats">
-              <span>STELLAR TESTNET</span>
-              <span>{CIRCUITS.length} ZK CIRCUITS</span>
+          <div className="routing" aria-label="Corridors">
+            <span className="routing-k">Routes</span>
+            {CORRIDORS.map((c) => (
+              <span key={c.code} className={"route" + (c.oracle ? " route-oracle" : "")} title={c.oracle ? `${c.country}: on-chain FX oracle` : `${c.country}: HTTP FX fallback`}>
+                <b>{c.code}</b> {c.currency}
+              </span>
+            ))}
+            <span className="routing-note">Underlined routes settle against the on-chain Reflector oracle.</span>
+          </div>
+          <p className="hero-foot">
+            Everything on this page is live on Stellar testnet. <a href={REPO} target="_blank" rel="noopener">Read the code</a> or{" "}
+            <a href={POOL_URL} target="_blank" rel="noopener">inspect the pool contract</a>.
+          </p>
+        </div>
+      </section>
+
+      {/* ============ APPS: four address labels ============ */}
+      <section id="apps" className="sec sec-apps">
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>Four ways in. Pick a role.</h2>
+            <p>One app for each side of the corridor. Consumer apps to send and receive; consoles for the operator and the regulator.</p>
+          </div>
+          <div className="manifest">
+            <div className="manifest-bar">
+              <span>Roles</span>
+              <span>One line per side of the corridor</span>
+              <span className="label-bar-right">4 apps</span>
             </div>
+            <ul className="roles">
+              <li>
+                <a className="role" href="/sender">
+                  <span className="role-name">Send money</span>
+                  <span className="role-what">Deposit real USDC, build the compliance proof on your phone, and hand over a claim link. Mobile-first.</span>
+                  <span className="role-meta">Consumer app · /sender</span>
+                </a>
+              </li>
+              <li>
+                <a className="role" href="/receiver">
+                  <span className="role-name">Receive and cash out</span>
+                  <span className="role-what">Claim a payment and off-ramp to local money at the edge. Built for the person collecting it.</span>
+                  <span className="role-meta">Consumer app · /receiver</span>
+                </a>
+              </li>
+              <li>
+                <a className="role" href="/regulator">
+                  <span className="role-name">Regulator console</span>
+                  <span className="role-what">Verify selective disclosures on the live verifier, issue audit requests, run the travel rule, export reports.</span>
+                  <span className="role-meta">Console · /regulator</span>
+                </a>
+              </li>
+              <li>
+                <a className="role" href="/operator">
+                  <span className="role-name">Operator console</span>
+                  <span className="role-what">Pool health, custody and reserves, corridor policy, the FX oracle, and monitoring for the desk.</span>
+                  <span className="role-meta">Console · /operator</span>
+                </a>
+              </li>
+            </ul>
           </div>
         </div>
       </section>
 
-      {/* ============ APPS / ROLE PICKER ============ */}
-      <section id="apps" className="sec-apps">
+      {/* ============ CORRIDOR: the manifest of one box's journey ============ */}
+      <section id="corridor" className="sec sec-journey">
         <div className="wrap">
-          <div className="apps-head">
-            <div>
-              <div className="eyebrow">Try the corridor</div>
-              <h2 className="big">Four ways in.<br />Pick a role.</h2>
-            </div>
-            <p>Four focused apps, one for each side of the corridor. Consumer apps to send and receive, dashboards for the regulator and the operator.</p>
+          <div className="sec-head">
+            <h2>Private in the middle. Provable at the desk.</h2>
+            <p>What happens to one box, in the order the contracts enforce it.</p>
           </div>
-
-          <div className="apps-grid">
-            <a className="card app-card" href="/sender">
-              <span className="app-kind consumer">Consumer app</span>
-              <h3>Send money</h3>
-              <p>Deposit real USDC, build the compliance proof on your phone, and share a claim link. Mobile-first.</p>
-              <span className="app-go">Open /sender →</span>
-            </a>
-            <a className="card app-card" href="/receiver">
-              <span className="app-kind consumer">Consumer app</span>
-              <h3>Receive & cash out</h3>
-              <p>Claim a payment and off-ramp to local fiat at the edge. Built for the person collecting it.</p>
-              <span className="app-go">Open /receiver →</span>
-            </a>
-            <a className="card app-card" href="/regulator">
-              <span className="app-kind dash">Dashboard</span>
-              <h3>Regulator console</h3>
-              <p>Verify selective disclosures on the live verifier, issue audit requests, and pull reports.</p>
-              <span className="app-go">Open /regulator →</span>
-            </a>
-            <a className="card app-card" href="/operator">
-              <span className="app-kind dash">Dashboard</span>
-              <h3>Operator console</h3>
-              <p>Pool health, ASP policy, the FX oracle, and corridor configuration for the desk.</p>
-              <span className="app-go">Open /operator →</span>
-            </a>
+          <div className="manifest">
+            <div className="manifest-bar">
+              <span>Manifest</span>
+              <span>Shielded pool, Stellar testnet</span>
+              <span className="label-bar-right">{JOURNEY.length} steps</span>
+            </div>
+            <ol className="manifest-rows">
+              {JOURNEY.map((j, i) => (
+                <li key={j.step} className="manifest-row">
+                  <span className="m-idx">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="m-step">{j.step}</span>
+                  <span className="m-what">{j.what}</span>
+                  <span className={"m-stamp tk-stamp" + (j.stamp === "PRIVATE" ? " tk-stamp-ink" : "")}>{j.stamp}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="manifest-totals">
+              <span>
+                Totals: <b>{LIVE_CONTRACTS.length}</b> live contracts on testnet, <b>{CONTRACT_TESTS_LABEL}</b> contract tests (cargo),{" "}
+                <b>{CIRCUITS.length}</b> ZK circuits, all verified on-chain.
+              </span>
+              <a className="tot-link" href={POOL_URL} target="_blank" rel="noopener">Inspect the pool on stellar.expert</a>
+            </p>
           </div>
         </div>
       </section>
 
-      {/* ============ ZK FEATURE CARDS ============ */}
-      <section id="corridor" className="sec-zk">
-        <div className="wrap">
-          <h2 className="big">Confidential by design.<br />Compliant by proof.</h2>
-
-          <div className="zk-grid">
-            {/* big left card with commitment-grid canvas */}
-            <div className="card zk-big">
-              <div className="zk-canvas-cell">
-                <GridCanvas />
-              </div>
-              <div className="zk-big-body">
-                <div className="tag red">Shielded ledger</div>
-                <h3>Private<br />transfers</h3>
-                <p>Notes enter a Merkle tree as commitments. An in-corridor transfer reveals only nullifiers, never the amount or the counterparties.</p>
-                <div className="bullets">
-                  <div className="bullet"><span className="dot" />No double-spend (verified on-chain)</div>
-                  <div className="bullet"><span className="dot" />Balance conservation in-circuit</div>
-                  <div className="bullet"><span className="dot" />Merkle inclusion, depth 10</div>
-                </div>
-                <div className="spacer-fill" />
-                <div className="hr-card" />
-                <div className="stat-row">
-                  <div>
-                    <div className="stat-num">{LIVE_CONTRACTS.length}</div>
-                    <div className="stat-label">LIVE CONTRACTS ON TESTNET</div>
-                  </div>
-                  <div>
-                    <div className="stat-num orange">{CONTRACT_TESTS_LABEL}</div>
-                    <div className="stat-label">CONTRACT TESTS (CARGO)</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* right stacked */}
-            <div className="zk-stack">
-              <div className="card grow">
-                <div className="tag">Disclosure</div>
-                <h3>Selective disclosure</h3>
-                <p>Selective disclosure comes in four forms, each a separate Groth16 circuit verified on-chain. A confidential commitment can open to an exact amount, to a threshold (at or below a figure, amount hidden), to an aggregate (a portfolio sum at or below a cap), or to a two-sided range (an amount within a band). Every form is bound to a specific audit request.</p>
-                <div className="bullets-sm">
-                  <div className="bullet"><span className="dot" />Four disclosure circuits, all verified on-chain</div>
-                  <div className="bullet"><span className="dot" />Off-chain: false witness rejected</div>
-                  <div className="bullet"><span className="dot" />On-chain: tampered → InvalidProof</div>
-                </div>
-                <div className="bar-fill">
-                  <div className="bar lit" />
-                  <div className="bar short" />
-                </div>
-              </div>
-              <div className="card">
-                <div className="tag">Compliance</div>
-                <h3 style={{ marginBottom: 22 }}>ASP allow / deny</h3>
-                <div className="asp-row">
-                  <div className="asp-cell">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#37d67a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17 19 7" /></svg>
-                  </div>
-                  <div className="asp-cell">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8a847e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6 18 18M18 6 6 18" /></svg>
-                  </div>
-                  <div className="asp-cell">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#cfc8c1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12h6" /><path d="M9.5 8.5H7a3.5 3.5 0 0 0 0 7h2.5" /><path d="M14.5 8.5H17a3.5 3.5 0 0 1 0 7h-2.5" /></svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ============ TECH MARQUEE ============ */}
-      <section className="sec-marquee">
-        <div className="wrap">
-          <div className="tag" style={{ marginBottom: 22 }}>Built with</div>
-          <div className="marquee-mask">
-            <div className="marquee-track" id="marquee">
-              {/* duplicated for a seamless translateX(-50%) loop */}
-              {[0, 1].map((pass) => MARQUEE.map((item, i) => <div className="chip" key={`${pass}-${i}`}>{item}</div>))}
-            </div>
+      {/* ============ TECH TAPE ============ */}
+      <section className="sec-marquee" aria-label="Built with">
+        <div className="marquee-mask tk-tape">
+          <div className="marquee-track" id="marquee">
+            {[0, 1].map((pass) => MARQUEE.map((item, i) => <span className="chip" key={`${pass}-${i}`}>{item}</span>))}
           </div>
         </div>
       </section>
 
       {/* ============ CIRCUITS / CONTRACTS TABS ============ */}
-      <section id="circuits" className="sec-circuits">
+      <section id="circuits" className="sec sec-circuits">
         <div className="wrap">
-          <div className="split-head">
+          <div className="sec-head split">
             <div>
-              <div className="eyebrow" style={{ marginBottom: 18 }}>On-chain proof</div>
-              <h2>{CIRCUITS.length} circuits. One corridor.<br />Verified on-chain.</h2>
+              <h2>{CIRCUITS.length} circuits. One corridor. Verified on-chain.</h2>
             </div>
             <div className="aside">
-              <a className="link-mono" href={POOL_URL} target="_blank" rel="noopener">VIEW ON-CHAIN PROOF ↗</a>
               <p>All Groth16 over BN254, generated client-side in the browser and verified by deployed Soroban contracts.</p>
+              <a className="link-typed" href={POOL_URL} target="_blank" rel="noopener">View on-chain proof</a>
             </div>
           </div>
-
           <CircuitsTabs />
         </div>
       </section>
 
-      {/* ============ WHAT THE ZK PROVES ============ */}
-      <section className="sec-proves">
+      {/* ============ WHAT THE ZK PROVES: customs declaration ============ */}
+      <section className="sec sec-proves">
         <div className="wrap">
-          <div className="proves-head">
-            <div>
-              <div className="tag red" style={{ marginBottom: 16 }}>What the ZK proves</div>
-              <h2>Properties, not promises.</h2>
-            </div>
+          <div className="sec-head">
+            <h2>Properties, not promises.</h2>
             <p>The zero-knowledge is not decorative. It is the entire product. Without the proofs, Tukar does not exist.</p>
           </div>
-          <div className="proves-grid">
-            <div className="prove">
-              <div className="prove-top"><span className="k">TRANSFER</span><span className="ok">✓ PROVEN</span></div>
-              <blockquote>“A spent note can never be spent twice. Its nullifier is bound to the proof.”</blockquote>
-              <div className="spacer-fill" />
-              <div className="hr-card" />
-              <div className="name">No double-spend</div>
-              <div className="sub">pool · double-spend rejected</div>
+          <div className="declaration">
+            <div className="manifest-bar">
+              <span>Declaration</span>
+              <span>Each line is a property the contracts enforce</span>
             </div>
-            <div className="prove">
-              <div className="prove-top"><span className="k">COMPLIANCE</span><span className="ok">✓ PROVEN</span></div>
-              <blockquote>“The source is on the ASP allow-list and not on the deny-list, bound to the transfer.”</blockquote>
-              <div className="spacer-fill" />
-              <div className="hr-card" />
-              <div className="name">Compliant source</div>
-              <div className="sub">compliance verifier · verify → true</div>
-            </div>
-            <div className="prove">
-              <div className="prove-top"><span className="k">DISCLOSURE</span><span className="ok">✓ PROVEN</span></div>
-              <blockquote>“This commitment opens to exactly this amount, for this auditor and no one else.”</blockquote>
-              <div className="spacer-fill" />
-              <div className="hr-card" />
-              <div className="name">Selective disclosure</div>
-              <div className="sub">disclosure verifier · tampered → rejected</div>
-            </div>
-            <div className="prove">
-              <div className="prove-top"><span className="k">PRIVACY</span><span className="ok">✓ PROVEN</span></div>
-              <blockquote>“The payment graph stays hidden. The in-corridor transfer reveals no amount or counterparty. Deposits and withdrawals are public at the edges, by design.”</blockquote>
-              <div className="spacer-fill" />
-              <div className="hr-card" />
-              <div className="name">No graph leak</div>
-              <div className="sub">shielded · private by construction</div>
+            <div className="proves-grid">
+              {PROVES.map((p) => (
+                <div className="prove" key={p.k}>
+                  <div className="name">
+                    {p.name}
+                    <span className="tk-stamp stamp-xs">Proven</span>
+                  </div>
+                  <blockquote>{p.q}</blockquote>
+                  <div className="sub">
+                    {p.k.toLowerCase()} · {p.sub}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ============ GLOBE / CROSS-BORDER ============ */}
-      <section className="sec-globe">
-        <div className="wrap globe-grid">
-          <div className="globe-canvas-wrap">
-            <GlobeCanvas />
-          </div>
-          <div className="globe-body">
-            <div className="globe-head">
-              <span className="tag" style={{ color: "var(--orange)" }}>The corridor</span>
-              <a className="link-mono" href="#corridor">HOW IT WORKS ↗</a>
-            </div>
-            <h2>Money enters in one country. Exits in another.</h2>
-            <p>Stellar&apos;s whole reason for existing is moving real money across borders. Tukar takes that exact rail and makes it confidential and compliant, with visible deposits and withdrawals at the edges, a private transfer in the middle, and selective disclosure for regulators.</p>
-            <div className="globe-stats">
-              <div><div className="stat-num orange">A → B</div><div className="stat-label">10 CORRIDORS</div></div>
-              <div><div className="stat-num">USDC</div><div className="stat-label">SHIELDED IN THE MIDDLE</div></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ============ CTA ============ */}
-      <section className="sec-cta">
+      {/* ============ CTA: the packing slip ============ */}
+      <section className="sec sec-cta">
         <div className="wrap cta-grid">
           <div className="cta-left">
-            <h2>Try it now.<br /><span className="orange">No install needed.</span></h2>
-            <p>One click activates a real built-in testnet key (or connect Freighter). Send builds a compliance proof in your browser and deposits on-chain for real. Audit a payment and its disclosure proof is verified by the live Stellar verifier.</p>
-            <div className="fact-list">
-              <a className="fact" href="#apps">
-                <div className="k">LIVE APPS</div>
-                <div className="v">Four focused apps</div>
-              </a>
-              <a className="fact" href={REPO} target="_blank" rel="noopener">
-                <div className="k">REPOSITORY</div>
-                <div className="v orange">github.com/PugarHuda/tukar</div>
-              </a>
-              <a className="fact" href={POOL_URL} target="_blank" rel="noopener">
-                <div className="k">NETWORK</div>
-                <div className="v">Stellar testnet · Protocol 26</div>
-              </a>
-            </div>
+            <h2>Try it now. No install needed.</h2>
+            <p>One tap activates a real built-in testnet key, or connect your own wallet. Send builds a compliance proof in your browser and deposits on-chain for real. Audit a payment and its disclosure proof is verified by the live Stellar verifier.</p>
+            <dl className="facts">
+              <div><dt>Live apps</dt><dd><a href="#apps">Four, one per role</a></dd></div>
+              <div><dt>Repository</dt><dd><a href={REPO} target="_blank" rel="noopener">github.com/PugarHuda/tukar</a></dd></div>
+              <div><dt>Network</dt><dd><a href={POOL_URL} target="_blank" rel="noopener">Stellar testnet, Protocol 28</a></dd></div>
+            </dl>
           </div>
-          <div className="cta-card">
-            <h3>Run the corridor</h3>
-            <div className="steps">
-              <div className="step"><span className="num">01</span><div><div className="st">Send</div><div className="sd">Builds a compliance proof, submits a signed pool.deposit</div></div></div>
-              <div className="step"><span className="num">02</span><div><div className="st">Update tree</div><div className="sd">merkleUpdate proof registers the commitment on-chain</div></div></div>
-              <div className="step"><span className="num">03</span><div><div className="st">Withdraw</div><div className="sd">Shielded transfer proof spends a nullifier, releases tokens</div></div></div>
-              <div className="step"><span className="num">04</span><div><div className="st">Audit</div><div className="sd">Disclosure proof verified on-chain by the Stellar verifier</div></div></div>
+          <div className="slip">
+            <div className="label-bar">
+              <span>Packing slip</span>
+              <span className="label-bar-right">Run the corridor</span>
             </div>
-            <div className="hr-card" style={{ margin: "28px 0 22px" }} />
-            <LaunchButton className="btn-launch">Launch a live app ↗</LaunchButton>
-            <div className="disclaim">
-              <span className="box"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#37d67a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17 19 7" /></svg></span>
-              Free testnet XLM only, never with real funds.
-            </div>
+            <ol className="slip-steps">
+              <li><span className="st">Send</span><span className="sd">Builds a compliance proof, submits a signed pool.deposit</span></li>
+              <li><span className="st">Update tree</span><span className="sd">merkleUpdate proof registers the commitment on-chain</span></li>
+              <li><span className="st">Withdraw</span><span className="sd">Shielded transfer proof spends a nullifier, releases tokens</span></li>
+              <li><span className="st">Audit</span><span className="sd">Disclosure proof verified on-chain by the Stellar verifier</span></li>
+            </ol>
+            <LaunchButton className="stub stub-primary stub-wide">
+              <span className="stub-t">Open a live app</span>
+              <span className="stub-k">Pick a role, no install needed</span>
+            </LaunchButton>
+            <p className="disclaim">Free testnet XLM and USDC only, never real funds.</p>
           </div>
         </div>
       </section>
 
-      {/* ============ FOOTER ============ */}
+      {/* ============ FOOTER: the bottom flap ============ */}
       <footer className="footer">
         <div className="footer-grid">
           <div>
-            <Link href="/" className="brand">
-              <BrandMark size={27} />
-              <span className="word">tukar</span>
+            <Link href="/" className="brand" aria-label="Tukar home">
+              <Wordmark height={27} />
             </Link>
-            <p>Confidential cross-border payment corridors on Stellar. Private in the middle, accountable at the edges.</p>
-            <div className="footer-tag">Stellar Hacks: Real-World ZK</div>
-            <div className="socials">
-              <a href={REPO} target="_blank" rel="noopener" aria-label="GitHub">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2A10 10 0 0 0 8.8 21.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-4.9 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.8-2.4 4.7-4.6 4.9.3.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z" /></svg>
-              </a>
-              <a href={POOL_URL} target="_blank" rel="noopener" aria-label="Pool contract on Stellar.Expert">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 0 1 0 10h-2" /><path d="M8 12h8" /></svg>
-              </a>
-            </div>
+            <p>Private cross-border remittance corridors on Stellar. Private in the middle, accountable at the edges.</p>
+            <p className="footer-tag">Stellar Privacy / Real-World ZK hackathon, 5th place. APAC grand finalist.</p>
           </div>
           <div className="foot-col">
-            <div className="h">PROJECT</div>
+            <div className="h">Project</div>
             <div className="links">
               <a href={`${REPO}/blob/main/docs/ARCHITECTURE.md`} target="_blank" rel="noopener">Architecture</a>
               <a href={`${REPO}/blob/main/docs/ONCHAIN.md`} target="_blank" rel="noopener">On-chain</a>
@@ -414,10 +347,11 @@ export default function Home() {
               <a href="/receiver">Receiver app</a>
               <a href="/regulator">Regulator</a>
               <a href="/operator">Operator</a>
+              <a href="/verify">Verify a receipt</a>
             </div>
           </div>
           <div className="foot-col">
-            <div className="h">CIRCUITS</div>
+            <div className="h">Circuits</div>
             <div className="links">
               {CIRCUITS.map((c) => (
                 <a key={c} href={`${REPO}/blob/main/circuits/${c}.circom`} target="_blank" rel="noopener">{c}</a>
@@ -425,18 +359,19 @@ export default function Home() {
             </div>
           </div>
           <div className="foot-col">
-            <div className="h">STELLAR</div>
+            <div className="h">Stellar</div>
             <div className="links">
-              <a href="https://stellar.expert/explorer/testnet" target="_blank" rel="noopener">Testnet</a>
+              <a href="https://stellar.expert/explorer/testnet" target="_blank" rel="noopener">Testnet explorer</a>
               <a href="https://stellar.org/soroban" target="_blank" rel="noopener">Soroban</a>
-              <a href={REPO} target="_blank" rel="noopener">BN254 host fns</a>
               <a href={POOL_URL} target="_blank" rel="noopener">Pool contract</a>
+              <a href="/deck">Pitch deck</a>
             </div>
           </div>
         </div>
         <div className="foot-bottom">
           <div className="copy">© 2026 Tukar. Apache-2.0. Not audited, testnet only.</div>
-          <div className="status"><span className="dot" />Live on Stellar testnet</div>
+          <div className="status"><i className="dot" aria-hidden="true" />Live on Stellar testnet</div>
+          <Seal size={26} className="foot-seal" />
         </div>
       </footer>
     </>

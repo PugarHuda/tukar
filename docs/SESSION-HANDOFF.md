@@ -109,6 +109,36 @@ leaf registered). `e2e/p28-live.spec.ts` repeats that check on demand. The SDK 1
 bump is still worth doing before mainnet (see `docs/BUILD-ATTESTATION.md` for toolchain notes) but is
 not required for testnet to keep working.
 
+## 2d. Full redesign with the Impeccable skill (2026-08-28): "The Balikbayan Parcel"
+
+The founder asked for a new visual world (not a refinement) through the Impeccable skill
+(`.claude/skills/impeccable`, project-level, design hook active on UI edits). Process, as the skill
+prescribes: `init` interview -> PRODUCT.md (repo root) -> seven grounded candidates from the audience's
+world -> direction roll (seed e027abe0) -> the founder locked the assigned card on the decision page
+-> code-led build -> fresh-eyes finish review -> fix rounds with verdict passes -> documenter wrote
+DESIGN.md (repo root) and `.impeccable/design.json` from the built world.
+
+The world: the page is the top of a kraft balikbayan box; everything readable sits on white label
+paper; three inks only (stencil black #161311, tape red #d8342b, stamp blue #2a4fa8); Saira Stencil One
+display, Barlow UI, Courier Prime data; labels with an ink label-bar, tear-off stubs with punched
+notches, produced tape (`webapp/public/world/tape.svg`, translucent, torn ends), rubber stamps through
+an SVG ink filter (`#tk-ink` in layout.tsx), redaction bars for FROM/TO, manifests, one Seal glyph per
+view, one 420ms motion clock. The direction contract is an HTML comment first in `<body>` and survives
+the production build. Tokens: `webapp/tailwind.config.ts` (kraft/label/ink/tape/stamp; the old names
+bg/surface/tp/orange/green remain as aliases into the same palette so nothing broke mid-migration).
+
+Surfaces rebuilt: landing (hero = sealed box with a stamped shipping label, roles/journey/circuits as
+manifest rows, customs declaration, packing slip), sender (shipping label form on the box with a side
+packing slip at >= 1024, tape unrolls while packing, stamp lands on the receipt), receiver (cut the tape
+to claim, lift the flap to reveal, customs-desk slip, thermal receipt with QR), operator and regulator
+consoles (clipboard sidebar, inspection cards, tariff tables, carbon-form travel rule, export bundle),
+verify (customs desk with a landing stamp), deck, icon.svg, manifest, og-image.png (rendered from
+`scripts/og-source.html`; provenance embedded in every shipping raster).
+
+Verification at the end of the pass: tsc 0, lint 0, vitest 153, qa6 66/0, Playwright across
+chromium/firefox/webkit/mobile (see the commit message for the final counts), detector clean except
+the kraft flute gradient on the deck (committed material), no horizontal overflow at 320/390/1440/4K.
+
 ## 3. New testnet contracts deployed this session (additive, the 8 live core addresses untouched)
 
 | Contract | Address |

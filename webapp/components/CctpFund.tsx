@@ -12,7 +12,8 @@
 // A sent burn is remembered in localStorage until the mint lands, so a closed tab or a slow
 // (standard-finality) attestation can be resumed instead of stranding burned USDC.
 import { useEffect, useRef, useState } from "react";
-import { Button, Input, Select, Badge } from "@/components/ui";
+import { Button, Card, Input, Select, Badge } from "@/components/ui";
+import { Ext, Mark, NOTICE, TYPED } from "@/components/sender/Label";
 import {
   CCTP,
   ERC20_ABI,
@@ -266,40 +267,41 @@ export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRec
     }
   }
 
+  // An attached form on the same label paper: the whole head is the toggle.
   return (
-    <div className={`rounded-tile border border-line bg-black/20 p-3.5 ${className}`}>
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
+    <Card className={className}>
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 p-4 text-left">
         <span className="min-w-0">
-          <span className="block text-[13px] font-semibold text-tp">Fund from another chain (Circle CCTP)</span>
-          <span className="mt-0.5 block font-mono text-[10px] text-tf">Real Circle CCTP V2, Base Sepolia testnet → Stellar testnet</span>
+          <span className="block text-[14px] font-semibold text-ink">Fund from another chain (Circle CCTP)</span>
+          <span className={`mt-0.5 block ${TYPED}`}>Real Circle CCTP V2, Base Sepolia testnet → Stellar testnet</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <Badge tone="green">LIVE · TESTNET</Badge>
-          <span aria-hidden className="font-mono text-[11px] text-tm">{open ? "−" : "+"}</span>
+          <Mark kind={open ? "minus" : "plus"} className="text-ink" />
         </span>
       </button>
 
       {open && (
-        <div className="mt-3 border-t border-line pt-3">
-          <ol className="mb-3 flex flex-col gap-1.5 font-mono text-[11px] leading-relaxed text-tm">
+        <div className="border-t border-ink px-4 pb-4 pt-3">
+          <ol className={`mb-3 flex flex-col gap-1.5 ${TYPED} text-ink-2`}>
             <li>1 · Your wallet burns USDC on Base Sepolia (depositForBurnWithHook).</li>
             <li>2 · Circle attests the burn (Iris).</li>
             <li>3 · The Stellar forwarder mints native USDC and forwards it to the recipient.</li>
           </ol>
 
           {hasWallet === false && (
-            <p className="rounded-lg border border-amber/30 bg-amber/[0.06] p-2.5 text-[12px] leading-relaxed text-ts">
+            <p className={NOTICE}>
               No EVM wallet detected. Install a wallet like <b>MetaMask</b> on <b>Base Sepolia</b>, then get test USDC from{" "}
-              <a href="https://faucet.circle.com" target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">faucet.circle.com ↗</a>{" "}
+              <Ext href="https://faucet.circle.com">faucet.circle.com</Ext>{" "}
               (and a little test ETH for gas) to sign the burn.
             </p>
           )}
 
           {pending && !busy && phase !== "done" && (
-            <div className="mb-3 rounded-lg border border-amber/30 bg-amber/[0.06] p-2.5">
-              <p className="text-[12px] leading-relaxed text-ts">
+            <div className={`mb-3 ${NOTICE}`}>
+              <p>
                 A burn from {new Date(pending.startedAt).toLocaleString()} has not been minted yet (
-                <a href={evmTxExplorer(pending.burnTx)} target="_blank" rel="noreferrer" className="font-mono text-orange underline underline-offset-2">{short(pending.burnTx)} ↗</a>
+                <Ext href={evmTxExplorer(pending.burnTx)} className="font-mono">{short(pending.burnTx)}</Ext>
                 ). The USDC is safe; finish the attestation + mint here.
               </p>
               <div className="mt-2 flex gap-2">
@@ -319,24 +321,24 @@ export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRec
             </div>
           )}
 
-          <div className="mt-1 flex flex-col gap-3">
-            <Input label="Amount (USDC)" id="cctp-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} />
+          <div className="mt-3 flex flex-col gap-3">
+            <Input label="Amount (USDC)" id="cctp-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} className="font-mono" />
             <div>
-              <Input label="Stellar recipient (G…, C…, or M…)" id="cctp-recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="G… account or C… contract" disabled={busy} />
-              {recipient && !recipientKind && <p className="mt-1 font-mono text-[10px] text-red-t">Not a valid Stellar address.</p>}
+              <Input label="Stellar recipient (G…, C…, or M…)" id="cctp-recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="G… account or C… contract" disabled={busy} className="font-mono" />
+              {recipient && !recipientKind && <p className="mt-1 font-mono text-[10.5px] text-tape-deep">Not a valid Stellar address.</p>}
               {recipientKind === "account" && (
-                <p className="mt-1 text-[11px] leading-relaxed text-tf">
+                <p className="mt-1 text-[11.5px] leading-relaxed text-ink-3">
                   This is a classic account (G/M): it must already hold a <b>USDC trustline</b> or the mint will fail. A contract recipient (C…) needs no trustline.
                 </p>
               )}
-              {recipientKind === "contract" && <p className="mt-1 text-[11px] text-tf">Contract recipient, no trustline needed.</p>}
+              {recipientKind === "contract" && <p className="mt-1 text-[11.5px] text-ink-3">Contract recipient, no trustline needed.</p>}
             </div>
             <div>
               <Select label="Speed / fee" id="cctp-finality" value={finality} onChange={(e) => setFinality(e.target.value as Finality)} disabled={busy}>
                 <option value="fast">{FINALITY.fast.label}, {feeLabel("fast")}</option>
                 <option value="standard">{FINALITY.standard.label}, {feeLabel("standard")}</option>
               </Select>
-              <p className="mt-1 text-[11px] leading-relaxed text-tf">
+              <p className="mt-1 text-[11.5px] leading-relaxed text-ink-3">
                 Fast uses Circle&apos;s soft-finality tier (minFinalityThreshold {FINALITY.fast.threshold}); standard waits for hard finality ({FINALITY.standard.threshold}).
                 {fees && fees.length === 0 && " Fee quote unavailable, so maxFee falls back to a 1% ceiling; Circle still charges only its minimum."}
               </p>
@@ -349,28 +351,26 @@ export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRec
 
           {(status || error) && (
             <div className="mt-3 flex flex-col gap-1.5 text-[12px] leading-relaxed">
-              {status && !error && <p className="text-ts" role="status" aria-live="polite">{status}</p>}
-              {error && <p className="text-red-t" role="alert">{error}</p>}
+              {status && !error && <p className="text-ink-2" role="status" aria-live="polite">{status}</p>}
+              {error && <p className="text-tape-deep" role="alert">{error}</p>}
               {burnTx && (
-                <p className="font-mono text-[11px] text-tf">
-                  burn ·{" "}
-                  <a href={evmTxExplorer(burnTx)} target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">{short(burnTx)} ↗</a>
+                <p className={TYPED}>
+                  burn · <Ext href={evmTxExplorer(burnTx)}>{short(burnTx)}</Ext>
                 </p>
               )}
               {mintTx && (
-                <p className="font-mono text-[11px] text-tf">
-                  Stellar mint ·{" "}
-                  <a href={stellarTxExplorer(mintTx)} target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">{short(mintTx)} ↗</a>
+                <p className={TYPED}>
+                  Stellar mint · <Ext href={stellarTxExplorer(mintTx)}>{short(mintTx)}</Ext>
                 </p>
               )}
             </div>
           )}
 
-          <a href="https://developers.circle.com/stablecoins/cctp-getting-started" target="_blank" rel="noreferrer" className="mt-3 inline-block font-mono text-[11px] text-orange underline underline-offset-2">
-            Circle Cross-Chain Transfer Protocol V2 ↗
-          </a>
+          <Ext href="https://developers.circle.com/stablecoins/cctp-getting-started" className="mt-3 font-mono text-[11px]">
+            Circle Cross-Chain Transfer Protocol V2
+          </Ext>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

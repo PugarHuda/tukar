@@ -7,3 +7,5 @@ export { Badge, StatusPill, type BadgeProps, type StatusPillProps, type Tone } f
 export { Spinner, type SpinnerProps } from "./Spinner";
 export { Skeleton, type SkeletonProps } from "./Skeleton";
 export { ToastProvider, useToast, type ToastTone } from "./Toast";
+
+export { Seal } from "./Seal";

@@ -1,6 +1,6 @@
 "use client";
 
-// Two honest things live here:
+// Two honest things live here, each on its own slip stuck to the box:
 //  1. "What you would pay elsewhere": the World Bank ~6.2% global-average remittance fee applied
 //     to the entered USDC amount, framed as the cost avoided. Tukar's side is not an invented
 //     percentage: on-chain settlement is a fraction of a cent plus the live FX rate.
@@ -15,32 +15,31 @@ import { readBlend, blendSupply, blendWithdraw, blendClaim, poolStatusLabel, isP
 import { txExplorer, explorer } from "@/lib/stellar";
 import { useWallet } from "@/components/WalletProvider";
 import { Button, Input, useToast } from "@/components/ui";
+import { Label, Ext, TYPED } from "@/components/sender/Label";
 
 export function SavingsNote({ usdc, monthly = false, className = "" }: { usdc: number; monthly?: boolean; className?: string }) {
   const s = traditionalRemittanceFee(usdc);
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
       {s && (
-        <div className="rounded-tile border border-line bg-black/20 p-3.5">
-          <div className="font-mono text-[10px] tracking-[0.1em] text-tf uppercase">What you would pay elsewhere</div>
-
-          <div className="mt-2 flex flex-col gap-1.5">
-            <Row k="Traditional (6.2%)" v={<span className="text-orange">{s.feeText}</span>} sub="World Bank global average" />
-            <Row k="Tukar" v={<span className="text-green-t">a fraction of a cent</span>} sub="a few Stellar base fees, plus the live FX rate" />
+        <Label bar="What you would pay elsewhere" right="cost avoided">
+          <div className="flex flex-col gap-2">
+            <Row k="Traditional (6.2%)" v={<span className="text-tape-deep">{s.feeText}</span>} sub="World Bank global average" />
+            <Row k="Tukar" v={<span className="text-stamp-deep">a fraction of a cent</span>} sub="a few Stellar base fees, plus the live FX rate" />
           </div>
 
           {monthly && (
-            <div className="mt-2.5 border-t border-line pt-2.5">
-              <p className="text-[12.5px] leading-relaxed text-tm">
-                At <b className="text-tp">{s.amountText}</b> every month, traditional fees would total about{" "}
-                <b className="text-orange">{s.feeAnnualText}</b> a year, which is what Tukar avoids.
+            <div className="mt-2.5 border-t border-ink/25 pt-2.5">
+              <p className="text-[12.5px] leading-relaxed text-ink-2">
+                At <b className="font-mono text-ink">{s.amountText}</b> every month, traditional fees would total about{" "}
+                <b className="font-mono text-tape-deep">{s.feeAnnualText}</b> a year, which is what Tukar avoids.
               </p>
-              <div className="mt-1 font-mono text-[10px] text-tf">Estimate at the current amount.</div>
+              <div className={`mt-1 ${TYPED}`}>Estimate at the current amount.</div>
             </div>
           )}
 
-          <div className="mt-2 font-mono text-[10px] text-tf">Source: {TRADITIONAL_REMITTANCE_SOURCE}</div>
-        </div>
+          <div className={`mt-2 ${TYPED}`}>Source: {TRADITIONAL_REMITTANCE_SOURCE}</div>
+        </Label>
       )}
 
       <BlendYield defaultAmount={usdc > 0 ? String(Math.min(usdc, 1000)) : ""} />
@@ -111,56 +110,43 @@ function BlendYield({ defaultAmount }: { defaultAmount: string }) {
   const supplyOpen = !!info && info.supplyOpen;
 
   return (
-    <div className="rounded-tile border border-line bg-black/20 p-3.5">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="font-mono text-[10px] tracking-[0.1em] text-tf uppercase">Put idle USDC to work</div>
-        {info && (
-          <div className="font-mono text-[10px] text-green-t">
-            {pct(info.supplyApy)} APY
-            <span className="text-tf"> · live Blend rate</span>
-          </div>
-        )}
-      </div>
-
-      <p className="mt-2 text-[12.5px] leading-relaxed text-tm">
-        Earn real yield by supplying idle USDC to the{" "}
-        <a href={explorer(BLEND_POOL)} target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">
-          Blend Capital testnet lending pool
-        </a>
-        . This is testnet; supply interest accrues at live Blend rates. You keep custody via your wallet.
+    <Label bar="Put idle USDC to work" right={info ? `${pct(info.supplyApy)} APY · live Blend rate` : "Blend, testnet"}>
+      <p className="text-[12.5px] leading-relaxed text-ink-2">
+        Earn real yield by supplying idle USDC to the <Ext href={explorer(BLEND_POOL)}>Blend Capital testnet lending pool</Ext>. This is testnet; supply
+        interest accrues at live Blend rates. You keep custody via your wallet.
       </p>
 
       {/* live pool facts */}
       {info && (
-        <div className="mt-2.5 flex flex-col gap-1 border-t border-line pt-2.5 font-mono text-[10px] text-tf">
+        <div className={`mt-2.5 flex flex-col gap-1 border-t border-ink/25 pt-2.5 ${TYPED}`}>
           <div className="flex justify-between gap-3">
             <span>supply APY / APR</span>
-            <span className="text-tm">
+            <span className="text-ink">
               {pct(info.supplyApy)} / {pct(info.supplyApr)}
             </span>
           </div>
           <div className="flex justify-between gap-3">
             <span>pool utilization</span>
-            <span className="text-tm" title="Share of supplied USDC currently lent out. The rest is withdrawable right now.">
+            <span className="text-ink" title="Share of supplied USDC currently lent out. The rest is withdrawable right now.">
               {pct(info.utilization)} lent out
             </span>
           </div>
           <div className="flex justify-between gap-3">
             <span>pool status</span>
-            <span className={info.supplyOpen ? "text-tm" : "text-orange"}>{poolStatusLabel(info.poolStatus)}</span>
+            <span className={info.supplyOpen ? "text-ink" : "text-tape-deep"}>{poolStatusLabel(info.poolStatus)}</span>
           </div>
         </div>
       )}
 
       {/* live position */}
-      <div className="mt-2.5 border-t border-line pt-2.5">
+      <div className="mt-2.5 border-t border-ink/25 pt-2.5">
         {data === undefined ? (
-          <div className="font-mono text-[11px] text-tf">Reading the Blend pool on-chain…</div>
+          <div className={TYPED}>Reading the Blend pool on-chain…</div>
         ) : !data.ok ? (
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[12px] text-orange">{connected ? "Could not read your Blend position." : "Could not read the Blend pool."}</div>
-              <div className="truncate font-mono text-[10px] text-tf">{data.reason}</div>
+              <div className="text-[12px] text-tape-deep">{connected ? "Could not read your Blend position." : "Could not read the Blend pool."}</div>
+              <div className={`truncate ${TYPED}`}>{data.reason}</div>
             </div>
             <Button variant="ghost" onClick={retry}>
               Retry
@@ -170,22 +156,20 @@ function BlendYield({ defaultAmount }: { defaultAmount: string }) {
           <>
             <Row
               k="Your Blend balance"
-              v={<span className="text-green-t">${usd4(pos!.valueUsdc)}</span>}
+              v={<span className="text-stamp-deep">${usd4(pos!.valueUsdc)}</span>}
               sub={`${pos!.bTokens} b-tokens${hasCollateral ? ` + ${pos!.collateralBTokens} collateral b-tokens (legacy)` : ""} · value accrues at the live rate`}
             />
-            {hasCollateral && (
-              <div className="mt-1 font-mono text-[10px] text-tf">A legacy collateralised position is included; Withdraw all removes both sides.</div>
-            )}
+            {hasCollateral && <div className={`mt-1 ${TYPED}`}>A legacy collateralised position is included; Withdraw all removes both sides.</div>}
           </>
         ) : connected ? (
-          <div className="text-[12px] text-tm">No USDC supplied yet. Supply below to start earning.</div>
+          <div className="text-[12px] text-ink-2">No USDC supplied yet. Supply below to start earning.</div>
         ) : (
-          <div className="text-[12px] text-tm">Connect a wallet or the testnet key to supply USDC and read your live balance.</div>
+          <div className="text-[12px] text-ink-2">Connect a wallet or the testnet key to supply USDC and read your live balance.</div>
         )}
         {pos && (pos.emissionsActive || pos.claimableBlnd > 0) && (
           <div className="mt-2 flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <Row k="Claimable BLND" v={<span className="text-green-t">{pos.claimableBlnd.toFixed(4)} BLND</span>} sub="Blend emissions on your supply, accrue on-chain" />
+              <Row k="Claimable BLND" v={<span className="text-stamp-deep">{pos.claimableBlnd.toFixed(4)} BLND</span>} sub="Blend emissions on your supply, accrue on-chain" />
             </div>
             {pos.claimableBlnd > 0 && pos.claimTokenIds.length > 0 && (
               <Button variant="ghost" onClick={() => run("claim", () => blendClaim(pos.claimTokenIds), "BLND claimed")} busy={busy === "claim"} disabled={busy !== ""}>
@@ -211,6 +195,7 @@ function BlendYield({ defaultAmount }: { defaultAmount: string }) {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="e.g. 10"
+                className="font-mono"
               />
             </div>
             <Button variant="primary" onClick={supply} busy={busy === "supply"} disabled={busy !== "" || !supplyOpen}>
@@ -218,7 +203,7 @@ function BlendYield({ defaultAmount }: { defaultAmount: string }) {
             </Button>
           </div>
           {info && !info.supplyOpen && (
-            <p className="text-[12px] leading-relaxed text-orange">
+            <p className="text-[12px] leading-relaxed text-tape-deep">
               The Blend pool is {poolStatusLabel(info.poolStatus)} right now and is not accepting supplies. Withdrawals still work.
             </p>
           )}
@@ -231,26 +216,24 @@ function BlendYield({ defaultAmount }: { defaultAmount: string }) {
       )}
 
       {hash && (
-        <p className="mt-2.5 text-[12px] leading-relaxed text-green-t break-words">
-          On-chain.{" "}
-          <a href={txExplorer(hash)} target="_blank" rel="noreferrer" className="font-mono underline underline-offset-2">
-            View transaction ↗
-          </a>
+        <p className="mt-2.5 break-words text-[12px] leading-relaxed text-stamp-deep">
+          On-chain. <Ext href={txExplorer(hash)} className="font-mono">View transaction</Ext>
         </p>
       )}
-      {err && <p className="mt-2.5 text-[12px] leading-relaxed text-orange break-words">{err}</p>}
-    </div>
+      {err && <p className="mt-2.5 break-words text-[12px] leading-relaxed text-tape-deep">{err}</p>}
+    </Label>
   );
 }
 
+// One ruled line: what it is (Barlow) with its provenance typed under it, and the figure in mono.
 function Row({ k, v, sub }: { k: string; v: React.ReactNode; sub: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <div className="min-w-0">
-        <div className="text-[12.5px] font-semibold text-tp">{k}</div>
-        <div className="truncate font-mono text-[10px] text-tf">{sub}</div>
+        <div className="text-[12.5px] font-semibold text-ink">{k}</div>
+        <div className={`break-words ${TYPED}`}>{sub}</div>
       </div>
-      <div className="shrink-0 text-sm font-bold">{v}</div>
+      <div className="shrink-0 font-mono text-sm font-bold tabular-nums">{v}</div>
     </div>
   );
 }

@@ -36,9 +36,11 @@ const nextConfig = {
     const csp = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
-      "style-src 'self' 'unsafe-inline'",
+      // fonts.googleapis.com / fonts.gstatic.com -> the static deck (public/deck.html) links its
+      // faces from Google Fonts; the Next app itself self-hosts them via next/font.
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: https:",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "media-src 'self'",
       "worker-src 'self' blob:",
       "connect-src 'self' https://soroban-testnet.stellar.org https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://api.reclaimprotocol.org https://iris-api-sandbox.circle.com https://nodes.playground.idos.network https://enclave.playground.idos.network https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",

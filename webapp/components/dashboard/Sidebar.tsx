@@ -1,27 +1,23 @@
 "use client";
 
-// Shared sidebar content for the Tukar desktop dashboards (Regulator / Operator).
-// Presentational only: brand at top, nav list with active highlight, WalletBar pinned
-// at the bottom. Rendered by DashboardShell both in the fixed desktop rail and inside
+// Shared sidebar content for the Tukar consoles (Regulator / Operator): the desk's clipboard.
+// A label sheet held under a drawn clip; the nav is a column of manifest tabs (stencil section
+// names with a typed index, because the sequence is the real navigation order). WalletBar is
+// pinned at the bottom. Rendered by DashboardShell both in the fixed desktop rail and inside
 // the mobile drawer.
 import Link from "next/link";
 import { WalletBar } from "@/components/WalletBar";
+import { Wordmark } from "@/components/landing/Wordmark";
 
 export type NavItem = { key: string; label: string; icon?: React.ReactNode };
 
-// Same inline hexagon + diamond mark used on the landing page (app/page.tsx BrandMark).
-const MARK = "M28 16 22 5.6 10 5.6 4 16 10 26.4 22 26.4Z";
-const MARK_LINE = "M1 16H12M20 16H31";
-const MARK_DIAMOND = "M16 11 21 16 16 21 11 16Z";
-const MARK_INNER = "M16 13.2 18.8 16 16 18.8 13.2 16Z";
-
-function BrandMark({ size }: { size: number }) {
+// The bulldog clip at the top of the board, drawn in the world's own stroke.
+function Clip() {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-      <path d={MARK} stroke="#ff8a3d" strokeWidth="2" strokeLinejoin="round" />
-      <path d={MARK_LINE} stroke="#ffb070" strokeWidth="2" strokeLinecap="round" />
-      <path d={MARK_DIAMOND} fill="#ff7a1a" />
-      <path d={MARK_INNER} fill="#0a0705" />
+    <svg width="72" height="24" viewBox="0 0 72 24" aria-hidden="true" className="absolute left-1/2 top-0 -translate-x-1/2">
+      <rect x="1" y="8" width="70" height="15" rx="2" fill="#a97a45" stroke="#161311" strokeWidth="1.5" />
+      <path d="M26 8V5a10 10 0 0 1 20 0v3" fill="none" stroke="#161311" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8 15.5h56" stroke="#f6f1e7" strokeWidth="1.5" strokeOpacity="0.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -38,18 +34,18 @@ export function Sidebar({
   onSelect: (key: string) => void;
 }) {
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-line px-5 py-5">
-        <Link href="/" className="flex items-center gap-2.5">
-          <BrandMark size={26} />
-          <span className="text-lg font-extrabold tracking-[-0.01em] text-tp">Tukar</span>
+    <div className="flex h-full flex-col bg-label">
+      <div className="relative border-b-[1.5px] border-ink px-5 pb-4 pt-8">
+        <Clip />
+        <Link href="/" className="inline-flex" aria-label="Tukar home">
+          <Wordmark height={28} />
         </Link>
-        <p className="mt-3 font-mono text-[10px] tracking-[0.16em] text-tf uppercase">{title}</p>
+        <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-2">{title}</p>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3">
-        <ul className="flex flex-col gap-1.5">
-          {nav.map((item) => {
+      <nav className="flex-1 overflow-y-auto" aria-label="Sections">
+        <ul>
+          {nav.map((item, i) => {
             const on = item.key === active;
             return (
               <li key={item.key}>
@@ -57,14 +53,13 @@ export function Sidebar({
                   type="button"
                   aria-current={on ? "page" : undefined}
                   onClick={() => onSelect(item.key)}
-                  className={`flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-[13px] font-semibold transition-colors ${
-                    on
-                      ? "border-orange/45 bg-orange/[0.08] text-tp"
-                      : "border-transparent text-tm hover:border-orange/25 hover:bg-white/[0.03] hover:text-ts"
+                  className={`grid w-full grid-cols-[3ch_minmax(0,1fr)_auto] items-center gap-3 border-b border-ink/20 px-5 py-3 text-left transition-[background-color,color] duration-clock ease-clock ${
+                    on ? "bg-ink text-label" : "text-ink hover:bg-label-2"
                   }`}
                 >
-                  {item.icon && <span className={on ? "text-orange" : "text-tf"}>{item.icon}</span>}
-                  {item.label}
+                  <span className={`font-mono text-[11px] font-bold ${on ? "text-label/80" : "text-ink-3"}`}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-stencil text-[17px] uppercase leading-none tracking-[0.02em]">{item.label}</span>
+                  {item.icon && <span aria-hidden="true" className="inline-flex">{item.icon}</span>}
                 </button>
               </li>
             );
@@ -74,7 +69,7 @@ export function Sidebar({
 
       <Link
         href="/"
-        className="flex items-center gap-2 border-t border-line px-5 py-3 text-[13px] font-semibold text-tm transition-colors hover:bg-white/[0.03] hover:text-ts"
+        className="flex items-center gap-2 border-t border-ink/30 px-5 py-3 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2 transition-[background-color,color] duration-clock ease-clock hover:bg-label-2 hover:text-ink"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M15 18l-6-6 6-6" />
@@ -82,7 +77,7 @@ export function Sidebar({
         Back to home
       </Link>
 
-      <div className="border-t border-line px-4 py-4">
+      <div className="border-t-[1.5px] border-ink px-4 py-4">
         <WalletBar />
       </div>
     </div>

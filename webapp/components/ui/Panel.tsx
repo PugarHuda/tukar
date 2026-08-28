@@ -3,18 +3,18 @@ export type PanelProps = React.HTMLAttributes<HTMLDivElement> & {
   seq?: string; // e.g. "01"
 };
 
-/** A corridor-stage panel — the console's primary surface (matches styles.css .panel). */
+/** A console sheet: a large label on the box. `active` draws the stamp-blue ring; `seq` is a
+ *  typed corner index (form-box numbering), not decoration. */
 export function Panel({ active = false, seq, className = "", children, ...rest }: PanelProps) {
   return (
     <div
-      className={`tk-surface relative border border-line rounded-panel bg-surface p-6 flex flex-col animate-tk-pop transition-shadow duration-300 ${
+      className={`tk-surface relative border border-ink/25 rounded-panel p-6 flex flex-col animate-tk-pop transition-shadow duration-clock ease-clock ${
         active ? "shadow-ring" : "shadow-card"
       } ${className}`}
       {...rest}
     >
       {seq && (
-        <span className="absolute top-4 right-4 inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-orange">
-          <i aria-hidden className="h-1.5 w-1.5 rotate-45 bg-orange shadow-[0_0_7px_rgba(255,122,26,0.6)]" />
+        <span className="absolute top-3 right-3 inline-flex items-center border border-ink/40 px-1.5 py-0.5 font-mono text-[11px] font-bold text-ink-2">
           {seq}
         </span>
       )}

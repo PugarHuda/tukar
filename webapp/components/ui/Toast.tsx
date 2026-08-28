@@ -7,10 +7,11 @@ type Toast = { id: number; msg: string; tone: ToastTone };
 
 const Ctx = createContext<{ toast: (msg: string, tone?: ToastTone) => void } | null>(null);
 
+// A small label slip: ink edge for info, stamp-blue edge for success, tape-red for errors.
 const toneCls: Record<ToastTone, string> = {
-  info: "border-orange/40 text-ts",
-  success: "border-green/40 text-green-t",
-  error: "border-red/45 text-red-t",
+  info: "border-ink text-ink",
+  success: "border-stamp text-stamp-deep",
+  error: "border-tape text-tape-deep",
 };
 
 /** Minimal toast host. Wrap a route (or the app) and call useToast().toast(...). */
@@ -34,7 +35,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {items.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto max-w-sm rounded-xl border bg-bg/90 px-4 py-3 text-[13px] shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur animate-tk-pop ${toneCls[t.tone]}`}
+            className={`pointer-events-auto max-w-sm rounded-card border-2 bg-label px-4 py-3 text-[13px] font-medium shadow-lift animate-tk-pop ${toneCls[t.tone]}`}
           >
             {t.msg}
           </div>

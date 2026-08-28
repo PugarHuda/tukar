@@ -1,6 +1,6 @@
 "use client";
 
-// Tukar — SENDER. A mobile-first consumer "send money" app over the live shielded corridor.
+// Tukar, SENDER. A mobile-first consumer "send money" app over the live shielded corridor.
 // Real flow end to end: build a note, prove compliance + amount binding + deposit on-chain
 // (depositOnChain), then register the commitment into the on-chain Merkle tree
 // (registerRootOnChain). The note-construction + deposit + tree-registration sequence mirrors
@@ -11,7 +11,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/components/WalletProvider";
 import { WalletBar } from "@/components/WalletBar";
-import { Button, Card, Input, Select, Badge, useToast } from "@/components/ui";
+import { Button, Card, Input, Select, Badge, Seal, Spinner, useToast } from "@/components/ui";
+import { Wordmark } from "@/components/landing/Wordmark";
+import { Label, Field, Ext, Mark, BAR, CAP, TYPED, NOTICE } from "@/components/sender/Label";
 import {
   depositOnChain,
   registerRootOnChain,
@@ -36,7 +38,7 @@ import { CctpFund } from "@/components/CctpFund";
 import { CctpSend } from "@/components/CctpSend";
 import { scheduleSignIn } from "@/lib/auth-client";
 
-// The 10 corridors — codes/currencies match app.js CORRIDORS (the receiver keys off `corridor`
+// The 10 corridors, codes/currencies match app.js CORRIDORS (the receiver keys off `corridor`
 // in the bearer note, so codes must line up). `oracle` = the symbol Reflector's on-chain SEP-40
 // feed carries; those refresh to a live on-chain rate, the rest via a public FX API.
 type Corridor = { code: string; country: string; recipient: string; currency: string; symbol: string; rate: number; oracle?: string };
@@ -101,7 +103,7 @@ export default function SenderPage() {
   const [amount, setAmount] = useState("200");
   const [code, setCode] = useState("MX");
   const [recipient, setRecipient] = useState(CORRIDORS[0].recipient);
-  // Recurring/scheduled send — a saved plan (reminder) only, never auto-executes on-chain.
+  // Recurring/scheduled send, a saved plan (reminder) only, never auto-executes on-chain.
   const [frequency, setFrequency] = useState<Frequency>("one-time");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   // A schedule POST in flight: a double-tap must not create two server plans the cron would both run.
@@ -112,7 +114,7 @@ export default function SenderPage() {
   const [serverMode, setServerMode] = useState<boolean | null>(null);
   // Scheduler bearer token from sign-in-with-wallet. Null until the connected wallet signs in.
   const [schedToken, setSchedToken] = useState<string | null>(null);
-  // fulfilling a Receiver-issued payment request (tukreq1:) — amount + payee are locked
+  // fulfilling a Receiver-issued payment request (tukreq1:), amount + payee are locked
   const [reqInput, setReqInput] = useState("");
   const [request, setRequest] = useState<{ addr: string; label: string } | null>(null);
   const [reqStatus, setReqStatus] = useState("");
@@ -136,7 +138,7 @@ export default function SenderPage() {
 
   const treeRef = useRef<Tree | null>(null);
   const leavesRef = useRef<bigint[]>([]);
-  // Navigating away from /sender would keep an in-flight SEP-24 poll firing setState — track
+  // Navigating away from /sender would keep an in-flight SEP-24 poll firing setState, track
   // liveness and bail (same pattern as PaymentCard's aliveRef).
   const aliveRef = useRef(true);
   useEffect(() => () => { aliveRef.current = false; }, []);
@@ -333,7 +335,7 @@ export default function SenderPage() {
       const synced = await syncedLeaves(tree);
       if (synced) leavesRef.current = synced;
       const leaves = leavesRef.current;
-      // Already on-chain? (a prior submit landed but its response was lost) — adopt the index
+      // Already on-chain? (a prior submit landed but its response was lost), adopt the index
       // rather than re-inserting, which would hit LeafAlreadyInserted (#9) and strand a
       // note that is actually spendable.
       const already = leaves.findIndex((l) => l === commitment);
@@ -347,13 +349,13 @@ export default function SenderPage() {
         leavesRef.current = [...leaves, commitment];
         return { ok: true };
       }
-      // UnknownRoot (#1): another deposit advanced the tree between our sync and submit — re-sync.
+      // UnknownRoot (#1): another deposit advanced the tree between our sync and submit, re-sync.
       if (attempt < 3 && reg.code === 1) {
         setProgStatus(`Tree advanced by another deposit, re-syncing… (try ${attempt + 1})`);
         continue;
       }
       // UnknownCommitment (#3): the deposit confirmed but the RPC node we read hasn't caught up
-      // (read-after-write lag) — wait briefly and retry.
+      // (read-after-write lag), wait briefly and retry.
       if (attempt < 3 && reg.code === 3) {
         setProgStatus(`Confirming the deposit on-chain… (try ${attempt + 1})`);
         await sleep(4500);
@@ -432,7 +434,7 @@ export default function SenderPage() {
     await refreshPool();
 
     // Success either way: even if registration didn't confirm, the deposit landed and the note
-    // IS a valid bearer asset — the recipient's console can finish registering it.
+    // IS a valid bearer asset, the recipient's console can finish registering it.
     const bearer = encodeBearerNote({ ref, ...note, corridor: c.code });
     // Keep the note on this device: it stays refundable until the receiver spends it.
     persistSent([{ ref, ...note, corridor: c.code, depHash: dep.hash || "", createdAt: new Date().toISOString() }, ...loadSentNotes()]);
@@ -442,7 +444,7 @@ export default function SenderPage() {
     let svg: string | null = null;
     try {
       claimLink = await buildClaimLink(bearer, pin || undefined);
-      svg = await qrSvgString(claimLink, "#0a0705", "#f3ad79", "Claim link QR code");
+      svg = await qrSvgString(claimLink, "#161311", "#f6f1e7", "Claim link QR code");
     } catch {
       svg = null;
     }
@@ -483,7 +485,7 @@ export default function SenderPage() {
     const terminal = /completed|refunded|error|expired|no_market/i;
     for (let i = 0; i < 6; i++) {
       await sleep(4000);
-      if (!aliveRef.current) return; // navigated away — stop polling
+      if (!aliveRef.current) return; // navigated away, stop polling
       const t = await anchorTxStatus(sep24, bearer, id);
       if (!aliveRef.current) return;
       if (!t) continue;
@@ -568,121 +570,188 @@ export default function SenderPage() {
   }
 
   // ---- render ----
+  // The sender sits on one kraft box, like the landing: the shipping label (the form) on the left,
+  // the packing slip (cost, request, standing orders) on the right from 1024px, one column below.
+  // <main> stays the 520px label column; the slip is an <aside> sibling on the same box, and the
+  // stubs that end each screen (Continue, Edit, Share) sit under the label in their own row.
+  const canContinue = isFinite(num) && num > 0 && num <= MAX_USDC;
   return (
     <div className="min-h-screen">
-      <header className="mx-auto flex max-w-[520px] flex-wrap items-center justify-between gap-y-3 px-5 pt-6">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            aria-label="Back to home"
-            className="flex items-center gap-1 rounded-md border border-line-input px-2 py-1 font-mono text-[11px] tracking-[0.08em] text-tm transition-colors hover:border-orange/50 hover:text-tp"
-          >
-            <span aria-hidden>←</span> Home
-          </Link>
-          <span className="text-lg font-extrabold tracking-[-0.01em]">Tukar</span>
-          <Badge tone="orange">SEND</Badge>
-        </div>
-        <WalletBar />
-      </header>
-
-      <main className="mx-auto max-w-[520px] px-5 pb-16 pt-6">
-        {connected && kind === "freighter" && screen !== "success" && (
-          <div className="mb-5 rounded-card border border-orange/35 bg-orange/[0.06] px-4 py-3 text-[13px] leading-relaxed text-ts">
-            <b className="text-orange">Heads up.</b> Only allow-listed sources can deposit. The built-in
-            testnet key is on the demo ASP allow-list, but this connected wallet is not, so a deposit will
-            be rejected by the compliance check. Use the testnet key to send, or have the operator add this
-            key to the allow-list. Receiving and cashing out work with any wallet.
+      <div className="mx-auto max-w-[1100px] px-3 pb-16 pt-5 sm:px-7">
+        {/* Straight on the kraft, like the receiver: home stub, the mark, the role. The wallet sits
+            under it on its own label strip, sized to its content, never full-bleed. */}
+        <header className="mb-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/"
+              aria-label="Back to home"
+              className="inline-flex items-center gap-1.5 rounded-stub border border-ink bg-label px-2.5 py-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink transition-colors duration-clock ease-clock hover:bg-ink hover:text-label"
+            >
+              <Mark kind="back" size={12} /> Home
+            </Link>
+            <span className="inline-flex items-center">
+              <Wordmark height={26} />
+              <span className="sr-only">Tukar</span>
+            </span>
+            <Badge tone="orange">SEND</Badge>
           </div>
-        )}
-        {screen === "compose" && (
-          <ComposeScreen
-            amount={amount}
-            setAmount={setAmount}
-            code={code}
-            onCorridorChange={(v) => {
-              setCode(v);
-              if (request) return; // keep the requested-payee label while fulfilling a request
-              const nc = CORRIDORS.find((c) => c.code === v);
-              if (nc) setRecipient(nc.recipient);
-            }}
-            recipient={recipient}
-            setRecipient={setRecipient}
-            frequency={frequency}
-            setFrequency={setFrequency}
-            schedules={schedules}
-            serverMode={serverMode}
-            schedToken={schedToken}
-            schedBusy={schedBusy}
-            onSaveSchedule={saveSchedule}
-            onRemoveSchedule={removeSchedule}
-            onPrefillSchedule={prefillSchedule}
-            sentNotes={sent}
-            onSentChange={persistSent}
-            connected={connected}
-            corridor={corridor}
-            fxSource={fx[code]?.source}
-            effRate={effRate}
-            receive={receive}
-            pool={pool}
-            poolBumped={poolBumped}
-            request={request}
-            reqInput={reqInput}
-            setReqInput={setReqInput}
-            reqStatus={reqStatus}
-            onLoadRequest={loadRequest}
-            onClearRequest={clearRequest}
-            canContinue={isFinite(num) && num > 0 && num <= MAX_USDC}
-            continueHint={num > MAX_USDC ? "Keep it under 1,000,000,000 USDC to continue." : "Enter an amount greater than 0 to continue."}
-            onContinue={() => {
-              if (!(num > 0)) {
-                setSendStatus("Enter a positive amount.");
-                return;
-              }
-              if (num > MAX_USDC) {
-                setSendStatus("Keep it under 1,000,000,000 USDC.");
-                return;
-              }
-              setScreen("send");
-            }}
-          />
-        )}
+          <div className="mt-3 flex justify-end">
+            <div className="w-full max-w-[560px] rounded-stub border border-ink bg-label px-4 py-2.5 shadow-card">
+              <WalletBar />
+            </div>
+          </div>
+        </header>
 
-        {screen === "send" && (
-          <SendScreen
-            usdc={num}
-            recipient={recipient}
-            corridor={corridor}
-            receive={receive}
-            fxSource={fx[code]?.source}
-            pin={pin}
-            setPin={setPin}
-            connected={connected}
-            address={address}
-            busy={busy}
-            anchorBusy={anchorBusy}
-            status={sendStatus}
-            onAnchor={openAnchor}
-            onSend={doSend}
-            onBack={() => setScreen("compose")}
-          />
-        )}
+        <div className={BOX}>
+          {/* corner tape and the seam between the label and the slip, as on the landing box */}
+          <span aria-hidden className="absolute -left-6 top-6 z-[2] hidden w-[220px] origin-left -rotate-[18deg] lg:block">
+            <span className="tk-tape block h-[34px]" />
+          </span>
+          <span aria-hidden className="absolute inset-y-3 left-[574px] hidden w-[2px] bg-ink/25 lg:block" />
 
-        {screen === "progress" && (
-          <ProgressScreen usdc={num} corridor={corridor} steps={steps} status={progStatus} depHash={depHash} pool={pool} poolBumped={poolBumped} />
-        )}
+          <main className="relative z-[1] mx-auto w-full max-w-[520px] lg:col-start-1 lg:row-start-1">
+            {connected && kind === "freighter" && screen !== "success" && (
+              <div className={`mb-5 ${NOTICE}`}>
+                <b className="text-ink">Heads up.</b> Only allow-listed sources can deposit. The built-in
+                testnet key is on the demo ASP allow-list, but this connected wallet is not, so a deposit will
+                be rejected by the compliance check. Use the testnet key to send, or have the operator add this
+                key to the allow-list. Receiving and cashing out work with any wallet.
+              </div>
+            )}
+            {screen === "compose" && (
+              <ComposeScreen
+                amount={amount}
+                setAmount={setAmount}
+                code={code}
+                onCorridorChange={(v) => {
+                  setCode(v);
+                  if (request) return; // keep the requested-payee label while fulfilling a request
+                  const nc = CORRIDORS.find((c) => c.code === v);
+                  if (nc) setRecipient(nc.recipient);
+                }}
+                recipient={recipient}
+                setRecipient={setRecipient}
+                frequency={frequency}
+                setFrequency={setFrequency}
+                schedules={schedules}
+                serverMode={serverMode}
+                schedBusy={schedBusy}
+                onSaveSchedule={saveSchedule}
+                sentNotes={sent}
+                onSentChange={persistSent}
+                connected={connected}
+                corridor={corridor}
+                fxSource={fx[code]?.source}
+                effRate={effRate}
+                receive={receive}
+                locked={!!request}
+                canContinue={canContinue}
+              />
+            )}
 
-        {screen === "success" && result && (
-          <SuccessScreen result={result} copied={copied} onCopy={copyBearer} onShare={shareBearer} onCopyLink={copyClaimLink} onCopyView={copyViewNote} onAnother={reset} />
-        )}
-      </main>
+            {screen === "send" && (
+              <SendScreen
+                usdc={num}
+                recipient={recipient}
+                corridor={corridor}
+                receive={receive}
+                fxSource={fx[code]?.source}
+                pin={pin}
+                setPin={setPin}
+                connected={connected}
+                address={address}
+                busy={busy}
+                anchorBusy={anchorBusy}
+                status={sendStatus}
+                onAnchor={openAnchor}
+                onSend={doSend}
+              />
+            )}
+
+            {screen === "progress" && (
+              <ProgressScreen usdc={num} corridor={corridor} steps={steps} status={progStatus} depHash={depHash} pool={pool} poolBumped={poolBumped} />
+            )}
+
+            {screen === "success" && result && <SuccessScreen result={result} />}
+          </main>
+
+          {/* The packing slip. CostCard stays first so it keeps its policy + benchmark reads across screens. */}
+          <aside aria-label="Packing slip" className="relative z-[1] mx-auto mt-4 w-full max-w-[520px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:max-w-none">
+            {screen !== "success" && <CostCard code={code} usdc={num} receive={receive} fxSource={fx[code]?.source} />}
+            {screen === "compose" && (
+              <>
+                <RequestLoader request={request} reqInput={reqInput} setReqInput={setReqInput} reqStatus={reqStatus} onLoad={loadRequest} onClear={clearRequest} />
+                <SchedulePlans schedules={schedules} serverMode={serverMode} token={schedToken} corridors={CORRIDORS} onPrefill={prefillSchedule} onRemoved={removeSchedule} />
+              </>
+            )}
+            {screen === "send" && (
+              <>
+                <CctpFund className="mt-4" stellarRecipient={connected && address ? address : ""} />
+                <CctpSend className="mt-3" />
+              </>
+            )}
+            {screen === "success" && result && <ClaimNoteCard result={result} copied={copied} onCopy={copyBearer} />}
+          </aside>
+
+          <div className="relative z-[1] mx-auto mt-4 w-full max-w-[520px] lg:col-start-1 lg:row-start-2 lg:mt-5 lg:self-start">
+            {screen === "compose" && (
+              <ComposeTail
+                canContinue={canContinue}
+                continueHint={num > MAX_USDC ? "Keep it under 1,000,000,000 USDC to continue." : "Enter an amount greater than 0 to continue."}
+                pool={pool}
+                poolBumped={poolBumped}
+                onContinue={() => {
+                  if (!(num > 0)) {
+                    setSendStatus("Enter a positive amount.");
+                    return;
+                  }
+                  if (num > MAX_USDC) {
+                    setSendStatus("Keep it under 1,000,000,000 USDC.");
+                    return;
+                  }
+                  setScreen("send");
+                }}
+              />
+            )}
+            {screen === "send" && (
+              <>
+                <Button variant="ghost" full onClick={() => setScreen("compose")}>
+                  <Mark kind="back" /> Edit payment
+                </Button>
+                <div className="mt-6 flex justify-end">
+                  <Seal size={22} />
+                </div>
+              </>
+            )}
+            {screen === "progress" && (
+              <div className="flex justify-end">
+                <Seal size={22} />
+              </div>
+            )}
+            {screen === "success" && result && <SuccessActions result={result} onShare={shareBearer} onCopyLink={copyClaimLink} onCopyView={copyViewNote} onAnother={reset} />}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+
+// The box, in the landing's treatment (landing.css .box): kraft with flute lines, the inset edge,
+// the drop shadow. Padding tightens on phones so the labels keep their measure; from 1024px it is
+// a two-column grid, label column fixed at 520px, the slip spanning both rows on the right.
+const BOX =
+  "relative rounded-[4px] border-2 border-kraft-edge bg-kraft p-5 shadow-[inset_0_0_0_10px_#c08e54,inset_0_0_0_12px_rgba(22,19,17,0.25),0_24px_50px_-30px_rgba(22,19,17,0.7)] [background-image:repeating-linear-gradient(180deg,rgba(22,19,17,0)_0_8px,rgba(22,19,17,0.08)_8px_9px)] sm:p-8 lg:grid lg:grid-cols-[520px_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:gap-x-7 lg:p-10";
 
 // ---------------------------------------------------------------------------
 // Screens
 // ---------------------------------------------------------------------------
 
+const H1 = "font-stencil text-[clamp(28px,8.5vw,42px)] uppercase leading-[0.98] tracking-[0.01em] text-ink";
+const STATUS = "mt-4 text-center text-[13px] leading-relaxed text-ink-2";
+
+// The compose form is a shipping label being filled in: typed captions, ruled fields, the amount
+// in stencil digits. The attached forms (savings, schedule, manifest) are separate slips stuck to
+// the box below it; the cost slip, request loader and standing orders live on the packing slip.
 function ComposeScreen(props: {
   amount: string;
   setAmount: (v: string) => void;
@@ -694,11 +763,8 @@ function ComposeScreen(props: {
   setFrequency: (v: Frequency) => void;
   schedules: Schedule[];
   serverMode: boolean | null;
-  schedToken: string | null;
   schedBusy: boolean;
   onSaveSchedule: () => void;
-  onRemoveSchedule: (id: string) => void;
-  onPrefillSchedule: (s: Schedule) => void;
   sentNotes: SentNote[];
   onSentChange: (next: SentNote[]) => void;
   connected: boolean;
@@ -706,41 +772,32 @@ function ComposeScreen(props: {
   fxSource?: "reflector" | "fx-api";
   effRate: number;
   receive: number;
-  pool: { commitments: string; balance: string } | null;
-  poolBumped: boolean;
-  request: { addr: string; label: string } | null;
-  reqInput: string;
-  setReqInput: (v: string) => void;
-  reqStatus: string;
-  onLoadRequest: () => void;
-  onClearRequest: () => void;
+  locked: boolean; // fulfilling a payment request: amount and recipient are read-only
   canContinue: boolean;
-  continueHint: string;
-  onContinue: () => void;
 }) {
-  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, serverMode, schedToken, schedBusy, onSaveSchedule, onRemoveSchedule, onPrefillSchedule, sentNotes, onSentChange, connected, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
-  const locked = !!request;
+  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, serverMode, schedBusy, onSaveSchedule, sentNotes, onSentChange, connected, corridor, fxSource, effRate, receive, locked, canContinue } = props;
   const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "indicative (static rate)";
   return (
     <div className="animate-tk-pop">
-      <div className="mb-7">
-        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Live on Stellar testnet</p>
-        <h1 className="text-[clamp(28px,7vw,38px)] font-extrabold leading-[1.05] tracking-[-0.025em]">
+      <div className="mb-6">
+        <h1 className={H1}>
           Send money.
           <br />
           Private crossing.
         </h1>
-        <p className="mt-3 max-w-[420px] text-sm leading-relaxed text-tm">
+        <p className="mt-3 max-w-[46ch] text-[15px] leading-relaxed text-ink-2">
           Real USDC in, local fiat out. The compliance and amount-binding proofs are built on this device, so no amounts leave in the clear.
         </p>
       </div>
 
-      <Card className="p-5">
-        <label htmlFor="amount" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+      <Label bar="Shipping label" right="Stellar testnet">
+        <label htmlFor="amount" className={`block ${CAP}`}>
           You send
         </label>
-        <div className="mt-2 flex items-center gap-2 rounded-[12px] border border-line-input bg-input px-3.5 py-2.5 transition-all duration-150 focus-within:border-orange/60 focus-within:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]">
-          <span className="text-3xl font-black text-tm">$</span>
+        <div className="mt-1.5 flex items-center gap-2 rounded-tile border border-ink/45 bg-input px-3.5 py-2 shadow-inset transition-[border-color,box-shadow] duration-clock ease-clock hover:border-ink focus-within:border-stamp focus-within:shadow-[inset_0_1px_2px_rgba(22,19,17,0.14),0_0_0_3px_rgba(42,79,168,0.18)]">
+          <span className="font-stencil text-3xl leading-none text-ink-3" aria-hidden>
+            $
+          </span>
           <input
             id="amount"
             type="number"
@@ -751,9 +808,9 @@ function ComposeScreen(props: {
             onChange={(e) => setAmount(e.target.value)}
             readOnly={locked}
             aria-label="Amount in USDC"
-            className="w-full bg-transparent text-4xl font-black tracking-[-0.02em] text-tp outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-full min-w-0 bg-transparent font-stencil text-[40px] leading-none tabular-nums text-ink outline-none [appearance:textfield] read-only:text-ink-2 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
-          <span className="font-mono text-sm text-tf">USDC</span>
+          <span className="font-mono text-sm font-bold text-ink-2">USDC</span>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3">
@@ -772,118 +829,133 @@ function ComposeScreen(props: {
           </Select>
         </div>
 
-        <div className="mt-4 flex items-end justify-between rounded-tile border border-line bg-black/20 p-3.5">
-          <div>
-            <div className="font-mono text-[10px] tracking-[0.1em] text-tf uppercase">They receive ≈</div>
-            <div className="mt-1 font-mono text-[11px] text-tm">
+        <div className="mt-4 flex items-end justify-between gap-3 border-t border-ink pt-3">
+          <div className="min-w-0">
+            <div className={CAP}>They receive ≈</div>
+            <div className={`mt-1 ${TYPED}`}>
               {corridor.currency} at {fmtRate(effRate)} · {rateNote}
             </div>
           </div>
-          <div className="text-2xl font-black tracking-[-0.02em] text-green-t">{receive > 0 ? fmtLocal(receive, corridor) : "—"}</div>
+          <div className="shrink-0 font-mono text-2xl font-bold tabular-nums text-ink">{fmtLocal(receive, corridor)}</div>
         </div>
+      </Label>
 
-        <SavingsNote
-          usdc={Number(amount)}
-          monthly={frequency === "monthly" || schedules.some((s) => s.frequency === "monthly")}
-          className="mt-4"
-        />
-      </Card>
-
-      <CostCard code={code} usdc={Number(amount)} receive={receive} fxSource={fxSource} className="mt-4" />
+      <SavingsNote
+        usdc={Number(amount)}
+        monthly={frequency === "monthly" || schedules.some((s) => s.frequency === "monthly")}
+        className="mt-4"
+      />
 
       {frequency !== "one-time" && (
-        <div className="mt-4 rounded-tile border border-orange/40 bg-orange/5 p-3.5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="font-mono text-[10px] tracking-[0.12em] text-orange uppercase">Schedule a {frequency} send</div>
-            <Badge tone={serverMode ? "green" : "amber"}>{serverMode ? "AUTOMATED" : "PREVIEW"}</Badge>
+        <Label className="mt-4" bar={`Schedule a ${frequency} send`}>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[13px] leading-relaxed text-ink-2">
+              {serverMode
+                ? "Automated on-chain. A daily cron runs this plan: it mints a note and executes the deposit + shielded-tree registration on-chain for you. Delivering the claim note to the recipient (the withdraw leg) stays a manual step."
+                : "Preview. Your plan is saved on this device as a reminder. Automatic on-chain execution needs a scheduler or relayer and is on the roadmap. Tap a saved plan to pre-fill and send it yourself."}
+            </p>
+            <Badge tone={serverMode ? "green" : "amber"} className="shrink-0">{serverMode ? "AUTOMATED" : "PREVIEW"}</Badge>
           </div>
-          <p className="mt-2 text-[13px] leading-relaxed text-tm">
-            {serverMode
-              ? "Automated on-chain. A daily cron runs this plan: it mints a note and executes the deposit + shielded-tree registration on-chain for you. Delivering the claim note to the recipient (the withdraw leg) stays a manual step."
-              : "Preview. Your plan is saved on this device as a reminder. Automatic on-chain execution needs a scheduler or relayer and is on the roadmap. Tap a saved plan to pre-fill and send it yourself."}
-          </p>
           <Button variant="reveal" full className="mt-3" busy={schedBusy} disabled={!canContinue || schedBusy} onClick={onSaveSchedule}>
             {serverMode ? "Schedule" : "Save"} {frequency} plan for {recipient || "recipient"}
           </Button>
-        </div>
+        </Label>
       )}
-
-      <SchedulePlans schedules={schedules} serverMode={serverMode} token={schedToken} corridors={CORRIDORS} onPrefill={onPrefillSchedule} onRemoved={onRemoveSchedule} />
 
       <SentNotes notes={sentNotes} onChange={onSentChange} connected={connected} />
-
-      {request ? (
-        <div className="mt-4 rounded-tile border border-orange/40 bg-orange/5 p-3.5">
-          <div className="flex items-center justify-between">
-            <div className="font-mono text-[10px] tracking-[0.12em] text-orange uppercase">Fulfilling a payment request</div>
-            <button onClick={onClearRequest} className="font-mono text-[11px] text-tm underline underline-offset-2 hover:text-tp">
-              Clear
-            </button>
-          </div>
-          <p className="mt-2 text-[13px] leading-relaxed text-tm">
-            {request.label} · amount and recipient are locked to the request. Pick the destination corridor, then continue to send.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-4 rounded-tile border border-line bg-black/20 p-3.5">
-          <label htmlFor="req" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
-            Load a payment request
-          </label>
-          <div className="mt-2 flex gap-2">
-            <input
-              id="req"
-              value={reqInput}
-              onChange={(e) => setReqInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onLoadRequest();
-              }}
-              placeholder="tukreq1:…"
-              aria-label="Payment request string"
-              className="w-full rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-[12px] text-tp outline-none transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
-            />
-            <Button variant="subtle" onClick={onLoadRequest} disabled={!reqInput.trim()}>
-              Load
-            </Button>
-          </div>
-          <p className="mt-2 font-mono text-[11px] leading-relaxed text-tf">
-            Paste a request the recipient made in the Receiver step to prefill the amount and payee.
-          </p>
-        </div>
-      )}
-
-      {reqStatus && (
-        <p className="mt-2 text-center text-[12px] leading-relaxed text-ts" role="status" aria-live="polite">
-          {reqStatus}
-        </p>
-      )}
-
-      <Button
-        full
-        className="mt-4"
-        disabled={!canContinue}
-        title={canContinue ? undefined : continueHint}
-        onClick={onContinue}
-      >
-        Continue →
-      </Button>
-      {!canContinue && (
-        <p className="mt-2 text-center font-mono text-[11px] text-tf">{continueHint}</p>
-      )}
-
-      <div className="mt-3 text-center font-mono text-[11px] text-tm">
-        Shielded pool · <b className={poolBumped ? "inline-block animate-tk-bump text-orange" : "text-ts"}>{pool ? pool.commitments : "…"}</b> notes · your payment joins the anonymity set
-      </div>
-
-      <p className="mt-6 text-center text-[11px] leading-relaxed text-tf">
-        Real testnet USDC. The proofs are real. Deposits and withdrawals are public at the edges by design; the crossing in between is shielded.{" "}
-        <a href={`https://stellar.expert/explorer/testnet/contract/${POOL}`} target="_blank" rel="noreferrer" className="text-tm underline underline-offset-2">
-          Pool {short(POOL)}
-        </a>
-      </p>
     </div>
   );
 }
 
+// On the packing slip: a Receiver-issued payment request (tukreq1:) to fulfil, or the slot to load one.
+function RequestLoader(props: {
+  request: { addr: string; label: string } | null;
+  reqInput: string;
+  setReqInput: (v: string) => void;
+  reqStatus: string;
+  onLoad: () => void;
+  onClear: () => void;
+}) {
+  const { request, reqInput, setReqInput, reqStatus, onLoad, onClear } = props;
+  return (
+    <>
+      {request ? (
+        <Label
+          className="mt-4"
+          bar="Fulfilling a payment request"
+          right={
+            <button onClick={onClear} className="underline underline-offset-2 hover:text-kraft">
+              Clear
+            </button>
+          }
+        >
+          <p className="text-[13px] leading-relaxed text-ink-2">
+            {request.label} · amount and recipient are locked to the request. Pick the destination corridor, then continue to send.
+          </p>
+        </Label>
+      ) : (
+        <Card className="mt-4">
+          <label htmlFor="req" className={BAR}>
+            Load a payment request
+          </label>
+          <div className="p-4">
+            <div className="flex gap-2">
+              <input
+                id="req"
+                value={reqInput}
+                onChange={(e) => setReqInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onLoad();
+                }}
+                placeholder="tukreq1:…"
+                aria-label="Payment request string"
+                className="w-full min-w-0 rounded-tile border border-ink/45 bg-input px-3 py-2.5 font-mono text-[12px] text-ink shadow-inset placeholder:text-ink-4 transition-[border-color,box-shadow] duration-clock ease-clock hover:border-ink focus:border-stamp focus:outline-none focus:shadow-[inset_0_1px_2px_rgba(22,19,17,0.14),0_0_0_3px_rgba(42,79,168,0.18)]"
+              />
+              <Button variant="subtle" onClick={onLoad} disabled={!reqInput.trim()}>
+                Load
+              </Button>
+            </div>
+            <p className={`mt-2 ${TYPED}`}>Paste a request the recipient made in the Receiver step to prefill the amount and payee.</p>
+          </div>
+        </Card>
+      )}
+
+      {reqStatus && (
+        <p className="mt-2 text-center text-[12px] leading-relaxed text-ink-2" role="status" aria-live="polite">
+          {reqStatus}
+        </p>
+      )}
+    </>
+  );
+}
+
+// Under the label: the stub that continues, the pool count, the fine print and the seal.
+function ComposeTail(props: { canContinue: boolean; continueHint: string; onContinue: () => void; pool: { commitments: string; balance: string } | null; poolBumped: boolean }) {
+  const { canContinue, continueHint, onContinue, pool, poolBumped } = props;
+  return (
+    <div className="animate-tk-pop">
+      <Button full className="py-4 text-[17px]" disabled={!canContinue} title={canContinue ? undefined : continueHint} onClick={onContinue}>
+        Continue <Mark kind="arrow" />
+      </Button>
+      {!canContinue && <p className={`mt-2 text-center ${TYPED}`}>{continueHint}</p>}
+
+      <p className="mt-3 text-center font-mono text-[11px] text-ink-3">
+        Shielded pool · <b className={poolBumped ? "inline-block animate-tk-bump text-stamp-deep" : "text-ink"}>{pool ? pool.commitments : "…"}</b> notes · your payment joins the anonymity set
+      </p>
+
+      <div className="mt-6 flex items-end justify-between gap-4">
+        <p className="text-[11px] leading-relaxed text-ink-3">
+          Real testnet USDC. The proofs are real. Deposits and withdrawals are public at the edges by design; the crossing in between is shielded.{" "}
+          <Ext href={`https://stellar.expert/explorer/testnet/contract/${POOL}`}>Pool {short(POOL)}</Ext>
+        </p>
+        <Seal size={22} className="shrink-0" />
+      </div>
+    </div>
+  );
+}
+
+// The confirm screen is the label read back before sealing: the same fields, no editing, then
+// the claim-link PIN, the signer, and the stub that sends.
 function SendScreen(props: {
   usdc: number;
   recipient: string;
@@ -899,26 +971,33 @@ function SendScreen(props: {
   status: string;
   onAnchor: () => void;
   onSend: () => void;
-  onBack: () => void;
 }) {
-  const { usdc, recipient, corridor, receive, fxSource, pin, setPin, connected, address, busy, anchorBusy, status, onAnchor, onSend, onBack } = props;
+  const { usdc, recipient, corridor, receive, fxSource, pin, setPin, connected, address, busy, anchorBusy, status, onAnchor, onSend } = props;
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
-        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Step 2 · Confirm and send</p>
-        <h1 className="text-3xl font-extrabold tracking-[-0.02em]">Send ${usdc}</h1>
-        <p className="mt-2 text-sm text-tm">
+        <h1 className={H1}>Send ${usdc}</h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-ink-2">
           to {recipient || "recipient"} · {corridor.country}
         </p>
       </div>
 
-      <Card className="p-5">
-        <Recap k="Amount" v={`$${usdc} USDC`} />
-        <Recap k="They receive ≈" v={`${fmtLocal(receive, corridor)} ${corridor.currency}${fxSource ? "" : " · indicative (static rate)"}`} />
-        <Recap k="Destination" v={corridor.country} last />
-      </Card>
+      <Label bar="Confirm and send" right="Label read-back">
+        <dl className="m-0">
+          <Field k="Amount" mono>
+            ${usdc} USDC
+          </Field>
+          <Field k="They receive ≈" mono>
+            {fmtLocal(receive, corridor)} {corridor.currency}
+            {fxSource ? "" : " · indicative (static rate)"}
+          </Field>
+          <Field k="Destination" last>
+            {corridor.country}
+          </Field>
+        </dl>
+      </Label>
 
-      <div className="mt-4 rounded-tile border border-line bg-black/20 p-3.5">
+      <Card className="mt-4 p-4">
         <Input
           label="Claim-link PIN (optional, 6 digits)"
           id="claim-pin"
@@ -928,22 +1007,22 @@ function SendScreen(props: {
           onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
           placeholder="leave empty for a plain link"
           aria-label="Optional 6-digit PIN for the claim link"
+          className="font-mono tracking-[0.2em]"
         />
-        <p className="mt-2 font-mono text-[11px] leading-relaxed text-tf">
+        <p className={`mt-2 ${TYPED}`}>
           The claim link carries the payment itself. A PIN only protects the link while it travels; it is not a strong secret, so send the PIN separately.
         </p>
-      </div>
+      </Card>
 
       {!connected && (
-        <Card className="mt-4 p-5">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Connect to sign on-chain</div>
-          <p className="mt-2 text-[13px] leading-relaxed text-tm">
+        <Label className="mt-4" bar="Connect to sign on-chain">
+          <p className="text-[13px] leading-relaxed text-ink-2">
             Use the built-in testnet key for a real testnet transaction with no install, or connect Freighter to sign with your own wallet.
           </p>
           <div className="mt-3">
             <WalletBar />
           </div>
-        </Card>
+        </Label>
       )}
 
       <div className="mt-4 flex flex-col gap-3">
@@ -952,27 +1031,20 @@ function SendScreen(props: {
         </Button>
         <Button
           full
+          className="py-4 text-[17px]"
           busy={busy}
           disabled={!connected || busy}
           title={!connected ? "Connect a wallet or use the testnet key" : undefined}
           onClick={onSend}
         >
-          Send ${usdc} →
+          Send ${usdc} <Mark kind="arrow" />
         </Button>
-        {!connected && <div className="text-center font-mono text-[11px] text-tf">Connect above to send on-chain.</div>}
-        {connected && address && (
-          <div className="text-center font-mono text-[11px] text-tf">signing as {short(address)}</div>
-        )}
+        {!connected && <div className={`text-center ${TYPED}`}>Connect above to send on-chain.</div>}
+        {connected && address && <div className={`text-center ${TYPED}`}>signing as {short(address)}</div>}
       </div>
 
-      <CctpFund className="mt-4" stellarRecipient={connected && address ? address : ""} />
-      <CctpSend className="mt-3" />
-
-      <Button variant="ghost" full onClick={onBack} className="mt-5">
-        ← Edit payment
-      </Button>
       {status && (
-        <p className="mt-4 text-center text-[13px] leading-relaxed text-ts" role="status" aria-live="polite">
+        <p className={STATUS} role="status" aria-live="polite">
           {status}
         </p>
       )}
@@ -980,6 +1052,9 @@ function SendScreen(props: {
   );
 }
 
+// The box being packed: the packing slip ticks off proofs, deposit and registration; tape unrolls
+// across the slip and onto the box once the deposit lands, and the SEALED stamp comes down once
+// the tree has it.
 function ProgressScreen(props: {
   usdc: number;
   corridor: Corridor;
@@ -990,37 +1065,51 @@ function ProgressScreen(props: {
   poolBumped: boolean;
 }) {
   const { usdc, corridor, steps, status, depHash, pool, poolBumped } = props;
+  const taped = steps.deposit === "done";
+  const sealed = steps.register === "done";
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
-        <p className="tk-eyebrow mb-2 font-mono text-[11px] tracking-[0.2em] text-orange uppercase">Sending</p>
-        <h1 className="text-2xl font-extrabold tracking-[-0.02em]">
+        <h1 className={H1}>
           Sending ${usdc} to {corridor.country}
         </h1>
-        <p className="mt-2 text-sm text-tm">Proving on this device, then moving real USDC on-chain. Keep this tab open.</p>
+        <p className="mt-2 text-[15px] leading-relaxed text-ink-2">Proving on this device, then moving real USDC on-chain. Keep this tab open.</p>
       </div>
 
-      <Card className="p-5">
-        <Step n={1} state={steps.proof} title="Zero-knowledge proofs" sub="compliance + amount binding, in-browser" />
-        <Step n={2} state={steps.deposit} title="Deposit USDC on-chain" sub="real transfer into the shielded pool" />
-        <Step n={3} state={steps.register} title="Register into the shielded tree" sub="makes the note spendable" last />
-      </Card>
+      <div className="relative">
+        {taped && (
+          <span aria-hidden className="absolute -inset-x-3 top-3 z-[2] -rotate-1">
+            <span className="tk-tape block h-6 animate-tk-tape" />
+          </span>
+        )}
+        <Card className="relative">
+          <div className={BAR}>
+            <span>Packing slip</span>
+            <span className="ml-auto">
+              {corridor.code} · {corridor.currency}
+            </span>
+          </div>
+          <ol className={`m-0 list-none px-4 ${sealed ? "pb-12" : ""}`}>
+            <Step n={1} state={steps.proof} title="Zero-knowledge proofs" sub="compliance + amount binding, in-browser" />
+            <Step n={2} state={steps.deposit} title="Deposit USDC on-chain" sub="real transfer into the shielded pool" />
+            <Step n={3} state={steps.register} title="Register into the shielded tree" sub="makes the note spendable" last />
+          </ol>
+          {sealed && <span className="tk-stamp absolute bottom-3 right-5 animate-tk-ring text-[15px]">Sealed</span>}
+        </Card>
+      </div>
 
       {depHash && (
-        <div className="mt-3 text-center font-mono text-[11px] text-tm">
-          deposit tx{" "}
-          <a href={txExplorer(depHash)} target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">
-            {short(depHash)} ↗
-          </a>
-        </div>
+        <p className="mt-3 text-center font-mono text-[11px] text-ink-3">
+          deposit tx <Ext href={txExplorer(depHash)}>{short(depHash)}</Ext>
+        </p>
       )}
 
-      <div className="mt-3 text-center font-mono text-[11px] text-tm">
-        Pool commitments · <b className={poolBumped ? "inline-block animate-tk-bump text-orange" : "text-ts"}>{pool ? pool.commitments : "…"}</b>
-      </div>
+      <p className="mt-3 text-center font-mono text-[11px] text-ink-3">
+        Pool commitments · <b className={poolBumped ? "inline-block animate-tk-bump text-stamp-deep" : "text-ink"}>{pool ? pool.commitments : "…"}</b>
+      </p>
 
       {status && (
-        <p className="mt-4 text-center text-[13px] leading-relaxed text-ts" role="status" aria-live="polite">
+        <p className={STATUS} role="status" aria-live="polite">
           {status}
         </p>
       )}
@@ -1028,97 +1117,121 @@ function ProgressScreen(props: {
   );
 }
 
-function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () => void; onShare: () => void; onCopyLink: () => void; onCopyView: () => void; onAnother: () => void }) {
-  const { result, copied, onCopy, onShare, onCopyLink, onCopyView, onAnother } = props;
+// The sealed box: a receipt label with the customs stamp landing on it. The claim note with its QR
+// goes on the packing slip (ClaimNoteCard); the tear-off stubs sit under the label (SuccessActions).
+function SuccessScreen({ result }: { result: SendResult }) {
   const local = result.usdc * result.rate;
   return (
     <div className="animate-tk-pop">
-      <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 animate-tk-ring items-center justify-center rounded-full border border-green/40 bg-green/10">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#5fe3a0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3 20 8 18 17 12 21 6 17 4 8Z" />
-            <path className="tk-draw-path" d="M8.5 12 11 14.5 15.5 9" />
-          </svg>
-        </div>
-        <h2 className="text-2xl font-extrabold tracking-[-0.02em]">{result.regOk ? "Sent and shielded" : "Deposited, registration pending"}</h2>
-        <p className="mx-auto mt-2 max-w-[380px] text-sm text-tm">
+      <div className="mb-6">
+        <h2 className={H1}>{result.regOk ? "Sent and shielded" : "Deposited, registration pending"}</h2>
+        <p className="mt-2 max-w-[46ch] text-[15px] leading-relaxed text-ink-2">
           {result.regOk
             ? "Your payment is in the pool and spendable. Share the claim note so the recipient can collect local fiat."
             : "Your USDC deposit landed and the note is a valid claim. Tree registration did not confirm here, but the recipient's console can finish it. Share the claim note below."}
         </p>
       </div>
 
-      <Card className="p-5">
-        <Recap k="Reference" v={result.ref} />
-        <Recap k="Amount" v={`$${result.usdc} USDC`} />
-        <Recap k="They receive ≈" v={`${fmtLocal(local, result.corridor)} ${result.corridor.currency}${result.rateSource ? "" : " · indicative (static rate)"}`} />
-        <Recap
-          k="Deposit tx"
-          v={
-            result.depHash ? (
-              <a href={txExplorer(result.depHash)} target="_blank" rel="noreferrer" className="text-orange underline underline-offset-2">
-                {short(result.depHash)} ↗
-              </a>
+      <Card className="relative">
+        <div className={BAR}>
+          <span>Receipt</span>
+          <span className="ml-auto">
+            {result.corridor.code} · {result.corridor.currency}
+          </span>
+        </div>
+        <dl className="m-0 px-4 pb-14 pt-1">
+          <Field k="Reference" mono>
+            {result.ref}
+          </Field>
+          <Field k="Amount" mono>
+            ${result.usdc} USDC
+          </Field>
+          <Field k="They receive ≈" mono>
+            {fmtLocal(local, result.corridor)} {result.corridor.currency}
+            {result.rateSource ? "" : " · indicative (static rate)"}
+          </Field>
+          <Field k="Deposit tx" mono last>
+            {result.depHash ? <Ext href={txExplorer(result.depHash)}>{short(result.depHash)}</Ext> : "confirmed"}
+          </Field>
+        </dl>
+        <span className={`tk-stamp absolute bottom-4 right-5 animate-tk-ring text-[17px] ${result.regOk ? "" : "tk-stamp-ink"}`}>
+          {result.regOk ? "Cleared" : "Deposited"}
+          <small className="mt-0.5 block font-mono text-[10px] tracking-[0.1em]">{result.regOk ? "proof on-chain" : "tree pending"}</small>
+        </span>
+      </Card>
+    </div>
+  );
+}
+
+function ClaimNoteCard({ result, copied, onCopy }: { result: SendResult; copied: boolean; onCopy: () => void }) {
+  return (
+    <div className="animate-tk-pop">
+      <Card>
+        <div className={BAR}>
+          <span>Claim note (bearer)</span>
+          <span className="ml-auto">share only with the recipient</span>
+        </div>
+        <div className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className={TYPED}>tukar1 string, {result.bearer.length} characters</span>
+            <Button variant="ghost" onClick={onCopy}>
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-tile border border-ink/45 bg-input p-3 font-mono text-[10.5px] leading-relaxed text-ink-2 shadow-inset">
+            {result.bearer}
+          </pre>
+
+          <div className="mt-3 flex justify-center">
+            {result.svg ? (
+              <div className="h-44 w-44 overflow-hidden border border-ink bg-label p-2" dangerouslySetInnerHTML={{ __html: result.svg }} />
             ) : (
-              "confirmed"
-            )
-          }
-          last
-        />
-      </Card>
+              <div className={`flex h-44 w-44 items-center justify-center border border-ink/45 bg-input p-4 text-center ${TYPED}`}>
+                QR unavailable. Copy the string above instead.
+              </div>
+            )}
+          </div>
 
-      <Card className="mt-4 p-5">
-        <div className="flex items-center justify-between">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Claim note (bearer)</div>
-          <Button variant="ghost" onClick={onCopy}>
-            {copied ? "Copied ✓" : "Copy"}
-          </Button>
+          <p className="mt-3 text-[12.5px] leading-relaxed text-ink-2">
+            Whoever holds this string can claim the payment. Share it only with the recipient. They paste it into{" "}
+            <Link href="/receiver" className="text-stamp-deep underline underline-offset-2 hover:text-stamp">
+              the Receiver step
+            </Link>
+            {result.claimLink ? ", or scan the QR, which opens the claim link there" : ""} to off-ramp to local fiat.
+            {result.pinned ? " The link is PIN-wrapped: the recipient needs the 6-digit PIN you set." : ""}
+          </p>
         </div>
-        <pre className="mt-2 overflow-x-auto rounded-lg border border-line bg-black/20 p-3 font-mono text-[10.5px] leading-relaxed text-ts whitespace-pre-wrap break-all">
-          {result.bearer}
-        </pre>
-
-        <div className="mt-3 flex justify-center">
-          {result.svg ? (
-            <div className="h-44 w-44 overflow-hidden rounded-xl border border-line bg-[#f3ad79] p-2" dangerouslySetInnerHTML={{ __html: result.svg }} />
-          ) : (
-            <div className="flex h-44 w-44 items-center justify-center rounded-xl border border-line bg-black/20 p-4 text-center font-mono text-[11px] text-tf">
-              QR unavailable. Copy the string above instead.
-            </div>
-          )}
-        </div>
-
-        <p className="mt-3 text-[12px] leading-relaxed text-tm">
-          Whoever holds this string can claim the payment. Share it only with the recipient. They paste it into{" "}
-          <Link href="/receiver" className="text-orange underline underline-offset-2">
-            the Receiver step
-          </Link>
-          {result.claimLink ? ", or scan the QR, which opens the claim link there" : ""} to off-ramp to local fiat.
-          {result.pinned ? " The link is PIN-wrapped: the recipient needs the 6-digit PIN you set." : ""}
-        </p>
       </Card>
+    </div>
+  );
+}
 
-      <div className="mt-4 flex flex-col gap-3">
-        <Button variant="subtle" full onClick={onShare}>
+function SuccessActions(props: { result: SendResult; onShare: () => void; onCopyLink: () => void; onCopyView: () => void; onAnother: () => void }) {
+  const { result, onShare, onCopyLink, onCopyView, onAnother } = props;
+  return (
+    <div className="animate-tk-pop">
+      <div className="flex flex-col gap-3">
+        <Button full onClick={onShare}>
           Share claim note
         </Button>
         {result.claimLink && (
-          <Button variant="subtle" full onClick={onCopyLink}>
+          <Button full onClick={onCopyLink}>
             Copy claim link{result.pinned ? " (PIN-wrapped)" : ""}
           </Button>
         )}
-        <p className="text-center font-mono text-[11px] leading-relaxed text-tf">
+        <p className={`text-center ${TYPED}`}>
           This link carries the payment itself. Anyone who opens it can claim the money. A PIN only protects the link while it travels; it is not a strong secret, so send the PIN separately.
         </p>
-        <Button variant="ghost" full onClick={onCopyView}>
+        <Button full onClick={onCopyView}>
           Export view-only note
         </Button>
-        <p className="text-center font-mono text-[11px] leading-relaxed text-tf">
-          Lets an auditor verify this payment without being able to spend it.
-        </p>
-        <Button full onClick={onAnother}>
+        <p className={`text-center ${TYPED}`}>Lets an auditor verify this payment without being able to spend it.</p>
+        <Button variant="ghost" full onClick={onAnother}>
           Send another
         </Button>
+      </div>
+      <div className="mt-6 flex justify-end">
+        <Seal size={22} />
       </div>
     </div>
   );
@@ -1128,31 +1241,27 @@ function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () 
 // Small presentational bits
 // ---------------------------------------------------------------------------
 
-function Recap({ k, v, last }: { k: string; v: React.ReactNode; last?: boolean }) {
-  return (
-    <div className={`flex items-center justify-between py-2.5 ${last ? "" : "border-b border-line"}`}>
-      <span className="font-mono text-[11px] tracking-[0.04em] text-tf uppercase">{k}</span>
-      <span className="text-sm font-semibold text-tp">{v}</span>
-    </div>
-  );
-}
-
-const STEP_TONE: Record<StepState, string> = {
-  pend: "border-line-input text-tf",
-  run: "border-orange/60 text-orange",
-  done: "border-green/50 text-green-t",
-  fail: "border-red/50 text-red-t",
-};
+// One line of the packing slip: index, what, and the mark (empty box, spool turning, check, cross).
 function Step({ n, state, title, sub, last }: { n: number; state: StepState; title: string; sub: string; last?: boolean }) {
   return (
-    <div className={`flex items-start gap-3 py-3 ${last ? "" : "border-b border-line"}`}>
-      <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold ${STEP_TONE[state]}`}>
-        {state === "done" ? <span className="inline-block animate-tk-bump">✓</span> : state === "fail" ? "✕" : state === "run" ? <span className="inline-block animate-tk-spin">◠</span> : n}
-      </div>
-      <div>
-        <div className={`text-sm font-semibold ${state === "pend" ? "text-tm" : "text-tp"}`}>{title}</div>
-        <div className="mt-0.5 font-mono text-[11px] text-tf">{sub}</div>
-      </div>
-    </div>
+    <li className={`flex items-start gap-3 py-3 ${last ? "" : "border-b border-ink/25"}`}>
+      <span className="mt-0.5 font-mono text-[12px] font-bold text-ink-3">{String(n).padStart(2, "0")}</span>
+      <span className="min-w-0 flex-1">
+        <span className={`block text-sm font-semibold ${state === "pend" ? "text-ink-4" : "text-ink"}`}>{title}</span>
+        <span className={`mt-0.5 block ${TYPED}`}>{sub}</span>
+      </span>
+      {state === "run" ? (
+        <Spinner className="mt-0.5" label="" />
+      ) : (
+        <span
+          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border ${
+            state === "done" ? "animate-tk-bump border-stamp bg-stamp-wash text-stamp-deep" : state === "fail" ? "border-tape bg-tape-wash text-tape-deep" : "border-ink/40"
+          }`}
+        >
+          {state === "done" && <Mark kind="check" size={12} />}
+          {state === "fail" && <Mark kind="cross" size={12} />}
+        </span>
+      )}
+    </li>
   );
 }

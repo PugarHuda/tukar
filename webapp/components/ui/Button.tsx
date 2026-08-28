@@ -7,16 +7,20 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   full?: boolean;
 };
 
-const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:cursor-default disabled:active:scale-100";
+// Buttons are the parcel's controls: the primary is a tear-off stub (white label, perforated
+// edge, stencilled action), the ghost is an ink outline on paper, the reveal is the stamp-blue
+// coupon, the subtle is a small typed tag. Motion rides the shared clock.
+const base =
+  "inline-flex items-center justify-center gap-2 font-semibold rounded-stub transition-[transform,box-shadow,background-color,border-color,color] duration-clock ease-clock active:translate-y-px disabled:cursor-default disabled:active:translate-y-0";
 const variants: Record<Variant, string> = {
   primary:
-    "bg-gradient-to-b from-orange-l to-orange text-bg font-bold px-5 py-3.5 text-[15px] shadow-btn hover:from-orange-l2 hover:to-orange-l hover:-translate-y-px hover:shadow-btn-hover active:translate-y-0 disabled:bg-white/[0.08] disabled:bg-none disabled:text-tm disabled:shadow-none",
+    "tk-perf bg-label text-ink border border-ink px-5 py-3 text-[15px] font-stencil uppercase tracking-[0.06em] shadow-btn hover:shadow-btn-hover hover:-translate-y-px hover:bg-white disabled:bg-label-3 disabled:text-ink-4 disabled:border-ink/30 disabled:shadow-none",
   ghost:
-    "bg-white/[0.07] border border-white/25 text-tp px-4 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-orange/60 hover:bg-white/[0.11] hover:-translate-y-px active:translate-y-0",
+    "bg-transparent border border-ink text-ink px-4 py-2.5 text-[13px] hover:bg-ink hover:text-label",
   reveal:
-    "bg-orange/[0.12] border border-orange/40 text-orange-l3 font-bold px-4 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,148,69,0.14)] hover:bg-orange/20 hover:border-orange/60 hover:-translate-y-px active:translate-y-0",
+    "bg-stamp text-label border border-stamp-deep px-4 py-2.5 text-[13px] font-bold shadow-btn hover:bg-stamp-deep hover:-translate-y-px disabled:bg-ink/20 disabled:border-transparent disabled:text-ink-4 disabled:shadow-none",
   subtle:
-    "bg-white/[0.07] border border-line-input text-ts px-3.5 py-2.5 text-xs hover:border-orange/60 hover:text-tp hover:bg-orange/[0.08]",
+    "bg-label border border-ink/35 text-ink-2 px-3.5 py-2 text-xs font-mono hover:border-ink hover:text-ink",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -30,7 +34,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={`${base} ${variants[variant]} ${full ? "w-full" : ""} ${busy ? "opacity-80" : ""} ${className}`}
       {...rest}
     >
-      {busy && <span className="inline-block animate-tk-spin text-current">◠</span>}
+      {busy && <span aria-hidden className="inline-block h-3 w-3 animate-tk-spin rounded-full border-2 border-current border-r-transparent" />}
       {children}
     </button>
   );

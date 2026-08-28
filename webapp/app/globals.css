@@ -2,42 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The Balikbayan Parcel: the page is the top of a kraft box, text lives on white label paper,
+   three inks only. Browser surfaces (selection, caret, scrollbar, focus, numerals) are themed
+   from the same palette so nothing on screen belongs to a default. */
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
+    --tk-clock: 420ms;
+    --tk-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+    --kraft: #d4a468;
+    --ink: #161311;
+    --tape: #d8342b;
+    --stamp: #2a4fa8;
+    --label: #f6f1e7;
   }
   html,
   body {
     margin: 0;
     padding: 0;
-    background: theme(colors.bg);
+    background-color: var(--kraft);
   }
   body {
-    color: theme(colors.tp);
+    color: var(--ink);
     font-family: theme(fontFamily.sans);
+    font-variant-numeric: tabular-nums;
+    /* The kraft ground is a produced tile (paper grain + flutes), not a CSS gradient. */
+    background-image: url("/world/kraft.svg");
+    background-size: 256px 256px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
+    caret-color: var(--stamp);
+    accent-color: var(--stamp);
+    scrollbar-color: #8d6236 transparent;
   }
   ::selection {
-    background: theme(colors.orange.DEFAULT);
-    color: theme(colors.bg);
+    background: var(--stamp);
+    color: var(--label);
   }
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
+    background: #a97a45;
+    border: 3px solid var(--kraft);
+    border-radius: 2px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
-  /* Keyboard-only focus ring (:focus-visible, so it never shows on mouse click).
-     Scoped to interactive elements so a programmatically-focused container never
-     picks up the outline. outline-offset stays small (2px) so it isn't clipped
-     inside overflow-hidden surfaces. */
+  a {
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1.5px;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  /* Keyboard-only focus: a stamp-blue ring, never on mouse click. */
   a:focus-visible,
   button:focus-visible,
   [role="tab"]:focus-visible,
@@ -45,50 +72,105 @@
   select:focus-visible,
   textarea:focus-visible,
   summary:focus-visible {
-    outline: 2px solid theme(colors.orange.DEFAULT) !important;
+    outline: 2px solid var(--stamp) !important;
     outline-offset: 2px;
   }
 }
 
 @layer components {
-  /* Crafted surface fill — a faint top-lit inner gradient over the near-black canvas, so a
-     card reads as a real, lifted surface rather than a flat grey box. Pair with `shadow-card`
-     (top-edge highlight + soft drop) on the element. */
+  /* White label paper stuck to the box: hairline glue edge, soft offset drop. */
   .tk-surface {
+    background-color: theme(colors.label.DEFAULT);
     background-image: theme(backgroundImage.card-hi);
   }
 
-  /* Corridor-motif eyebrow: the brand glyph's diamond core, glowing, leading a mono label.
-     Carries the Tukar identity onto every section header so the surfaces feel like one product. */
+  /* A strip of brown packing tape. Rotate/size at the call site; it unrolls on the shared clock. */
+  .tk-tape {
+    position: relative;
+    display: block;
+    height: 28px;
+    /* the produced tape asset: translucent amber body, fibre streaks, torn ends; multiply blending
+       lets whatever it crosses (kraft, label, ink rules) show through */
+    background: url("/world/tape.svg") center / 100% 100% no-repeat;
+    mix-blend-mode: multiply;
+    transform-origin: left center;
+  }
+  .tk-tape-fragile {
+    background-image: theme(backgroundImage.tape-fragile);
+    background-size: 62px 62px;
+  }
+
+  /* A rubber stamp: two-line ink border, stencil caps, slight tilt, ink sits in the paper. */
+  .tk-stamp {
+    display: inline-block;
+    padding: 4px 10px 3px;
+    border: 2px solid currentColor;
+    outline: 1px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 3px;
+    color: var(--stamp);
+    font-family: theme(fontFamily.stencil);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.1;
+    transform: rotate(-4deg);
+    mix-blend-mode: multiply;
+    opacity: 0.94;
+    /* the ink impression: edges bleed and thin unevenly through the SVG filter defined in layout */
+    filter: url("#tk-ink");
+  }
+  .tk-stamp-red {
+    color: var(--tape);
+  }
+  .tk-stamp-ink {
+    color: var(--ink);
+  }
+
+  /* Perforated tear-off edge for stubs and coupons. */
+  .tk-perf {
+    border-left: 2px dashed rgba(22, 19, 17, 0.45);
+  }
+
+  /* Blacked-out field on a label (FROM / TO): a redaction bar with a torn top edge. */
+  .tk-redact {
+    display: inline-block;
+    min-width: 7ch;
+    height: 0.95em;
+    vertical-align: -0.1em;
+    background: var(--ink);
+    border-radius: 1px;
+  }
+
+  /* Legacy helper kept for callers: the old glowing eyebrow diamond is gone; this is now a
+     plain label caption with a short ink rule. Prefer headings without captions. */
   .tk-eyebrow {
     position: relative;
-    padding-left: 17px;
+    padding-left: 18px;
   }
   .tk-eyebrow::before {
     content: "";
     position: absolute;
-    left: 1px;
+    left: 0;
     top: 50%;
-    width: 6px;
-    height: 6px;
-    margin-top: -3px;
-    background: theme(colors.orange.DEFAULT);
-    transform: rotate(45deg);
-    box-shadow: 0 0 8px rgba(255, 122, 26, 0.55);
+    width: 12px;
+    height: 2px;
+    margin-top: -1px;
+    background: var(--ink);
   }
 
-  /* Loading shimmer — a soft light sweep across a placeholder, warmer than a bare opacity pulse. */
+  /* Loading: a light sweep across a paper placeholder. */
   .tk-skeleton {
     position: relative;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(22, 19, 17, 0.08);
   }
   .tk-skeleton::after {
     content: "";
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+    background: linear-gradient(90deg, transparent, rgba(246, 241, 231, 0.7), transparent);
     animation: theme(animation.tk-shimmer);
   }
 
@@ -96,12 +178,11 @@
   .tk-draw-path {
     stroke-dasharray: 18;
     stroke-dashoffset: 18;
-    animation: tk-draw 0.55s 0.12s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+    animation: tk-draw 0.55s 0.12s var(--tk-ease) forwards;
   }
 }
 
-/* Printable receipt: only the `.tk-print` panel prints (nav, tabs, status bar, buttons hidden),
-   as black-on-white. Tailwind `print:hidden` drops the buttons inside the panel. */
+/* Printable receipt: only the `.tk-print` panel prints, black on white. */
 @media print {
   * {
     animation: none !important;
@@ -144,8 +225,10 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  /* Keep the drawn check-mark fully visible when motion is reduced (no partial stroke). */
   .tk-draw-path {
     stroke-dashoffset: 0;
+  }
+  .tk-tape {
+    transform: none !important;
   }
 }

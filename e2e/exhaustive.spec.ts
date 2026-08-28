@@ -510,15 +510,20 @@ test.describe("every page: clean console, no CSP violations, axe, dark-only them
     }
   });
 
-  test("the app is dark-only: body stays dark under prefers-color-scheme light AND dark", async ({ page }) => {
+  test("the app keeps its kraft ground under prefers-color-scheme light AND dark (one world, no theme flip)", async ({ page }) => {
+    const seen: string[] = [];
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/sender", { waitUntil: "domcontentloaded" }); // second visit may be a cached 304 on Firefox
       const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
       const m = bg.match(/\d+/g)!.map(Number);
       const lum = (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255;
-      expect(lum, `${scheme}: body bg ${bg}`).toBeLessThan(0.2);
+      // kraft #d4a468 sits around 0.66; anything near white or black means a default theme leaked in
+      expect(lum, `${scheme}: body bg ${bg}`).toBeGreaterThan(0.5);
+      expect(lum, `${scheme}: body bg ${bg}`).toBeLessThan(0.8);
+      seen.push(bg);
     }
+    expect(seen[0]).toBe(seen[1]);
   });
 
   test("prefers-reduced-motion: landing renders (canvases + marquee) without errors", async ({ page }) => {

@@ -3,10 +3,11 @@
 // Regulator: import a view-only note (tukview1:), recompute its commitment locally, confirm the
 // commitment is a real pool leaf on-chain, then run the same prove + verify flows the demo console
 // uses (exact / threshold / range / aggregate) with this note's opening. The note carries no
-// private key, so it can be verified but never spent.
+// private key, so it can be verified but never spent: on the desk it is a sealed manifest opened
+// without the key.
 import { useCallback, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
-import { Button, Spinner, useToast } from "@/components/ui";
+import { Button, Input, Select, Spinner, useToast } from "@/components/ui";
 import {
   loadLeavesFromChain,
   registerAuditRequest,
@@ -42,15 +43,11 @@ import {
 import { decodeViewNote, recomputeCommitment, type ViewNote } from "@/lib/view-note";
 import type { DisclosureRecord } from "@/lib/compliance-export";
 import { corridorByCode } from "@/components/receiver/corridors";
+import { Sheet, Stamp, Field, Out, captionCls, fieldCls, noteCls } from "./desk";
 
 type Trail = { action: string; type?: string; detail?: string; result: string; ref?: string };
 type Imported = { note: ViewNote; recomputed: string; leafIndex: number | null }; // null = chain read failed, -1 = absent
-type Outcome = { ok: boolean; title: string; detail: string; onChain: string; receipt?: AuditReceipt };
-
-const inputCls =
-  "mt-[7px] w-full rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]";
-const labelCls = "block font-mono text-[10px] tracking-[0.12em] text-tf uppercase";
-const link = "text-orange-l3 underline underline-offset-2 hover:text-orange";
+type Outcome = { ok: boolean; bound?: boolean; title: string; detail: string; onChain: string; receipt?: AuditReceipt };
 
 const VERIFIER: Record<DisclosureType, string> = { exact: DISCLOSURE_VERIFIER, threshold: THRESHOLD_VERIFIER, range: RANGE_VERIFIER, aggregate: AGGREGATE_VERIFIER };
 
@@ -187,6 +184,7 @@ export function ViewNoteCard({ addTrail, onDisclosure }: { addTrail: (e: Trail) 
       const receipt = ok ? makeReceipt(mode, fields, p, sigs) : undefined;
       setOutcome({
         ok,
+        bound: isBound,
         title: ok ? (isBound ? "Verified in your browser and on Stellar" : "Verified, but not bound to on-chain state") : local ? "Verified in browser, rejected on-chain" : "Proof did not verify",
         detail: `${summary}. Commitment ${short(note.commitment)}, audit context ${short(auditContextHash)}.`,
         onChain: ok ? `Verifier ${short(VERIFIER[mode])}; ${bound}.` : onChain.error || "the on-chain verifier rejected the proof",
@@ -230,138 +228,110 @@ export function ViewNoteCard({ addTrail, onDisclosure }: { addTrail: (e: Trail) 
   const corridor = imported ? corridorByCode(imported.note.corridor) : null;
 
   return (
-    <section className="rounded-card border border-line bg-surface p-6">
-      <h2 className="tk-eyebrow text-lg font-extrabold tracking-[-0.01em]">Import a view-only note</h2>
-      <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-tm">
-        A view-only note (tukview1:) carries a note&apos;s opening (amount, public key, blinding) but not its private key. It lets you
-        verify facts about the note and generate the four disclosure proofs yourself; it cannot spend the note. The commitment is
-        recomputed here and looked up in the pool&apos;s on-chain leaves before any proof runs.
-      </p>
-
-      <div className="mt-4">
-        <label htmlFor="view-note" className={labelCls}>
-          View-only note (paste or drop a file)
-        </label>
-        <textarea
-          id="view-note"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onDrop={onDrop}
-          onDragOver={(e) => e.preventDefault()}
-          spellCheck={false}
-          placeholder="tukview1:…"
-          className="mt-2 h-24 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] leading-relaxed text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
-        />
-        <div className="mt-3 flex items-center gap-3">
-          <Button onClick={importNote} busy={importing} disabled={!text.trim()} title={!text.trim() ? "Paste a view-only note first" : undefined}>
-            Recompute commitment and look up on-chain
-          </Button>
-          {importing && <Spinner label="hashing locally and reading the pool leaves…" />}
-        </div>
-        {importError && <p className="mt-3 text-[13px] text-red-t">{importError}</p>}
+    <Sheet
+      title="Import a view-only note"
+      meta="Sealed manifest, opened without the key"
+      sub="A view-only note (tukview1:) carries a note's opening (amount, public key, blinding) but not its private key. It lets you verify facts about the note and generate the four disclosure proofs yourself; it cannot spend the note. The commitment is recomputed here and looked up in the pool's on-chain leaves before any proof runs."
+    >
+      <label htmlFor="view-note" className={captionCls}>
+        View-only note (paste or drop a file)
+      </label>
+      <textarea
+        id="view-note"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onDrop={onDrop}
+        onDragOver={(e) => e.preventDefault()}
+        spellCheck={false}
+        placeholder="tukview1:…"
+        className={`${fieldCls} h-24 resize-y`}
+      />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button onClick={importNote} busy={importing} disabled={!text.trim()} title={!text.trim() ? "Paste a view-only note first" : undefined}>
+          Recompute commitment and look up on-chain
+        </Button>
+        {importing && <Spinner label="hashing locally and reading the pool leaves…" />}
       </div>
+      {importError && <p className="mt-3 text-[13px] text-tape-deep">{importError}</p>}
 
       {imported && (
-        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4 text-[13px]">
-          <div>
-            <b className="text-green-t">✓ Opening reproduces the commitment.</b>{" "}
-            <span className="text-tm">
-              Poseidon(amount, pubKey, blinding) = <span className="font-mono text-orange-pale">{shortHash(imported.recomputed)}</span>
-            </span>
-          </div>
-          <div className="mt-1.5 text-ts">
-            Amount <b>{fmtUsdc(imported.note.amount)} USDC</b> · corridor {corridor ? `${corridor.country} (${corridor.currency})` : imported.note.corridor}
-            {imported.note.depositTx && (
-              <>
-                {" "}
-                · deposit{" "}
-                <a href={txExplorer(imported.note.depositTx)} target="_blank" rel="noreferrer" className={link}>
-                  {short(imported.note.depositTx)} ↗
-                </a>
-              </>
+        <div className="mt-5 border-t-2 border-ink pt-4 text-[13px]">
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <div className="min-w-0 flex-1">
+              <b className="text-stamp-deep">Opening reproduces the commitment.</b>{" "}
+              <span className="text-ink-3">
+                Poseidon(amount, pubKey, blinding) = <span className="font-mono text-ink">{shortHash(imported.recomputed)}</span>
+              </span>
+              {/* The manifest: what the note reveals, and the one field it does not carry. */}
+              <dl className="mt-3 grid grid-cols-1 gap-x-6 border-t border-ink/25 sm:grid-cols-2">
+                <Field k="Contents" v={fmtUsdc(imported.note.amount)} u="USDC" />
+                <Field k="Corridor" v={corridor ? `${corridor.country} (${corridor.currency})` : imported.note.corridor} />
+                <Field k="Deposit" v={imported.note.depositTx ? <Out href={txExplorer(imported.note.depositTx)} className="text-[15px]">{short(imported.note.depositTx)}</Out> : <span className="text-ink-3">not recorded in the note</span>} />
+                <Field k="Private key" v={<><span className="tk-redact align-middle" aria-label="not in the note" /> <span className="text-[12px] text-ink-3">not in the note, cannot spend</span></>} />
+              </dl>
+            </div>
+            {imported.leafIndex == null ? (
+              <Stamp tone="ink" size="lg" land sub="RPC error">
+                Leaf unconfirmed
+              </Stamp>
+            ) : imported.leafIndex < 0 ? (
+              <Stamp tone="red" size="lg" land sub="not a deposit">
+                Not a pool leaf
+              </Stamp>
+            ) : (
+              <Stamp size="lg" land sub={`leaf #${imported.leafIndex}`}>
+                On-chain deposit
+              </Stamp>
             )}
           </div>
           {imported.leafIndex == null ? (
-            <div className="mt-2 flex items-center gap-3 text-amber">
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-ink-2">
               Could not read the pool leaves from the chain (RPC error). The on-chain presence is unconfirmed.
               <Button variant="subtle" onClick={retryLookup} busy={importing}>
                 Retry
               </Button>
             </div>
           ) : imported.leafIndex < 0 ? (
-            <div className="mt-2 text-red-t">✗ This commitment is not a leaf in the pool. It is not an on-chain deposit, so no disclosure about it can be bound to real state.</div>
+            <div className="mt-3 text-tape-deep">This commitment is not a leaf in the pool. It is not an on-chain deposit, so no disclosure about it can be bound to real state.</div>
           ) : (
-            <div className="mt-2 text-green-t">
-              ✓ On-chain deposit: leaf #{imported.leafIndex} of the pool&apos;s Merkle tree ·{" "}
-              <a href={explorer(DISCLOSURE_VERIFIER)} target="_blank" rel="noreferrer" className={link}>
-                verifiers ↗
-              </a>
+            <div className="mt-3 text-ink-2">
+              On-chain deposit: leaf #{imported.leafIndex} of the pool&apos;s Merkle tree · <Out href={explorer(DISCLOSURE_VERIFIER)}>verifiers</Out>
             </div>
           )}
         </div>
       )}
 
       {imported && imported.leafIndex !== -1 && (
-        <div className="mt-4 rounded-tile border border-line bg-black/20 p-4">
-          <div className={labelCls}>Prove a fact about this note (verified in your browser, then on Stellar)</div>
+        <div className="mt-5 border-t border-ink/25 pt-4">
+          <div className={captionCls}>Prove a fact about this note (verified in your browser, then on Stellar)</div>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="vn-mode" className={labelCls}>
-                Disclosure type
-              </label>
-              <select id="vn-mode" value={mode} onChange={(e) => setMode(e.target.value as DisclosureType)} className={inputCls}>
-                <option value="exact">Exact amount</option>
-                <option value="threshold">At or below a threshold (amount hidden)</option>
-                <option value="range">Inside a band (amount hidden)</option>
-                <option value="aggregate">Aggregate against a registered audit request</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="vn-ctx" className={labelCls}>
-                Audit context (period / regulator id)
-              </label>
-              <input id="vn-ctx" value={ctx} onChange={(e) => setCtx(e.target.value)} className={inputCls} />
-            </div>
+            <Select id="vn-mode" label="Disclosure type" value={mode} onChange={(e) => setMode(e.target.value as DisclosureType)}>
+              <option value="exact">Exact amount</option>
+              <option value="threshold">At or below a threshold (amount hidden)</option>
+              <option value="range">Inside a band (amount hidden)</option>
+              <option value="aggregate">Aggregate against a registered audit request</option>
+            </Select>
+            <Input id="vn-ctx" label="Audit context (period / regulator id)" value={ctx} onChange={(e) => setCtx(e.target.value)} className="font-mono" />
             {mode === "threshold" && (
-              <div>
-                <label htmlFor="vn-thr" className={labelCls}>
-                  Threshold (USDC)
-                </label>
-                <input id="vn-thr" type="number" min="0" step="0.01" inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value)} className={inputCls} />
-              </div>
+              <Input id="vn-thr" label="Threshold (USDC)" type="number" min="0" step="0.01" inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="font-mono" />
             )}
             {mode === "range" && (
               <>
-                <div>
-                  <label htmlFor="vn-lo" className={labelCls}>
-                    Lower bound (USDC)
-                  </label>
-                  <input id="vn-lo" type="number" min="0" step="0.01" inputMode="decimal" value={lo} onChange={(e) => setLo(e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label htmlFor="vn-hi" className={labelCls}>
-                    Upper bound (USDC)
-                  </label>
-                  <input id="vn-hi" type="number" min="0" step="0.01" inputMode="decimal" value={hi} onChange={(e) => setHi(e.target.value)} className={inputCls} />
-                </div>
+                <Input id="vn-lo" label="Lower bound (USDC)" type="number" min="0" step="0.01" inputMode="decimal" value={lo} onChange={(e) => setLo(e.target.value)} className="font-mono" />
+                <Input id="vn-hi" label="Upper bound (USDC)" type="number" min="0" step="0.01" inputMode="decimal" value={hi} onChange={(e) => setHi(e.target.value)} className="font-mono" />
               </>
             )}
             {mode === "aggregate" && (
-              <div>
-                <label htmlFor="vn-cap" className={labelCls}>
-                  Cap (USDC)
-                </label>
-                <input id="vn-cap" type="number" min="0" step="0.01" inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} className={inputCls} />
-              </div>
+              <Input id="vn-cap" label="Cap (USDC)" type="number" min="0" step="0.01" inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} className="font-mono" />
             )}
           </div>
           {mode === "aggregate" && (
-            <p className="mt-2 text-[12px] text-tm">
+            <p className={noteCls}>
               The aggregate proof is bound to an audit request this console registers on-chain first (auditor key), then verified through
-              disclose_aggregate. {!connected && <span className="text-amber">Connect the testnet key (top right) to sign the registration.</span>}
+              disclose_aggregate. {!connected && <span className="text-ink">Connect the testnet key (top right) to sign the registration.</span>}
             </p>
           )}
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <Button onClick={prove} busy={proving} disabled={!canProve} title={!canProve ? "Import an on-chain note first" : undefined}>
               Prove and verify
             </Button>
@@ -369,25 +339,39 @@ export function ViewNoteCard({ addTrail, onDisclosure }: { addTrail: (e: Trail) 
           </div>
 
           {outcome && (
-            <div className={`mt-3 rounded-lg border px-3 py-2.5 text-[13px] ${outcome.ok ? "border-green/35 bg-green/[0.05]" : "border-red/40 bg-red/[0.05]"}`}>
-              <b className={outcome.ok ? "text-green-t" : "text-red-t"}>
-                {outcome.ok ? "✓ " : "✗ "}
-                {outcome.title}.
-              </b>
-              <div className="mt-1 text-ts">{outcome.detail}</div>
-              {outcome.onChain && <div className="mt-1 text-tm">{outcome.onChain}</div>}
-              {outcome.receipt && (
-                <div className="mt-2 flex items-center gap-3">
-                  <Button variant="subtle" onClick={downloadReceipt}>
-                    Download audit receipt (.json)
-                  </Button>
-                  <span className="text-tm">Added to the compliance export pack on the Pool report tab.</span>
-                </div>
+            <div className="mt-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-t-2 border-ink pt-4 text-[13px]">
+              <div className="min-w-0 flex-1">
+                <b className={outcome.ok ? (outcome.bound ? "text-stamp-deep" : "text-ink") : "text-tape-deep"}>{outcome.title}.</b>
+                <div className="mt-1 text-ink-2">{outcome.detail}</div>
+                {outcome.onChain && <div className="mt-1 text-ink-3">{outcome.onChain}</div>}
+                {outcome.receipt && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <Button variant="subtle" onClick={downloadReceipt}>
+                      Download audit receipt (.json)
+                    </Button>
+                    <span className="text-ink-3">Added to the compliance export pack on the Pool report tab.</span>
+                  </div>
+                )}
+              </div>
+              {outcome.ok ? (
+                outcome.bound ? (
+                  <Stamp size="lg" land sub="bound on-chain">
+                    Cleared
+                  </Stamp>
+                ) : (
+                  <Stamp tone="ink" size="lg" land sub="valid proof">
+                    Not bound
+                  </Stamp>
+                )
+              ) : (
+                <Stamp tone="red" size="lg" land sub="nothing disclosed">
+                  Rejected
+                </Stamp>
               )}
             </div>
           )}
         </div>
       )}
-    </section>
+    </Sheet>
   );
 }

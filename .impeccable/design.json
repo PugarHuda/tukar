@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-28T23:49:02+07:00",
+  "title": "Design System: Tukar",
+  "extensions": {
+    "colorMeta": {
+      "kraft": { "role": "neutral", "displayName": "Kraft", "canonical": "#d4a468", "tonalRamp": ["#2b2013", "#4a3620", "#6b4e2c", "#8d6236", "#a97a45", "#c08e54", "#d4a468", "#efd9b6"] },
+      "kraft-edge": { "role": "neutral", "displayName": "Kraft Edge", "canonical": "#8d6236", "tonalRamp": ["#2b2013", "#4a3620", "#6b4e2c", "#8d6236", "#a97a45", "#c08e54", "#d4a468", "#efd9b6"] },
+      "label": { "role": "neutral", "displayName": "Label Paper", "canonical": "#f6f1e7", "tonalRamp": ["#2a2620", "#4a443a", "#6b645a", "#9a9184", "#c4bbab", "#e6ddca", "#efe8da", "#f6f1e7"] },
+      "input": { "role": "neutral", "displayName": "Field Paper", "canonical": "#fffdf8", "tonalRamp": ["#2a2620", "#4a443a", "#6b645a", "#9a9184", "#c4bbab", "#e6ddca", "#f6f1e7", "#fffdf8"] },
+      "ink": { "role": "neutral", "displayName": "Stencil Ink", "canonical": "#161311", "tonalRamp": ["#161311", "#3d3731", "#5a5148", "#6b6159", "#8a8078", "#aca39a", "#cfc7bd", "#efe8da"] },
+      "stamp": { "role": "primary", "displayName": "Stamp Blue", "canonical": "#2a4fa8", "tonalRamp": ["#0c1a3d", "#17306f", "#1f3f8c", "#2a4fa8", "#4a6cc0", "#7a94d4", "#adbfe6", "#dfe6f6"] },
+      "stamp-deep": { "role": "primary", "displayName": "Deep Stamp", "canonical": "#17306f", "tonalRamp": ["#0c1a3d", "#17306f", "#1f3f8c", "#2a4fa8", "#4a6cc0", "#7a94d4", "#adbfe6", "#dfe6f6"] },
+      "tape": { "role": "secondary", "displayName": "Tape Red", "canonical": "#d8342b", "tonalRamp": ["#3d0e0b", "#7a1a14", "#b5281f", "#d8342b", "#e25a52", "#ec8781", "#f4b6b2", "#fbe1df"] },
+      "tape-deep": { "role": "secondary", "displayName": "Deep Tape", "canonical": "#b5281f", "tonalRamp": ["#3d0e0b", "#7a1a14", "#b5281f", "#d8342b", "#e25a52", "#ec8781", "#f4b6b2", "#fbe1df"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The shipping label h1 on the landing and the deck wordmark. Saira Stencil One, uppercase." },
+      "headline": { "displayName": "Headline", "purpose": "Section and page titles. Stencil, uppercase." },
+      "title": { "displayName": "Title", "purpose": "Stencil sub-heads: manifest steps, role names, stub titles, sheet headers, nav items, primary button text. Never below 15px." },
+      "amount": { "displayName": "Amount", "purpose": "Money in stencil tabular digits. The only stencil use that is not uppercase text." },
+      "action": { "displayName": "Action", "purpose": "Stencil at 22px for the words on tear-off stubs and primary buttons." },
+      "body": { "displayName": "Body", "purpose": "Barlow sentences on label paper, 60ch to 72ch measure." },
+      "row": { "displayName": "Row", "purpose": "Barlow 14px for ledger and manifest rows, form captions, and card copy." },
+      "small": { "displayName": "Small", "purpose": "Barlow 13.5px for footnotes and typed-caption sentences. Nothing else is set below Small except the 11px Label and 12.5px Typed steps." },
+      "label": { "displayName": "Typed Caption", "purpose": "Courier Prime bold uppercase captions above fields and in label bars." },
+      "typed": { "displayName": "Typed Data", "purpose": "Courier Prime for hashes, contract ids, notes, provenance, ledger cells." }
+    },
+    "shadows": [
+      { "name": "card", "value": "0 1px 0 rgba(22,19,17,0.10), 0 8px 18px -8px rgba(22,19,17,0.45)", "purpose": "Every label sheet at rest (Card, Panel, Sheet)." },
+      { "name": "lift", "value": "0 2px 0 rgba(22,19,17,0.10), 0 18px 34px -14px rgba(22,19,17,0.55)", "purpose": "Hover on a hover Card, Toasts, the mobile drawer, the landing label and slip." },
+      { "name": "ring", "value": "0 0 0 2px #2a4fa8, 0 8px 18px -8px rgba(22,19,17,0.45)", "purpose": "The active Panel: a stamp-blue outline around the sheet being worked on." },
+      { "name": "btn", "value": "0 1px 0 rgba(22,19,17,0.18)", "purpose": "A stub's edge at rest." },
+      { "name": "btn-hover", "value": "0 3px 0 rgba(22,19,17,0.18)", "purpose": "A stub's edge lifting on hover." },
+      { "name": "inset", "value": "inset 0 1px 2px rgba(22,19,17,0.14)", "purpose": "Pressed field paper on Input, Select, textarea." },
+      { "name": "stub", "value": "0 2px 0 rgba(22,19,17,0.14), 0 14px 26px -18px rgba(22,19,17,0.6)", "purpose": "Landing tear-off stubs and app cards." },
+      { "name": "focus-field", "value": "inset 0 1px 2px rgba(22,19,17,0.14), 0 0 0 3px rgba(42,79,168,0.18)", "purpose": "Focused field: inset plus a soft stamp-blue halo." }
+    ],
+    "motion": [
+      { "name": "clock", "value": "420ms", "purpose": "The one shared duration for every transition and authored motion (--tk-clock, duration-clock)." },
+      { "name": "ease-clock", "value": "cubic-bezier(0.2, 0.7, 0.2, 1)", "purpose": "The one shared easing (--tk-ease, ease-clock)." },
+      { "name": "tk-tape", "value": "scaleX(0) to scaleX(1), 420ms, transform-origin left center", "purpose": "A tape strip unrolls left to right on mount." },
+      { "name": "tk-ring", "value": "scale(1.5) rotate(-9deg) opacity 0 -> scale(0.96) rotate(-4deg) at 55% -> scale(1) rotate(-4deg), 420ms", "purpose": "A stamp lands and settles; 240ms delay on the landing hero." },
+      { "name": "tk-tear", "value": "translateX(3px) rotate(-0.8deg) at 40% then rest, 420ms", "purpose": "A stub tears off." },
+      { "name": "tk-pop", "value": "opacity 0 translateY(6px) -> rest, 420ms", "purpose": "A sheet or toast appears." },
+      { "name": "tk-pulse", "value": "opacity 1 -> 0.45 -> 1, 2.4s ease-in-out infinite", "purpose": "The live status square breathes." },
+      { "name": "tk-spin", "value": "rotate(360deg), 0.9s linear infinite", "purpose": "The spool spinner." },
+      { "name": "tk-shimmer", "value": "translateX(-100%) -> translateX(100%), 1.5s ease-in-out infinite", "purpose": "Skeleton light sweep." },
+      { "name": "marquee", "value": "translateX(-50%), 32s linear infinite", "purpose": "The landing tech tape." }
+    ],
+    "breakpoints": [
+      { "name": "landing-sm", "value": "560px" },
+      { "name": "sm", "value": "640px" },
+      { "name": "landing-md", "value": "900px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "landing-lg", "value": "1100px" },
+      { "name": "wrap", "value": "1240px" }
+    ],
+    "assets": [
+      { "name": "kraft tile", "path": "webapp/public/world/kraft.svg", "purpose": "256x256 seamless corrugate ground: fractal-noise grain plus one flute shadow every 9px. Hand-authored SVG." },
+      { "name": "tape mask", "path": "webapp/public/world/tape-mask.svg", "purpose": "Alpha mask for .tk-tape: hand-torn ends, ragged lower edge." },
+      { "name": "stamp ink filter", "path": "webapp/app/layout.tsx#tk-ink", "purpose": "feTurbulence + feDisplacementMap so stamp edges bleed and thin unevenly." },
+      { "name": "og-image", "path": "webapp/public/og-image.png", "purpose": "1200x630, rendered by scripts/render-og.mjs from hand-authored HTML; provenance in the PNG tEXt chunk." }
+    ],
+    "legacyAliases": {
+      "bg": "kraft", "surface": "label", "surface-2": "label-2", "input-2": "label",
+      "tp": "ink", "ts": "ink-2", "tm": "ink-4", "tf": "ink-3",
+      "orange, orange-l": "stamp", "orange-l2, orange-l3, orange-pale, orange-deep": "stamp-deep",
+      "green": "stamp", "green-t": "stamp-deep", "red": "tape", "red-t": "tape-deep", "amber": "kraft-edge",
+      "hair, line, line-input": "ink at 12%, 16%, 38% alpha (same-named frontmatter tokens)"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button (stub)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "A tear-off stub: label paper, ink border, perforated left edge, stencilled action. Used for the main action on a sheet.",
+      "html": "<button class=\"ds-btn-primary\">Continue</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #f6f1e7; color: #161311; border: 1px solid #161311; border-left: 2px dashed rgba(22,19,17,0.45); border-radius: 3px; padding: 12px 20px; font-family: 'Saira Stencil One', Barlow, system-ui, sans-serif; font-size: 15px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; box-shadow: 0 1px 0 rgba(22,19,17,0.18); cursor: pointer; transition: transform 420ms cubic-bezier(0.2,0.7,0.2,1), box-shadow 420ms cubic-bezier(0.2,0.7,0.2,1), background-color 420ms cubic-bezier(0.2,0.7,0.2,1); } .ds-btn-primary:hover { background: #ffffff; box-shadow: 0 3px 0 rgba(22,19,17,0.18); transform: translateY(-1px); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid #2a4fa8; outline-offset: 2px; } .ds-btn-primary:disabled { background: #e6ddca; color: #6b6159; border-color: rgba(22,19,17,0.3); box-shadow: none; cursor: default; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "An ink outline on paper; inverts to ink on hover. Secondary actions and back links.",
+      "html": "<button class=\"ds-btn-ghost\">Edit payment</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 8px; background: transparent; color: #161311; border: 1px solid #161311; border-radius: 3px; padding: 10px 16px; font-family: Barlow, system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color 420ms cubic-bezier(0.2,0.7,0.2,1), color 420ms cubic-bezier(0.2,0.7,0.2,1); } .ds-btn-ghost:hover { background: #161311; color: #f6f1e7; } .ds-btn-ghost:focus-visible { outline: 2px solid #2a4fa8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Reveal Button",
+      "kind": "button",
+      "refersTo": "button-reveal",
+      "description": "The stamp-blue coupon for money moments: reveal an amount, confirm a claim.",
+      "html": "<button class=\"ds-btn-reveal\">Reveal amount</button>",
+      "css": ".ds-btn-reveal { display: inline-flex; align-items: center; gap: 8px; background: #2a4fa8; color: #f6f1e7; border: 1px solid #17306f; border-radius: 3px; padding: 10px 16px; font-family: Barlow, system-ui, sans-serif; font-size: 13px; font-weight: 700; box-shadow: 0 1px 0 rgba(22,19,17,0.18); cursor: pointer; transition: transform 420ms cubic-bezier(0.2,0.7,0.2,1), background-color 420ms cubic-bezier(0.2,0.7,0.2,1); } .ds-btn-reveal:hover { background: #17306f; transform: translateY(-1px); } .ds-btn-reveal:focus-visible { outline: 2px solid #2a4fa8; outline-offset: 2px; } .ds-btn-reveal:disabled { background: rgba(22,19,17,0.2); border-color: transparent; color: #6b6159; box-shadow: none; }"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A form box on label paper: typed caption above, pressed field paper, stamp-blue focus.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-cap\">Recipient</span><input class=\"ds-input\" placeholder=\"Maria, Mexico City\"></label>",
+      "css": ".ds-field { display: block; width: 100%; } .ds-cap { display: block; font-family: 'Courier Prime', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #3d3731; } .ds-input { margin-top: 6px; width: 100%; background: #fffdf8; color: #161311; border: 1px solid rgba(22,19,17,0.45); border-radius: 4px; padding: 12px 14px; font-family: Barlow, system-ui, sans-serif; font-size: 14px; box-shadow: inset 0 1px 2px rgba(22,19,17,0.14); transition: border-color 420ms cubic-bezier(0.2,0.7,0.2,1), box-shadow 420ms cubic-bezier(0.2,0.7,0.2,1); } .ds-input::placeholder { color: #6b6159; } .ds-input:hover { border-color: #161311; } .ds-input:focus { outline: none; border-color: #2a4fa8; box-shadow: inset 0 1px 2px rgba(22,19,17,0.14), 0 0 0 3px rgba(42,79,168,0.18); } .ds-input:disabled { background: #e6ddca; color: #6b6159; }"
+    },
+    {
+      "name": "Label Sheet",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A white label stuck to the box: ink label bar of typed captions on top, ruled fields inside, glue-edge shadow.",
+      "html": "<section class=\"ds-sheet\"><div class=\"ds-bar\"><span>Shipping label</span><span class=\"ds-bar-r\">Stellar testnet</span></div><dl class=\"ds-fields\"><div><dt>From</dt><dd><span class=\"ds-redact\"></span></dd></div><div><dt>Contents</dt><dd>USDC, amount sealed</dd></div><div class=\"ds-last\"><dt>Route</dt><dd>Fiat in, shielded pool across, fiat out</dd></div></dl></section>",
+      "css": ".ds-sheet { background: #f6f1e7; background-image: linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 40%); color: #161311; border: 1px solid rgba(22,19,17,0.25); border-radius: 6px; box-shadow: 0 1px 0 rgba(22,19,17,0.10), 0 8px 18px -8px rgba(22,19,17,0.45); overflow: hidden; } .ds-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; background: #161311; color: #f6f1e7; padding: 8px 16px; font-family: 'Courier Prime', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; } .ds-bar-r { margin-left: auto; } .ds-fields { margin: 0; padding: 4px 16px 8px; } .ds-fields > div { display: grid; grid-template-columns: 9ch minmax(0,1fr); gap: 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid rgba(22,19,17,0.25); font-family: Barlow, system-ui, sans-serif; font-size: 14px; font-weight: 500; } .ds-fields > div.ds-last { border-bottom: 0; } .ds-fields dt { font-family: 'Courier Prime', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #3d3731; } .ds-fields dd { margin: 0; text-align: right; } .ds-redact { display: inline-block; min-width: 9ch; height: 0.95em; vertical-align: -0.1em; background: #161311; border-radius: 1px; }"
+    },
+    {
+      "name": "Rubber Stamp",
+      "kind": "custom",
+      "refersTo": "stamp",
+      "description": "The verdict device: two-line ink border, stencil caps, -4deg tilt, multiply blend. Blue cleared, red rejected, ink neutral.",
+      "html": "<div class=\"ds-stamps\"><span class=\"ds-stamp\">Compliance cleared<small>proof on-chain</small></span><span class=\"ds-stamp ds-stamp-red\">Rejected</span><span class=\"ds-stamp ds-stamp-ink\">Private in transit</span></div>",
+      "css": ".ds-stamps { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; padding: 12px; } .ds-stamp { display: inline-block; padding: 4px 10px 3px; border: 2px solid currentColor; outline: 1px solid currentColor; outline-offset: 2px; border-radius: 3px; color: #2a4fa8; font-family: 'Saira Stencil One', Barlow, system-ui, sans-serif; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.1; text-align: center; transform: rotate(-4deg); mix-blend-mode: multiply; opacity: 0.94; animation: ds-stamp-land 420ms cubic-bezier(0.2,0.7,0.2,1) both; } .ds-stamp small { display: block; margin-top: 3px; font-family: 'Courier Prime', ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; } .ds-stamp-red { color: #d8342b; } .ds-stamp-ink { color: #161311; } @keyframes ds-stamp-land { 0% { transform: scale(1.5) rotate(-9deg); opacity: 0; } 55% { transform: scale(0.96) rotate(-4deg); opacity: 1; } 100% { transform: scale(1) rotate(-4deg); opacity: 0.94; } } @media (prefers-reduced-motion: reduce) { .ds-stamp { animation: none; } }"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "A typed tag: a small ruled box in Courier caps. Muted, cleared (stamp wash), warning (tape wash), pending (kraft).",
+      "html": "<span class=\"ds-badge\">Testnet</span> <span class=\"ds-badge ds-badge-cleared\">Verified on-chain</span> <span class=\"ds-badge ds-badge-warn\">Stale</span> <span class=\"ds-badge ds-badge-pending\">Pending</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(22,19,17,0.35); border-radius: 2px; padding: 3px 7px; background: #efe8da; color: #3d3731; font-family: 'Courier Prime', ui-monospace, Menlo, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; } .ds-badge-cleared { background: rgba(42,79,168,0.10); border-color: #2a4fa8; color: #17306f; } .ds-badge-warn { background: rgba(216,52,43,0.10); border-color: #d8342b; color: #b5281f; } .ds-badge-pending { background: rgba(212,164,104,0.30); border-color: #8d6236; color: #3d3731; }"
+    },
+    {
+      "name": "Clipboard Nav",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "The console clipboard: a typed index plus a stencil section name per row; the active row inverts to ink.",
+      "html": "<nav class=\"ds-clip\"><button class=\"ds-nav on\"><span class=\"ds-nav-i\">01</span><span class=\"ds-nav-t\">Pool health</span></button><button class=\"ds-nav\"><span class=\"ds-nav-i\">02</span><span class=\"ds-nav-t\">Compliance policy</span></button><button class=\"ds-nav\"><span class=\"ds-nav-i\">03</span><span class=\"ds-nav-t\">Oracle health</span></button></nav>",
+      "css": ".ds-clip { width: 264px; background: #f6f1e7; border-right: 1.5px solid #161311; } .ds-nav { display: grid; grid-template-columns: 3ch minmax(0,1fr); gap: 12px; align-items: center; width: 100%; border: 0; border-bottom: 1px solid rgba(22,19,17,0.2); background: transparent; color: #161311; padding: 12px 20px; text-align: left; cursor: pointer; transition: background-color 420ms cubic-bezier(0.2,0.7,0.2,1), color 420ms cubic-bezier(0.2,0.7,0.2,1); } .ds-nav:hover { background: #efe8da; } .ds-nav.on { background: #161311; color: #f6f1e7; } .ds-nav:focus-visible { outline: 2px solid #2a4fa8; outline-offset: -2px; } .ds-nav-i { font-family: 'Courier Prime', ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 700; color: #5a5148; } .ds-nav.on .ds-nav-i { color: rgba(246,241,231,0.8); } .ds-nav-t { font-family: 'Saira Stencil One', Barlow, system-ui, sans-serif; font-size: 17px; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; }"
+    },
+    {
+      "name": "Tape Strip",
+      "kind": "custom",
+      "refersTo": "stub",
+      "description": "A strip of brown packing tape across a sheet edge; translucent so whatever it crosses shows through. Unrolls on the shared clock. The mask (torn ends) lives in webapp/public/world/tape-mask.svg and is omitted here.",
+      "html": "<div class=\"ds-tape-demo\"><span class=\"ds-tape\"></span><div class=\"ds-tape-sheet\">Sheet under tape</div></div>",
+      "css": ".ds-tape-demo { position: relative; padding: 18px 12px 12px; background: #d4a468; background-image: repeating-linear-gradient(180deg, rgba(22,19,17,0) 0 8px, rgba(22,19,17,0.07) 8px 9px); } .ds-tape-sheet { background: #f6f1e7; border: 1px solid #161311; border-radius: 3px; padding: 24px 16px 16px; font-family: Barlow, system-ui, sans-serif; font-size: 14px; color: #161311; } .ds-tape { position: absolute; top: 6px; left: 24px; right: 24px; height: 28px; display: block; background-image: linear-gradient(180deg, rgba(120,78,36,0.55), rgba(150,100,48,0.62) 30%, rgba(120,78,36,0.6) 70%, rgba(95,60,26,0.66)); box-shadow: inset 0 0 0 1px rgba(255,230,190,0.18); transform: rotate(-0.6deg); transform-origin: left center; animation: ds-tape-unroll 420ms cubic-bezier(0.2,0.7,0.2,1) both; z-index: 1; } @keyframes ds-tape-unroll { from { transform: scaleX(0) rotate(-0.6deg); } to { transform: scaleX(1) rotate(-0.6deg); } } @media (prefers-reduced-motion: reduce) { .ds-tape { animation: none; } }"
+    },
+    {
+      "name": "Seal",
+      "kind": "custom",
+      "refersTo": "stub",
+      "description": "The landmark mark: a short strip of tape with one folded corner. Exactly once per view, where the eye lands last.",
+      "html": "<svg class=\"ds-seal\" width=\"56\" height=\"28\" viewBox=\"0 0 56 28\" role=\"img\" aria-label=\"Sealed\"><path d=\"M2 6h46l6 4-6 4v8H2z\" fill=\"#b8834a\" fill-opacity=\"0.85\" stroke=\"#161311\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/><path d=\"M48 6l6 4-6 4z\" fill=\"#8d6236\" stroke=\"#161311\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/><path d=\"M8 11h30M8 17h22\" stroke=\"#f6f1e7\" stroke-width=\"1.5\" stroke-opacity=\"0.55\" stroke-linecap=\"round\"/></svg>",
+      "css": ".ds-seal { display: inline-block; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Balikbayan Parcel",
+    "overview": "A remittance is a sealed parcel. Nobody on the road sees what is inside; every box carries a label the customs desk can stamp. The page is the top of a kraft corrugate box (a produced 256px tile, webapp/public/world/kraft.svg: fractal-noise paper grain plus one flute shadow every 9px). Everything readable sits on white label paper stuck to that box: a thin ink border, an ink bar of typed captions along the top, ruled fields inside. The world is printed, not lit: three inks only (stencil black, tape red, stamp blue) on two papers (kraft, label). There is no dark mode and no scene lighting; color-scheme: light is declared on :root and the whole system is a single light look. Depth comes from paper stuck to cardboard (a hairline glue edge and a soft offset drop), never from glow.\n\nThe build is code-led and honest: every number, badge, and stamp comes from real chain state, and the world's devices carry that state. A cleared proof is a blue rubber stamp; a rejected one is the same stamp in tape red; a redacted party is a black bar on the label; the one seal per view is a short strip of drawn packing tape. Density is high on the consoles (ruled ledgers, typed captions at 11px) and calmer on the consumer surfaces (one label, one amount in stencil digits, one stub to tear off). The direction contract lives as an HTML comment at the top of <body> (the CONTRACT constant in webapp/app/layout.tsx, seed e027abe0).\n\nConfirmed rejections: the fintech phone-mockup hero, the crypto glow, the previous dark orange-accent look (kept only as evidence, see the legacy aliases under Colors), emoji or font-glyph icons, and kickers or eyebrows above headings.",
+    "keyCharacteristics": [
+      "Kraft ground, label paper foreground, three inks. Nothing on screen belongs to a default: selection, caret, scrollbar, and focus ring are all themed from the same five values.",
+      "Stencil caps for every heading and action word; Courier for every caption, hash, and number; Barlow for sentences.",
+      "Stationery, not chrome: label bars, ruled fields, perforated stubs, rubber stamps, tape strips, redaction bars, a bulldog-clip clipboard for console navigation.",
+      "One motion clock. Tape unrolls, stamps land, stubs tear, and every hover transition runs at 420ms on cubic-bezier(0.2, 0.7, 0.2, 1).",
+      "Amounts in fixed-position tabular digits (font-variant-numeric: tabular-nums on body)."
+    ],
+    "rules": [
+      { "name": "The Three-Ink Rule", "body": "Only stencil black, tape red, and stamp blue may carry meaning. Blue means cleared, verified, live, or a link; red means a warning or a rejection; black is everything else. No fourth hue, no gradient accent, no success green (green aliases to blue on purpose).", "section": "colors" },
+      { "name": "The Label Paper Rule", "body": "Text is never set directly on kraft. Every readable block sits on label paper with an ink border; kraft shows only in the gaps, through stub notches, and behind translucent tape.", "section": "colors" },
+      { "name": "The Wash Rule", "body": "A colored fill is at most a 10% wash of its ink (stamp-wash, tape-wash, bg-kraft/25). Solid color fills are reserved for the ink label bar, the ink primary stub, and the stamp-blue reveal button.", "section": "colors" },
+      { "name": "The Stencil Names It Rule", "body": "Saira Stencil One appears only on headings, action words, stamp text, nav items, and amounts. It is never set below 15px and never used for a sentence.", "section": "typography" },
+      { "name": "The Courier Carries Data Rule", "body": "Every hash, contract id, count, rate, timestamp, caption, and provenance line is Courier Prime. If Barlow is showing a number the reader must compare, it is wrong.", "section": "typography" },
+      { "name": "The No-Kicker Rule", "body": "Headings stand alone. The typed kind or category line sits under or beside the heading (.app-kind uses order: 2), never above it as an eyebrow. .tk-eyebrow survives in globals.css only for old callers and is not to be added to new surfaces.", "section": "typography" },
+      { "name": "The Glue-Edge Rule", "body": "Every sheet shadow has a 1px to 2px zero-blur ink line first, then a soft drop with a negative spread. No blur-only shadows, no colored shadows, no glow.", "section": "elevation" },
+      { "name": "The Ink Line First Rule", "body": "If an element needs separating, give it an ink border before a shadow. Shadows are reserved for whole sheets, stubs, and stamps; rows, fields, and tags get rules only.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do put every readable block on label paper (#f6f1e7) with an ink border; let kraft show only between sheets, through notches, and behind tape.",
+      "Do use exactly three inks for meaning: stamp blue (#2a4fa8) for cleared, live, and links; tape red (#d8342b) for warnings and rejections; ink (#161311) for everything else.",
+      "Do set every heading and action word in Saira Stencil One uppercase, every caption, hash, and comparable number in Courier Prime, every sentence in Barlow.",
+      "Do run every transition and authored motion on the one clock: 420ms, cubic-bezier(0.2, 0.7, 0.2, 1) (duration-clock ease-clock, --tk-clock, --tk-ease), and honor prefers-reduced-motion (already global).",
+      "Do render one Seal per view, at the end of the sheet, and nowhere else.",
+      "Do keep amounts in tabular stencil digits and hashes in Courier, sized to the final content so the layout does not jump when chain data arrives.",
+      "Do draw icons as one-stroke 14px SVG paths in currentColor, stroke 1.8.",
+      "Do start a sheet's shadow with a 1px to 2px zero-blur ink line, then a soft negative-spread drop; keep the stamp-blue ring (shadow-ring) for the active Panel only.",
+      "Do keep the stationery honest: a stamp, a badge, or a status dot reflects real on-chain or integration state; \"not configured\" and \"not attested\" are stamped in ink, not hidden.",
+      "Do reach for the parcel token names (kraft, label, ink, tape, stamp) in new work; the legacy names (bg, surface, tp, orange, green) are aliases that still compile but say nothing about the world."
+    ],
+    "donts": [
+      "Don't add a kicker, eyebrow, or category line above a heading; a typed kind goes under or beside it. Do not use .tk-eyebrow on new surfaces.",
+      "Don't introduce a fourth hue, a gradient accent, a success green, a glow, or a colored shadow; there is no dark mode and no scene lighting in this world.",
+      "Don't set text directly on kraft, and do not use kraft as a card background; kraft is the box, not a surface.",
+      "Don't use emoji, icon fonts, or font glyphs for marks, stamps, or the seal; and do not render the Seal more than once in a view.",
+      "Don't use rounded corners above 6px, pill shapes, or borderless floating cards; the world is cut paper with ink edges.",
+      "Don't use Saira Stencil One below 15px or for running text, and do not set numbers the reader compares in Barlow.",
+      "Don't use tape red for emphasis, highlights, or primary actions; red is a warning or a rejection.",
+      "Don't invent a second motion duration or easing; scale the shared clock's keyframes (tk-tape, tk-ring, tk-tear, tk-pop) instead.",
+      "Don't put boxes inside boxes on a label: separate rows and cells with hairline ink rules or a dashed slip rule, not nested bordered cards."
+    ]
+  }
+}

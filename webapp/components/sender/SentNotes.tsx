@@ -1,12 +1,14 @@
 "use client";
 
-// Sent notes: the notes this sender created, with live status from /api/note-status, and a
-// "Cancel and refund" that withdraws an unclaimed note back to the sender's own address. Same
+// Sent notes: the manifest of notes this sender created, with live status from /api/note-status,
+// and a "Cancel and refund" that withdraws an unclaimed note back to the sender's own address. Same
 // transfer proof and pool.withdraw the receiver uses (withdrawSubmit), with recipient = the sender.
 // The sender keeps the note secret until the receiver spends it, so until the nullifier is on-chain
 // the money can be taken back. A refund is a public withdraw to the sender's address.
 import { useCallback, useEffect, useState } from "react";
-import { Button, Badge, useToast } from "@/components/ui";
+import { Button, Badge } from "@/components/ui";
+import { useToast } from "@/components/ui";
+import { Label, Ext, TYPED } from "@/components/sender/Label";
 import {
   withdrawSubmit,
   registerRootOnChain,
@@ -180,14 +182,16 @@ export function SentNotes({ notes, onChange, connected }: { notes: SentNote[]; o
 
   if (!shown.length) return null;
   return (
-    <div className="mt-4">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Sent notes</div>
-        <button onClick={() => shown.forEach(check)} className="font-mono text-[10px] text-tf underline underline-offset-2 hover:text-tp" disabled={!!busy}>
+    <Label
+      className="mt-4"
+      bar="Sent notes"
+      right={
+        <button onClick={() => shown.forEach(check)} className="underline underline-offset-2 hover:text-kraft disabled:opacity-60" disabled={!!busy}>
           Refresh status
         </button>
-      </div>
-      <div className="flex flex-col gap-2">
+      }
+    >
+      <ul className="m-0 list-none divide-y divide-ink/25 p-0">
         {shown.map((n) => {
           const st = statuses[n.commitment];
           const spent = n.refunded != null || (typeof st === "object" && st.status === "spent");
@@ -195,21 +199,17 @@ export function SentNotes({ notes, onChange, connected }: { notes: SentNote[]; o
           const tone = n.refunded ? "muted" : typeof st === "object" ? (st.status === "spendable" ? "green" : st.status === "spent" ? "muted" : "amber") : "muted";
           const refunding = busy === n.commitment;
           return (
-            <div key={n.commitment} className="rounded-tile border border-line bg-black/20 p-3">
+            <li key={n.commitment} className="py-3 first:pt-0 last:pb-0">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-tp">
+                  <div className="truncate font-mono text-sm font-bold tabular-nums text-ink">
                     ${fmtUsdc(n.amount)} USDC · {n.corridor} · {n.ref}
                   </div>
-                  <div className="mt-0.5 truncate font-mono text-[11px] text-tf">
+                  <div className={`mt-0.5 truncate ${TYPED}`}>
                     {n.refunded && n.refunded !== "ok" ? (
-                      <a href={txExplorer(n.refunded)} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                        refund tx {short(n.refunded)}
-                      </a>
+                      <Ext href={txExplorer(n.refunded)}>refund tx {short(n.refunded)}</Ext>
                     ) : n.depHash ? (
-                      <a href={txExplorer(n.depHash)} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                        deposit tx {short(n.depHash)}
-                      </a>
+                      <Ext href={txExplorer(n.depHash)}>deposit tx {short(n.depHash)}</Ext>
                     ) : (
                       new Date(n.createdAt).toLocaleString("en-US")
                     )}
@@ -229,19 +229,19 @@ export function SentNotes({ notes, onChange, connected }: { notes: SentNote[]; o
                   {refunding ? "Refunding" : "Cancel and refund"}
                 </Button>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
-      <p className="mt-2 font-mono text-[11px] leading-relaxed text-tf">
+      </ul>
+      <p className={`mt-3 border-t border-ink/25 pt-2 ${TYPED}`}>
         Refundable until the receiver claims it. Refunding reveals that this note was withdrawn to your address.
         {notes.length > SHOWN ? ` Showing the newest ${SHOWN} of ${notes.length}.` : ""}
       </p>
       {msg && (
-        <p className="mt-2 text-center text-[12px] leading-relaxed text-ts" role="status" aria-live="polite">
+        <p className="mt-2 text-center text-[12px] leading-relaxed text-ink-2" role="status" aria-live="polite">
           {msg}
         </p>
       )}
-    </div>
+    </Label>
   );
 }

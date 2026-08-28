@@ -22,6 +22,10 @@ const err = (error = "rpc down") => ({ ok: false as const, error });
 // price is USD per local unit scaled 10^decimals; with decimals=14 price 5e13 -> rate 2
 const lastprice = (price: bigint, timestamp = NOW) => ok({ price, timestamp: BigInt(timestamp) });
 
+// Each test re-imports the oracle module, which pulls the whole Stellar SDK; on a loaded machine
+// (the e2e suites running alongside) that import alone can pass the 5 s default.
+vi.setConfig({ testTimeout: 30_000 });
+
 beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
 });

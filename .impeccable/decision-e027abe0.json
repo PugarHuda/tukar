@@ -1,0 +1,218 @@
+{
+  "title": "Choose Tukar's visual world",
+  "question": "The roll assigned the Balikbayan Parcel. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "The Balikbayan Parcel",
+      "kicker": "THE ROLL",
+      "lineage": "the box a migrant worker packs and sends home: kraft corrugate, packing tape, stencil, shipping label, customs stamp",
+      "thesis": "A remittance is a sealed parcel: nobody on the road can see what is inside, yet every box carries a label the customs desk can stamp. Refuses the fintech phone-mockup hero and the crypto glow.",
+      "palette": [
+        "#c9955a",
+        "#161311",
+        "#d8342b",
+        "#2a4fa8",
+        "#f4efe6"
+      ],
+      "materials": [
+        "kraft corrugate with flute shadow",
+        "brown packing tape",
+        "red-white FRAGILE tape",
+        "white label paper",
+        "rubber-stamp ink"
+      ],
+      "viewport": "The whole first viewport is the top of one sealed box seen from above. A large white shipping label carries TUKAR in stencil, the fields FROM and TO deliberately blacked out, CONTENTS: 'USDC, amount sealed', and a fresh blue customs stamp 'COMPLIANCE CLEARED, proof on-chain'. The primary action 'Send a box home' sits on the label as the courier's tear-off stub; 'Open a box' is the second stub. A routing strip of corridor codes (ID PH MX BR AR VN TH IN NG CO) runs as tape along the bottom edge.",
+      "risk": "Can read as e-commerce logistics instead of money if the label copy drifts; cardboard texture overdone turns kitsch. Held by the three-ink rule and label-grade typography.",
+      "raised": [
+        {
+          "from": "challenger-kiosk",
+          "raise": "Three permitted inks only (stencil black, tape red, stamp blue) on kraft; no fourth color anywhere, on any surface."
+        },
+        {
+          "from": "challenger-magazine",
+          "raise": "One small landmark mark, the tape-seal glyph, appears exactly once on every view, where the eye lands last."
+        },
+        {
+          "from": "challenger-nixie",
+          "raise": "Every amount is set in fixed-position stencil digits, tabular, so a changing number is a physical event, never a reflow."
+        },
+        {
+          "from": "challenger-cracktro",
+          "raise": "One shared motion clock: tape unrolls, stamps land, and stubs tear at the same tempo across all surfaces."
+        }
+      ]
+    },
+    {
+      "id": "model-pick",
+      "label": "Security Print",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "banknote engraving: guilloche, intaglio, watermark, security thread, serial numbers",
+      "thesis": "Money that carries its own proof: the note is private in your pocket and verifiable under a lamp. Watermark = shielded amount, thread = on-chain proof, serial = commitment.",
+      "palette": [
+        "#f2ead9",
+        "#1f5c3a",
+        "#8b6b2e",
+        "#2b2b2b",
+        "#b8342a"
+      ],
+      "materials": [
+        "intaglio line engraving",
+        "guilloche rosettes",
+        "watermark",
+        "foil thread"
+      ],
+      "viewport": "A banknote-proportioned hero: the product name as the engraved denomination, a watermark region that only reveals the amount when 'held to the light' (hover/press), a security thread that runs the whole page as the proof rail, serial numbers as commitments.",
+      "risk": "Familiar: guilloche and engraved money is where most fintech brand work lands; it is my top-ranked grounded direction precisely because it is the obvious fit."
+    },
+    {
+      "id": "challenger-cape",
+      "label": "Drawcord Cape",
+      "verdict": "competitive",
+      "lineage": "a silk cape with hidden drawcord channels; one pull turns a flat plane into a protective volume",
+      "thesis": "One pull shields the money: the flat public plane gathers into a private volume, then relaxes at the other end.",
+      "palette": [
+        "#0e0e0f",
+        "#c9a227",
+        "#3b3f45",
+        "#5a6270"
+      ],
+      "materials": [
+        "matte black silk",
+        "gold drawcord",
+        "graphite channel stitching"
+      ],
+      "viewport": "A black semicircle plane; pulling the gold cord (scroll or drag) gathers it into pleats around the amount, which becomes unreadable; a second pull releases it at the receiver.",
+      "case": "Dramatizes the shielding mechanism better than any grounded candidate, but migrant workers do not identify with couture silk, and the black ground sits next to the banned dark look.",
+      "risk": "Reads as fashion, and black silk drifts toward the anti-reference.",
+      "hero": "https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-drawcord-transforming-cape-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-drawcord-transforming-cape.webp"
+    },
+    {
+      "id": "challenger-coptic",
+      "label": "Exposed Binding",
+      "verdict": "competitive",
+      "lineage": "coptic-bound book with chain stitching running outside the spine; the structure is the only ornament",
+      "thesis": "Nothing is hidden: the thread that holds the ledger together runs on the outside, so compliance is visible structure, not a claim.",
+      "palette": [
+        "#e7dcc6",
+        "#6b4a2b",
+        "#3c3a36",
+        "#b7a58a"
+      ],
+      "materials": [
+        "undyed linen thread",
+        "wooden boards",
+        "unbleached rag paper",
+        "blind tooling"
+      ],
+      "viewport": "A spine of chain-stitch links, one per corridor or proof, generated live from real on-chain counts; opening a section lays it flat.",
+      "case": "Carries 'provable compliance' with structural honesty; loses on audience identification (handmade books are far from the remittance counter) and its cream paper is my known default.",
+      "risk": "Cream paper plus craft is the rendition this category of brief keeps landing on.",
+      "hero": "https://impeccable.style/worlds/cards/craft-making-coptic-exposed-binding-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/craft-making-coptic-exposed-binding.webp"
+    },
+    {
+      "id": "challenger-kiosk",
+      "label": "Socialist Kiosk Print",
+      "verdict": "declined",
+      "lineage": "state kiosk goods printed in three permitted inks with a central office mark",
+      "palette": [
+        "#9a9791",
+        "#c1272d",
+        "#1c3f94",
+        "#e8b400"
+      ],
+      "materials": [
+        "gray recycled board",
+        "off-register inks"
+      ],
+      "case": "A goods grid does not map to sending money home, and the audience does not identify with state print.",
+      "kept": "The restricted three-ink discipline.",
+      "hero": "https://impeccable.style/worlds/cards/vernacular-ephemera-socialist-kiosk-print-hero.webp"
+    },
+    {
+      "id": "challenger-magazine",
+      "label": "Magazine Program",
+      "verdict": "declined",
+      "lineage": "mid-century magazine identity with one hidden silhouette mark per cover",
+      "palette": [
+        "#111111",
+        "#ffffff",
+        "#d94f2b"
+      ],
+      "materials": [
+        "coated stock",
+        "commissioned illustration"
+      ],
+      "case": "Editorial two-column reading is the wrong mode for a Persuade landing and a phone-first sender; no audience identification.",
+      "kept": "One small landmark mark on every view.",
+      "hero": "https://impeccable.style/worlds/cards/brand-identity-canon-art-paul-magazine-program-hero.webp"
+    },
+    {
+      "id": "challenger-nixie",
+      "label": "Nixie Counter",
+      "verdict": "declined",
+      "lineage": "laboratory counter with orange plasma digits in glass tubes",
+      "palette": [
+        "#0b0b0b",
+        "#ff7a1a",
+        "#6b6f73"
+      ],
+      "materials": [
+        "glass envelopes",
+        "blackened steel"
+      ],
+      "case": "Orange glow on black is exactly the incumbent look and the banned crypto glow.",
+      "kept": "Amounts in fixed digit positions, a change as a physical event.",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-nixie-laboratory-counter-hero.webp"
+    },
+    {
+      "id": "challenger-cracktro",
+      "label": "Cracktro Queue",
+      "verdict": "declined",
+      "lineage": "demo-scene title screen: bitmap text over an emissive black void, depth as rank",
+      "palette": [
+        "#000000",
+        "#e9e4d6",
+        "#ffb000"
+      ],
+      "materials": [
+        "bitmap type",
+        "drifting dust fields"
+      ],
+      "case": "Black void plus amber caret is the banned terminal look, and depth-as-rank does not explain a remittance.",
+      "kept": "One shared motion clock for the whole surface.",
+      "hero": "https://impeccable.style/worlds/cards/operate-c-cracktro-scroller-queue-hero.webp"
+    }
+  ],
+  "reroll": {
+    "registers": [
+      "safer",
+      "bolder"
+    ]
+  },
+  "buildPath": {
+    "value": "code",
+    "toggle": false
+  },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "The remittance app landing everyone ships: white ground, navy and one accent, a phone mockup, three benefit cards, executed impeccably.",
+    "palette": [
+      "#ffffff",
+      "#0f2a5a",
+      "#1f9d55",
+      "#111827"
+    ],
+    "materials": [
+      "clean 12-column grid",
+      "device mockup",
+      "flat icons"
+    ],
+    "viewport": "Headline left, phone mockup right, trust row of logos below (we have none to show, so proof would be the explorer links).",
+    "risk": "Indistinguishable from Wise, Remitly, and every fintech template; the honest-proof story has nowhere to live."
+  },
+  "steer": true
+}

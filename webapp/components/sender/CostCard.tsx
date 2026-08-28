@@ -1,6 +1,6 @@
 "use client";
 
-// Pre-flight cost and policy card for the Sender form: what this send costs on the network, where
+// Pre-flight cost and policy slip for the Sender form: what this send costs on the network, where
 // the FX figure comes from, what the on-chain policy registry says about the corridor, and what
 // mainstream providers deliver for the same USD amount (public Wise comparison data, proxied by
 // /api/benchmark). Plain numbers, each labelled with its source.
@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { readCorridorPolicy, OBSERVED_SEND_FEE_STROOPS } from "@/lib/stellar";
 import { corridorByCode, fmtLocal } from "@/components/receiver/corridors";
 import type { BenchmarkProvider } from "@/lib/benchmark";
+import { Label, CAP } from "@/components/sender/Label";
 
 type Policy = Awaited<ReturnType<typeof readCorridorPolicy>>;
 type Bench = { state: "loading" } | { state: "ok"; best: BenchmarkProvider; count: number } | { state: "none"; reason: string } | { state: "unavailable" };
@@ -79,8 +80,7 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
   const diff = bench.state === "ok" ? receive - bench.best.receivedAmount : 0;
 
   return (
-    <div className={`rounded-tile border border-line bg-black/20 p-3.5 ${className}`}>
-      <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Cost and policy</div>
+    <Label className={className} bar="Cost and policy" right={cor.code}>
       <Row k="Network fee">
         About {SEND_FEE_XLM} XLM. Deposit plus tree registration as charged on testnet (2026-08-26). The exact fee is set by simulation when you sign.
       </Row>
@@ -106,15 +106,16 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
           </>
         )}
       </Row>
-    </div>
+    </Label>
   );
 }
 
+// A ruled line of the slip: typed caption, then the figure and its source in Barlow.
 function Row({ k, children, last }: { k: string; children: React.ReactNode; last?: boolean }) {
   return (
-    <div className={`py-2 ${last ? "" : "border-b border-line"}`}>
-      <div className="font-mono text-[10px] tracking-[0.04em] text-tf uppercase">{k}</div>
-      <div className="mt-0.5 text-[12.5px] leading-relaxed text-ts">{children}</div>
+    <div className={`py-2 first:pt-0 ${last ? "" : "border-b border-ink/25"}`}>
+      <div className={CAP}>{k}</div>
+      <div className="mt-0.5 text-[12.5px] leading-relaxed text-ink-2">{children}</div>
     </div>
   );
 }

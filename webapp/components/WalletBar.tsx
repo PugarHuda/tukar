@@ -4,8 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { Button, StatusPill, useToast } from "@/components/ui";
 import { IdosConnect } from "@/components/idos/IdosConnect";
+import { Mark } from "@/components/sender/Label";
 
 const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
+
+// Typed disclosure line on the label strip: Courier caps, ink, a drawn chevron that turns.
+const SUMMARY =
+  "inline-flex cursor-pointer list-none items-center gap-1 text-ink-2 underline underline-offset-2 transition-colors duration-clock ease-clock hover:text-stamp [&::-webkit-details-marker]:hidden";
+const CHEVRON = "transition-transform duration-clock ease-clock group-open:rotate-180";
 
 type AllowlistInfo = {
   alreadyListed: boolean;
@@ -119,12 +125,12 @@ function ReclaimVerify() {
         </Button>
       )}
       {state.phase === "not-configured" && (
-        <p className="mt-1 leading-relaxed text-tf">Reclaim is not configured on this deployment yet.</p>
+        <p className="mt-1 leading-relaxed text-ink-3">Reclaim is not configured on this deployment yet.</p>
       )}
       {state.phase === "pending" && (
-        <p className="mt-1 leading-relaxed text-tm">
+        <p className="mt-1 leading-relaxed text-ink-2">
           Complete proof-of-personhood on your phone in the tab that opened (or{" "}
-          <a href={state.requestUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-orange">
+          <a href={state.requestUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-stamp">
             reopen it
           </a>
           ). This page is waiting for the proof and will verify it automatically.
@@ -132,34 +138,36 @@ function ReclaimVerify() {
       )}
       {state.phase === "verified" && (
         <div className="mt-1 leading-relaxed">
-          <p className="font-semibold text-green-t">✓ Verified with Reclaim</p>
-          <p className="mt-1 text-tm">
-            A Gmail identity{state.identity ? <> (<code className="text-orange">{state.identity}</code>)</> : null} was
+          <p className="inline-flex items-center gap-1 font-semibold text-stamp-deep">
+            <Mark kind="check" size={12} /> Verified with Reclaim
+          </p>
+          <p className="mt-1 text-ink-2">
+            A Gmail identity{state.identity ? <> (<code className="text-stamp-deep">{state.identity}</code>)</> : null} was
             proven with a zkTLS proof, verified cryptographically on our server.
           </p>
           {!address && (
-            <p className="mt-2 text-tf">
+            <p className="mt-2 text-ink-3">
               Connect a wallet to compute this account&apos;s ASP allow-list entry.
             </p>
           )}
           {address && !state.allowlist && (
-            <p className="mt-2 text-tf">Computing the allow-list update for {shortAddr(address)}…</p>
+            <p className="mt-2 text-ink-3">Computing the allow-list update for {shortAddr(address)}…</p>
           )}
           {state.allowlist?.alreadyListed && (
-            <p className="mt-2 text-tm">
+            <p className="mt-2 text-ink-2">
               This account is already on the ASP allow-list (leaf #{state.allowlist.leafIndex}). It can deposit now; no
               admin action needed.
             </p>
           )}
           {state.allowlist && !state.allowlist.alreadyListed && (
             <div className="mt-2">
-              <p className="text-tm">
+              <p className="text-ink-2">
                 Identity verified. To enable deposits, the corridor operator applies this on-chain (admin-gated,{" "}
-                <code className="text-orange">set_asp_root</code>). The new allow-list root and updated witness are
+                <code className="text-stamp-deep">set_asp_root</code>). The new allow-list root and updated witness are
                 already computed server-side; nothing here is signed.
               </p>
               <div className="mt-2 flex items-start gap-2">
-                <pre className="flex-1 overflow-x-auto rounded-tile border border-line bg-black/30 p-2 font-mono text-[11px] leading-relaxed text-ts">
+                <pre className="flex-1 overflow-x-auto rounded-tile border border-ink/45 bg-input p-2 font-mono text-[11px] leading-relaxed text-ink-2 shadow-inset">
                   {state.allowlist.setAspRootCli}
                 </pre>
                 <Button
@@ -174,7 +182,7 @@ function ReclaimVerify() {
                   Copy
                 </Button>
               </div>
-              <p className="mt-1 text-tf">
+              <p className="mt-1 text-ink-3">
                 Until the operator runs this, deposits stay gated by the current allow-list, so this account cannot
                 deposit yet.
               </p>
@@ -182,39 +190,53 @@ function ReclaimVerify() {
           )}
         </div>
       )}
-      {state.phase === "error" && <p className="mt-1 leading-relaxed text-red-t">Reclaim error: {state.message}</p>}
+      {state.phase === "error" && <p className="mt-1 leading-relaxed text-tape-deep">Reclaim error: {state.message}</p>}
     </div>
   );
 }
 
-/** Connect bar: built-in testnet key OR any supported Stellar wallet. Reusable across every route. */
+/** Connect bar: built-in testnet key OR any supported Stellar wallet. The typed strip at the top
+ *  of every route: who signs, on which network, and the reusable-KYC disclosure. */
 export function WalletBar() {
   const { connected, walletName, address, connecting, wrongNetwork, recheckNetwork, connectWallet, connectDemoKey, disconnect } =
     useWallet();
   const { toast } = useToast();
+  // The connected strip renders Disconnect where "Use testnet key" just was, so the second half of
+  // an accidental double-tap would disconnect the wallet it just connected. Disconnect stays
+  // disabled for the first moment after connecting; a deliberate click a second later works.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!connected) {
+      setArmed(false);
+      return;
+    }
+    const t = setTimeout(() => setArmed(true), 600);
+    return () => clearTimeout(t);
+  }, [connected]);
 
   if (connected && address) {
     return (
       <div className="flex flex-col items-end gap-2">
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="font-mono text-xs text-tm">
-            {walletName || "wallet"} · <b className="text-green-t">{shortAddr(address)}</b>
+          <span className="font-mono text-xs text-ink-2">
+            {walletName || "wallet"} · <b className="text-stamp-deep">{shortAddr(address)}</b>
           </span>
-          <Button variant="ghost" onClick={disconnect}>
+          <Button variant="ghost" disabled={!armed} onClick={disconnect}>
             Disconnect
           </Button>
         </div>
         {wrongNetwork && (
-          <p role="alert" className="flex flex-wrap items-center justify-end gap-2 text-right text-[11px] leading-snug text-red-t">
+          <p role="alert" className="flex flex-wrap items-center justify-end gap-2 text-right text-[11px] leading-snug text-tape-deep">
             Your wallet is on {wrongNetwork}; switch it to Testnet. Signing is blocked until it matches.
             <Button variant="subtle" onClick={() => recheckNetwork().catch(() => {})}>
               Re-check
             </Button>
           </p>
         )}
-        <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
-          <summary className="cursor-pointer list-none text-tm hover:text-orange">
+        <details className="group w-full text-right font-mono text-[11px] leading-snug text-ink-3">
+          <summary className={SUMMARY}>
             Verify identity to enable deposits (idOS or Reclaim)
+            <Mark kind="chevron" size={12} className={CHEVRON} />
           </summary>
           <IdosConnect />
           <ReclaimVerify />
@@ -239,30 +261,21 @@ export function WalletBar() {
       <Button variant="subtle" onClick={connectDemoKey}>
         Use testnet key
       </Button>
-      <span className="w-full text-right text-[11px] leading-snug text-tf">
+      <span className="w-full text-right text-[11px] leading-snug text-ink-3">
         Testing with others? Connect your own wallet (Freighter, xBull, Albedo, Rabet, Lobstr, Hana, Ledger) for your own key; the built-in testnet key is shared.
       </span>
-      <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
-        <summary className="cursor-pointer list-none text-tm hover:text-orange">
+      <details className="group w-full text-right font-mono text-[11px] leading-snug text-ink-3">
+        <summary className={SUMMARY}>
           Reusable KYC
+          <Mark kind="chevron" size={12} className={CHEVRON} />
         </summary>
         <p className="mt-1 text-left leading-relaxed">
           Verify identity once and reuse it: connect a wallet, then reuse an existing{" "}
-          <a
-            href="https://idos.network"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-tm underline hover:text-orange"
-          >
+          <a href="https://idos.network" target="_blank" rel="noopener noreferrer" className="text-ink-2 underline hover:text-stamp">
             idOS
           </a>{" "}
           KYC credential (reusable KYC, live on Stellar), or prove personhood with{" "}
-          <a
-            href="https://reclaimprotocol.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-tm underline hover:text-orange"
-          >
+          <a href="https://reclaimprotocol.org" target="_blank" rel="noopener noreferrer" className="text-ink-2 underline hover:text-stamp">
             Reclaim
           </a>{" "}
           (zkTLS, live on Stellar). The result populates the ASP allow-list, so a user proves

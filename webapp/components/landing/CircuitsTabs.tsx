@@ -2,42 +2,42 @@
 
 import { useEffect, useState } from "react";
 
-// CIRCUITS / CONTRACTS / CORRIDOR FLOW / DISCLOSURE tabs.
-// Faithful port of initTabs() + DATA + ICONS from frontend/landing.js.
+// CIRCUITS / CONTRACTS / CORRIDOR FLOW / DISCLOSURE tabs. Each tab is a page of the manifest: one
+// ruled row per item, its status as a stamp at the row's end. Data ported from frontend/landing.js.
 type TabKey = "circuits" | "contracts" | "flow" | "disclosure";
-type Card = { tag: string; code: string; name: string; type: string; status: string; meta: string; icon: keyof typeof ICONS };
+type Row = { tag: string; code: string; name: string; type: string; status: string; meta: string; icon: keyof typeof ICONS };
 
-const DATA: Record<TabKey, Card[]> = {
+const DATA: Record<TabKey, Row[]> = {
   circuits: [
-    { tag: "GROTH16 · BN254", code: "transfer.circom", name: "Shielded transfer", type: "2-in / 2-out JoinSplit", status: "VERIFIED ON-CHAIN", meta: "depth 10", icon: "swap" },
-    { tag: "GROTH16 · BN254", code: "compliance.circom", name: "ASP compliance", type: "allow ∈ / deny ∉", status: "VERIFIED ON-CHAIN", meta: "bound", icon: "shield" },
-    { tag: "GROTH16 · BN254", code: "disclosure.circom", name: "Selective disclosure", type: "commitment → amount", status: "VERIFIED ON-CHAIN", meta: "tamper → reject", icon: "eye" },
-    { tag: "GROTH16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "VERIFIED ON-CHAIN", meta: "fake → reject", icon: "tree" },
-    { tag: "GROTH16 · BN254", code: "thresholdDisclosure.circom", name: "Threshold disclosure", type: "amount ≤ figure, hidden", status: "VERIFIED ON-CHAIN", meta: "amount hidden", icon: "eye" },
-    { tag: "GROTH16 · BN254", code: "aggregateDisclosure.circom", name: "Aggregate disclosure", type: "Σ portfolio ≤ cap", status: "VERIFIED ON-CHAIN", meta: "audit-bound", icon: "layers" },
-    { tag: "GROTH16 · BN254", code: "rangeDisclosure.circom", name: "Range disclosure", type: "lower ≤ amount ≤ upper", status: "VERIFIED ON-CHAIN", meta: "amount hidden", icon: "eye" },
+    { tag: "Groth16 · BN254", code: "transfer.circom", name: "Shielded transfer", type: "2-in / 2-out JoinSplit", status: "Verified on-chain", meta: "depth 10", icon: "swap" },
+    { tag: "Groth16 · BN254", code: "compliance.circom", name: "ASP compliance", type: "allow ∈ / deny ∉", status: "Verified on-chain", meta: "bound", icon: "shield" },
+    { tag: "Groth16 · BN254", code: "disclosure.circom", name: "Selective disclosure", type: "commitment → amount", status: "Verified on-chain", meta: "tamper → reject", icon: "eye" },
+    { tag: "Groth16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "Verified on-chain", meta: "fake → reject", icon: "tree" },
+    { tag: "Groth16 · BN254", code: "thresholdDisclosure.circom", name: "Threshold disclosure", type: "amount ≤ figure, hidden", status: "Verified on-chain", meta: "amount hidden", icon: "eye" },
+    { tag: "Groth16 · BN254", code: "aggregateDisclosure.circom", name: "Aggregate disclosure", type: "Σ portfolio ≤ cap", status: "Verified on-chain", meta: "audit-bound", icon: "layers" },
+    { tag: "Groth16 · BN254", code: "rangeDisclosure.circom", name: "Range disclosure", type: "lower ≤ amount ≤ upper", status: "Verified on-chain", meta: "amount hidden", icon: "eye" },
   ],
   contracts: [
-    { tag: "SOROBAN", code: "CBIYQAC…DK2MHTWJ", name: "pool", type: "orchestration · nullifiers", status: "52/52 TESTS PASS", meta: "no double-spend", icon: "layers" },
-    { tag: "SOROBAN", code: "CACHZSW…3PUNE", name: "transfer verifier", type: "shielded JoinSplit", status: "VERIFY → TRUE", meta: "BN254", icon: "chip" },
-    { tag: "SOROBAN", code: "CDXYGM3…XBCG2", name: "compliance verifier", type: "ASP allow / deny", status: "VERIFY → TRUE", meta: "tx ✓", icon: "shield" },
-    { tag: "SOROBAN", code: "CAYGURQ…J4W4V", name: "disclosure verifier", type: "selective disclosure", status: "VERIFY → TRUE", meta: "tamper → reject", icon: "eye" },
-    { tag: "SOROBAN", code: "CCA3T54…S3X6H", name: "merkleUpdate verifier", type: "trustless root advance", status: "VERIFY → TRUE", meta: "fake → reject", icon: "tree" },
-    { tag: "SOROBAN", code: "CDGOSIZ…KLHVR", name: "threshold verifier", type: "amount ≤ figure, hidden", status: "VERIFY → TRUE", meta: "amount hidden", icon: "eye" },
-    { tag: "SOROBAN", code: "CCTN437…AZJYA", name: "aggregate verifier", type: "Σ portfolio ≤ cap", status: "VERIFY → TRUE", meta: "audit-bound", icon: "layers" },
-    { tag: "SOROBAN", code: "CDUONEV…NUPQW", name: "range verifier", type: "lower ≤ amount ≤ upper", status: "VERIFY → TRUE", meta: "amount hidden", icon: "eye" },
+    { tag: "Soroban", code: "CBIYQAC…DK2MHTWJ", name: "pool", type: "orchestration · nullifiers", status: "52/52 tests pass", meta: "no double-spend", icon: "layers" },
+    { tag: "Soroban", code: "CACHZSW…3PUNE", name: "transfer verifier", type: "shielded JoinSplit", status: "verify → true", meta: "BN254", icon: "chip" },
+    { tag: "Soroban", code: "CDXYGM3…XBCG2", name: "compliance verifier", type: "ASP allow / deny", status: "verify → true", meta: "tx ✓", icon: "shield" },
+    { tag: "Soroban", code: "CAYGURQ…J4W4V", name: "disclosure verifier", type: "selective disclosure", status: "verify → true", meta: "tamper → reject", icon: "eye" },
+    { tag: "Soroban", code: "CCA3T54…S3X6H", name: "merkleUpdate verifier", type: "trustless root advance", status: "verify → true", meta: "fake → reject", icon: "tree" },
+    { tag: "Soroban", code: "CDGOSIZ…KLHVR", name: "threshold verifier", type: "amount ≤ figure, hidden", status: "verify → true", meta: "amount hidden", icon: "eye" },
+    { tag: "Soroban", code: "CCTN437…AZJYA", name: "aggregate verifier", type: "Σ portfolio ≤ cap", status: "verify → true", meta: "audit-bound", icon: "layers" },
+    { tag: "Soroban", code: "CDUONEV…NUPQW", name: "range verifier", type: "lower ≤ amount ≤ upper", status: "verify → true", meta: "amount hidden", icon: "eye" },
   ],
   flow: [
-    { tag: "EDGE A", code: "fiat → USDC", name: "Deposit", type: "compliance proof bound", status: "ON-CHAIN", meta: "pinned ASP", icon: "in" },
-    { tag: "CORRIDOR", code: "shielded", name: "Transfer", type: "spend · record", status: "PRIVATE", meta: "hidden", icon: "swap" },
-    { tag: "TREE", code: "register_root", name: "Update", type: "merkleUpdate proof", status: "TRUSTLESS", meta: "enforced", icon: "refresh" },
-    { tag: "EDGE B", code: "USDC → fiat", name: "Withdraw", type: "amount bound to proof", status: "ON-CHAIN", meta: "AmountNotBound", icon: "out" },
+    { tag: "Edge A", code: "fiat → USDC", name: "Deposit", type: "compliance proof bound", status: "On-chain", meta: "pinned ASP", icon: "in" },
+    { tag: "Corridor", code: "shielded", name: "Transfer", type: "spend · record", status: "Private", meta: "hidden", icon: "swap" },
+    { tag: "Tree", code: "register_root", name: "Update", type: "merkleUpdate proof", status: "Trustless", meta: "enforced", icon: "refresh" },
+    { tag: "Edge B", code: "USDC → fiat", name: "Withdraw", type: "amount bound to proof", status: "On-chain", meta: "AmountNotBound", icon: "out" },
   ],
   disclosure: [
-    { tag: "REGULATOR", code: "audit request", name: "Open commitment", type: "opens to one amount", status: "PROVEN", meta: "bound", icon: "eye" },
-    { tag: "OFF-CHAIN", code: "false witness", name: "Soundness", type: "false witness rejected", status: "REJECTED", meta: "neg test", icon: "shield" },
-    { tag: "ON-CHAIN", code: "tampered input", name: "Tamper check", type: "tampered public input", status: "INVALIDPROOF", meta: "on-chain", icon: "alert" },
-    { tag: "PRIVACY", code: "pool", name: "No graph leak", type: "payment graph hidden", status: "PRIVATE", meta: "selective", icon: "lock" },
+    { tag: "Regulator", code: "audit request", name: "Open commitment", type: "opens to one amount", status: "Proven", meta: "bound", icon: "eye" },
+    { tag: "Off-chain", code: "false witness", name: "Soundness", type: "false witness rejected", status: "Rejected", meta: "neg test", icon: "shield" },
+    { tag: "On-chain", code: "tampered input", name: "Tamper check", type: "tampered public input", status: "InvalidProof", meta: "on-chain", icon: "alert" },
+    { tag: "Privacy", code: "pool", name: "No graph leak", type: "payment graph hidden", status: "Private", meta: "selective", icon: "lock" },
   ],
 };
 
@@ -62,10 +62,13 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "disclosure", label: "Disclosure" },
 ];
 
+// Statuses that mean "rejected" are stamped in tape red; everything else in stamp blue.
+const RED = /reject|invalid/i;
+
 function IconSVG({ name }: { name: keyof typeof ICONS }) {
   const paths = ICONS[name] || ICONS.swap;
   return (
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ff8a3d" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {paths.map((d, i) => (
         <path key={i} d={d} />
       ))}
@@ -73,30 +76,21 @@ function IconSVG({ name }: { name: keyof typeof ICONS }) {
   );
 }
 
-function CircCard({ c }: { c: Card }) {
+function CircRow({ c }: { c: Row }) {
   return (
-    <div className="circ-card">
-      <div className="circ-vis">
-        <span className="circ-icon">
-          <IconSVG name={c.icon} />
+    <li className="circ-row">
+      <span className="circ-icon">
+        <IconSVG name={c.icon} />
+      </span>
+      <span className="circ-main">
+        <span className="circ-name">{c.name}</span>
+        <span className="circ-type">{c.type}</span>
+        <span className="circ-code">
+          {c.code} · {c.tag} · {c.meta}
         </span>
-        <span className="circ-led" />
-      </div>
-      <div className="circ-meta">
-        <div className="circ-tag">{c.tag}</div>
-        <div className="circ-code">{c.code}</div>
-        <div className="circ-name">{c.name}</div>
-        <div className="circ-type">{c.type}</div>
-      </div>
-      <div className="hr-card" />
-      <div className="circ-foot">
-        <div className="circ-status">
-          <span className="dot" />
-          {c.status}
-        </div>
-        <div className="meta">{c.meta}</div>
-      </div>
-    </div>
+      </span>
+      <span className={"tk-stamp stamp-xs circ-stamp" + (RED.test(c.status) ? " tk-stamp-red" : "")}>{c.status}</span>
+    </li>
   );
 }
 
@@ -116,7 +110,7 @@ export function CircuitsTabs() {
   }, []);
 
   return (
-    <>
+    <div className="manifest">
       <div id="contracts" className="tabs" role="tablist" aria-label="Corridor layers">
         {TABS.map((t) => (
           <button
@@ -132,12 +126,13 @@ export function CircuitsTabs() {
           </button>
         ))}
       </div>
-
-      <div id="circ-panel" className="card-grid" role="tabpanel" aria-labelledby={`tab-${active}`}>
-        {DATA[active].map((c, i) => (
-          <CircCard key={i} c={c} />
-        ))}
+      <div id="circ-panel" role="tabpanel" aria-labelledby={`tab-${active}`}>
+        <ul className="circ-rows">
+          {DATA[active].map((c, i) => (
+            <CircRow key={i} c={c} />
+          ))}
+        </ul>
       </div>
-    </>
+    </div>
   );
 }

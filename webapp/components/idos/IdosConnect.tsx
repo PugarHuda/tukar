@@ -12,6 +12,7 @@
 import { useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { Button, useToast } from "@/components/ui";
+import { Mark } from "@/components/sender/Label";
 import { signMessageWithWallet } from "@/lib/wallet-kit";
 import { idosBindingMessage } from "@/lib/idos/config";
 import {
@@ -74,7 +75,7 @@ export function IdosConnect() {
 
   if (!idosClientConfigured) {
     return (
-      <p className="mt-1 text-left leading-relaxed text-tf">
+      <p className="mt-1 text-left leading-relaxed text-ink-3">
         idOS reusable KYC is not configured on this deployment yet.
       </p>
     );
@@ -168,25 +169,25 @@ export function IdosConnect() {
 
   return (
     <div className="mt-2 text-left">
-      <p className="leading-relaxed text-tm">
+      <p className="leading-relaxed text-ink-2">
         Reads your existing idOS KYC credential to reuse it here. Needs an idOS profile with a
         credential from a trusted issuer; the operator then adds you to the on-chain allow-list.
       </p>
 
       {(state.phase === "idle" || state.phase === "checking") && (
-        <Button variant="subtle" busy={state.phase === "checking"} onClick={checkProfile} disabled={!address}>
+        <Button variant="subtle" className="mt-2" busy={state.phase === "checking"} onClick={checkProfile} disabled={!address}>
           {state.phase === "checking" ? "Checking idOS profile" : "Check idOS profile"}
         </Button>
       )}
       {!address && state.phase === "idle" && (
-        <p className="mt-1 text-tf">Connect a wallet first.</p>
+        <p className="mt-1 text-ink-3">Connect a wallet first.</p>
       )}
 
       {state.phase === "no-profile" && (
-        <p className="mt-1 leading-relaxed text-tm">
+        <p className="mt-1 leading-relaxed text-ink-2">
           This wallet has no idOS profile. Create one and get a KYC credential from a trusted issuer
           at{" "}
-          <a href="https://idos.network" target="_blank" rel="noopener noreferrer" className="underline hover:text-orange">
+          <a href="https://idos.network" target="_blank" rel="noopener noreferrer" className="underline hover:text-stamp">
             idOS
           </a>
           , then check again.
@@ -195,7 +196,9 @@ export function IdosConnect() {
 
       {state.phase === "has-profile" && (
         <div className="mt-1">
-          <p className="leading-relaxed text-green-t">✓ This wallet owns an idOS profile.</p>
+          <p className="inline-flex items-center gap-1 leading-relaxed text-stamp-deep">
+            <Mark kind="check" size={12} /> This wallet owns an idOS profile.
+          </p>
           <div className="mt-2">
             <Button variant="subtle" onClick={shareCredential}>
               Reuse my idOS KYC credential
@@ -205,31 +208,33 @@ export function IdosConnect() {
       )}
 
       {state.phase === "sharing" && (
-        <p className="mt-1 leading-relaxed text-tm">Working: {state.step}… Approve the prompts in your wallet and the idOS window.</p>
+        <p className="mt-1 leading-relaxed text-ink-2">Working: {state.step}… Approve the prompts in your wallet and the idOS window.</p>
       )}
 
       {state.phase === "shared" && !state.verified && (
-        <p className="mt-1 leading-relaxed text-tm">
+        <p className="mt-1 leading-relaxed text-ink-2">
           {state.reason || "No trusted idOS KYC credential was found for this wallet."}
         </p>
       )}
 
       {state.phase === "shared" && state.verified && (
         <div className="mt-1 leading-relaxed">
-          <p className="font-semibold text-green-t">✓ idOS KYC credential verified</p>
+          <p className="inline-flex items-center gap-1 font-semibold text-stamp-deep">
+            <Mark kind="check" size={12} /> idOS KYC credential verified
+          </p>
           {state.allowlist?.alreadyListed && (
-            <p className="mt-1 text-tm">
+            <p className="mt-1 text-ink-2">
               This account is already on the ASP allow-list (leaf #{state.allowlist.leafIndex}). It can deposit now.
             </p>
           )}
           {state.allowlist && !state.allowlist.alreadyListed && (
             <div className="mt-1">
-              <p className="text-tm">
+              <p className="text-ink-2">
                 To enable deposits, the corridor operator applies this on-chain (admin-gated,{" "}
-                <code className="text-orange">set_asp_root</code>). The new root and witness are computed server-side; nothing here is signed.
+                <code className="text-stamp-deep">set_asp_root</code>). The new root and witness are computed server-side; nothing here is signed.
               </p>
               <div className="mt-2 flex items-start gap-2">
-                <pre className="flex-1 overflow-x-auto rounded-tile border border-line bg-black/30 p-2 font-mono text-[11px] leading-relaxed text-ts">
+                <pre className="flex-1 overflow-x-auto rounded-tile border border-ink/45 bg-input p-2 font-mono text-[11px] leading-relaxed text-ink-2 shadow-inset">
                   {state.allowlist.setAspRootCli}
                 </pre>
                 <Button
@@ -247,12 +252,12 @@ export function IdosConnect() {
             </div>
           )}
           {address && !state.allowlist && (
-            <p className="mt-1 text-tf">Credential verified for {shortAddr(address)}. Allow-list update was not computed.</p>
+            <p className="mt-1 text-ink-3">Credential verified for {shortAddr(address)}. Allow-list update was not computed.</p>
           )}
         </div>
       )}
 
-      {state.phase === "error" && <p className="mt-1 leading-relaxed text-red-t">idOS error: {state.message}</p>}
+      {state.phase === "error" && <p className="mt-1 leading-relaxed text-tape-deep">idOS error: {state.message}</p>}
 
       {/* The idOS enclave iframe mounts here; the SDK controls its visibility. */}
       <div id={IDOS_ENCLAVE_CONTAINER_ID} />

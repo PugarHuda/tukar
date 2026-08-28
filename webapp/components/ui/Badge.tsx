@@ -1,37 +1,37 @@
 export type Tone = "orange" | "green" | "red" | "amber" | "muted";
-// Text + border + a faint tonal wash + top-edge highlight, so the pill reads as a designed
-// chip rather than outlined text on the near-black canvas.
+// Three inks: blue for cleared/accent (orange + green aliases), red for tape warnings, ink for
+// everything else. Amber is the kraft edge, used for "pending" on paper.
 const tones: Record<Tone, string> = {
-  orange: "text-orange-l3 border-orange/35 bg-orange/[0.08]",
-  green: "text-green-t border-green/35 bg-green/[0.08]",
-  red: "text-red-t border-red/40 bg-red/[0.08]",
-  amber: "text-amber border-amber/40 bg-amber/[0.08]",
-  muted: "text-tm border-line-input bg-white/[0.03]",
+  orange: "text-stamp-deep border-stamp bg-stamp-wash",
+  green: "text-stamp-deep border-stamp bg-stamp-wash",
+  red: "text-tape-deep border-tape bg-tape-wash",
+  amber: "text-ink-2 border-kraft-edge bg-kraft/30",
+  muted: "text-ink-2 border-ink/35 bg-label-2",
 };
 
 export type BadgeProps = { tone?: Tone; className?: string; children: React.ReactNode };
-/** Mono status pill (matches the .chip-cc look). */
+/** A typed tag: a small ruled box on the label, Courier caps. */
 export function Badge({ tone = "muted", className = "", children }: BadgeProps) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md border px-[7px] py-[3px] font-mono text-[10px] font-semibold tracking-[0.06em] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${tones[tone]} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-[2px] border px-[7px] py-[3px] font-mono text-[10.5px] font-bold tracking-[0.06em] uppercase ${tones[tone]} ${className}`}>
       {children}
     </span>
   );
 }
 
 export type StatusPillProps = { tone?: Tone; label: string; dot?: boolean; className?: string };
-/** Status pill with an optional pulsing dot (matches the live/activity indicators). */
+/** Status line with an ink square that breathes while live (no glow: ink on paper). */
 export function StatusPill({ tone = "green", label, dot = true, className = "" }: StatusPillProps) {
   const dotColor: Record<Tone, string> = {
-    orange: "bg-orange",
-    green: "bg-green",
-    red: "bg-red",
-    amber: "bg-amber",
-    muted: "bg-tm",
+    orange: "bg-stamp",
+    green: "bg-stamp",
+    red: "bg-tape",
+    amber: "bg-kraft-edge",
+    muted: "bg-ink-4",
   };
   return (
-    <span className={`inline-flex items-center gap-2 font-mono text-xs text-tm ${className}`}>
-      {dot && <i className={`h-2 w-2 rounded-full ${dotColor[tone]} shadow-[0_0_8px_currentColor] animate-tk-pulse`} />}
+    <span className={`inline-flex items-center gap-2 font-mono text-xs text-ink-2 ${className}`}>
+      {dot && <i className={`h-2 w-2 ${dotColor[tone]} animate-tk-pulse`} />}
       {label}
     </span>
   );

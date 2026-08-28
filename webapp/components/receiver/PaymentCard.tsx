@@ -4,7 +4,7 @@
 // on-chain (real transfer proof, ported from frontend/app.js), then cash out to fiat via
 // Onramper or a SEP-24 anchor. All on-chain reads/writes and anchor calls are real.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, Button, Select, Input, Badge, Spinner, useToast } from "@/components/ui";
+import { Button, Select, Input, Spinner, useToast } from "@/components/ui";
 import {
   offrampQuote,
   offrampQuoteTwap,
@@ -77,15 +77,29 @@ type Props = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// One payment is one box. Its label: an ink header strip (ref, state, route), the contents in
+// stencilled tabular digits, FROM blacked out, a rubber stamp for the state. Attached slips
+// (customs desk quote, receipt, forms) hang off the label behind a perforated edge, never as
+// boxes inside the box.
+const SHEET = "rounded-[3px] border border-ink bg-label shadow-card animate-tk-pop";
+const BAR = "flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-t-[2px] bg-ink px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-label";
+const CAP = "font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2";
+const SLIP = "mt-3 border-t-2 border-dashed border-ink/40 pt-3";
+const NOTE = "text-[12.5px] leading-relaxed text-ink-2";
+const AMOUNT = "font-stencil tabular-nums text-[clamp(30px,10vw,40px)] leading-none tracking-[0.01em] text-ink [overflow-wrap:anywhere]";
+const LINK = "font-mono text-xs text-stamp-deep underline underline-offset-2";
+
 // Collapsed-by-default advanced action. Native <details> so the state costs no JS and the
-// content stays mounted (React state inside survives a collapse). Keeps the default card clean:
-// a tappable label row that expands the section.
+// content stays mounted (React state inside survives a collapse). Keeps the default label clean:
+// a tappable stencilled row that expands the section.
 function Expander({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <details className="group mt-4 border-t border-line pt-4">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-        <span className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">{label}</span>
-        <span aria-hidden className="text-tf transition-transform duration-150 group-open:rotate-180">⌄</span>
+    <details className="group mt-4 border-t border-ink/25 pt-3">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-1 [&::-webkit-details-marker]:hidden">
+        <span className="font-stencil text-[15px] uppercase tracking-[0.04em] text-ink">{label}</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0 text-ink transition-transform duration-clock ease-clock group-open:rotate-180">
+          <path d="M2.5 5 7 9.5 11.5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </summary>
       <div className="pt-3">{children}</div>
     </details>
@@ -196,7 +210,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     for (let attempt = 1; attempt <= 3; attempt++) {
       const leaves = await syncLeaves();
       // Already on-chain (a prior register landed but its response was lost, or another writer
-      // inserted it) — adopt the index rather than re-inserting, which would hit #9 and strand it.
+      // inserted it), adopt the index rather than re-inserting, which would hit #9 and strand it.
       if (leaves.some((l) => l === commitment)) return { ok: true };
       const index = leaves.length;
       const oldRoot = tree.root(leaves);
@@ -205,18 +219,18 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       setStatus(`${note.ref} isn't in the on-chain tree yet. Finishing setup, registering it now (try ${attempt}).`, true);
       reg = await registerRootOnChain(oldRoot.toString(), note.commitment, newRoot.toString(), index, path);
       if (reg.ok) return { ok: true };
-      // UnknownRoot (#1): another deposit advanced the tree between our sync and submit — re-sync.
+      // UnknownRoot (#1): another deposit advanced the tree between our sync and submit, re-sync.
       if (attempt < 3 && reg.code === 1) {
         setStatus(`Tree advanced by another deposit, re-syncing (try ${attempt + 1}).`, true);
         continue;
       }
-      // UnknownCommitment (#3): the deposit hasn't propagated to the read node yet — wait, retry.
+      // UnknownCommitment (#3): the deposit hasn't propagated to the read node yet, wait, retry.
       if (attempt < 3 && reg.code === 3) {
         setStatus(`Confirming ${note.ref}'s deposit on-chain (try ${attempt + 1}).`, true);
         await sleep(4500);
         continue;
       }
-      // LeafAlreadyInserted (#9): another writer inserted it first — re-sync to adopt its index.
+      // LeafAlreadyInserted (#9): another writer inserted it first, re-sync to adopt its index.
       if (attempt < 3 && reg.code === 9) {
         setStatus(`${note.ref} was just registered elsewhere, re-syncing (try ${attempt + 1}).`, true);
         continue;
@@ -286,7 +300,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
         let leaves = await syncLeaves();
         let realIndex = leaves.findIndex((l) => l === BigInt(note.commitment));
         if (realIndex < 0) {
-          // Not an on-chain leaf yet — finish the sender's tree registration, then re-sync.
+          // Not an on-chain leaf yet, finish the sender's tree registration, then re-sync.
           const reg = await finishRegistration();
           if (!reg.ok) {
             updateNote(note.id, { withdrawing: false });
@@ -413,7 +427,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     const terminal = /completed|refunded|error|expired|no_market/i;
     for (let i = 0; i < 6; i++) {
       await sleep(4000);
-      if (!aliveRef.current) return; // card unmounted (tab switch / navigation) — stop polling
+      if (!aliveRef.current) return; // card unmounted (tab switch / navigation), stop polling
       const t = await anchorTxStatus(sep24, bearer, id);
       if (!aliveRef.current) return;
       if (!t) continue;
@@ -437,8 +451,8 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     const devOf = (r: number) => (med > 0 ? Math.abs(r - med) / med : 0);
     const outliers = rates.filter((r) => devOf(r) > 0.03).length;
     return (
-      <div className="mt-3 rounded-tile border border-line bg-black/20 p-3 text-[11.5px] leading-relaxed text-tm">
-        <span className="text-amber">Reflector depth</span>, {d.length} records read on-chain, freshest {fmtAge(freshest)} ago.
+      <div className={`mt-3 border-t border-ink/25 pt-2.5 ${NOTE}`}>
+        <b className="text-ink">Reflector depth</b>, {d.length} records read on-chain, freshest {fmtAge(freshest)} ago.
         <div className="mt-2 flex flex-wrap items-center gap-1">
           <span
             role="img"
@@ -449,12 +463,12 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
               <span
                 key={i}
                 title={`${fmtLocal(r.rate)} · ${fmtAge(r.ageSec)} ago${devOf(r.rate) > 0.03 ? " · more than 3% from the median" : ""}`}
-                className={`inline-block h-3.5 w-2 rounded-sm ${devOf(r.rate) > 0.03 ? "bg-orange" : "bg-green"}`}
+                className={`inline-block h-3.5 w-2 ${devOf(r.rate) > 0.03 ? "bg-tape" : "bg-stamp"}`}
               />
             ))}
           </span>
           <span className="ml-1">
-            median <b className="text-tp">{cor.symbol}{fmtLocal(med)}</b>, spread {fmtLocal(sorted[0])} to {fmtLocal(sorted[sorted.length - 1])}
+            median <b className="text-ink">{cor.symbol}{fmtLocal(med)}</b>, spread {fmtLocal(sorted[0])} to {fmtLocal(sorted[sorted.length - 1])}
             {outliers > 0 && `, ${outliers} of ${d.length} more than 3% from the median`}
           </span>
         </div>
@@ -463,7 +477,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   }
 
   // ---- rate attestation: package the median settlement basis already in hand ----
-  // Built ONLY from data reveal()/withdraw() already fetched — the pool's median off-ramp quote
+  // Built ONLY from data reveal()/withdraw() already fetched, the pool's median off-ramp quote
   // (note.localQuote = offramp_quote_twap) and the 5 raw Reflector records behind it
   // (note.oracleDepth = readReflectorRecords). No new RPC. Memoized so builtAt is stable across
   // renders (the anchored hash stays reproducible). Enriched with the withdraw tx + enforced floor
@@ -526,16 +540,16 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
   const rateAttest = attestation && (
     <Expander label="Rate attestation">
-      <p className="text-[12.5px] leading-relaxed text-tm">
+      <p className={NOTE}>
         A portable proof your figure was priced at the median the on-chain withdraw gate enforces. Copy or download it, and anchor its SHA-256 on the ledger.
       </p>
-      <div className="mt-3 rounded-tile border border-line bg-black/20 p-3 text-[11.5px] leading-relaxed text-ts">
+      <div className={`${SLIP} font-mono text-[12px] leading-relaxed text-ink`}>
         {summarizeAttestation(attestation)}
         {attAnchorTx && (
           <>
             {" "}
             Hash anchored in{" "}
-            <a href={txExplorer(attAnchorTx)} target="_blank" rel="noreferrer" className="font-mono text-green-t underline underline-offset-2">
+            <a href={txExplorer(attAnchorTx)} target="_blank" rel="noreferrer" className={LINK}>
               {short(attAnchorTx)} ↗
             </a>
             .
@@ -554,17 +568,12 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
             Anchor hash on-chain
           </Button>
         ) : (
-          <a
-            href={txExplorer(attAnchorTx)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center font-mono text-xs text-green-t underline underline-offset-2"
-          >
+          <a href={txExplorer(attAnchorTx)} target="_blank" rel="noreferrer" className={`inline-flex items-center ${LINK}`}>
             Anchored · {short(attAnchorTx)} ↗
           </a>
         )}
       </div>
-      <p className="mt-2.5 text-[11px] leading-relaxed text-tm">
+      <p className={`mt-2.5 ${NOTE}`}>
         This attests the fill matched the enforced median gate over the same 5 Reflector records. It is not a claim about the fiat a provider finally pays out.
       </p>
     </Expander>
@@ -605,7 +614,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
         const l = await receiptLink(receipt);
         if (!live) return;
         setLink(l);
-        setLinkSvg(await qrSvgString(l, "#0a0705", "#f3ad79", "Verification link QR code").catch(() => null));
+        setLinkSvg(await qrSvgString(l, "#161311", "#f6f1e7", "Verification link QR code").catch(() => null));
       } catch {
         if (live) setLink(null);
       }
@@ -652,7 +661,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     setDisc({
       fact: (
         <>
-          Disclosed amount <b className="text-green-t">${fmtUsdc(publicSignals[1])} USDC</b>. Nothing else is revealed, no keys, no blinding, no other payments.
+          Disclosed amount <b className="text-stamp-deep">${fmtUsdc(publicSignals[1])} USDC</b>. Nothing else is revealed, no keys, no blinding, no other payments.
         </>
       ),
       onchain: oc.verified,
@@ -677,7 +686,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     setDisc({
       fact: (
         <>
-          Proven this payment is <b className="text-green-t">at or below ${fmtUsdc(thr)} USDC</b>. The exact amount was never revealed.
+          Proven this payment is <b className="text-stamp-deep">at or below ${fmtUsdc(thr)} USDC</b>. The exact amount was never revealed.
         </>
       ),
       onchain: oc.verified,
@@ -708,7 +717,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     setDisc({
       fact: (
         <>
-          Proven this payment is <b className="text-green-t">between ${fmtUsdc(lo)} and ${fmtUsdc(hi)} USDC</b>. The exact amount was never revealed.
+          Proven this payment is <b className="text-stamp-deep">between ${fmtUsdc(lo)} and ${fmtUsdc(hi)} USDC</b>. The exact amount was never revealed.
         </>
       ),
       onchain: oc.verified,
@@ -719,7 +728,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   }
 
   async function proveAggregateFlow() {
-    // REQUEST MODE — prove against a regulator-issued audit request. The request carries the exact
+    // REQUEST MODE, prove against a regulator-issued audit request. The request carries the exact
     // ordered commitments[5] + active[5] + ctxNonce (+ cap) that the regulator already registered
     // on-chain, so the proven issuedHash equals the registered one and the pool accepts it. The
     // holder cannot trim the set: every ACTIVE required commitment must be matched to a claimed note.
@@ -766,7 +775,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       setDisc({
         fact: (
           <>
-            Proven the <b className="text-green-t">sum of {required.length} payment(s) in the regulator&apos;s request is at or below ${fmtUsdc(cap)} USDC</b>. No individual amount was revealed, and the set could not be trimmed.
+            Proven the <b className="text-stamp-deep">sum of {required.length} payment(s) in the regulator&apos;s request is at or below ${fmtUsdc(cap)} USDC</b>. No individual amount was revealed, and the set could not be trimmed.
           </>
         ),
         onchain: oc.verified,
@@ -777,7 +786,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       return;
     }
 
-    // SELF-SERVE MODE (demo-only convenience) — no request loaded, so the holder self-computes the
+    // SELF-SERVE MODE (demo-only convenience), no request loaded, so the holder self-computes the
     // ctxNonce over its own claimed notes and self-registers (the demo key is the auditor here).
     const sel = allNotes.slice(0, AGG_N);
     if (!sel.length) {
@@ -809,7 +818,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     setDisc({
       fact: (
         <>
-          Proven the <b className="text-green-t">sum of {sel.length} claimed payment(s) is at or below ${fmtUsdc(cap)} USDC</b>. No individual amount was revealed.
+          Proven the <b className="text-stamp-deep">sum of {sel.length} claimed payment(s) is at or below ${fmtUsdc(cap)} USDC</b>. No individual amount was revealed.
         </>
       ),
       onchain: oc.verified,
@@ -872,7 +881,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   // ---- prove-to-a-regulator section (collapsed by default, shown on active and withdrawn cards) ----
   const discloseSection = (
     <Expander label="Prove to a regulator">
-      <p className="text-[12.5px] leading-relaxed text-tm">
+      <p className={NOTE}>
         Generate a zero-knowledge selective-disclosure proof about this payment and export a receipt a regulator can verify. You reveal only the one fact you choose. Every proof is checked in your browser and on the live Stellar verifier.
       </p>
 
@@ -952,14 +961,14 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
           <div className="mt-3">
             <Input
               id={`audit-req-${note.id}`}
-              label="Load an audit request (tukaudit1:) — optional"
+              label="Load an audit request (tukaudit1:), optional"
               value={auditReq}
               onChange={(e) => setAuditReq(e.target.value)}
               placeholder="tukaudit1:… paste a regulator-issued request"
             />
           </div>
           {auditReq.trim() ? (
-            <p className="mt-2 text-[11.5px] leading-relaxed text-tm">
+            <p className={`mt-2 ${NOTE}`}>
               Request mode, the production path. You prove the sum of the exact payments the regulator listed is within their cap, against the audit hash they already registered on-chain. The cap comes from the request, you cannot cherry-pick a subset, and the proof will not run unless you hold every payment listed.
             </p>
           ) : (
@@ -976,7 +985,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
                   onChange={(e) => setAggCap(e.target.value)}
                 />
               </div>
-              <p className="mt-2 text-[11.5px] leading-relaxed text-tm">
+              <p className={`mt-2 ${NOTE}`}>
                 Self-serve mode, a demo-only convenience. It aggregates up to {AGG_N} of your claimed payments; on this testnet deploy the demo key is the auditor, so this app registers the audit request itself. The production path is request mode above: an independent regulator issues the request first, then you prove against it. Either way the pool rejects any audit hash it never registered.
               </p>
             </>
@@ -1002,13 +1011,16 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       </div>
 
       {disc && (
-        <div className="mt-3 rounded-tile border border-line bg-black/20 p-3.5">
-          <p className="text-[12.5px] leading-relaxed text-ts">{disc.fact}</p>
-          <p className="mt-2 text-[11.5px] leading-relaxed text-tm">
+        <div className={SLIP}>
+          <div className="flex flex-wrap items-start gap-3">
+            <span className={`tk-stamp animate-tk-ring shrink-0 ${disc.onchain ? "" : "tk-stamp-ink"}`}>{disc.onchain ? "Verified" : "Browser only"}</span>
+            <p className={`min-w-0 flex-1 text-[13px] leading-relaxed text-ink`}>{disc.fact}</p>
+          </div>
+          <p className={`mt-2 ${NOTE}`}>
             {disc.onchain ? (
               <>
-                <span className="text-green-t">Verified on-chain</span> by the live Stellar verifier{" "}
-                <a href={explorer(disc.verifierId)} target="_blank" rel="noreferrer" className="font-mono text-orange underline underline-offset-2">
+                <b className="text-stamp-deep">Verified on-chain</b> by the live Stellar verifier{" "}
+                <a href={explorer(disc.verifierId)} target="_blank" rel="noreferrer" className={LINK}>
                   {short(disc.verifierId)} ↗
                 </a>
                 .
@@ -1026,30 +1038,26 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
                 Anchor on-chain
               </Button>
             ) : (
-              <a
-                href={txExplorer(anchorTx)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center font-mono text-xs text-green-t underline underline-offset-2"
-              >
+              <a href={txExplorer(anchorTx)} target="_blank" rel="noreferrer" className={`inline-flex items-center ${LINK}`}>
                 Anchored · {short(anchorTx)} ↗
               </a>
             )}
           </div>
-          <p className="mt-2.5 text-[11px] leading-relaxed text-tm">
+          <p className={`mt-2.5 ${NOTE}`}>
             The exported JSON is exactly what the regulator console re-verifies, in the browser and on-chain. Anchoring commits a tamper-evident SHA-256 of the receipt to the ledger.
           </p>
         </div>
       )}
 
-      {/* Proof-of-payment receipt: shareable link + QR, and the panel that prints (see .tk-print in globals.css). */}
+      {/* Proof-of-payment receipt: a strip of receipt paper stapled across the label (perforated top and
+          bottom, edge to edge), with the verification link + QR. It is the panel that prints (see .tk-print). */}
       {receipt && (
-        <div className="tk-print mt-3 rounded-tile border border-line bg-black/20 p-3.5 text-[12px] leading-relaxed">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Payment receipt</span>
-            <span className="font-mono text-[10px] text-tf">Tukar · Stellar testnet</span>
+        <div className="tk-print -mx-5 mt-4 border-y-2 border-dashed border-ink/50 bg-white px-5 py-4 text-[12.5px] leading-relaxed text-ink">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b-2 border-ink pb-2">
+            <span className="font-stencil text-[18px] uppercase tracking-[0.02em]">Payment receipt</span>
+            <span className="font-mono text-[11px] text-ink-3">Tukar · Stellar testnet</span>
           </div>
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 [&_dd]:min-w-0 [&_dd]:break-all [&_dd]:text-ts [&_dt]:pt-0.5 [&_dt]:font-mono [&_dt]:text-[10px] [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-tf">
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 font-mono text-[12px] [&_dd]:min-w-0 [&_dd]:break-all [&_dd]:text-ink [&_dt]:pt-px [&_dt]:text-[11px] [&_dt]:font-bold [&_dt]:uppercase [&_dt]:tracking-[0.06em] [&_dt]:text-ink-3">
             <dt>Printed</dt>
             <dd>{new Date().toLocaleString()}</dd>
             <dt>Reference</dt>
@@ -1065,21 +1073,21 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
               </>
             )}
             <dt>{receipt.type === "aggregate" ? "Commitments" : "Commitment"}</dt>
-            <dd className="font-mono text-[10.5px]">{receipt.type === "aggregate" ? (receipt.commitments as string[] | undefined)?.join(", ") : receipt.commitment}</dd>
+            <dd className="text-[11px]">{receipt.type === "aggregate" ? (receipt.commitments as string[] | undefined)?.join(", ") : receipt.commitment}</dd>
             {withdrawTx && (
               <>
                 <dt>Withdraw tx</dt>
-                <dd className="font-mono text-[10.5px]">{withdrawTx}</dd>
+                <dd className="text-[11px]">{withdrawTx}</dd>
               </>
             )}
             {receipt.anchor && (
               <>
                 <dt>Anchor tx</dt>
-                <dd className="font-mono text-[10.5px]">{receipt.anchor.txHash}</dd>
+                <dd className="text-[11px]">{receipt.anchor.txHash}</dd>
               </>
             )}
             <dt>Verifier</dt>
-            <dd className="font-mono text-[10.5px]">{receipt.verifier}</dd>
+            <dd className="text-[11px]">{receipt.verifier}</dd>
             {attestation && (
               <>
                 <dt>Rate</dt>
@@ -1090,12 +1098,12 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
               </>
             )}
             <dt>Verify at</dt>
-            <dd className="font-mono text-[10px]">{link || "building the verification link"}</dd>
+            <dd className="text-[11px]">{link || "building the verification link"}</dd>
           </dl>
           {linkSvg && (
-            <div className="mx-auto mt-3 h-52 w-52 overflow-hidden rounded-xl border border-line bg-[#f3ad79] p-2" dangerouslySetInnerHTML={{ __html: linkSvg }} />
+            <div className="mx-auto mt-4 h-52 w-52 max-w-full overflow-hidden border border-ink/30 bg-white p-2" dangerouslySetInnerHTML={{ __html: linkSvg }} />
           )}
-          <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
             <Button variant="subtle" onClick={copyLink} disabled={!link}>
               Copy verification link
             </Button>
@@ -1103,7 +1111,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
               Print receipt
             </Button>
           </div>
-          <p className="mt-2.5 text-[11px] leading-relaxed text-tm print:hidden">
+          <p className={`mt-2.5 ${NOTE} print:hidden`}>
             The link carries the whole receipt after the # in the URL, so it is never sent to a server. Anyone who opens it re-runs the on-chain checks. It reveals only what this disclosure reveals.
           </p>
         </div>
@@ -1122,9 +1130,9 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
           Withdraw via anchor (SEP-24)
         </Button>
       </div>
-      {onramperInfo && <p className="mt-2.5 text-[12.5px] leading-relaxed text-ts break-words">{onramperInfo}</p>}
-      {anchorInfo && <p className="mt-2 text-[12.5px] leading-relaxed text-amber break-words">{anchorInfo}</p>}
-      <p className="mt-2.5 text-[11.5px] leading-relaxed text-tm">
+      {onramperInfo && <p className="mt-2.5 break-words text-[13px] leading-relaxed text-ink">{onramperInfo}</p>}
+      {anchorInfo && <p className="mt-2 break-words text-[13px] leading-relaxed text-ink">{anchorInfo}</p>}
+      <p className={`mt-2.5 ${NOTE}`}>
         A licensed provider (Onramper routes to MoonPay or Transak, or a SEP-24 anchor) runs KYC and pays out the fiat. Tukar never touches the money.
       </p>
     </Expander>
@@ -1132,128 +1140,159 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
   // ---- withdrawn (done) card ----
   if (done) {
+    const spent = note.withdrawn === "spent";
     return (
-      <Card className="p-6">
-        <div className="font-mono text-[10px] tracking-[0.14em] text-green-t uppercase">Withdrawn on-chain</div>
-        <div className="mt-2 text-3xl font-black tracking-[-0.02em] text-green-t">
-          ${usdcStr}
-          <span className="ml-2 align-middle text-sm font-semibold text-tm">USDC released</span>
+      <section className={SHEET}>
+        <div className={BAR}>
+          <span>{note.ref}</span>
+          <span>Withdrawn on-chain</span>
+          <span className="ml-auto">{cor.code} {cor.currency}</span>
         </div>
-        <div className="mt-1.5 text-[12px] text-tm">
-          {note.ref}. The note was spent, tokens released to your account.
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className={CAP}>Contents</div>
+              <div className={`mt-1 ${AMOUNT}`}>
+                ${usdcStr}
+                <span className="ml-2 font-sans text-sm font-semibold normal-case text-ink-2">USDC released</span>
+              </div>
+            </div>
+            {/* The stamp lands once: the box is open and the money is out. */}
+            <span className={`tk-stamp animate-tk-ring shrink-0 ${spent ? "tk-stamp-ink" : ""}`}>{spent ? "Spent" : "Delivered"}</span>
+          </div>
+          <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
+            {note.ref}. The note was spent, tokens released to your account.
+          </p>
+          {note.withdrawn !== "spent" && note.withdrawn !== "ok" && (
+            <a className={`mt-2 inline-block ${LINK}`} href={txExplorer(note.withdrawn!)} target="_blank" rel="noreferrer">
+              View transaction ↗
+            </a>
+          )}
+          {cashOut}
+          {rateAttest}
+          {discloseSection}
         </div>
-        {note.withdrawn !== "spent" && note.withdrawn !== "ok" && (
-          <a
-            className="mt-3 inline-block font-mono text-xs text-orange underline underline-offset-2"
-            href={txExplorer(note.withdrawn!)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View transaction ↗
-          </a>
-        )}
-        {cashOut}
-        {rateAttest}
-        {discloseSection}
-      </Card>
+      </section>
     );
   }
 
   // ---- active (arrival) card ----
   return (
-    <Card className="border-orange/[0.28] p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-3xl font-black tracking-[-0.02em] text-tp">
-            ${usdcStr}
-            <span className="ml-2 align-middle text-sm font-semibold text-tm">USDC</span>
+    <section className={SHEET}>
+      <div className={BAR}>
+        <span>{note.ref}</span>
+        <span>Shielded arrival</span>
+        <span className="ml-auto">{cor.code} {cor.currency}</span>
+      </div>
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className={CAP}>Contents</div>
+            <div className={`mt-1 ${AMOUNT}`}>
+              ${usdcStr}
+              <span className="ml-2 font-sans text-sm font-semibold text-ink-2">USDC</span>
+            </div>
+            <div className={`mt-2.5 flex items-center gap-2 ${CAP}`}>
+              From <span className="tk-redact" style={{ minWidth: "9ch" }} aria-label="hidden" />
+            </div>
           </div>
-          <div className="mt-1.5 text-[12px] text-tm">{note.ref} · shielded arrival</div>
+          <span className={`tk-stamp shrink-0 ${note.revealed ? "" : "tk-stamp-ink"}`}>{note.revealed ? "Revealed" : "Shielded"}</span>
         </div>
-        <Badge tone={note.revealed ? "green" : "orange"}>{note.revealed ? "Revealed" : "Shielded"}</Badge>
-      </div>
 
-      <div className="mt-4">
-        <Select id={`cashout-${note.id}`} label="Cash out to" value={cor.code} onChange={(e) => changeCorridor(e.target.value)}>
-          {CORRIDORS.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.country} · {c.currency}
-            </option>
-          ))}
-        </Select>
-      </div>
+        <div className="mt-4">
+          <Select id={`cashout-${note.id}`} label="Cash out to" value={cor.code} onChange={(e) => changeCorridor(e.target.value)}>
+            {CORRIDORS.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.country} · {c.currency}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-      <div className="mt-4">
-        {!note.revealed ? (
-          <Button variant="reveal" full onClick={reveal} busy={quoteBusy} disabled={quoteBusy}>
-            Reveal in {cor.currency} →
-          </Button>
-        ) : local != null ? (
-          <div className="animate-tk-pop">
-            <div className="text-2xl font-black tracking-[-0.02em] text-green-t">
-              + {cor.symbol}
-              {fmtLocal(local)} <span className="text-sm font-semibold text-tm">{cor.currency}</span>
+        {/* The flap: kraft over the local figure until the receiver lifts it. Under it, the
+            customs desk slip: the on-chain quote, its basis, and the records behind the median. */}
+        <div className="mt-4">
+          {!note.revealed ? (
+            <div className="border border-kraft-edge bg-kraft p-3 shadow-inset">
+              <Button variant="reveal" full onClick={reveal} busy={quoteBusy} disabled={quoteBusy}>
+                Reveal in {cor.currency} →
+              </Button>
             </div>
-            <div className="mt-1 text-[11.5px] leading-relaxed text-tm">
-              Your ${usdcStr} USDC, converted{" "}
-              {onChainQuote
-                ? "on-chain from the pool's Reflector quote, priced at the median of 5 records, the same basis the settlement gate enforces." + basisNote
-                : "at the live FX API rate (not on-chain)."}
-            </div>
-            {onChainQuote && spotQuote != null && (
-              <div className="mt-2 rounded-tile border border-line bg-black/20 p-3 text-[11.5px] leading-relaxed text-tm">
-                <span className="text-amber">Spot</span> {cor.symbol}{fmtLocal(spotQuote)} · <span className="text-amber">Median of 5</span> {cor.symbol}{fmtLocal(local)}. The settlement gate prices on the median of 5 records, so spot can differ and the median is what the withdraw floor enforces.
+          ) : local != null ? (
+            <div className="animate-tk-pop border-t-2 border-dashed border-ink/40 pt-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className={CAP}>Customs desk</span>
+                <span className="font-mono text-[11px] text-ink-3">{onChainQuote ? "Reflector, read on-chain" : "FX API, not on-chain"}</span>
               </div>
-            )}
-            {depth()}
-          </div>
-        ) : cor.oracle ? (
-          quoteBusy ? (
-            <Spinner label={`Reading the ${cor.currency} figure on-chain.`} />
-          ) : gateUsdc < 1 ? (
-            <div className="text-[12.5px] leading-relaxed text-tm">
-              Under 1 USDC: the pool&apos;s on-chain quote prices whole USDC only, so there is no on-chain {cor.currency} figure for this payment. Cash out below for the provider&apos;s live quote.
+              <div className="mt-1.5 font-stencil tabular-nums text-[clamp(24px,8vw,32px)] leading-none tracking-[0.01em] text-stamp-deep [overflow-wrap:anywhere]">
+                + {cor.symbol}
+                {fmtLocal(local)} <span className="font-sans text-sm font-semibold text-ink-2">{cor.currency}</span>
+              </div>
+              <div className={`mt-1.5 ${NOTE}`}>
+                Your ${usdcStr} USDC, converted{" "}
+                {onChainQuote
+                  ? "on-chain from the pool's Reflector quote, priced at the median of 5 records, the same basis the settlement gate enforces." + basisNote
+                  : "at the live FX API rate (not on-chain)."}
+              </div>
+              {onChainQuote && spotQuote != null && (
+                <div className={`mt-2.5 border-t border-ink/25 pt-2.5 ${NOTE}`}>
+                  <b className="text-ink">Spot</b> {cor.symbol}{fmtLocal(spotQuote)} · <b className="text-ink">Median of 5</b> {cor.symbol}{fmtLocal(local)}. The settlement gate prices on the median of 5 records, so spot can differ and the median is what the withdraw floor enforces.
+                </div>
+              )}
+              {depth()}
             </div>
+          ) : cor.oracle ? (
+            quoteBusy ? (
+              <Spinner label={`Reading the ${cor.currency} figure on-chain.`} />
+            ) : gateUsdc < 1 ? (
+              <div className="text-[13px] leading-relaxed text-ink-2">
+                Under 1 USDC: the pool&apos;s on-chain quote prices whole USDC only, so there is no on-chain {cor.currency} figure for this payment. Cash out below for the provider&apos;s live quote.
+              </div>
+            ) : (
+              <div className="text-[13px] leading-relaxed text-ink-2">
+                On-chain FX quote unavailable right now. No live Reflector price could be read, so no figure is shown.
+                <div className="mt-2">
+                  <Button variant="ghost" onClick={() => readQuote(cor.oracle!, cor.currency)}>
+                    Retry on-chain quote
+                  </Button>
+                </div>
+              </div>
+            )
           ) : (
-            <div className="text-[12.5px] leading-relaxed text-tm">
-              On-chain FX quote unavailable right now. No live Reflector price could be read, so no figure is shown.
-              <div className="mt-2">
-                <Button variant="ghost" onClick={() => readQuote(cor.oracle!, cor.currency)}>
-                  Retry on-chain quote
-                </Button>
-              </div>
+            <div className="text-[13px] leading-relaxed text-ink-2">
+              Live {cor.currency} rate unavailable right now. This corridor prices from a live FX API, not on-chain. Cash out below for the provider&apos;s live quote.
             </div>
-          )
-        ) : (
-          <div className="text-[12.5px] leading-relaxed text-tm">
-            Live {cor.currency} rate unavailable right now. This corridor prices from a live FX API, not on-chain. Cash out below for the provider&apos;s live quote.
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Attached form: what this costs elsewhere, and the Blend savings slip. */}
+        <div className={SLIP + " mt-4"}>
+          <div className={CAP}>Attached form</div>
+          <SavingsNote usdc={usdc} className="mt-2" />
+        </div>
+
+        <div className="mt-4 border-t border-ink/25 pt-4">
+          {note.withdrawing ? (
+            <Button variant="primary" full busy disabled title="Releasing tokens on-chain, please wait">
+              Withdrawing on-chain
+            </Button>
+          ) : (
+            <Button variant="primary" full onClick={withdraw}>
+              {gateError ? "Retry withdraw" : "Withdraw on-chain"}
+            </Button>
+          )}
+          {gateError && <p className="mt-2.5 text-[13px] leading-relaxed text-tape-deep">{gateError}</p>}
+          {!note.revealed && (
+            <p className={`mt-2.5 ${NOTE}`}>
+              Reveal first to see your local figure, then withdraw on-chain and cash out.
+            </p>
+          )}
+        </div>
+
+        {note.revealed && cashOut}
+        {note.revealed && rateAttest}
+        {discloseSection}
       </div>
-
-      <SavingsNote usdc={usdc} className="mt-4" />
-
-      <div className="mt-4 border-t border-line pt-4">
-        {note.withdrawing ? (
-          <Button variant="primary" full busy disabled title="Releasing tokens on-chain, please wait">
-            Withdrawing on-chain
-          </Button>
-        ) : (
-          <Button variant="primary" full onClick={withdraw}>
-            {gateError ? "Retry withdraw" : "Withdraw on-chain"}
-          </Button>
-        )}
-        {gateError && <p className="mt-2.5 text-[11.5px] leading-relaxed text-amber">{gateError}</p>}
-        {!note.revealed && (
-          <p className="mt-2.5 text-[11.5px] leading-relaxed text-tm">
-            Reveal first to see your local figure, then withdraw on-chain and cash out.
-          </p>
-        )}
-      </div>
-
-      {note.revealed && cashOut}
-      {note.revealed && rateAttest}
-      {discloseSection}
-    </Card>
+    </section>
   );
 }

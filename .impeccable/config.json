@@ -1,0 +1,38 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "#fff",
+        "createdAt": "2026-08-28T16:50:46.933Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "createdAt": "2026-08-28T16:50:47.437Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#bbb",
+        "createdAt": "2026-08-28T16:50:47.879Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "theme(fontfamily.sans)",
+        "createdAt": "2026-08-28T16:50:49.212Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "theme(fontfamily.stencil)",
+        "createdAt": "2026-08-28T16:50:50.200Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "theme(fontfamily.mono)",
+        "createdAt": "2026-08-28T16:50:50.892Z"
+      }
+    ]
+  }
+}
