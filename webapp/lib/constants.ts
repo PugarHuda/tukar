@@ -3,6 +3,9 @@
 // re-exports the public ones, so route code can import them from either module.
 
 export const RPC = "https://soroban-testnet.stellar.org";
+// Per-request ceiling for every rpc.Server we create (the SDK default is 0 = wait forever). A
+// healthy testnet call answers in well under 2 s; 30 s only ever fires on a dead network.
+export const RPC_TIMEOUT_MS = 30_000;
 export const PASSPHRASE = "Test SDF Network ; September 2015";
 
 // BN254 scalar field modulus (reduce ext-data keccak / address field into a field element).

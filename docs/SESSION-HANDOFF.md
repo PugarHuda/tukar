@@ -41,7 +41,7 @@ All real, no mock, verified against live testnet or localhost:
 
 To activate in prod: accept the Sentry marketplace terms; set the idOS consumer env vars; then deploy (the three newest integrations deploy on the next available slot).
 
-## 2c. Gap-hunt + deepening + new features pass (2026-08-28; verified locally, deploy pending)
+## 2c. Gap-hunt + deepening + new features pass (2026-08-28; LIVE on tukar-six.vercel.app)
 
 Driven by three audits (code gap-hunt, integration depth, Playwright exhaustive QA) and two research
 sweeps (ecosystem adoption, product features). Everything below is real and tested: tsc 0, lint clean,
@@ -91,6 +91,14 @@ negative cap rejected. SEP-0055 build attestation workflow added (`.github/workf
 
 New env vars (all optional, honest fallback when absent): `TRP_SIGNING_KEY`, `TRP_PEER_PUBLIC_KEY`,
 `TRISA_BRIDGE_TOKEN`, `IDOS_DENY_COUNTRIES`.
+
+RPC request timeout (found by the Firefox offline e2e, real for every browser on a black-holed
+network): every Soroban RPC call had no ceiling, so a dead link left "Proving on this device" spinning
+forever with no message. `@stellar/stellar-sdk` 16.2.0 documents a `timeout` option on `rpc.Server`
+but never forwards it to its http client; `lib/soroban/rpc.ts` `makeServer()` now applies
+`RPC_TIMEOUT_MS` (30 s) through the documented request interceptor and every `rpc.Server` and
+`contract.Client` in the app shares that instance. Verified: Firefox offline send fails honestly in
+6 s; real deposit still succeeds (tx `aae427c73bb584448bdf3cecd6579882f946c1e41dd83fe4121b0684ce877151`).
 
 Protocol 28 (Adapter): testnet upgraded on 2026-08-27 17:00 UTC (RPC reports core 28.0.1,
 protocolVersion 28). Verified after the upgrade with the current stack (@stellar/stellar-sdk 16.2.0,

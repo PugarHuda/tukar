@@ -5,6 +5,7 @@
 import * as Sdk from "@stellar/stellar-sdk";
 import { buf, buf32, g1, g2, type Groth16Proof } from "./proof";
 import { RPC, PASSPHRASE, POOL, DISCLOSURE_VERIFIER } from "../constants";
+import { server } from "./rpc";
 
 export type VerifyResult = { verified: boolean; error?: string };
 
@@ -14,7 +15,7 @@ export type VerifyResult = { verified: boolean; error?: string };
 const _clients: Record<string, any> = {};
 async function verifierClient(contractId: string): Promise<any> {
   if (!_clients[contractId]) {
-    _clients[contractId] = await Sdk.contract.Client.from({ contractId, networkPassphrase: PASSPHRASE, rpcUrl: RPC });
+    _clients[contractId] = await Sdk.contract.Client.from({ contractId, networkPassphrase: PASSPHRASE, rpcUrl: RPC, server });
   }
   return _clients[contractId];
 }

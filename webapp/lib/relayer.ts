@@ -10,6 +10,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import * as Sdk from "@stellar/stellar-sdk";
 import { RPC, PASSPHRASE, POOL, DEMO_SECRET } from "./constants";
+import { server as rpcServer } from "./soroban/rpc";
 import { addrField, readDenyList, loadLeavesFromChain, readCurrentRoot, type WriteResult } from "./stellar";
 import { getPoseidon, makeTree, type Note } from "./zk";
 // snarkjs proof -> Soroban contract args: the ONE shared server-safe copy (was re-implemented here).
@@ -48,6 +49,7 @@ async function poolWriteClient(): Promise<any> {
       contractId: POOL,
       networkPassphrase: PASSPHRASE,
       rpcUrl: RPC,
+      server: rpcServer, // shared client with a request timeout
       publicKey: kp.publicKey(),
       signTransaction: signer.signTransaction,
       signAuthEntry: signer.signAuthEntry,

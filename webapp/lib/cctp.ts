@@ -8,7 +8,8 @@
 //   - buildForwarderHookData   -> stellar-utils.ts buildCctpForwarderHookData
 //   - mintAndForward           -> stellar.ts mintAndForward / submitSorobanTx (mint_and_forward)
 import * as Sdk from "@stellar/stellar-sdk";
-import { RPC, PASSPHRASE, DEMO_SECRET } from "./constants";
+import { PASSPHRASE, DEMO_SECRET } from "./constants";
+import { makeServer } from "./soroban/rpc"; // rpc.Server with a request timeout
 import { fetchWithTimeout } from "./net";
 
 const { StrKey } = Sdk;
@@ -166,7 +167,7 @@ function relayerKeypair(): Sdk.Keypair {
  * this key). Mirrors circlefin/stellar-cctp submitSorobanTx. Returns the Stellar tx hash.
  */
 export async function mintAndForward(messageHex: string, attestationHex: string): Promise<string> {
-  const server = new Sdk.rpc.Server(RPC);
+  const server = makeServer();
   const kp = relayerKeypair();
   const account = await server.getAccount(kp.publicKey());
   const contract = new Sdk.Contract(CCTP.forwarder);
@@ -265,7 +266,7 @@ async function waitForSoroban(server: Sdk.rpc.Server, hash: string, label: strin
 
 /** Build + sign (wallet or DEMO_SECRET) + send one Soroban invocation. Returns the tx hash. */
 async function submitSoroban(contractId: string, method: string, args: Sdk.xdr.ScVal[], wallet?: StellarWallet): Promise<string> {
-  const server = new Sdk.rpc.Server(RPC);
+  const server = makeServer();
   const kp = wallet ? null : Sdk.Keypair.fromSecret(DEMO_SECRET);
   const address = wallet ? wallet.address : kp!.publicKey();
   const account = await server.getAccount(address);
@@ -306,7 +307,7 @@ export async function depositForBurnStellar(opts: { amount: bigint; mintRecipien
   if (amount <= 0n) throw new Error("amount must be positive");
   if (!isValidEvmAddress(mintRecipientEvm)) throw new Error("enter a valid 0x EVM recipient address");
   const sender = wallet ? wallet.address : demoStellarAddress();
-  const server = new Sdk.rpc.Server(RPC);
+  const server = makeServer();
 
   // 1) approve(from, spender, amount, expiration_ledger) on the USDC SAC.
   const latest = await server.getLatestLedger();

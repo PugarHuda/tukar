@@ -5,9 +5,22 @@
 // and method, so a slow oracle read or a stuck submit is visible per call in a trace.
 import * as Sdk from "@stellar/stellar-sdk";
 import * as Sentry from "@sentry/nextjs";
-import { RPC, PASSPHRASE, SOURCE } from "../constants";
+import { RPC, RPC_TIMEOUT_MS, PASSPHRASE, SOURCE } from "../constants";
 
-export const server = new Sdk.rpc.Server(RPC);
+// Every rpc.Server the app uses comes from here. The SDK default is NO timeout, so a black-holed
+// network (captive portal, dropped mobile link, Firefox offline) left a send hanging forever with
+// no message. `Server` documents a `timeout` option but (16.2.0) never forwards it to its http
+// client, so the ceiling is applied through the documented request interceptor instead; the
+// fetch client turns `config.timeout` into an AbortSignal, which fails honestly.
+export function makeServer(): Sdk.rpc.Server {
+  const s = new Sdk.rpc.Server(RPC, { timeout: RPC_TIMEOUT_MS });
+  s.httpClient.interceptors.request.use((config: any) => {
+    config.timeout = config.timeout || RPC_TIMEOUT_MS;
+    return config;
+  });
+  return s;
+}
+export const server = makeServer();
 
 export type SimResult = { ok: false; error: unknown } | { ok: true; value: any };
 

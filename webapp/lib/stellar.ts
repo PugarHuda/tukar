@@ -18,6 +18,7 @@
 import * as Sdk from "@stellar/stellar-sdk";
 import { fetchWithTimeout } from "./net";
 import { RPC, PASSPHRASE, DEMO_SECRET, POOL, ANCHOR, ONRAMPER } from "./constants";
+import { server as rpcServer } from "./soroban/rpc";
 import { server } from "./soroban/rpc";
 import { buf, g1, g2, buf32, scProof, type Groth16Proof } from "./soroban/proof";
 import { friendlyPoolError, poolErrorCode } from "./soroban/errors";
@@ -226,6 +227,7 @@ async function poolWriteClient(): Promise<any> {
         contractId: POOL,
         networkPassphrase: PASSPHRASE,
         rpcUrl: RPC,
+        server: rpcServer, // shared client with a request timeout (the SDK's own would wait forever)
         publicKey: _wallet.address,
         signTransaction: _wallet.signTransaction,
         signAuthEntry: _wallet.signAuthEntry,
@@ -238,6 +240,7 @@ async function poolWriteClient(): Promise<any> {
         contractId: POOL,
         networkPassphrase: PASSPHRASE,
         rpcUrl: RPC,
+        server: rpcServer, // shared client with a request timeout (the SDK's own would wait forever)
         publicKey: kp.publicKey(),
         signTransaction: signer.signTransaction,
         signAuthEntry: signer.signAuthEntry,

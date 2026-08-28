@@ -6,10 +6,9 @@
 // instead of importing lib/stellar.ts / lib/zk.ts, whose module graphs pull browser-only code.
 // buf32 comes from the browser-free lib/soroban/proof (shared, no drift).
 import * as Sdk from "@stellar/stellar-sdk";
-import { RPC, PASSPHRASE, POOL, SOURCE } from "./constants";
+import { PASSPHRASE, POOL, SOURCE } from "./constants";
 import { buf32 } from "./soroban/proof"; // shared server-safe copy (was re-implemented below)
-
-const server = new Sdk.rpc.Server(RPC);
+import { server } from "./soroban/rpc"; // shared client with a request timeout
 
 // Read-only contract simulation against the live pool. Throws on a sim/RPC error so the caller
 // can honestly report "couldn't read the chain" rather than silently treating it as "absent".
