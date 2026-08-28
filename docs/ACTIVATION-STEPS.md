@@ -94,13 +94,17 @@ pool-enforced and pool-accumulator (IDs stay the same), one last instant upgrade
 that installs the build removing that path, redeploys for reserves-aggregate and policy-registry,
 then the listed files to update if an ID changes. The 8 live core contracts are not touched.
 
-## 7. Optional hardening env vars (Vercel, all have honest fallbacks)
+## 7. Hardening env vars (Vercel)
 
-- `TRP_SIGNING_KEY` (PKCS8 base64) so the VASP signing identity survives cold starts, and
-  `TRP_PEER_PUBLIC_KEY` to pin a counterparty. Generate both with the one-liner in the comment at
-  the top of `webapp/lib/trp.ts`.
+Set on 2026-08-28 in production:
+- `TRP_SIGNING_KEY` (sensitive): the VASP's persistent Ed25519 identity. Its public half, which a
+  counterparty may pin, is `MCowBQYDK2VwAyEA4xAKSSVNu0/Bbyj77KvurzbLX9ntUTLOxpmA0J65h5E=` (SPKI base64).
+- `IDOS_DENY_COUNTRIES=CU,IR,KP` (OFAC comprehensively sanctioned jurisdictions with ISO codes).
+
+Still optional, set when the situation exists:
+- `TRP_PEER_PUBLIC_KEY`: pins ONE counterparty key; only set it once you exchange keys with a real
+  peer VASP (it would reject every other signed inquiry, including the Notabene sandbox).
 - `TRISA_BRIDGE_TOKEN` (16+ chars) shared by the webapp and `trisa-node/` when the node is deployed.
-- `IDOS_DENY_COUNTRIES` (ISO codes, comma separated) for the idOS residency check.
 
 ## 8. Build attestation (SEP-0055), when you want the explorer badge
 
