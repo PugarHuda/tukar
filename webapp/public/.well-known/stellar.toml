@@ -4,7 +4,8 @@
 # HONEST SCOPE: Tukar is NOT a fiat anchor. It is the private on-chain *settlement
 # rail* that sits between anchors — the confidential cross-border leg. It therefore
 # does NOT publish TRANSFER_SERVER / WEB_AUTH_ENDPOINT / KYC_SERVER (those belong to
-# a real KYC'd anchor; the fiat on/off-ramp edges are honestly mocked in the demo).
+# a real KYC'd anchor; the app runs SEP-10/24 against SDF's testnet reference anchor,
+# with a licensed anchor pending for mainnet).
 # What this file does publish is real: the network, the operating account, org info,
 # and the live Soroban contracts so the corridor is discoverable per SEP-1. Where
 # Tukar fits the anchor stack is SEP-31 (cross-border payments): a sending and a

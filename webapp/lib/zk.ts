@@ -15,6 +15,8 @@ import {
   readAnchorMemoHash,
   type Groth16Proof,
 } from "./stellar";
+import * as Sentry from "@sentry/nextjs";
+import { log, errMsg } from "./log";
 
 // BN254 scalar field modulus
 export const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
@@ -219,17 +221,31 @@ export function decodeAuditRequest(raw: string): AuditRequestPayload {
 export type ProveResult = { proof: Groth16Proof; publicSignals: string[] };
 export async function fullProve(input: Record<string, any>, wasm: string, zkey: string): Promise<ProveResult> {
   const sj = await getSnarkjs();
-  return sj.groth16.fullProve(input, wasm, zkey);
+  // Sentry span (no-op with no DSN) so proving time per circuit shows up in traces.
+  const circuit = wasm.split("/").pop()!.split(".")[0];
+  return Sentry.startSpan({ name: "groth16.fullProve", op: "zk.prove", attributes: { circuit } }, () => sj.groth16.fullProve(input, wasm, zkey));
 }
 const _vkeyCache: Record<string, any> = {};
 async function loadVkey(path: string): Promise<any> {
   if (!_vkeyCache[path]) _vkeyCache[path] = await (await fetch(path)).json();
   return _vkeyCache[path];
 }
+// A verifier that THREW (vkey fetch failed, malformed proof) is not the same as one that returned
+// false (a real invalid proof). Both are ok=false, but the thrown case carries `error` and is
+// logged, so a broken artifact never reads as "your proof is invalid".
+export type VerifyResult = { ok: boolean; error?: string };
+export async function verifyDetailed(vkeyPath: string, publicSignals: (string | bigint)[], proof: Groth16Proof): Promise<VerifyResult> {
+  try {
+    const sj = await getSnarkjs();
+    const vkey = await loadVkey(vkeyPath);
+    return { ok: await sj.groth16.verify(vkey, publicSignals.map(String), proof) };
+  } catch (e) {
+    log.error("groth16 verify threw", { route: "zk/verify", vkey: vkeyPath, err: errMsg(e) });
+    return { ok: false, error: errMsg(e) };
+  }
+}
 export async function verify(vkeyPath: string, publicSignals: (string | bigint)[], proof: Groth16Proof): Promise<boolean> {
-  const sj = await getSnarkjs();
-  const vkey = await loadVkey(vkeyPath);
-  return sj.groth16.verify(vkey, publicSignals.map(String), proof).catch(() => false);
+  return (await verifyDetailed(vkeyPath, publicSignals, proof)).ok;
 }
 
 // ---- disclosure prove wrappers (input shapes ported from app.js) ----
@@ -369,7 +385,8 @@ export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerificatio
   const vkPath = RECEIPT_VK[type] || CIRCUITS.disclosure.vkey;
   const verifier = RECEIPT_VERIFIER[type] || DISCLOSURE_VERIFIER;
   const sigs = r.publicSignals.map(String);
-  const local = await verify(vkPath, sigs, r.proof);
+  const lv = await verifyDetailed(vkPath, sigs, r.proof);
+  const local = lv.ok;
   const oc = await verifyProofOnChain(verifier, r.proof, sigs);
 
   // F3: derive the disclosed figures + commitment from publicSignals, treating metadata as
@@ -443,7 +460,7 @@ export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerificatio
       }
     }
   } else {
-    boundReason = "proof did not verify";
+    boundReason = lv.error ? "local verifier failed to run: " + lv.error : "proof did not verify";
   }
 
   // F2: anchor content match requires reading the ledger memo, not just recomputing the hash.
@@ -461,5 +478,5 @@ export async function verifyReceipt(r: AuditReceipt): Promise<ReceiptVerificatio
         : "anchor not confirmed on-chain (ledger memo does not match)";
     anchor = { matches: onChainConfirmed, txHash: r.anchor.txHash, selfConsistent, onChainConfirmed, reason };
   }
-  return { ok: local && oc.verified, type, local, onChain: oc.verified, commitment: String(cmt), summary, anchor, bound, boundReason, metaMismatch };
+  return { ok: local && oc.verified, type, local, onChain: oc.verified, commitment: String(cmt), summary, anchor, bound, boundReason, metaMismatch, error: lv.error };
 }

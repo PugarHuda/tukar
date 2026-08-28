@@ -2,7 +2,7 @@
 
 // Real Circle CCTP V2 outbound, Stellar testnet -> Base Sepolia testnet. Three real steps:
 //   1. burn: approve + deposit_for_burn on the Stellar TokenMessengerMinterV2, signed by the
-//      connected Stellar wallet (Freighter) if present, else the built-in testnet key. The
+//      connected Stellar wallet (any kit wallet) if present, else the built-in testnet key. The
 //      mintRecipient is the target EVM address left-padded to bytes32; destinationCaller is
 //      zeroed so the EVM receive is permissionless.
 //   2. attest: the server polls Circle Iris (reused /api/cctp/attest, sourceDomain 27).
@@ -10,10 +10,11 @@
 //      MessageTransmitterV2 (permissionless, user pays gas). USDC lands at the recipient.
 // No EVM wallet -> we show the burn + attestation are complete and hand over message + attestation
 // to submit from a Base Sepolia wallet. We never fake the mint.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Input, Badge } from "@/components/ui";
 import { useWallet } from "@/components/WalletProvider";
-import { PASSPHRASE } from "@/lib/constants";
+import { walletSigner } from "@/lib/stellar";
+import { usdcToStroops } from "@/lib/zk";
 import {
   CCTP,
   isValidEvmAddress,
@@ -21,31 +22,17 @@ import {
   submitReceiveMessageEvm,
   evmTxExplorer,
   stellarTxExplorer,
-  type StellarWallet,
 } from "@/lib/cctp";
 
 type Phase = "idle" | "burning" | "attesting" | "minting" | "need-evm" | "done" | "error";
 const short = (s: string) => (s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Build a Stellar signer from Freighter when connected as such; otherwise undefined so the burn
-// falls back to the funded built-in testnet key (DEMO_SECRET) inside lib/cctp.
-async function stellarWalletFor(kind: string | null, address: string | null): Promise<StellarWallet | undefined> {
-  if (kind !== "freighter" || !address) return undefined;
-  const mod: any = await import("@stellar/freighter-api");
-  const f = mod.default ?? mod;
-  return {
-    address,
-    signTransaction: async (xdr: string, opts?: any) => {
-      const res = await f.signTransaction(xdr, { networkPassphrase: PASSPHRASE, address, ...(opts || {}) });
-      if (res && res.error) throw new Error(res.error);
-      return { signedTxXdr: res.signedTxXdr };
-    },
-  };
-}
-
 export function CctpSend({ className = "" }: { className?: string }) {
-  const { kind, address } = useWallet();
+  const { kind } = useWallet();
+  // A kit wallet is connected (its signer is installed in lib/stellar by WalletProvider); otherwise
+  // the burn falls back to the funded built-in testnet key (DEMO_SECRET) inside lib/cctp.
+  const ownWallet = !!kind && kind !== "demo";
   const [open, setOpen] = useState(false);
   const [hasEvmWallet, setHasEvmWallet] = useState<boolean | null>(null);
   const [amount, setAmount] = useState("1");
@@ -59,6 +46,9 @@ export function CctpSend({ className = "" }: { className?: string }) {
   const [message, setMessage] = useState("");
   const [attestation, setAttestation] = useState("");
   const [copied, setCopied] = useState(false);
+  // Unmount guard for the multi-minute flow: no setState on a component that has gone away.
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
   useEffect(() => {
     const eth = typeof window !== "undefined" ? (window as any).ethereum : null;
@@ -98,9 +88,10 @@ export function CctpSend({ className = "" }: { className?: string }) {
     setMintTx("");
     setMessage("");
     setAttestation("");
+    // The Stellar USDC SAC has 7 decimals (stroops), unlike the 6-dp EVM ERC-20 on the other leg.
     let units: bigint;
     try {
-      units = BigInt(Math.round(parseFloat(amount) * 1e6)); // USDC has 6 decimals
+      units = usdcToStroops(amount);
       if (units <= 0n) throw new Error();
     } catch {
       setError("Enter a positive USDC amount.");
@@ -113,8 +104,8 @@ export function CctpSend({ className = "" }: { className?: string }) {
     try {
       // Step 1: burn on Stellar (approve + deposit_for_burn).
       setPhase("burning");
-      setStatus(kind === "freighter" ? "Approve + burn USDC in Freighter…" : "Burning USDC on Stellar with the built-in testnet key…");
-      const wallet = await stellarWalletFor(kind, address);
+      setStatus(ownWallet ? "Approve + burn USDC in your wallet…" : "Burning USDC on Stellar with the built-in testnet key…");
+      const wallet = (ownWallet && walletSigner()) || undefined;
       const { burnTx: bt } = await depositForBurnStellar({ amount: units, mintRecipientEvm: recipient.trim(), wallet });
       setBurnTx(bt);
 
@@ -122,25 +113,29 @@ export function CctpSend({ className = "" }: { className?: string }) {
       setPhase("attesting");
       setStatus("Waiting for Circle's attestation of the Stellar burn (this can take a minute)…");
       let attest: any = null;
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 60 && alive.current; i++) {
+        // A failed poll of our own route is a transient hiccup: keep polling until the deadline.
         const r = await fetch("/api/cctp/attest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ txHash: "0x" + bt, sourceDomain: CCTP.stellarDomain }),
-        }).then((x) => x.json());
-        if (r.status === "complete") {
+        }).then((x) => x.json()).catch(() => null);
+        if (r?.status === "complete") {
           attest = r;
           break;
         }
+        if (r?.status === "error") throw new Error(r.error || "Circle's attestation service is unreachable. The burn is safe; try again.");
         await sleep(5000);
       }
-      if (!attest) throw new Error("Attestation not ready after several minutes. The burn is safe — re-open this later to finish the mint.");
+      if (!alive.current) return;
+      if (!attest) throw new Error("Attestation not ready after several minutes. The burn is safe; re-open this later to finish the mint.");
       setMessage(attest.message);
       setAttestation(attest.attestation);
 
       // Step 3: mint on Base Sepolia via the user's EVM wallet (or hand it over if none).
       await mint(attest.message, attest.attestation);
     } catch (e: any) {
+      if (!alive.current) return;
       setPhase("error");
       setError(e?.shortMessage || e?.message || String(e));
     }
@@ -182,11 +177,11 @@ export function CctpSend({ className = "" }: { className?: string }) {
           <ol className="mb-3 flex flex-col gap-1.5 font-mono text-[11px] leading-relaxed text-tm">
             <li>1 · Burn USDC on Stellar (approve + deposit_for_burn).</li>
             <li>2 · Circle attests the burn (Iris).</li>
-            <li>3 · Your Base Sepolia wallet calls receiveMessage — USDC mints to the recipient.</li>
+            <li>3 · Your Base Sepolia wallet calls receiveMessage; USDC mints to the recipient.</li>
           </ol>
 
           <p className="mb-3 rounded-lg border border-line bg-black/20 p-2.5 text-[12px] leading-relaxed text-tf">
-            The Stellar burn spends testnet USDC from {kind === "freighter" ? "your connected wallet" : "the built-in testnet key"}. The mint on Base Sepolia needs your own EVM wallet for gas.
+            The Stellar burn spends testnet USDC from {ownWallet ? "your connected wallet" : "the built-in testnet key"}. The mint on Base Sepolia needs your own EVM wallet for gas.
           </p>
 
           {hasEvmWallet === false && (

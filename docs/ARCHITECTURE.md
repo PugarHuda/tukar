@@ -38,7 +38,7 @@ transfer (the reference Nethermind PoC already does that), but a full
 |---|---|
 | **Sender** | Funds the corridor in country A (fiat → USDC → shielded deposit). |
 | **Receiver** | Pulls funds out in country B (shielded withdraw → USDC → fiat). |
-| **Anchor (A / B)** | Regulated fiat on/off-ramp. *Mocked in MVP — clearly stated.* |
+| **Anchor (A / B)** | Regulated fiat on/off-ramp. *Real SEP-10/24 against SDF's testnet reference anchor (KYC is a test stub); a licensed anchor is pending for mainnet.* |
 | **ASP** | Association Set Provider: maintains allow-list (approved sources) and deny-list (sanctioned addresses). |
 | **Regulator / Auditor** | Holds a view key; can verify disclosed facts (amount, threshold, source legitimacy) without seeing the full graph. |
 
@@ -50,7 +50,7 @@ transfer (the reference Nethermind PoC already does that), but a full
    COUNTRY A (sender side)                         COUNTRY B (receiver side)
  ┌───────────────────────┐                       ┌───────────────────────┐
  │ 1. Fiat on-ramp       │                        │ 5. Fiat off-ramp      │
- │    (anchor, mocked)   │                        │    (anchor, mocked)   │
+ │    (SEP-24 anchor)    │                        │    (SEP-24 anchor)    │
  │        │ USDC          │                        │        ▲ USDC          │
  │        ▼               │                        │        │               │
  │ 2. Shielded DEPOSIT    │                        │ 4. Shielded WITHDRAW  │
@@ -72,8 +72,9 @@ transfer (the reference Nethermind PoC already does that), but a full
 ### Step-by-step
 
 1. **Fiat on-ramp (edge A).** Sender pays local fiat to a regulated anchor and
-   receives USDC. *MVP: mocked — we assume the sender already holds testnet
-   USDC.* This edge is **publicly visible** (compliance by design).
+   receives USDC. *Testnet: real SEP-10 auth plus a SEP-24 interactive deposit
+   against SDF's reference anchor, whose KYC is a test stub; the corridor then
+   settles in testnet USDC.* This edge is **publicly visible** (compliance by design).
 
 2. **Shielded deposit + membership proof.** Sender deposits USDC into the
    Tukar pool, creating a confidential commitment (UTXO note). They attach an
@@ -91,7 +92,8 @@ transfer (the reference Nethermind PoC already does that), but a full
    is again **publicly visible**.
 
 5. **Fiat off-ramp (edge B).** Receiver converts USDC to local fiat via an
-   anchor. *MVP: mocked.*
+   anchor. *Testnet: a real SEP-24 withdraw against the reference anchor, plus a live
+   Onramper quote; a licensed anchor is pending for mainnet.*
 
 6. **Selective disclosure (on demand).** At any time, a party can hand a
    **regulator** a ZK proof that selectively discloses a specific fact about a
@@ -196,7 +198,7 @@ truth is durable state, which has no retention dependency.
 
 ---
 
-## 6. What is real vs mocked in the MVP (honesty first)
+## 6. What is real vs simplified in the MVP (honesty first)
 
 - **Real:** the seven ZK circuits (four core + three selective-disclosure variants),
   client-side proving, on-chain Groth16
@@ -210,8 +212,9 @@ truth is durable state, which has no retention dependency.
   regulator, a **reliable global Merkle accumulator** with durable on-chain leaves
   and no admin root backdoor, and a real **Hermez Powers-of-Tau** phase-1 trusted
   setup. Optional **Freighter** wallet signing on top of the no-install demo key.
-- **Mocked / simplified (stated clearly):** fiat anchor on/off-ramps (we assume
-  testnet USDC at the edges), ASP curation policy (allow/deny lists seeded
+- **Simplified (stated clearly):** fiat anchor on/off-ramps run real SEP-10/24
+  against SDF's testnet reference anchor, whose KYC is a test stub, so no real
+  fiat moves (a licensed anchor is pending for mainnet), ASP curation policy (allow/deny lists seeded
   manually), the Merkle witness is computed off-chain (but its correctness is
   proven on-chain), and 10 corridors. **Phase-2** of the trusted setup is now a
   multi-party ceremony (3 contributions + a public beacon) whose keys are deployed,

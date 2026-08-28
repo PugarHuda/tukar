@@ -10,6 +10,7 @@ import {
   RANGE_VERIFIER,
 } from "@/lib/stellar";
 import { log, requestId, errMsg } from "@/lib/log";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 // NOTE: fmtUsdc + receiptCanonical are copied (verbatim) from lib/zk rather than imported —
 // importing from lib/zk drags circomlibjs/ffjavascript/web-worker into this server route. Both
 // are pure, browser-free, and tiny, so copying keeps the route lean per the task's guidance.
@@ -49,12 +50,17 @@ const VERIFIER: Record<DisclosureType, string> = {
   range: RANGE_VERIFIER,
 };
 const TYPES: DisclosureType[] = ["exact", "threshold", "aggregate", "range"];
+// Public-signal count per circuit (matches lib/zk's publicSignals layouts): exact + threshold are
+// [commitment, figure, auditCtx]; range is [commitment, lower, upper, auditCtx]; aggregate is
+// [commitments(5), active(5), cap, auditCtx, ctxNonce]. derive()/bind() index into these
+// positions, so a short array must be rejected here rather than surface as a chain-read error.
+const SIGNALS: Record<DisclosureType, number> = { exact: 3, threshold: 3, range: 4, aggregate: 13 };
 const isField = (s: unknown): s is string => typeof s === "string" && /^\d{1,78}$/.test(s);
 const isHash = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{64}$/i.test(s.trim());
 
-// Same "could not read the chain" sentinel wording as lib/zk.verifyReceipt: a null read is
-// NOT "confirmed absent", it is an amber "unverified", so it must never show a green bind.
-const CANT_CONFIRM = "could not confirm on-chain (chain read failed); treat as unverified";
+// A null pool read is NOT "confirmed absent": it is a chain-read failure, so bind() throws and the
+// route answers 502 instead of ever reporting `unbound` (or a green bind) on missing evidence.
+const CHAIN_READ_FAILED = "chain read failed";
 
 type Checks = {
   groth16: boolean; // the live Stellar verifier contract accepted the proof
@@ -73,6 +79,8 @@ function receiptErrors(r: any): string[] {
   if (!TYPES.includes(r.type)) e.push(`type must be one of ${TYPES.join(", ")}.`);
   if (!Array.isArray(r.publicSignals) || !r.publicSignals.every(isField))
     e.push("publicSignals must be an array of decimal field-element strings.");
+  else if (TYPES.includes(r.type) && r.publicSignals.length !== SIGNALS[r.type as DisclosureType])
+    e.push(`a ${r.type} receipt must carry exactly ${SIGNALS[r.type as DisclosureType]} publicSignals (got ${r.publicSignals.length}).`);
   const p = r.proof;
   if (!p || typeof p !== "object" || !p.pi_a || !p.pi_b || !p.pi_c)
     e.push("proof must be a Groth16 object with pi_a, pi_b, pi_c.");
@@ -102,17 +110,18 @@ function derive(type: DisclosureType, sigs: string[]) {
 async function bind(type: DisclosureType, sigs: string[]): Promise<{ bound: boolean; reason: string }> {
   if (type === "aggregate") {
     const registered = await isAuditRequest(sigs[11]);
-    if (registered === null) return { bound: false, reason: CANT_CONFIRM };
+    if (registered == null) throw new Error(CHAIN_READ_FAILED);
     if (!registered) return { bound: false, reason: "the audit request is not registered on-chain" };
     const activeIdx = [0, 1, 2, 3, 4].filter((i) => sigs[5 + i] === "1");
-    const known = await Promise.all(activeIdx.map((i) => isKnownCommitment(sigs[i])));
-    if (known.some((k) => k === null)) return { bound: false, reason: CANT_CONFIRM };
+    // isKnownCommitment is boolean (false = confirmed absent) or null (could not read the chain).
+    const known: (boolean | null)[] = await Promise.all(activeIdx.map((i) => isKnownCommitment(sigs[i])));
+    if (known.some((k) => k == null)) throw new Error(CHAIN_READ_FAILED);
     if (known.every((k) => k === true))
       return { bound: true, reason: "registered audit request; every active commitment is an on-chain deposit" };
     return { bound: false, reason: "an active commitment in the aggregate is not an on-chain deposit" };
   }
-  const present = await isKnownCommitment(sigs[0]);
-  if (present === null) return { bound: false, reason: CANT_CONFIRM };
+  const present: boolean | null = await isKnownCommitment(sigs[0]);
+  if (present == null) throw new Error(CHAIN_READ_FAILED);
   if (present) return { bound: true, reason: "the commitment is a real on-chain deposit" };
   return { bound: false, reason: "the proof is valid but its commitment is not an on-chain deposit" };
 }
@@ -174,6 +183,12 @@ async function verifyReceiptOnChain(r: AuditReceipt) {
 }
 
 export async function POST(req: Request) {
+  // Each receipt costs ~7 RPC reads including a full pool leaf scan, so cap it per client. 60/min
+  // leaves room for a shared office/NAT address checking a batch of receipts while still bounding
+  // the RPC load one client can cause.
+  const rl = await rateLimit(req, { key: "verify", limit: 60, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
   let body: any;
   try {
     body = await req.json();
@@ -209,6 +224,6 @@ export async function POST(req: Request) {
     // Chain-read failure: log server-side with a request id, return a generic message (never the
     // raw error, which can carry RPC internals) so the client just sees an unverified state.
     log.error("receipt verify failed", { route: "verify", reqId: requestId(req), err: errMsg(e) });
-    return NextResponse.json({ ok: false, error: "Could not verify the receipt on-chain. Please try again." }, { status: 502 });
+    return NextResponse.json({ ok: false, error: "Could not verify the receipt on-chain (chain read failed). Please try again." }, { status: 502 });
   }
 }

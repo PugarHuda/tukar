@@ -81,3 +81,7 @@ scripts/qa-shots/
 test-results/
 playwright-report/
 .playwright-mcp/
+
+# local env files (secrets); the webapp has its own ignore for webapp/.env*
+.env.local
+.env*.local

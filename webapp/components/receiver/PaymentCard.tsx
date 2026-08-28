@@ -57,6 +57,8 @@ import {
 import { CORRIDORS, corridorByCode, fmtLocal, fmtAge, type ClaimedNote, type FxRate } from "./corridors";
 import { buildRateAttestation, attestationCanonical, formatAttestation, summarizeAttestation } from "@/lib/rate-attestation";
 import { SavingsNote } from "@/components/SavingsNote";
+import { receiptLink } from "@/lib/receipt-link";
+import { qrSvgString } from "@/components/sender/qr";
 
 type DiscMode = "exact" | "threshold" | "range" | "aggregate";
 
@@ -100,6 +102,12 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   // Rate attestation: anchored-hash tx + in-flight flag. Component state only.
   const [attAnchorTx, setAttAnchorTx] = useState<string | null>(null);
   const [attAnchoring, setAttAnchoring] = useState(false);
+  // In-flight flags so every button that talks to the chain or a provider shows a busy state.
+  const [quoteBusy, setQuoteBusy] = useState(false);
+  const [cashBusy, setCashBusy] = useState<"onramper" | "anchor" | null>(null);
+  // Set when an oracle corridor's on-chain quote could not be read at withdraw time: the
+  // settlement gate is fail-closed, so the withdraw is not sent and the button becomes a retry.
+  const [gateError, setGateError] = useState<string | null>(null);
 
   // Switching receiver tabs unmounts every PaymentCard, so a running SEP-24 poll would keep
   // firing setState for ~24s on an unmounted card. Track liveness and bail out of the loop.
@@ -110,6 +118,11 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   const usdcStr = fmtUsdc(BigInt(note.amount));
   const usdc = Number(usdcStr);
   const done = !!note.withdrawn;
+  // ONE pricing basis for the whole card: the pool's quote and the withdraw gate price whole USDC
+  // (lib.rs), floored. The quote helpers round, so 12.5 would otherwise show a 13-USDC figure next
+  // to a 12-USDC gate. Everything on-chain below prices `gateUsdc` and says so when it differs.
+  const gateUsdc = Number(BigInt(note.amount) / STROOPS);
+  const basisNote = gateUsdc !== usdc ? ` Based on ${gateUsdc} USDC, the whole-USDC basis the on-chain gate prices.` : "";
 
   const onChainQuote = typeof note.localQuote === "number";
   const fx = fxRates[cor.currency];
@@ -124,20 +137,33 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       setStatus(fx ? `Shown at the live ${cor.currency} rate.` : `Fetching a live ${cor.currency} rate.`);
       return;
     }
-    setStatus(`Revealing your figure in ${cor.currency}.`, true);
+    await readQuote(cor.oracle, cor.currency);
+  }
+
+  // Read the on-chain figure for an oracle corridor: median of 5 Reflector records (the SAME basis
+  // the withdraw gate enforces), spot beside it, and the raw records behind the median.
+  async function readQuote(oracleSym: string, currency: string) {
+    if (gateUsdc < 1) {
+      setStatus(`Under 1 USDC: the pool's on-chain quote prices whole USDC only, so there is no on-chain ${currency} figure for this payment.`);
+      return;
+    }
+    setQuoteBusy(true);
+    setStatus(`Reading the ${currency} figure on-chain from Reflector.`, true);
     try {
-      const q = await offrampQuoteTwap(cor.oracle, usdc, 5);
+      const q = await offrampQuoteTwap(oracleSym, gateUsdc, 5);
       if (q != null) updateNote(note.id, { localQuote: q });
-      setSpotQuote(await offrampQuote(cor.oracle, usdc));
-      const depth = await readReflectorRecords(cor.oracle, 5);
+      setSpotQuote(await offrampQuote(oracleSym, gateUsdc));
+      const depth = await readReflectorRecords(oracleSym, 5);
       if (depth && depth.records.length) updateNote(note.id, { oracleDepth: depth.records });
       setStatus(
         q != null
-          ? "Off-ramp figure read on-chain from the pool's Reflector quote."
-          : "The FX oracle has no live price for this currency right now.",
+          ? "Off-ramp figure read on-chain from the pool's Reflector quote." + basisNote
+          : "On-chain FX quote unavailable right now (no live Reflector price could be read). Retry in a moment.",
       );
     } catch {
-      setStatus("On-chain quote unavailable right now.");
+      setStatus("On-chain FX quote unavailable right now (the chain read failed). Retry in a moment.");
+    } finally {
+      setQuoteBusy(false);
     }
   }
 
@@ -148,19 +174,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     const c = corridorByCode(code);
     if (!note.revealed) return;
     if (c.oracle) {
-      setStatus(`Reading the ${c.currency} figure on-chain from Reflector.`, true);
-      try {
-        // Median of 5 records — the SAME basis reveal() and the withdraw settlement gate use,
-        // so the re-quoted figure matches the "median of 5" copy and the enforced gate.
-        const q = await offrampQuoteTwap(c.oracle, usdc, 5);
-        if (q != null) updateNote(note.id, { localQuote: q });
-        setSpotQuote(await offrampQuote(c.oracle, usdc));
-        const depth = await readReflectorRecords(c.oracle, 5);
-        if (depth && depth.records.length) updateNote(note.id, { oracleDepth: depth.records });
-        setStatus(q != null ? "Off-ramp figure read on-chain from the pool's Reflector quote." : "The FX oracle has no live price for this currency right now.");
-      } catch {
-        setStatus("On-chain quote unavailable right now.");
-      }
+      await readQuote(c.oracle, c.currency);
     } else {
       // Non-oracle corridor: priced from a live FX API, not on-chain. Never spin on an on-chain read.
       const fx2 = fxRates[c.currency];
@@ -225,6 +239,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     }
     const { poseidon, F, tree } = prover;
     updateNote(note.id, { withdrawing: true });
+    setGateError(null);
     setStatus(`Building the shielded transfer proof for ${note.ref}.`, true);
     try {
       const amt = BigInt(note.amount);
@@ -249,19 +264,21 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
       // Min-receive settlement gate for oracle corridors: price at the median of 5 Reflector
       // records (the basis the on-chain gate enforces), floor to 99% (1% slippage). Whole-USDC
-      // unit only, matching lib.rs. A null quote means no gate, so a transient read failure
-      // never blocks a withdraw.
+      // unit only, matching lib.rs. FAIL-CLOSED: if the quote cannot be read the withdraw is not
+      // sent, since an ungated release would contradict the enforced-gate guarantee. Amounts under
+      // 1 USDC cannot be gated by the contract at all and are released ungated, and say so.
       let offrampSym: string | undefined;
       let minLocalOut: number | undefined;
-      if (cor.oracle) {
-        const usdcWhole = amt / STROOPS;
-        if (usdcWhole > 0n) {
-          const q = await offrampQuoteTwap(cor.oracle, Number(usdcWhole), 5);
-          if (q != null && q > 0) {
-            offrampSym = cor.oracle;
-            minLocalOut = Math.floor(q * 0.99);
-          }
+      if (cor.oracle && gateUsdc >= 1) {
+        const q = await offrampQuoteTwap(cor.oracle, gateUsdc, 5).catch(() => null);
+        if (q == null || !(q > 0)) {
+          updateNote(note.id, { withdrawing: false });
+          setGateError("On-chain FX quote unavailable, so the withdraw was not sent: the settlement gate needs a live Reflector price to enforce your minimum. Retry in a moment.");
+          setStatus(`${note.ref}: withdraw held. The on-chain FX quote could not be read, and the gate is fail-closed.`);
+          return;
         }
+        offrampSym = cor.oracle;
+        minLocalOut = Math.floor(q * 0.99);
       }
 
       let res: WriteResult | undefined;
@@ -341,7 +358,9 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
   // ---- cash out: Onramper (primary) ----
   async function cashOutOnramper() {
+    if (cashBusy) return;
     const fiat = cor.currency || "USD";
+    setCashBusy("onramper");
     setStatus(`Fetching a live off-ramp quote for ${usdc} USDC to ${fiat}.`, true);
     setOnramperInfo(null);
     try {
@@ -360,11 +379,15 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       if (!w) setOnramperInfo(`${quoteTxt} Open: ${url}`);
     } catch (e: any) {
       setStatus("Onramper off-ramp failed. " + ((e && e.message) || e));
+    } finally {
+      setCashBusy(null);
     }
   }
 
   // ---- cash out: SEP-24 anchor (secondary) ----
   async function cashOutAnchor() {
+    if (cashBusy) return;
+    setCashBusy("anchor");
     setStatus("Anchor: authenticating (SEP-10) and opening a USDC withdraw (SEP-24).", true);
     setAnchorInfo(null);
     try {
@@ -378,6 +401,8 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       pollAnchorStatus(sep24, bearer, id).catch(() => {});
     } catch (e: any) {
       setStatus("Anchor off-ramp failed. " + ((e && e.message) || e));
+    } finally {
+      setCashBusy(null);
     }
   }
 
@@ -409,22 +434,28 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     const med = sorted[Math.floor(sorted.length / 2)];
     const fresh = d.map((r) => r.ageSec).filter((x): x is number => x != null);
     const freshest = fresh.length ? Math.min(...fresh) : null;
+    const devOf = (r: number) => (med > 0 ? Math.abs(r - med) / med : 0);
+    const outliers = rates.filter((r) => devOf(r) > 0.03).length;
     return (
       <div className="mt-3 rounded-tile border border-line bg-black/20 p-3 text-[11.5px] leading-relaxed text-tm">
         <span className="text-amber">Reflector depth</span>, {d.length} records read on-chain, freshest {fmtAge(freshest)} ago.
         <div className="mt-2 flex flex-wrap items-center gap-1">
-          {d.map((r, i) => {
-            const dev = med > 0 ? Math.abs(r.rate - med) / med : 0;
-            return (
+          <span
+            role="img"
+            aria-label={`${d.length} Reflector records: ${d.length - outliers} within 3% of the median, ${outliers} further out`}
+            className="inline-flex items-center gap-1"
+          >
+            {d.map((r, i) => (
               <span
                 key={i}
-                title={`${fmtLocal(r.rate)} · ${fmtAge(r.ageSec)} ago`}
-                className={`inline-block h-3.5 w-2 rounded-sm ${dev > 0.03 ? "bg-orange" : "bg-green"}`}
+                title={`${fmtLocal(r.rate)} · ${fmtAge(r.ageSec)} ago${devOf(r.rate) > 0.03 ? " · more than 3% from the median" : ""}`}
+                className={`inline-block h-3.5 w-2 rounded-sm ${devOf(r.rate) > 0.03 ? "bg-orange" : "bg-green"}`}
               />
-            );
-          })}
+            ))}
+          </span>
           <span className="ml-1">
             median <b className="text-tp">{cor.symbol}{fmtLocal(med)}</b>, spread {fmtLocal(sorted[0])} to {fmtLocal(sorted[sorted.length - 1])}
+            {outliers > 0 && `, ${outliers} of ${d.length} more than 3% from the median`}
           </span>
         </div>
       </div>
@@ -443,14 +474,14 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     if (!cor.oracle || typeof note.localQuote !== "number" || !note.oracleDepth?.length) return null;
     return buildRateAttestation({
       corridor: { code: cor.code, currency: cor.currency, symbol: cor.symbol, oracleSymbol: cor.oracle },
-      amountUsdc: usdc,
+      amountUsdc: gateUsdc, // the whole-USDC basis the median actually priced (see gateUsdc)
       settledMedian: note.localQuote,
       basis: note.oracleDepth,
       minLocalOut: done ? Math.floor(note.localQuote * 0.99) : null,
       withdrawTx,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cor.oracle, cor.code, note.localQuote, note.oracleDepth, done, withdrawTx, usdc]);
+  }, [cor.oracle, cor.code, note.localQuote, note.oracleDepth, done, withdrawTx, gateUsdc]);
 
   async function copyAttestation() {
     if (!attestation) return;
@@ -557,6 +588,52 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   const [receipt, setReceipt] = useState<AuditReceipt | null>(null);
   const [anchoring, setAnchoring] = useState(false);
   const [anchorTx, setAnchorTx] = useState<string | null>(null);
+
+  // Shareable verification link (/verify#r=<receipt>) + its QR, rebuilt whenever the receipt
+  // changes (anchoring adds the anchor field, so the link picks it up).
+  const [link, setLink] = useState<string | null>(null);
+  const [linkSvg, setLinkSvg] = useState<string | null>(null);
+  useEffect(() => {
+    if (!receipt) {
+      setLink(null);
+      setLinkSvg(null);
+      return;
+    }
+    let live = true;
+    (async () => {
+      try {
+        const l = await receiptLink(receipt);
+        if (!live) return;
+        setLink(l);
+        setLinkSvg(await qrSvgString(l, "#0a0705", "#f3ad79", "Verification link QR code").catch(() => null));
+      } catch {
+        if (live) setLink(null);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [receipt]);
+
+  async function copyLink() {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Verification link copied", "success");
+    } catch {
+      setStatus("Copy failed. Select the link text in the receipt and copy it by hand.");
+    }
+  }
+
+  const receiptFact = !receipt
+    ? ""
+    : receipt.type === "exact"
+      ? `Amount disclosed: $${receipt.disclosedAmountUsdc} USDC`
+      : receipt.type === "threshold"
+        ? `Amount at or below $${receipt.thresholdUsdc} USDC (exact amount hidden)`
+        : receipt.type === "range"
+          ? `Amount within ${receipt.bandUsdc} USDC (exact amount hidden)`
+          : `Sum of ${receipt.commitments?.length ?? 0} payments at or below $${receipt.capUsdc} USDC (individual amounts hidden)`;
 
   const resetDisc = () => {
     setDisc(null);
@@ -964,6 +1041,73 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
           </p>
         </div>
       )}
+
+      {/* Proof-of-payment receipt: shareable link + QR, and the panel that prints (see .tk-print in globals.css). */}
+      {receipt && (
+        <div className="tk-print mt-3 rounded-tile border border-line bg-black/20 p-3.5 text-[12px] leading-relaxed">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Payment receipt</span>
+            <span className="font-mono text-[10px] text-tf">Tukar · Stellar testnet</span>
+          </div>
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 [&_dd]:min-w-0 [&_dd]:break-all [&_dd]:text-ts [&_dt]:pt-0.5 [&_dt]:font-mono [&_dt]:text-[10px] [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-tf">
+            <dt>Printed</dt>
+            <dd>{new Date().toLocaleString()}</dd>
+            <dt>Reference</dt>
+            <dd>{note.ref}</dd>
+            <dt>Corridor</dt>
+            <dd>{cor.country} · {cor.currency}</dd>
+            <dt>Disclosure</dt>
+            <dd>{receiptFact}</dd>
+            {receipt.auditContext && (
+              <>
+                <dt>Audit ref</dt>
+                <dd>{receipt.auditContext}</dd>
+              </>
+            )}
+            <dt>{receipt.type === "aggregate" ? "Commitments" : "Commitment"}</dt>
+            <dd className="font-mono text-[10.5px]">{receipt.type === "aggregate" ? (receipt.commitments as string[] | undefined)?.join(", ") : receipt.commitment}</dd>
+            {withdrawTx && (
+              <>
+                <dt>Withdraw tx</dt>
+                <dd className="font-mono text-[10.5px]">{withdrawTx}</dd>
+              </>
+            )}
+            {receipt.anchor && (
+              <>
+                <dt>Anchor tx</dt>
+                <dd className="font-mono text-[10.5px]">{receipt.anchor.txHash}</dd>
+              </>
+            )}
+            <dt>Verifier</dt>
+            <dd className="font-mono text-[10.5px]">{receipt.verifier}</dd>
+            {attestation && (
+              <>
+                <dt>Rate</dt>
+                <dd>
+                  {summarizeAttestation(attestation)}
+                  {attAnchorTx && ` Hash anchored in ${attAnchorTx}.`}
+                </dd>
+              </>
+            )}
+            <dt>Verify at</dt>
+            <dd className="font-mono text-[10px]">{link || "building the verification link"}</dd>
+          </dl>
+          {linkSvg && (
+            <div className="mx-auto mt-3 h-52 w-52 overflow-hidden rounded-xl border border-line bg-[#f3ad79] p-2" dangerouslySetInnerHTML={{ __html: linkSvg }} />
+          )}
+          <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+            <Button variant="subtle" onClick={copyLink} disabled={!link}>
+              Copy verification link
+            </Button>
+            <Button variant="subtle" onClick={() => window.print()}>
+              Print receipt
+            </Button>
+          </div>
+          <p className="mt-2.5 text-[11px] leading-relaxed text-tm print:hidden">
+            The link carries the whole receipt after the # in the URL, so it is never sent to a server. Anyone who opens it re-runs the on-chain checks. It reveals only what this disclosure reveals.
+          </p>
+        </div>
+      )}
     </Expander>
   );
 
@@ -971,10 +1115,10 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   const cashOut = (
     <Expander label="Cash out to fiat">
       <div className="flex flex-col gap-2">
-        <Button variant="primary" full onClick={cashOutOnramper}>
+        <Button variant="primary" full onClick={cashOutOnramper} busy={cashBusy === "onramper"} disabled={!!cashBusy}>
           Cash out to {cor.currency}, get a live quote
         </Button>
-        <Button variant="ghost" full onClick={cashOutAnchor}>
+        <Button variant="ghost" full onClick={cashOutAnchor} busy={cashBusy === "anchor"} disabled={!!cashBusy}>
           Withdraw via anchor (SEP-24)
         </Button>
       </div>
@@ -1041,7 +1185,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
 
       <div className="mt-4">
         {!note.revealed ? (
-          <Button variant="reveal" full onClick={reveal}>
+          <Button variant="reveal" full onClick={reveal} busy={quoteBusy} disabled={quoteBusy}>
             Reveal in {cor.currency} →
           </Button>
         ) : local != null ? (
@@ -1053,8 +1197,8 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
             <div className="mt-1 text-[11.5px] leading-relaxed text-tm">
               Your ${usdcStr} USDC, converted{" "}
               {onChainQuote
-                ? "on-chain from the pool's Reflector quote, priced at the median of 5 records, the same basis the settlement gate enforces."
-                : "at the live FX API rate."}
+                ? "on-chain from the pool's Reflector quote, priced at the median of 5 records, the same basis the settlement gate enforces." + basisNote
+                : "at the live FX API rate (not on-chain)."}
             </div>
             {onChainQuote && spotQuote != null && (
               <div className="mt-2 rounded-tile border border-line bg-black/20 p-3 text-[11.5px] leading-relaxed text-tm">
@@ -1064,7 +1208,22 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
             {depth()}
           </div>
         ) : cor.oracle ? (
-          <Spinner label={`Reading the ${cor.currency} figure on-chain.`} />
+          quoteBusy ? (
+            <Spinner label={`Reading the ${cor.currency} figure on-chain.`} />
+          ) : gateUsdc < 1 ? (
+            <div className="text-[12.5px] leading-relaxed text-tm">
+              Under 1 USDC: the pool&apos;s on-chain quote prices whole USDC only, so there is no on-chain {cor.currency} figure for this payment. Cash out below for the provider&apos;s live quote.
+            </div>
+          ) : (
+            <div className="text-[12.5px] leading-relaxed text-tm">
+              On-chain FX quote unavailable right now. No live Reflector price could be read, so no figure is shown.
+              <div className="mt-2">
+                <Button variant="ghost" onClick={() => readQuote(cor.oracle!, cor.currency)}>
+                  Retry on-chain quote
+                </Button>
+              </div>
+            </div>
+          )
         ) : (
           <div className="text-[12.5px] leading-relaxed text-tm">
             Live {cor.currency} rate unavailable right now. This corridor prices from a live FX API, not on-chain. Cash out below for the provider&apos;s live quote.
@@ -1081,9 +1240,10 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
           </Button>
         ) : (
           <Button variant="primary" full onClick={withdraw}>
-            Withdraw on-chain
+            {gateError ? "Retry withdraw" : "Withdraw on-chain"}
           </Button>
         )}
+        {gateError && <p className="mt-2.5 text-[11.5px] leading-relaxed text-amber">{gateError}</p>}
         {!note.revealed && (
           <p className="mt-2.5 text-[11.5px] leading-relaxed text-tm">
             Reveal first to see your local figure, then withdraw on-chain and cash out.

@@ -4,7 +4,7 @@
 // in simulation, which is a correct rejection. Server-safe.
 import * as Sdk from "@stellar/stellar-sdk";
 import { buf, buf32, g1, g2, type Groth16Proof } from "./proof";
-import { RPC, PASSPHRASE, POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER } from "../constants";
+import { RPC, PASSPHRASE, POOL, DISCLOSURE_VERIFIER } from "../constants";
 
 export type VerifyResult = { verified: boolean; error?: string };
 
@@ -35,9 +35,6 @@ async function verifyOnChain(contractId: string, proof: Groth16Proof, publicSign
 
 export function verifyDisclosureOnChain(proof: Groth16Proof, publicSignals: (string | bigint)[]): Promise<VerifyResult> {
   return verifyOnChain(DISCLOSURE_VERIFIER, proof, publicSignals);
-}
-export function verifyThresholdOnChain(proof: Groth16Proof, publicSignals: (string | bigint)[]): Promise<VerifyResult> {
-  return verifyOnChain(THRESHOLD_VERIFIER, proof, publicSignals);
 }
 /** Generic BN254 on-chain verify against any verifier contract — used to re-verify an
  *  exported audit receipt of any disclosure type (exact/threshold/aggregate/range). */

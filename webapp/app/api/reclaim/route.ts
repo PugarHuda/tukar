@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { ReclaimProofRequest } from "@reclaimprotocol/js-sdk";
+import { StrKey } from "@stellar/stellar-sdk";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { bindSession } from "@/lib/reclaim-session";
 import { log, requestId, errMsg } from "@/lib/log";
 
 // Server route: mints a Reclaim proof-of-personhood request. Reads creds from env only.
@@ -25,8 +27,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ configured: false });
   }
 
+  // The proof is bound to the connected Stellar account at mint time (setContext below), so the
+  // address is required here and must be a real G... public key.
+  let body: { address?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ configured: true, error: "Invalid request body." }, { status: 400 });
+  }
+  const address = typeof body?.address === "string" ? body.address : "";
+  if (!StrKey.isValidEd25519PublicKey(address)) {
+    return NextResponse.json({ configured: true, error: "address must be a Stellar public key (G...)." }, { status: 400 });
+  }
+
   try {
     const proofRequest = await ReclaimProofRequest.init(appId, appSecret, PROVIDER_ID);
+    // Context is part of the signed claim, so the resulting proof carries this address and cannot be
+    // presented for a different account. Must precede getRequestUrl (the URL embeds the template).
+    proofRequest.setContext(address, "tukar-asp");
+    const sessionId = proofRequest.getSessionId();
+    const { providerVersion } = proofRequest.getProviderVersion();
+    // Single-use binding session -> { address, providerVersion }; verify consumes it atomically.
+    if (!(await bindSession(sessionId, { address, providerVersion }))) {
+      throw new Error("session id already bound");
+    }
     const requestUrl = await proofRequest.getRequestUrl();
     const statusUrl = proofRequest.getStatusUrl();
     return NextResponse.json({ configured: true, requestUrl, statusUrl });

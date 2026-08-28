@@ -2,7 +2,7 @@
   "name": "Tukar — Private cross-border remittance on Stellar",
   "short_name": "Tukar",
   "description": "USDC in, shielded ZK crossing, local fiat out. A compliant remittance corridor on Stellar.",
-  "start_url": "/demo",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

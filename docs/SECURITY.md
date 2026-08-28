@@ -54,8 +54,9 @@ and the proof fails. Every defense below rests on this.
 - **ASP curation** — Tukar enforces *membership* in the allow/deny sets
   cryptographically, but *who is on those lists* is an off-chain policy decision
   (seeded manually here; a real ASP operator owns it).
-- **Anchors** — fiat on/off-ramps are mocked; we assume regulated anchors at the
-  edges in production.
+- **Anchors** — fiat on/off-ramps run real SEP-10/24 against SDF's testnet reference
+  anchor, whose KYC is a test stub; a licensed, regulated anchor at each edge is
+  pending for mainnet.
 - **Phase-2 of the setup** — now a **multi-party ceremony** (3 contributions + a
   public beacon; phase-1 is the real Hermez ceremony), and those keys are deployed.
   The demo ran all rounds on one machine to prove the process, so the one-honest-party

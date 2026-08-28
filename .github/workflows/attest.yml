@@ -1,0 +1,48 @@
+# SEP-0055 contract build attestation via the stellar.expert reusable workflow.
+# See docs/BUILD-ATTESTATION.md for what this does and does not verify.
+#
+# One job per deployed crate under contracts/ (reserves-testpool is a test double, not deployed
+# as a product contract). Each job builds the crate with `stellar contract build --optimize
+# --meta source_repo=github:<owner>/<repo>`, publishes a GitHub release with the .wasm, and
+# attaches a GitHub build-provenance attestation keyed on the wasm sha256.
+name: Build attestation (SEP-0055)
+
+on:
+  push:
+    tags:
+      - "attest-*"
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: "Unique release name (prefix of the GitHub release tags this run creates)"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
+
+jobs:
+  attest:
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - pool
+          - policy-registry
+          - reserves
+          - reserves-aggregate
+          - pool-accumulator
+          - pool-enforced
+          - pool-timelock
+    # Pinned to the v27.0.0 tag commit (stellar-cli 27.0.0, wasm32v1-none), not a moving branch.
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@88068ec50cba931a96436869727ed08edeb76ade # v27.0.0
+    with:
+      release_name: ${{ inputs.release_name || github.ref_name }}
+      release_description: "Tukar ${{ matrix.crate }}: SEP-0055 build attestation"
+      relative_path: contracts/${{ matrix.crate }}
+      package: ${{ matrix.crate }}
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { buildInquiry, canonicalize, decodeTravelAddress, signCanonical, trpHeaders, TRP_API_VERSION } from "@/lib/trp";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { authOwner } from "@/lib/auth";
+import { fetchWithTimeout } from "@/lib/net";
 import { log, requestId, errMsg } from "@/lib/log";
 
 // Outbound TRP originator endpoint. Builds an IVMS101 transfer inquiry, signs the canonical body,
@@ -54,6 +56,11 @@ export async function POST(req: Request) {
   let mode: "notabene" | "self-hosted";
 
   if (useNotabene && notabeneKey) {
+    // Posting to a real external VASP under the operator's Notabene key is not an anonymous
+    // action: require the same wallet sign-in bearer the scheduler routes use (lib/auth.ts).
+    if (!authOwner(req)) {
+      return NextResponse.json({ ok: false, error: "Sign in with your wallet to send via Notabene." }, { status: 401 });
+    }
     target = NOTABENE_URL;
     mode = "notabene";
     headers["authorization"] = `Bearer ${notabeneKey}`;
@@ -72,15 +79,44 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await fetch(target, { method: "POST", headers, body: JSON.stringify(inquiry) });
+    const res = await fetchWithTimeout(target, { method: "POST", headers, body: JSON.stringify(inquiry) }, 10_000);
     const text = await res.text();
-    let response: unknown;
+    let response: any;
     try {
       response = JSON.parse(text);
     } catch {
       response = text;
     }
+
+    // Transfer confirmation (TRP 3.2.1 step 2): when the caller already settled on-chain and passed
+    // its txid, POST the signed {txid} to the callback the beneficiary returned in its approval,
+    // under the SAME request-identifier so the peer can close the inquiry it recorded.
+    let confirmation: { status: number; ok: boolean } | null = null;
+    const callback = response?.approved?.callback;
+    const txid = typeof body.txid === "string" ? body.txid.trim() : "";
+    if (res.ok && txid && typeof callback === "string") {
+      const confirm = { txid };
+      const csig = await signCanonical(canonicalize(confirm));
+      const cres = await fetchWithTimeout(
+        callback,
+        {
+          method: "POST",
+          headers: {
+            ...trpHeaders({ requestIdentifier, apiExtensions: "signed-json" }),
+            "x-trp-signature-alg": csig.alg,
+            "x-trp-public-key": csig.publicKey,
+            "x-trp-signature": csig.signature,
+            "x-trp-digest": csig.digest,
+          },
+          body: JSON.stringify(confirm),
+        },
+        10_000,
+      );
+      confirmation = { status: cres.status, ok: cres.ok };
+    }
+
     return NextResponse.json({
+      confirmation,
       ok: res.ok,
       mode,
       note:

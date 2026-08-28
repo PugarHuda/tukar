@@ -1,15 +1,17 @@
 "use client";
 
 // Two honest things live here:
-//  1. "What you would pay elsewhere" — the World Bank ~6.2% global-average remittance fee applied
+//  1. "What you would pay elsewhere": the World Bank ~6.2% global-average remittance fee applied
 //     to the entered USDC amount, framed as the cost avoided. Tukar's side is not an invented
 //     percentage: on-chain settlement is a fraction of a cent plus the live FX rate.
-//  2. "Put idle USDC to work" — a REAL yield integration against Blend Capital's live testnet
-//     lending pool. Reads the connected wallet's live supplied balance + accrued value on mount,
-//     and supplies / withdraws real testnet USDC signed by the same wallet the rest of the app uses.
+//  2. "Put idle USDC to work": a REAL yield integration against Blend Capital's live testnet
+//     lending pool. Reads the pool's live rate/status/utilization and, when a wallet is connected,
+//     its live supplied balance, accrued value and claimable BLND in ONE pool load, and supplies /
+//     withdraws / claims real testnet tokens signed by the same wallet the rest of the app uses.
+//     A failed chain read is shown as such, with a retry, never as a zero balance.
 import { useEffect, useState, useCallback } from "react";
 import { traditionalRemittanceFee, TRADITIONAL_REMITTANCE_SOURCE } from "@/lib/savings";
-import { readBlendPosition, readBlendRate, blendSupply, blendWithdraw, BLEND_POOL, type BlendPosition, type BlendRate } from "@/lib/blend";
+import { readBlend, blendSupply, blendWithdraw, blendClaim, poolStatusLabel, isPosition, BLEND_POOL, type BlendRead } from "@/lib/blend";
 import { txExplorer, explorer } from "@/lib/stellar";
 import { useWallet } from "@/components/WalletProvider";
 import { Button, Input, useToast } from "@/components/ui";
@@ -52,88 +54,69 @@ const usd4 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2
 function BlendYield({ defaultAmount }: { defaultAmount: string }) {
   const { connected, address } = useWallet();
   const { toast } = useToast();
-  const [pos, setPos] = useState<BlendPosition | null | undefined>(undefined); // undefined = loading
-  const [rate, setRate] = useState<BlendRate | null>(null);
+  const [data, setData] = useState<BlendRead | undefined>(undefined); // undefined = loading
   const [amount, setAmount] = useState(defaultAmount);
-  const [busy, setBusy] = useState<"" | "supply" | "withdraw">("");
+  const [busy, setBusy] = useState<"" | "supply" | "withdraw" | "claim">("");
   const [hash, setHash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (connected && address) {
-      setPos(await readBlendPosition(address));
-    } else {
-      setPos(null);
-      setRate(await readBlendRate());
-    }
-  }, [connected, address]);
+  // One pool load per refresh: rate + status + (when connected) the position and claimable BLND.
+  const refresh = useCallback(() => readBlend(connected && address ? address : undefined), [connected, address]);
 
   useEffect(() => {
     let live = true;
-    setPos(undefined);
-    (async () => {
-      if (connected && address) {
-        const p = await readBlendPosition(address);
-        if (live) setPos(p);
-      } else {
-        const r = await readBlendRate();
-        if (live) {
-          setPos(null);
-          setRate(r);
-        }
-      }
-    })();
+    setData(undefined);
+    refresh().then((d) => {
+      if (live) setData(d);
+    });
     return () => {
       live = false;
     };
-  }, [connected, address]);
+  }, [refresh]);
 
-  const apy = pos?.supplyApy ?? rate?.supplyApy ?? null;
+  async function retry() {
+    setData(undefined);
+    setData(await refresh());
+  }
 
-  async function supply() {
+  async function run(kind: "supply" | "withdraw" | "claim", action: () => Promise<{ ok: true; hash: string } | { ok: false; error: string }>, done: string) {
     setErr(null);
     setHash(null);
+    setBusy(kind);
+    const res = await action();
+    setBusy("");
+    if (res.ok) {
+      setHash(res.hash);
+      toast(done, "success");
+      setData(await refresh());
+    } else {
+      setErr(res.error);
+    }
+  }
+
+  function supply() {
     const n = Number(amount);
     if (!isFinite(n) || n <= 0) {
       setErr("Enter a positive USDC amount to supply.");
       return;
     }
-    setBusy("supply");
-    const res = await blendSupply(n);
-    setBusy("");
-    if (res.ok) {
-      setHash(res.hash);
-      toast("Supplied to Blend", "success");
-      await refresh();
-    } else {
-      setErr(res.error);
-    }
+    run("supply", () => blendSupply(n), "Supplied to Blend");
   }
 
-  async function withdraw() {
-    setErr(null);
-    setHash(null);
-    setBusy("withdraw");
-    const res = await blendWithdraw(); // full position
-    setBusy("");
-    if (res.ok) {
-      setHash(res.hash);
-      toast("Withdrawn from Blend", "success");
-      await refresh();
-    } else {
-      setErr(res.error);
-    }
-  }
-
+  const info = data && data.ok ? data : null;
+  const pos = data && isPosition(data) ? data : null;
   const hasPosition = !!pos && pos.valueUsdc > 0;
+  const hasCollateral = !!pos && pos.collateralBTokens !== "0";
+  // Supply is gated on a confirmed pool status: a failed read leaves it disabled until a retry succeeds.
+  const supplyOpen = !!info && info.supplyOpen;
 
   return (
     <div className="rounded-tile border border-line bg-black/20 p-3.5">
       <div className="flex items-baseline justify-between gap-3">
         <div className="font-mono text-[10px] tracking-[0.1em] text-tf uppercase">Put idle USDC to work</div>
-        {apy != null && (
+        {info && (
           <div className="font-mono text-[10px] text-green-t">
-            {pct(apy)} APY
+            {pct(info.supplyApy)} APY
             <span className="text-tf"> · live Blend rate</span>
           </div>
         )}
@@ -147,20 +130,69 @@ function BlendYield({ defaultAmount }: { defaultAmount: string }) {
         . This is testnet; supply interest accrues at live Blend rates. You keep custody via your wallet.
       </p>
 
+      {/* live pool facts */}
+      {info && (
+        <div className="mt-2.5 flex flex-col gap-1 border-t border-line pt-2.5 font-mono text-[10px] text-tf">
+          <div className="flex justify-between gap-3">
+            <span>supply APY / APR</span>
+            <span className="text-tm">
+              {pct(info.supplyApy)} / {pct(info.supplyApr)}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>pool utilization</span>
+            <span className="text-tm" title="Share of supplied USDC currently lent out. The rest is withdrawable right now.">
+              {pct(info.utilization)} lent out
+            </span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>pool status</span>
+            <span className={info.supplyOpen ? "text-tm" : "text-orange"}>{poolStatusLabel(info.poolStatus)}</span>
+          </div>
+        </div>
+      )}
+
       {/* live position */}
       <div className="mt-2.5 border-t border-line pt-2.5">
-        {pos === undefined ? (
-          <div className="font-mono text-[11px] text-tf">Reading your Blend position on-chain…</div>
+        {data === undefined ? (
+          <div className="font-mono text-[11px] text-tf">Reading the Blend pool on-chain…</div>
+        ) : !data.ok ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[12px] text-orange">{connected ? "Could not read your Blend position." : "Could not read the Blend pool."}</div>
+              <div className="truncate font-mono text-[10px] text-tf">{data.reason}</div>
+            </div>
+            <Button variant="ghost" onClick={retry}>
+              Retry
+            </Button>
+          </div>
         ) : hasPosition ? (
-          <Row
-            k="Your Blend balance"
-            v={<span className="text-green-t">${usd4(pos!.valueUsdc)}</span>}
-            sub={`${pos!.bTokens} b-tokens · value accrues at the live rate`}
-          />
+          <>
+            <Row
+              k="Your Blend balance"
+              v={<span className="text-green-t">${usd4(pos!.valueUsdc)}</span>}
+              sub={`${pos!.bTokens} b-tokens${hasCollateral ? ` + ${pos!.collateralBTokens} collateral b-tokens (legacy)` : ""} · value accrues at the live rate`}
+            />
+            {hasCollateral && (
+              <div className="mt-1 font-mono text-[10px] text-tf">A legacy collateralised position is included; Withdraw all removes both sides.</div>
+            )}
+          </>
         ) : connected ? (
           <div className="text-[12px] text-tm">No USDC supplied yet. Supply below to start earning.</div>
         ) : (
           <div className="text-[12px] text-tm">Connect a wallet or the testnet key to supply USDC and read your live balance.</div>
+        )}
+        {pos && (pos.emissionsActive || pos.claimableBlnd > 0) && (
+          <div className="mt-2 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <Row k="Claimable BLND" v={<span className="text-green-t">{pos.claimableBlnd.toFixed(4)} BLND</span>} sub="Blend emissions on your supply, accrue on-chain" />
+            </div>
+            {pos.claimableBlnd > 0 && pos.claimTokenIds.length > 0 && (
+              <Button variant="ghost" onClick={() => run("claim", () => blendClaim(pos.claimTokenIds), "BLND claimed")} busy={busy === "claim"} disabled={busy !== ""}>
+                Claim
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -181,12 +213,17 @@ function BlendYield({ defaultAmount }: { defaultAmount: string }) {
                 placeholder="e.g. 10"
               />
             </div>
-            <Button variant="primary" onClick={supply} busy={busy === "supply"} disabled={busy !== ""}>
+            <Button variant="primary" onClick={supply} busy={busy === "supply"} disabled={busy !== "" || !supplyOpen}>
               Supply
             </Button>
           </div>
+          {info && !info.supplyOpen && (
+            <p className="text-[12px] leading-relaxed text-orange">
+              The Blend pool is {poolStatusLabel(info.poolStatus)} right now and is not accepting supplies. Withdrawals still work.
+            </p>
+          )}
           {hasPosition && (
-            <Button variant="ghost" full onClick={withdraw} busy={busy === "withdraw"} disabled={busy !== ""}>
+            <Button variant="ghost" full onClick={() => run("withdraw", () => blendWithdraw(), "Withdrawn from Blend")} busy={busy === "withdraw"} disabled={busy !== ""}>
               Withdraw all from Blend
             </Button>
           )}

@@ -3,8 +3,9 @@
 // PUBLIC receipt verifier — a public good. Anyone can paste a Tukar disclosure receipt (or an
 // anchor tx hash) and re-check it against the live Stellar contracts WITHOUT trusting Tukar.
 // The on-chain half runs server-side in /api/verify; this page only renders the honest verdict.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Spinner } from "@/components/ui";
+import { decodeReceiptPayload, receiptPayloadFromHash } from "@/lib/receipt-link";
 
 const short = (s: string) => (s && s.length > 20 ? `${s.slice(0, 10)}…${s.slice(-8)}` : s);
 const isHash = (s: string) => /^[0-9a-f]{64}$/i.test(s.trim());
@@ -44,12 +45,37 @@ export default function VerifyPage() {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fromLink, setFromLink] = useState(false);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
 
-  async function run() {
+  // Text pasted before hydration lands in the DOM but never fires onChange, so React state would
+  // stay "" and the button disabled until the user edits. Adopt whatever is already in the box.
+  useEffect(() => {
+    const v = boxRef.current?.value;
+    if (v) setText(v);
+  }, []);
+
+  // A `/verify#r=<payload>` link: the receipt lives in the URL fragment (never sent to the server),
+  // is decoded here, prefills the paste box, and runs the SAME verification as a paste.
+  useEffect(() => {
+    const p = receiptPayloadFromHash(location.hash);
+    if (p == null) return;
+    decodeReceiptPayload(p)
+      .then((r) => {
+        const s = JSON.stringify(r, null, 2);
+        setText(s);
+        setFromLink(true);
+        return run(s);
+      })
+      .catch((e: any) => setError(`This verification link could not be read: ${(e && e.message) || e}. Ask for the receipt JSON and paste it instead.`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function run(input: string) {
     setBusy(true);
     setRes(null);
     setError(null);
-    const raw = text.trim();
+    const raw = input.trim();
     let body: any;
     if (isHash(raw)) {
       body = { txHash: raw };
@@ -64,8 +90,8 @@ export default function VerifyPage() {
     }
     try {
       const r = await fetch("/api/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      const data: Result = await r.json();
-      if (!r.ok && data.error) setError(data.error);
+      const data: Result = await r.json().catch(() => ({}) as Result);
+      if (!r.ok) setError(data.error || `Verification request failed (HTTP ${r.status}). Try again in a moment.`);
       else setRes(data);
     } catch (e: any) {
       setError((e && e.message) || "Request failed.");
@@ -83,20 +109,30 @@ export default function VerifyPage() {
         read-only and needs no wallet.
       </p>
 
+      <label htmlFor="receipt" className="mt-6 block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+        Receipt JSON or anchor transaction hash
+      </label>
       <textarea
+        id="receipt"
+        ref={boxRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         spellCheck={false}
         placeholder={'{ "kind": "tukar-audit-receipt", "type": "threshold", "proof": { … }, "publicSignals": [ … ] }\n\n…or a 64-character transaction hash'}
-        className="mt-6 h-48 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] leading-relaxed text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+        className="mt-[7px] h-48 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] leading-relaxed text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
       />
 
       <div className="mt-4 flex items-center gap-3">
-        <Button onClick={run} busy={busy} disabled={!text.trim()}>
+        <Button onClick={() => run(text)} busy={busy} disabled={!text.trim()}>
           Verify
         </Button>
         {busy && <Spinner label="checking on-chain…" />}
       </div>
+      {fromLink && (
+        <p className="mt-3 text-[12.5px] leading-relaxed text-tm">
+          Receipt loaded from a verification link. It was decoded in your browser from the part of the URL after the #, which is never sent to a server. The checks below re-run against the live contracts.
+        </p>
+      )}
 
       {error && <p className="mt-5 text-[13px] text-red-t">{error}</p>}
 

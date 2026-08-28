@@ -4,7 +4,7 @@
 // credential (minted by a trusted issuer) and reuses it here: it proves the credential to this app's
 // idOS consumer, which the operator then turns into an on-chain ASP allow-list entry. Tukar never
 // holds the KYC data itself. Honest about its dependency: it needs an idOS profile that already
-// holds a credential from a trusted issuer — it never claims instant KYC for an arbitrary user.
+// holds a credential from a trusted issuer; it never claims instant KYC for an arbitrary user.
 //
 // Two real testnet reads happen with no signing: addressHasProfile() tells you truthfully whether
 // the wallet owns an idOS profile. Sharing the credential (filter + access grant) needs the enclave
@@ -12,6 +12,8 @@
 import { useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { Button, useToast } from "@/components/ui";
+import { signMessageWithWallet } from "@/lib/wallet-kit";
+import { idosBindingMessage } from "@/lib/idos/config";
 import {
   IDOS_NODE_URL,
   IDOS_ENCLAVE_URL,
@@ -39,34 +41,24 @@ type State =
   | { phase: "shared"; verified: boolean; reason?: string; allowlist?: AllowlistInfo }
   | { phase: "error"; message: string };
 
-// Lazy Freighter import (matches WalletProvider) so a missing extension never breaks boot.
-async function freighter(): Promise<any> {
-  const mod: any = await import("@stellar/freighter-api");
-  return mod.default ?? mod;
-}
-
-// Build the idOS user signer for a Stellar (Freighter) wallet. In @idos-network/client 1.5.0 a
+// Build the idOS user signer for the connected Stellar wallet. In @idos-network/client 1.5.0 a
 // Stellar user signer is a CustomKwilSigner (publicAddress + publicKey + signatureType + walletType
 // + signMessage). The identifier is the hex ed25519 public key, and kwil verifies the signature via
 // @stellar/stellar-sdk. signMessage mirrors the idOS reference (apps/idos-data-dashboard signers.ts):
-// pass base64(message) to the wallet and decode the base64 signature (handling the double-encode
-// quirk). ponytail: this leg runs only in-browser for a real credential-holding user; not headless.
-async function makeStellarSigner(address: string) {
+// pass base64(message) to the wallet (SEP-53 via the wallets kit, or the demo key for kind "demo")
+// and decode the base64 signature (handling the double-encode quirk). ponytail: this leg runs only
+// in-browser for a real credential-holding user; not headless.
+async function makeStellarSigner(address: string, kind: string | null) {
   const { StrKey } = await import("@stellar/stellar-sdk");
-  const f = await freighter();
   const hexPublicKey = Buffer.from(StrKey.decodeEd25519PublicKey(address)).toString("hex");
   return {
     publicAddress: hexPublicKey,
     publicKey: hexPublicKey,
     signatureType: "ed25519",
     walletType: "Stellar",
-    signMessage: async (msg: Uint8Array): Promise<Uint8Array> => {
+    signMessage: async (msg: Uint8Array | string): Promise<Uint8Array> => {
       const messageBase64 = Buffer.from(msg).toString("base64");
-      const res: any = await f.signMessage(messageBase64, { address });
-      if (res?.error) throw new Error(res.error.message || String(res.error));
-      let signed = Buffer.isBuffer(res.signedMessage)
-        ? (res.signedMessage as Buffer)
-        : Buffer.from(res.signedMessage, "base64");
+      let signed = Buffer.from(await signMessageWithWallet(messageBase64, address, kind), "base64");
       if (signed.length > 64) signed = Buffer.from(signed.toString(), "base64");
       return new Uint8Array(signed);
     },
@@ -125,10 +117,6 @@ export function IdosConnect() {
   // allow-list update. Only completes when the wallet actually holds such a credential.
   async function shareCredential() {
     if (!address) return;
-    if (kind !== "freighter") {
-      setState({ phase: "error", message: "Connect Freighter to sign the idOS access grant (the shared testnet key cannot)." });
-      return;
-    }
     if (!IDOS_ISSUER_AUTH_PUBLIC_KEY) {
       setState({ phase: "error", message: "No trusted issuer configured, so a KYC credential cannot be matched on this deployment yet." });
       return;
@@ -136,7 +124,8 @@ export function IdosConnect() {
     try {
       setState({ phase: "sharing", step: "signing in to idOS" });
       const client = await idle();
-      const signer = await makeStellarSigner(address);
+      // Wallets without SEP-43 signMessage (Albedo, Rabet, Ledger) reject here with their own message.
+      const signer = await makeStellarSigner(address, kind);
       const withSigner = await client.withUserSigner(signer);
       const loggedIn = await withSigner.logIn();
 
@@ -155,11 +144,16 @@ export function IdosConnect() {
         consumerAuthPublicKey: IDOS_CONSUMER_AUTH_PUBLIC_KEY,
       });
 
+      // The wallet proves it controls `address` for this exact share (idOS grants identify the
+      // owner by user id, not wallet), so the server can bind the allow-list update to it.
+      setState({ phase: "sharing", step: "signing the address binding" });
+      const signature = await signMessageWithWallet(idosBindingMessage(shared.id), address, kind);
+
       setState({ phase: "sharing", step: "verifying server-side" });
       const res = await fetch("/api/idos/credential", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sharedCredentialId: shared.id, address }),
+        body: JSON.stringify({ sharedCredentialId: shared.id, address, signature }),
       });
       const data = await res.json();
       if (data.configured === false) {
@@ -211,7 +205,7 @@ export function IdosConnect() {
       )}
 
       {state.phase === "sharing" && (
-        <p className="mt-1 leading-relaxed text-tm">Working: {state.step}… Approve the prompts in Freighter and the idOS window.</p>
+        <p className="mt-1 leading-relaxed text-tm">Working: {state.step}… Approve the prompts in your wallet and the idOS window.</p>
       )}
 
       {state.phase === "shared" && !state.verified && (
@@ -240,10 +234,12 @@ export function IdosConnect() {
                 </pre>
                 <Button
                   variant="ghost"
-                  onClick={() => {
-                    navigator.clipboard.writeText(state.allowlist!.setAspRootCli);
-                    toast("set_asp_root CLI copied", "success");
-                  }}
+                  onClick={() =>
+                    navigator.clipboard.writeText(state.allowlist!.setAspRootCli).then(
+                      () => toast("set_asp_root CLI copied", "success"),
+                      () => toast("Copy failed; select the command and copy it manually", "error"),
+                    )
+                  }
                 >
                   Copy
                 </Button>

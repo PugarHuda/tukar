@@ -10,6 +10,8 @@
 // Isomorphic by design: everything here runs in the browser (regulator tab) EXCEPT signCanonical,
 // which lazy-imports node:crypto and must only be called server-side.
 
+import { log } from "./log";
+
 export const TRP_API_VERSION = "3.2.1";
 
 // ---- base58 (Bitcoin alphabet) ----------------------------------------------------------------
@@ -121,14 +123,36 @@ export function canonicalize(v: unknown): string {
 }
 
 // Detached Ed25519 signature over the canonical body, via Web Crypto (isomorphic, no node import so
-// the client bundle stays clean; called server-side only). The keypair is generated once per
-// process — a real, self-hosted TRP signing key. We ship the public key (SPKI) so the counterparty
-// can verify; on this single-operator deploy that peer is us. In a multi-VASP network the public
-// key comes from the TRISA/BVN directory instead.
+// the client bundle stays clean; called server-side only). The signing key is this VASP's identity:
+// loaded from TRP_SIGNING_KEY (PKCS8 DER, base64) so it is stable across cold starts; when that env
+// is absent an ephemeral keypair is generated once per process (warned once). We ship the public
+// key (SPKI) so the counterparty can verify; on this single-operator deploy that peer is us. In a
+// multi-VASP network the public key comes from the TRISA/BVN directory instead.
+//
+// Generate a stable key (prints TRP_SIGNING_KEY then the SPKI public key for TRP_PEER_PUBLIC_KEY):
+//   node -e "const c=require('crypto');const k=c.generateKeyPairSync('ed25519');console.log(k.privateKey.export({type:'pkcs8',format:'der'}).toString('base64'));console.log(k.publicKey.export({type:'spki',format:'der'}).toString('base64'))"
 const b64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const ED25519 = { name: "Ed25519" };
 
-let _keyPair: CryptoKeyPair | null = null;
+let _keyPair: Promise<CryptoKeyPair> | null = null;
+
+async function loadKeyPair(): Promise<CryptoKeyPair> {
+  const subtle = globalThis.crypto.subtle;
+  const pkcs8 = process.env.TRP_SIGNING_KEY;
+  if (!pkcs8) {
+    log.warn("TRP_SIGNING_KEY unset; using an ephemeral TRP signing key for this process");
+    return (await subtle.generateKey(ED25519, false, ["sign", "verify"])) as CryptoKeyPair;
+  }
+  // Web Crypto cannot derive the public key from a private key directly: export the private JWK,
+  // keep only its public part (x), and re-import that as the verify key.
+  const priv = await subtle.importKey("pkcs8", unb64(pkcs8), ED25519, true, ["sign"]);
+  const { x } = await subtle.exportKey("jwk", priv);
+  const publicKey = await subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x }, ED25519, true, ["verify"]);
+  const privateKey = await subtle.importKey("pkcs8", unb64(pkcs8), ED25519, false, ["sign"]);
+  return { privateKey, publicKey };
+}
 
 export async function signCanonical(canonical: string): Promise<{
   alg: string;
@@ -137,14 +161,108 @@ export async function signCanonical(canonical: string): Promise<{
   digest: string;
 }> {
   const subtle = globalThis.crypto.subtle;
-  if (!_keyPair) _keyPair = (await subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])) as CryptoKeyPair;
+  if (!_keyPair) _keyPair = loadKeyPair();
+  const kp = await _keyPair;
   const data = new TextEncoder().encode(canonical);
   const [signature, spki, digest] = await Promise.all([
-    subtle.sign({ name: "Ed25519" }, _keyPair.privateKey, data),
-    subtle.exportKey("spki", _keyPair.publicKey),
+    subtle.sign(ED25519, kp.privateKey, data),
+    subtle.exportKey("spki", kp.publicKey),
     subtle.digest("SHA-256", data),
   ]);
   return { alg: "Ed25519", publicKey: b64(spki), signature: b64(signature), digest: hex(digest) };
+}
+
+// Verify a detached TRP Signed-JSON signature: the peer's SPKI public key (x-trp-public-key) over
+// the same canonical bytes signCanonical produced. Any malformed key/signature verifies false.
+export async function verifyCanonical(canonical: string, publicKeySpki: string, signature: string): Promise<boolean> {
+  try {
+    const subtle = globalThis.crypto.subtle;
+    const key = await subtle.importKey("spki", unb64(publicKeySpki), ED25519, false, ["verify"]);
+    return await subtle.verify(ED25519, key, unb64(signature), new TextEncoder().encode(canonical));
+  } catch {
+    return false;
+  }
+}
+
+// Inbound TRP request gate shared by the inquiry and callback endpoints: api-version must match,
+// request-identifier must be present, and the Signed-JSON signature must verify over the canonical
+// form of the parsed body under the supplied SPKI key. When TRP_PEER_PUBLIC_KEY is set the supplied
+// key must equal it (pinned peer); otherwise any well-formed key is accepted and recorded.
+export type TrpGate =
+  | { ok: true; requestIdentifier: string; publicKey: string }
+  | { ok: false; status: number; rejected: string };
+
+export async function verifyTrpRequest(req: Request, body: unknown): Promise<TrpGate> {
+  if (req.headers.get("api-version") !== TRP_API_VERSION) {
+    return { ok: false, status: 400, rejected: `Unsupported api-version. This node speaks TRP ${TRP_API_VERSION}.` };
+  }
+  const requestIdentifier = req.headers.get("request-identifier");
+  if (!requestIdentifier) return { ok: false, status: 400, rejected: "Missing request-identifier header." };
+
+  const publicKey = req.headers.get("x-trp-public-key") || "";
+  const signature = req.headers.get("x-trp-signature") || "";
+  if (!publicKey || !signature) return { ok: false, status: 401, rejected: "Missing TRP Signed-JSON signature." };
+  const pinned = process.env.TRP_PEER_PUBLIC_KEY;
+  if (pinned && publicKey !== pinned) return { ok: false, status: 401, rejected: "Unknown TRP peer key." };
+  if (!(await verifyCanonical(canonicalize(body), publicKey, signature))) {
+    return { ok: false, status: 401, rejected: "TRP signature verification failed." };
+  }
+  return { ok: true, requestIdentifier, publicKey };
+}
+
+// ---- TRP lifecycle store --------------------------------------------------------------------------
+// One record per transfer inquiry under `trp:<request-identifier>`: approved/rejected on intake,
+// then confirmed/canceled by the originator's callback. Upstash Redis when the same env as
+// lib/ratelimit.ts is present (lazy-imported so the client bundle stays clean); otherwise a
+// per-instance Map with a one-time warning. Never holds IVMS101 PII, only the transaction leaf.
+export type TrpLifecycle = {
+  requestIdentifier: string;
+  status: "approved" | "rejected" | "confirmed" | "canceled";
+  asset: unknown;
+  amount: string;
+  transactionReference: string;
+  originatorCallback: string;
+  peerPublicKey: string;
+  address?: string;
+  reason?: string;
+  txid?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const TRP_TTL_SECONDS = 7 * 24 * 3600;
+// ponytail: unbounded per-instance Map; fine for a preview without KV (entries die with the instance).
+const memStore = new Map<string, TrpLifecycle>();
+let warnedMem = false;
+let _redis: Promise<import("@upstash/redis").Redis> | null = null;
+
+function redis() {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) {
+    if (!warnedMem) {
+      warnedMem = true;
+      log.warn("Upstash env unset; TRP lifecycle store is in-memory (per instance)");
+    }
+    return null;
+  }
+  if (!_redis) _redis = import("@upstash/redis").then(({ Redis }) => new Redis({ url, token }));
+  return _redis;
+}
+
+export async function getTrpLifecycle(requestIdentifier: string): Promise<TrpLifecycle | null> {
+  const r = await redis();
+  if (!r) return memStore.get(requestIdentifier) ?? null;
+  return (await r.get<TrpLifecycle>(`trp:${requestIdentifier}`)) ?? null;
+}
+
+export async function putTrpLifecycle(rec: TrpLifecycle): Promise<void> {
+  const r = await redis();
+  if (!r) {
+    memStore.set(rec.requestIdentifier, rec);
+    return;
+  }
+  await r.set(`trp:${rec.requestIdentifier}`, rec, { ex: TRP_TTL_SECONDS });
 }
 
 // ---- self-check -------------------------------------------------------------------------------

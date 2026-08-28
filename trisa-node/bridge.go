@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // bridgeRequest is the body the Next.js app POSTs to /trisa/transfer. beneficiaryVASP is
@@ -19,8 +21,10 @@ type bridgeRequest struct {
 }
 
 // Bridge is a localhost HTTP shim so a serverless Next.js route can drive the always-on
-// TRISA node. It is intentionally bound to localhost (see BRIDGE_ADDR) and does no auth of
-// its own; do not expose it publicly. The mTLS-protected surface is the gRPC server.
+// TRISA node. It is bound to localhost by default (see BRIDGE_ADDR); /trisa/transfer also
+// requires the shared bearer token (TRISA_BRIDGE_TOKEN) so the transfer surface is never open
+// even when the bridge is reachable. /healthz stays unauthenticated for liveness probes. The
+// mTLS-protected surface is the gRPC server.
 func (n *Node) Bridge() http.Handler {
 	mux := http.NewServeMux()
 
@@ -34,6 +38,12 @@ func (n *Node) Bridge() http.Handler {
 	})
 
 	mux.HandleFunc("POST /trisa/transfer", func(w http.ResponseWriter, r *http.Request) {
+		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(got), []byte(n.cfg.BridgeToken)) != 1 {
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "missing or invalid bridge token"})
+			return
+		}
+
 		var req bridgeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid JSON body"})

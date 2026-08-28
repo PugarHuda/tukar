@@ -6,10 +6,33 @@ import { GridCanvas } from "@/components/landing/GridCanvas";
 import { GlobeCanvas } from "@/components/landing/GlobeCanvas";
 import { CircuitsTabs } from "@/components/landing/CircuitsTabs";
 import { LaunchButton } from "@/components/landing/LaunchModal";
+import { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "@/lib/constants";
 
-const POOL = "CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ";
 const POOL_URL = `https://stellar.expert/explorer/testnet/contract/${POOL}`;
 const REPO = "https://github.com/PugarHuda/tukar";
+
+// The live corridor contracts on testnet: the pool plus its seven Groth16 verifiers, the same set
+// public/.well-known/stellar.toml publishes. The additive contracts (policy registry, reserves,
+// enforced pool) are not counted here. The three verifiers lib/constants does not export are the
+// transfer, compliance, and merkleUpdate verifiers (ids from stellar.toml).
+const LIVE_CONTRACTS = [
+  POOL,
+  "CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE", // transfer_verifier
+  "CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2", // compliance_verifier
+  DISCLOSURE_VERIFIER,
+  "CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H", // merkleUpdate_verifier
+  THRESHOLD_VERIFIER,
+  AGGREGATE_VERIFIER,
+  RANGE_VERIFIER,
+];
+// One entry per circuits/*.circom file in the repo.
+const CIRCUITS = ["transfer", "compliance", "disclosure", "merkleUpdate", "thresholdDisclosure", "aggregateDisclosure", "rangeDisclosure", "reserves"];
+// `cargo test` total across the contract crates on 2026-08-27 (pool 52, pool-enforced 65,
+// pool-timelock 78, pool-accumulator 71, policy-registry 3, reserves 6, reserves-aggregate 9).
+// Refresh: run `cargo test` in each contracts/* crate and sum. Shown floored to tens with a "+"
+// because the crates keep gaining tests.
+const CONTRACT_TESTS = 284;
+const CONTRACT_TESTS_LABEL = `${Math.floor(CONTRACT_TESTS / 10) * 10}+`;
 
 // Metadata ported verbatim from frontend/index.html <head> (copy already cleaned).
 export const metadata: Metadata = {
@@ -107,7 +130,7 @@ export default function Home() {
             <div className="hr-thin" />
             <div className="hero-stats">
               <span>STELLAR TESTNET</span>
-              <span>7 ZK CIRCUITS</span>
+              <span>{CIRCUITS.length} ZK CIRCUITS</span>
             </div>
           </div>
         </div>
@@ -177,12 +200,12 @@ export default function Home() {
                 <div className="hr-card" />
                 <div className="stat-row">
                   <div>
-                    <div className="stat-num">8</div>
-                    <div className="stat-label">CONTRACTS ON TESTNET</div>
+                    <div className="stat-num">{LIVE_CONTRACTS.length}</div>
+                    <div className="stat-label">LIVE CONTRACTS ON TESTNET</div>
                   </div>
                   <div>
-                    <div className="stat-num orange">52/52</div>
-                    <div className="stat-label">UNIT TESTS PASS</div>
+                    <div className="stat-num orange">{CONTRACT_TESTS_LABEL}</div>
+                    <div className="stat-label">CONTRACT TESTS (CARGO)</div>
                   </div>
                 </div>
               </div>
@@ -243,7 +266,7 @@ export default function Home() {
           <div className="split-head">
             <div>
               <div className="eyebrow" style={{ marginBottom: 18 }}>On-chain proof</div>
-              <h2>Seven circuits. One corridor.<br />Verified on-chain.</h2>
+              <h2>{CIRCUITS.length} circuits. One corridor.<br />Verified on-chain.</h2>
             </div>
             <div className="aside">
               <a className="link-mono" href={POOL_URL} target="_blank" rel="noopener">VIEW ON-CHAIN PROOF ↗</a>
@@ -396,13 +419,9 @@ export default function Home() {
           <div className="foot-col">
             <div className="h">CIRCUITS</div>
             <div className="links">
-              <a href={`${REPO}/blob/main/circuits/transfer.circom`} target="_blank" rel="noopener">transfer</a>
-              <a href={`${REPO}/blob/main/circuits/compliance.circom`} target="_blank" rel="noopener">compliance</a>
-              <a href={`${REPO}/blob/main/circuits/disclosure.circom`} target="_blank" rel="noopener">disclosure</a>
-              <a href={`${REPO}/blob/main/circuits/merkleUpdate.circom`} target="_blank" rel="noopener">merkleUpdate</a>
-              <a href={`${REPO}/blob/main/circuits/thresholdDisclosure.circom`} target="_blank" rel="noopener">thresholdDisclosure</a>
-              <a href={`${REPO}/blob/main/circuits/aggregateDisclosure.circom`} target="_blank" rel="noopener">aggregateDisclosure</a>
-              <a href={`${REPO}/blob/main/circuits/rangeDisclosure.circom`} target="_blank" rel="noopener">rangeDisclosure</a>
+              {CIRCUITS.map((c) => (
+                <a key={c} href={`${REPO}/blob/main/circuits/${c}.circom`} target="_blank" rel="noopener">{c}</a>
+              ))}
             </div>
           </div>
           <div className="foot-col">

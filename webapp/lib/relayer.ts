@@ -15,6 +15,8 @@ import { getPoseidon, makeTree, type Note } from "./zk";
 // snarkjs proof -> Soroban contract args: the ONE shared server-safe copy (was re-implemented here).
 import { g1, g2, buf, buf32, scProof } from "./soroban/proof";
 import { POOL_ERRORS } from "./soroban/errors";
+import { sendTx as sharedSendTx } from "./soroban/send";
+const sendTx = (buildAt: () => Promise<any>) => sharedSendTx(buildAt, 4);
 
 // Circuit assets ship in the serverless bundle (see next.config.mjs outputFileTracingIncludes).
 const asset = (name: string): string => path.join(process.cwd(), "public", "circuit", name);
@@ -55,30 +57,11 @@ async function poolWriteClient(): Promise<any> {
   return _poolWrite;
 }
 
-// signAndSend with a rebuild-and-retry on TRANSIENT faults (sequence race on the shared key,
-// testnet load-shedding). A contract revert Error(Contract,#N) is deterministic — never retried.
+// signAndSend via the shared wrapper (./soroban/send): rebuild-and-retry on PRE-send transient
+// faults only; once the network holds the tx it polls that hash instead of resubmitting, so the
+// cron can never double-deposit (#10) on a getTransaction blip.
 const _sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const _msg = (e: any) => String(e?.message ?? e ?? "");
-const _isRevert = (e: any) => /Error\(Contract,\s*#\d+\)/.test(_msg(e));
-const _isTransient = (e: any) =>
-  !_isRevert(e) && /txbadseq|bad_seq|try_again_later|timed?\s?out|timeout|txtoolate|\b(?:429|50\d)\b|failed to (?:send|submit)|network|fetch/i.test(_msg(e));
-async function sendTx(buildAt: () => Promise<any>, attempts = 4): Promise<any> {
-  let lastErr: any;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      const at = await buildAt();
-      return await at.signAndSend();
-    } catch (e) {
-      lastErr = e;
-      if (i < attempts && _isTransient(e)) {
-        await _sleep(1200 + i * 900);
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw lastErr;
-}
 
 // Full PoolError code -> message map: shared server-safe copy from ./soroban/errors (was copied
 // here). This wrapper still returns { error, code } combined for the cron run receipts.
@@ -131,6 +114,16 @@ export async function relayerDeposit(note: Note): Promise<WriteResult> {
  * spendable. Mirrors the sender's registerNote (re-sync on UnknownRoot #1 / read-lag #3).
  */
 export async function relayerRegister(note: Note): Promise<WriteResult> {
+  // Always a structured result: the cron has already advanced nextDate (its claim) before calling
+  // us, so a throw here would 500 the run with no receipt for a deposit that DID land.
+  try {
+    return await registerInner(note);
+  } catch (e) {
+    return { ok: false, ...poolErr(e) };
+  }
+}
+
+async function registerInner(note: Note): Promise<WriteResult> {
   const sj = await snarkjs();
   const { poseidon, F } = await getPoseidon();
   const tree = makeTree(F, poseidon);
@@ -142,7 +135,7 @@ export async function relayerRegister(note: Note): Promise<WriteResult> {
     try {
       const ls = await loadLeavesFromChain();
       const onchain = await readCurrentRoot();
-      if (onchain != null && tree.root(ls) === onchain) leaves = ls;
+      if (ls && onchain != null && tree.root(ls) === onchain) leaves = ls;
     } catch {}
     if (!leaves) {
       if (attempt < 3) { await _sleep(3000); continue; }

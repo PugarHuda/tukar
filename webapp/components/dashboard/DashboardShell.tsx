@@ -6,6 +6,7 @@
 // Sidebar as an overlay drawer.
 import { useEffect, useRef, useState } from "react";
 import { Sidebar, type NavItem } from "./Sidebar";
+import { trapTab } from "@/lib/focus-trap";
 
 export type { NavItem };
 
@@ -39,7 +40,8 @@ export function DashboardShell({
     const panel = drawerRef.current;
     const focusables = () =>
       Array.from(panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []);
-    (panel?.querySelector<HTMLElement>("nav button") ?? focusables()[0])?.focus();
+    // Deferred a frame: WebKit ignores a synchronous focus() into a drawer opened by the same tap.
+    const raf = requestAnimationFrame(() => (panel?.querySelector<HTMLElement>("nav button") ?? focusables()[0])?.focus());
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -47,24 +49,15 @@ export function DashboardShell({
         setOpen(false);
         return;
       }
-      if (e.key === "Tab") {
-        const list = focusables();
-        if (list.length === 0) return;
-        const first = list[0];
-        const last = list[list.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
+      trapTab(e, focusables());
     }
+    // Captured now: by cleanup time the ref may point elsewhere (react-hooks/exhaustive-deps).
+    const hamburger = hamburgerRef.current;
     document.addEventListener("keydown", onKey);
     return () => {
+      cancelAnimationFrame(raf);
       document.removeEventListener("keydown", onKey);
-      hamburgerRef.current?.focus();
+      hamburger?.focus();
     };
   }, [open]);
 

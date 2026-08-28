@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { trapTab } from "@/lib/focus-trap";
 
 // Role-picker modal. Each LaunchButton co-locates its own trigger + dialog and
 // returns focus to itself on close, so the hero / header / apps CTAs can each
@@ -52,7 +53,9 @@ function LaunchDialog({ onClose }: { onClose: () => void }) {
     document.body.style.overflow = "hidden";
     const focusables = () =>
       Array.from(panelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []);
-    focusables()[0]?.focus();
+    // One frame later: WebKit drops a synchronous focus() into a portal that was created by the
+    // same click (activeElement stays on <body>), which then breaks keyboard navigation.
+    const raf = requestAnimationFrame(() => focusables()[0]?.focus());
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -60,22 +63,11 @@ function LaunchDialog({ onClose }: { onClose: () => void }) {
         onClose();
         return;
       }
-      if (e.key === "Tab") {
-        const list = focusables();
-        if (list.length === 0) return;
-        const first = list[0];
-        const last = list[list.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
+      trapTab(e, focusables());
     }
     document.addEventListener("keydown", onKey);
     return () => {
+      cancelAnimationFrame(raf);
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };

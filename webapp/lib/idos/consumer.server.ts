@@ -10,7 +10,9 @@ import "server-only";
 // Env (non-secret):
 //   IDOS_NODE_URL                   playground kwil node (default below)
 //   IDOS_ACCEPTED_ISSUERS           JSON array of {issuer, publicKeyMultibase} we trust (optional)
+//   IDOS_DENY_COUNTRIES             comma-separated ISO country codes we refuse (default empty)
 import type { idOSConsumer as idOSConsumerType } from "@idos-network/consumer";
+import { checkCredentialContent } from "./checks";
 
 const NODE_URL = process.env.IDOS_NODE_URL || "https://nodes.playground.idos.network";
 
@@ -68,7 +70,9 @@ export type CredentialReadResult = {
  * Read a credential the user shared with this consumer (by its shared/DAG id), decrypt it with our
  * recipient key, and verify the issuer signature against the trusted issuer(s). The decryption
  * itself is the access-control gate: it only succeeds when the user actually granted this consumer,
- * so a caller cannot make us read an arbitrary credential.
+ * so a caller cannot make us read an arbitrary credential. The access grant is then re-read from
+ * idOS and must name this consumer as grantee and the copy's owner as grantor, and the content
+ * must pass status/expiry/residency checks before the credential counts as verified.
  */
 export async function readSharedCredential(sharedCredentialId: string): Promise<CredentialReadResult> {
   const c = await consumer();
@@ -96,10 +100,26 @@ export async function readSharedCredential(sharedCredentialId: string): Promise<
   // issuers is the SDK's AvailableIssuerType[]; our {issuer, publicKeyMultibase} is the CustomIssuerType
   // member of that union, cast through unknown since we build it from env JSON.
   const [ok] = await c.verifyCredential(credential, issuers as unknown as Parameters<typeof c.verifyCredential>[1]);
-  return {
-    verified: ok,
-    reason: ok ? undefined : "Credential signature did not match a trusted issuer",
-    credentialType,
-    issuer,
-  };
+  if (!ok) {
+    return { verified: false, reason: "Credential signature did not match a trusted issuer", credentialType, issuer };
+  }
+
+  // Grant binding: the copy row names its owner; the grant on it must be to OUR consumer identity
+  // (the hex auth public key the client granted to) from that same owner.
+  const [copy, grants] = await Promise.all([
+    c.getCredentialSharedFromIDOS(sharedCredentialId),
+    c.getAccessGrantsForCredential(sharedCredentialId),
+  ]);
+  const me = c.address.toLowerCase();
+  const bound = Boolean(copy) && grants.some(
+    (g) => g.ag_grantee_wallet_identifier.toLowerCase() === me && g.ag_owner_user_id === copy!.user_id,
+  );
+  if (!bound) {
+    return { verified: false, reason: "No access grant from the credential owner to this consumer", credentialType, issuer };
+  }
+
+  const contentProblem = checkCredentialContent(credential, copy!.public_notes);
+  if (contentProblem) return { verified: false, reason: contentProblem, credentialType, issuer };
+
+  return { verified: true, credentialType, issuer };
 }

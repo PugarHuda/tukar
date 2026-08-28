@@ -100,6 +100,42 @@
   }
 }
 
+/* Printable receipt: only the `.tk-print` panel prints (nav, tabs, status bar, buttons hidden),
+   as black-on-white. Tailwind `print:hidden` drops the buttons inside the panel. */
+@media print {
+  * {
+    animation: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .tk-print,
+  .tk-print * {
+    visibility: visible;
+    color: #000 !important;
+    background: #fff !important;
+    border-color: #bbb !important;
+  }
+  .tk-print {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0 !important;
+  }
+  .tk-print a {
+    text-decoration: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

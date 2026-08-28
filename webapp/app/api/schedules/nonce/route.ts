@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   const nonce = String(body?.nonce ?? "");
   const signature = String(body?.signature ?? "");
   if (!G_RE.test(address) || !nonce || !signature) return NextResponse.json({ error: "invalid sign-in request" }, { status: 400 });
-  const token = issueToken(address, nonce, signature);
+  const token = await issueToken(address, nonce, signature);
   if (!token) return NextResponse.json({ error: "signature or nonce rejected" }, { status: 401 });
   return NextResponse.json({ token });
 }

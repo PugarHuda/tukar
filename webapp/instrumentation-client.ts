@@ -2,14 +2,16 @@
 // with none set (current state) Sentry.init never runs, so the browser SDK loads no transport and
 // makes zero requests to any Sentry ingest host — nothing for the CSP to block.
 import * as Sentry from "@sentry/nextjs";
+import { sentryOptions } from "./lib/log";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 if (dsn) {
   Sentry.init({
     dsn,
-    tracesSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 0),
-    sendDefaultPii: false,
+    ...sentryOptions,
+    // Browser bundles only inline NEXT_PUBLIC_* env, so the client override is its own variable.
+    tracesSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? sentryOptions.tracesSampleRate),
   });
 }
 

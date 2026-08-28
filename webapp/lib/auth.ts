@@ -14,6 +14,7 @@ import "server-only";
 // See scripts/auth-selfcheck.mjs for the runnable check of these properties.
 import { createHmac, createHash, timingSafeEqual, randomBytes } from "node:crypto";
 import { Keypair } from "@stellar/stellar-sdk";
+import { Redis } from "@upstash/redis";
 
 const G_RE = /^G[A-Z2-7]{55}$/; // Stellar ed25519 public key (G-address)
 const NONCE_TTL_MS = 5 * 60 * 1000;
@@ -75,11 +76,37 @@ export function verifyWalletSignature(address: string, message: string, signatur
   }
 }
 
+// Single-use nonces. Issuance stays stateless; a nonce is marked spent on its first successful
+// exchange (SET NX with the nonce's remaining TTL, so the marker expires with the nonce) and a
+// second exchange of the same nonce is refused. Upstash when the same env as lib/ratelimit.ts is
+// present; otherwise a per-instance Map, which is honest about its ceiling: a replay against a
+// different warm instance is not caught without KV.
+const spentNonces = new Map<string, number>();
+let _redis: Redis | null = null;
+function redis(): Redis | null {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  if (!_redis) _redis = new Redis({ url, token });
+  return _redis;
+}
+async function spendNonce(r: string, exp: number): Promise<boolean> {
+  const ttl = Math.max(1, exp - Date.now());
+  const client = redis();
+  if (client) return (await client.set(`nonce:${r}`, 1, { nx: true, px: ttl })) === "OK";
+  const now = Date.now();
+  for (const [k, e] of spentNonces) if (e < now) spentNonces.delete(k);
+  if (spentNonces.has(r)) return false;
+  spentNonces.set(r, exp);
+  return true;
+}
+
 /** Exchange a signed nonce for a session token. Returns null on any failure (fail closed). */
-export function issueToken(address: string, nonce: string, signatureB64: string): string | null {
+export async function issueToken(address: string, nonce: string, signatureB64: string): Promise<string | null> {
   const n = open("nonce", nonce);
-  if (!n || n.a !== address || typeof n.exp !== "number" || n.exp < Date.now()) return null;
+  if (!n || n.a !== address || typeof n.exp !== "number" || n.exp < Date.now() || typeof n.r !== "string") return null;
   if (!verifyWalletSignature(address, nonce, signatureB64)) return null;
+  if (!(await spendNonce(n.r, n.exp))) return null; // replayed nonce
   return seal("token", { a: address, exp: Date.now() + TOKEN_TTL_MS });
 }
 

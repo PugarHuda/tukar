@@ -28,8 +28,9 @@ function loadQrLib(): Promise<any> {
   return _lib;
 }
 
-/** Encode `text` as a themed SVG string (dark modules on a pale box). Throws if the lib can't load. */
-export async function qrSvgString(text: string, dark = "#0a0705", light = "#f3ad79"): Promise<string> {
+/** Encode `text` as a themed SVG string (dark modules on a pale box). Throws if the lib can't load
+ *  or `text` exceeds QR capacity (~2.9 KB). `label` is the accessible name of the image. */
+export async function qrSvgString(text: string, dark = "#0a0705", light = "#f3ad79", label = "Claim note QR code"): Promise<string> {
   const qrcode = await loadQrLib();
   const qr = qrcode(0, "L"); // auto version, ECC level L (max data capacity)
   qr.addData(text);
@@ -43,7 +44,7 @@ export async function qrSvgString(text: string, dark = "#0a0705", light = "#f3ad
       if (qr.isDark(r, c)) rects += `<rect x="${c + margin}" y="${r + margin}" width="1" height="1"/>`;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" ` +
-    `width="100%" height="100%" role="img" aria-label="Claim note QR code">` +
+    `width="100%" height="100%" role="img" aria-label="${label}">` +
     `<rect width="${size}" height="${size}" fill="${light}"/><g fill="${dark}">${rects}</g></svg>`
   );
 }

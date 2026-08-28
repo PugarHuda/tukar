@@ -1140,6 +1140,63 @@ fn set_policy_registry_requires_admin() {
     c.pool.set_policy_registry(&reg);
 }
 
+// H2: with a registry set, a withdraw that names NO corridor cannot skip the cap gate
+// (it used to bypass the registry entirely) -> PolicyRequired (#22), nothing released.
+#[test]
+#[should_panic(expected = "Error(Contract, #22)")] // PolicyRequired
+fn withdraw_requires_corridor_when_registry_set() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    c.pool.set_policy_registry(&reg);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &100_000_000);
+    let six_usdc = 60_000_000i128;
+    c.pool.deposit(&c.user, &six_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, six_usdc),
+        &nulls, &outs, &recipient, &six_usdc, &None, &None,
+    );
+}
+
+// H2: the cap is compared in stroops, so 5.0000001 USDC does NOT pass a 5 USDC cap (the
+// old floored whole-USDC compare let anything under cap + 1 through).
+#[test]
+#[should_panic(expected = "Error(Contract, #16)")] // PolicyExceeded
+fn withdraw_rejects_fractional_over_cap() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    c.pool.set_policy_registry(&reg); // "MX" cap = 5 whole USDC
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &100_000_000);
+    let over = 50_000_001i128; // 5 USDC + 1 stroop
+    c.pool.deposit(&c.user, &over, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MX");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, over),
+        &nulls, &outs, &recipient, &over, &Some(sym), &None,
+    );
+}
+
+// M7: a state-changing call extends the instance TTL to the 30-day window (the fresh test
+// instance starts at the 4096-ledger minimum, under the 7-day threshold).
+#[test]
+fn state_change_bumps_instance_ttl() {
+    use soroban_sdk::testutils::storage::Instance as _;
+    let env = Env::default();
+    let c = setup(&env);
+    let before = env.as_contract(&c.pool.address, || env.storage().instance().get_ttl());
+    assert!(before < INSTANCE_TTL_THRESHOLD);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let after = env.as_contract(&c.pool.address, || env.storage().instance().get_ttl());
+    assert_eq!(after, INSTANCE_TTL_EXTEND);
+}
+
 // The in-place upgrade entrypoint is admin-gated: a non-admin call fails auth.
 #[test]
 #[should_panic]
@@ -1170,7 +1227,7 @@ fn import_state_reproduces_root_leaves_and_nullifiers() {
     let deny = deny8(&env);
 
     assert!(!c.pool.is_migrated());
-    c.pool.import_state(&leaves, &root, &nulls, &asp, &deny);
+    c.pool.import_state(&leaves, &root, &nulls, &asp, &deny, &0);
     assert!(c.pool.is_migrated());
 
     // leaf_count + current_root reproduced exactly from the source set.
@@ -1192,6 +1249,53 @@ fn import_state_reproduces_root_leaves_and_nullifiers() {
     assert_eq!(c.pool.deny_list(), deny);
 }
 
+// A repeated leaf in the import set is rejected (DuplicateCommitment #10): it would take a
+// second tree slot backed by one commitment.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")] // DuplicateCommitment
+fn import_state_rejects_duplicate_leaf() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61), b32(&env, 60)];
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env], &b32(&env, 123), &deny8(&env), &0);
+}
+
+// A FULL depth-10 source (exactly 1024 leaves) imports; only 1025 is TreeFull. The test env
+// enforces mainnet per-tx resource limits, which a 3072-write import exceeds, so they are
+// lifted here: this checks the boundary logic, not that a full import fits one transaction.
+#[test]
+fn import_state_allows_full_tree() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.host().set_invocation_resource_limits(None).unwrap();
+    env.cost_estimate().budget().reset_unlimited();
+    let mut leaves: Vec<BytesN<32>> = vec![&env];
+    for i in 0..1024u32 {
+        let mut a = [0u8; 32];
+        a[28..32].copy_from_slice(&i.to_be_bytes());
+        a[27] = 1; // distinct from every other fixture, still canonical
+        leaves.push_back(BytesN::from_array(&env, &a));
+    }
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env], &b32(&env, 123), &deny8(&env), &0);
+    assert_eq!(c.pool.leaf_count(), 1024);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #8)")] // TreeFull
+fn import_state_rejects_over_capacity() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.cost_estimate().budget().reset_unlimited();
+    let mut leaves: Vec<BytesN<32>> = vec![&env];
+    for i in 0..1025u32 {
+        let mut a = [0u8; 32];
+        a[28..32].copy_from_slice(&i.to_be_bytes());
+        a[27] = 1;
+        leaves.push_back(BytesN::from_array(&env, &a));
+    }
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env], &b32(&env, 123), &deny8(&env), &0);
+}
+
 // One-shot: a second import_state is rejected (AlreadyMigrated #17), so state can't be
 // re-imported / overwritten after the migration.
 #[test]
@@ -1203,9 +1307,9 @@ fn import_state_is_one_shot() {
     let root = b32(&env, 200);
     let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 70)];
     let deny = deny8(&env);
-    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny);
+    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny, &0);
     // second call must fail
-    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny);
+    c.pool.import_state(&leaves, &root, &nulls, &b32(&env, 123), &deny, &0);
 }
 
 // Virgin-only: importing on top of a pool that already took a deposit is rejected, so
@@ -1217,7 +1321,7 @@ fn import_state_rejects_nonvirgin_pool() {
     let c = setup(&env);
     c.pool.deposit(&c.user, &100, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
     let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60)];
-    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env));
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env), &0);
 }
 
 // import_state is admin-gated: a non-admin call fails auth.
@@ -1227,7 +1331,7 @@ fn import_state_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
     env.mock_auths(&[]); // nothing authorized
-    c.pool.import_state(&vec![&env, b32(&env, 60)], &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env));
+    c.pool.import_state(&vec![&env, b32(&env, 60)], &b32(&env, 200), &vec![&env, b32(&env, 70)], &b32(&env, 123), &deny8(&env), &0);
 }
 
 // After import, a still-unspent imported note can be withdrawn against the imported root
@@ -1239,7 +1343,9 @@ fn import_state_then_withdraw_unspent_note_succeeds() {
     let root = b32(&env, 200);
     let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
     let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
-    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    // Seed the accumulator with the source's outstanding total (500) so migrated withdraws fold.
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env), &500);
+    assert_eq!(c.pool.total_liabilities(), 500);
     // Fund the migrated pool's custody so a withdraw can release (migration doesn't move tokens).
     StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
 
@@ -1252,6 +1358,7 @@ fn import_state_then_withdraw_unspent_note_succeeds() {
         &nulls, &outs, &recipient, &120, &None, &None,
     );
     assert_eq!(c.token.balance(&recipient), 120);
+    assert_eq!(c.pool.total_liabilities(), 380); // seed 500 - released 120
 }
 
 // After import, a withdraw that REUSES an imported-spent nullifier is rejected
@@ -1264,7 +1371,7 @@ fn import_state_then_withdraw_reusing_spent_nullifier_rejected() {
     let root = b32(&env, 200);
     let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
     let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
-    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env), &0);
     StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
 
     let recipient = Address::generate(&env);
@@ -1394,30 +1501,52 @@ fn attest_reserves_rejects_when_over_custody() {
     c.pool.attest_reserves(); // total 300 > custody 100 -> Insolvent #18
 }
 
-// The withdraw-side fold never drives the accumulator below zero. A MIGRATED pool seeds the
-// accumulator at 0 (import can't recover hidden amounts — see import_state), so a post-import
-// withdraw folds -Z against 0; the fold clamps at 0 rather than going negative or trapping the
-// withdraw (which would brick the migrated pool). Custody and spend still work normally.
+// M5: the withdraw-side fold must NOT clamp at zero. Releasing more than the accumulator holds
+// means more value leaves than was ever deposited (a value mint on a genesis pool), so the
+// withdraw traps with Overflow (#19) and releases nothing. Custody is funded out of band here
+// so the token transfer itself could succeed; only the accumulator guard stops it.
 #[test]
-fn accumulator_clamps_at_zero_on_migrated_withdraw() {
+#[should_panic(expected = "Error(Contract, #19)")] // Overflow (accumulator underflow)
+fn accumulator_underflow_traps_instead_of_clamping() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.deposit(&c.user, &100, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500); // out-of-band custody
+    assert_eq!(c.pool.total_liabilities(), 100);
+
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 80), b32(&env, 81)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None, // 120 > 100 accumulated -> #19
+    );
+}
+
+// The migrated-pool consequence of M5: an import seeded at 0 leaves nothing to fold, so a
+// post-import withdraw traps (#19) instead of clamping. Seed import_state's total_liabilities
+// from the source (see import_state_then_withdraw_unspent_note_succeeds) to migrate for real.
+#[test]
+fn migrated_withdraw_traps_when_seeded_at_zero() {
     let env = Env::default();
     let c = setup(&env);
     let root = b32(&env, 200);
     let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61)];
     let spent: Vec<BytesN<32>> = vec![&env, b32(&env, 70), b32(&env, 71)];
-    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env));
+    c.pool.import_state(&leaves, &root, &spent, &b32(&env, 123), &deny8(&env), &0);
     StellarAssetClient::new(&env, &c.token.address).mint(&c.pool.address, &500);
     assert_eq!(c.pool.total_liabilities(), 0); // import doesn't populate the accumulator
 
     let recipient = Address::generate(&env);
     let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 80), b32(&env, 81)];
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
-    c.pool.withdraw(
+    let r = c.pool.try_withdraw(
         &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
         &nulls, &outs, &recipient, &120, &None, &None,
     );
-    assert_eq!(c.token.balance(&recipient), 120); // withdraw still releases
-    assert_eq!(c.pool.total_liabilities(), 0); // clamped at 0, never negative
+    assert_eq!(r, Err(Ok(soroban_sdk::Error::from_contract_error(19)))); // Overflow
+    assert_eq!(c.token.balance(&recipient), 0); // nothing released
+    assert_eq!(c.pool.total_liabilities(), 0); // unchanged
 }
 
 // A duplicate-commitment deposit reverts BEFORE folding, so the accumulator never double-counts

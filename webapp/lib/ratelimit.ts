@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { log, errMsg } from "./log";
 
 // Sliding-window rate limiter keyed by client IP. A real control against DoS /
 // compute-amplification on the open API routes: it rejects the (N+1)th request inside the window
@@ -13,6 +14,9 @@ import { Redis } from "@upstash/redis";
 //   - IN-MEMORY (fallback): when that env is absent, state lives in this module's Map — per-instance
 //     only, resets on cold start, and a client hitting two warm instances gets up to 2x the limit.
 //     Fine as a first line of defense for local dev / previews without a KV bound.
+//
+// Redis outage = fail OPEN onto the in-memory path (logged), never a 500: a limiter must not be the
+// thing that takes the API down. Upstash's own `timeout` does the same for a slow (not failing) Redis.
 
 type Hit = number[]; // request timestamps (ms) within the current window
 const buckets = new Map<string, Hit>();
@@ -34,6 +38,9 @@ export interface RateLimitOptions {
 export interface RateLimitResult {
   ok: boolean;
   retryAfter?: number; // seconds until the caller may retry (for Retry-After)
+  limit: number; // window size, for X-RateLimit-Limit
+  remaining: number; // requests left in this window, for X-RateLimit-Remaining
+  reset: number; // epoch ms when the window resets, for X-RateLimit-Reset
 }
 
 // --- Distributed (Upstash Redis) backend --------------------------------------------------------
@@ -63,6 +70,8 @@ function getLimiter(opts: RateLimitOptions): Ratelimit | null {
       redis,
       limiter: Ratelimit.slidingWindow(opts.limit, `${windowSeconds} s`),
       prefix: `rl:${opts.key}`, // distinct namespace per route
+      timeout: 1000, // a Redis round-trip slower than this lets the request through (fail open)
+      analytics: true, // per-route hit/deny counts in the Upstash console
     });
     limiters.set(cacheKey, limiter);
   }
@@ -77,23 +86,9 @@ function announceBackend() {
   console.log(`[ratelimit] backend: ${backend}`);
 }
 
-// --- Public API ---------------------------------------------------------------------------------
+// --- In-memory backend ---------------------------------------------------------------------------
 
-// Async because the Upstash `.limit()` call is async. The in-memory path resolves synchronously but
-// keeps the same Promise contract so call sites `await` uniformly.
-export async function rateLimit(req: Request, opts: RateLimitOptions): Promise<RateLimitResult> {
-  announceBackend();
-  const ip = clientIp(req);
-
-  const limiter = getLimiter(opts);
-  if (limiter) {
-    const res = await limiter.limit(ip);
-    if (res.success) return { ok: true };
-    const retryAfter = Math.max(1, Math.ceil((res.reset - Date.now()) / 1000));
-    return { ok: false, retryAfter };
-  }
-
-  // Fallback: per-instance in-memory sliding window.
+function memoryLimit(ip: string, opts: RateLimitOptions): RateLimitResult {
   const now = Date.now();
   const cutoff = now - opts.windowMs;
   const id = `${opts.key}:${ip}`;
@@ -102,8 +97,9 @@ export async function rateLimit(req: Request, opts: RateLimitOptions): Promise<R
 
   if (recent.length >= opts.limit) {
     buckets.set(id, recent); // keep the pruned list so it does not grow unbounded
-    const retryAfter = Math.max(1, Math.ceil((recent[0]! + opts.windowMs - now) / 1000));
-    return { ok: false, retryAfter };
+    const reset = recent[0]! + opts.windowMs;
+    const retryAfter = Math.max(1, Math.ceil((reset - now) / 1000));
+    return { ok: false, retryAfter, limit: opts.limit, remaining: 0, reset };
   }
 
   recent.push(now);
@@ -116,13 +112,57 @@ export async function rateLimit(req: Request, opts: RateLimitOptions): Promise<R
     }
   }
 
-  return { ok: true };
+  return { ok: true, limit: opts.limit, remaining: opts.limit - recent.length, reset: recent[0]! + opts.windowMs };
 }
 
-// 429 helper: JSON body + Retry-After header, the shape every rate-limited route returns.
-export function tooManyRequests(retryAfter?: number) {
-  return NextResponse.json(
-    { error: "Too many requests. Please slow down." },
-    { status: 429, headers: retryAfter ? { "Retry-After": String(retryAfter) } : undefined },
-  );
+// --- Public API ---------------------------------------------------------------------------------
+
+// Async because the Upstash `.limit()` call is async. The in-memory path resolves synchronously but
+// keeps the same Promise contract so call sites `await` uniformly.
+export async function rateLimit(req: Request, opts: RateLimitOptions): Promise<RateLimitResult> {
+  announceBackend();
+  const ip = clientIp(req);
+
+  const limiter = getLimiter(opts);
+  if (limiter) {
+    try {
+      const res = await limiter.limit(ip);
+      // The analytics write rides on `pending`; let it finish after the response instead of
+      // holding the request (or dropping it when the function freezes). Outside a request scope
+      // (tests, scripts) `after` throws, so just let the promise run.
+      try {
+        after(res.pending);
+      } catch {
+        res.pending.catch(() => {});
+      }
+      const base = { limit: res.limit, remaining: res.remaining, reset: res.reset };
+      if (res.success) return { ok: true, ...base };
+      const retryAfter = Math.max(1, Math.ceil((res.reset - Date.now()) / 1000));
+      return { ok: false, retryAfter, ...base };
+    } catch (e) {
+      log.warn("rate limit backend failed, falling back to in-memory", { key: opts.key, err: errMsg(e) });
+    }
+  }
+
+  // Fallback: per-instance in-memory sliding window.
+  return memoryLimit(ip, opts);
+}
+
+// Standard X-RateLimit-* headers for a route to attach to its (2xx or 429) response, so clients
+// can pace themselves before hitting the limit. Reset is epoch seconds (the common convention).
+export function rateLimitHeaders(rl: RateLimitResult): Record<string, string> {
+  return {
+    "X-RateLimit-Limit": String(rl.limit),
+    "X-RateLimit-Remaining": String(Math.max(0, rl.remaining)),
+    "X-RateLimit-Reset": String(Math.ceil(rl.reset / 1000)),
+  };
+}
+
+// 429 helper: JSON body + Retry-After (+ X-RateLimit-* when given the full result), the shape every
+// rate-limited route returns. Accepts the bare retryAfter seconds for the existing call sites.
+export function tooManyRequests(rl?: number | RateLimitResult) {
+  const retryAfter = typeof rl === "number" ? rl : rl?.retryAfter;
+  const headers: Record<string, string> = typeof rl === "object" ? rateLimitHeaders(rl) : {};
+  if (retryAfter) headers["Retry-After"] = String(retryAfter);
+  return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429, headers });
 }

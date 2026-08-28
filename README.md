@@ -140,8 +140,9 @@ the limits section further down.
    allow-list from [Reclaim](https://reclaimprotocol.org) (zkTLS proof-of-personhood, live on
    Stellar): a **server-side verify** checks the Reclaim proof and an **allow-list update loop**
    has the operator apply `set_asp_root`, so a verified person is added to the on-chain
-   allow-root with no redeploy. (Composing [idOS](https://idos.network) reusable KYC stays
-   roadmap.)
+   allow-root with no redeploy. [idOS](https://idos.network) reusable KYC is integrated
+   alongside it: a user shares an existing credential from a trusted issuer, the server reads
+   and verifies it, and the same allow-list update loop applies (needs the idOS consumer env).
 4. **Cross-chain via Circle CCTP V2.** **Bidirectional** CCTP V2 (EVM <-> Stellar) is wired, so
    value moves into and out of the corridor across chains. The burn leg needs a user EVM wallet
    to sign.
@@ -160,9 +161,9 @@ And a public **/verify receipt verifier** with a **note-status double-spend API*
 a disclosure receipt or a note's spent status without trusting the operator, backed by an
 **oracle-signed rate attestation** on the off-ramp quote.
 
-Still ahead: per-corridor on-chain enforcement on the live pool (a state migration), idOS
-reusable-KYC composition, and TRISA activation (the operator's VASP cert and host). They are the
-path from the working testnet build to a production, multi-anchor corridor.
+Still ahead: per-corridor on-chain enforcement on the live pool (a state migration) and TRISA
+activation (the operator's VASP cert and host). They are the path from the working testnet build
+to a production, multi-anchor corridor.
 
 ---
 
@@ -352,9 +353,9 @@ next two sections.
   SEP-40 oracle on a median of five sources; the withdraw carries a min-receive gate and fails
   closed if the feed stalls, so funds never move on a bad price.
 - **Fiat edges (SEP anchors).** On and off ramps run over SEP-10 plus SEP-24 against SDF's
-  reference anchor, with Onramper wired as the licensed off-ramp path. On testnet the
-  reference anchor does no real KYC, so the fiat edges are simulated; going live swaps in one
-  licensed anchor and the SEP flow is identical.
+  reference anchor, with live Onramper quotes as the licensed off-ramp path. The SEP calls are
+  real; the testnet reference anchor's KYC is a test stub, so no real fiat moves. Going live
+  swaps in one licensed anchor and the SEP flow is identical.
 - **No-install wallet.** A one-tap built-in testnet key (no seed phrase) signs real testnet
   transactions, or connect Freighter for your own key.
 - **Four apps.** Sender and Receiver are mobile-first consumer apps (send, claim, cash out);
@@ -551,14 +552,15 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
 
 ## Honest limits, and how far it's actually built
 
-- **Fiat anchors are mocked in the demo flow** (the corridor assumes testnet USDC at
-  the edges). But the anchor **SEP protocols are really integrated**. Tukar publishes
+- **The fiat edges run against SDF's testnet reference anchor, not a licensed one** (its KYC
+  is a test stub and no real fiat moves; the corridor settles in testnet USDC). The anchor
+  **SEP protocols themselves are really integrated**. Tukar publishes
   a [SEP-1 `stellar.toml`](webapp/public/.well-known/stellar.toml), and `npm run sep:anchor`
   authenticates (SEP-10 JWT) and opens a real interactive USDC on-ramp (SEP-24) against
   SDF's reference anchor, plus SEP-6/SEP-31 `/info`, **5/5 live** ([`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) §6).
-  It's also **wired into the demo UI**. A "Fund via a real anchor (SEP-24)" button on
-  the Sender step signs the SEP-10 challenge (demo key or Freighter) and opens the real
-  anchor deposit window (`npm run test:anchor` → 5/5 live).
+  It's also **wired into the app UI**: the wallet bar's anchor on-ramp and the Receiver's
+  "Withdraw via anchor (SEP-24)" sign the SEP-10 challenge (built-in key or Freighter) and
+  open the real anchor window, with the SEP-24 transaction status polled live.
   A production ramp needs a *licensed* KYC anchor (business, not code). The **ASP
   allow-list is a real, configurable policy**, not a single seeded witness:
   [`scripts/build-asp.mjs`](scripts/build-asp.mjs) builds it from a list of approved

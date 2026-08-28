@@ -176,13 +176,59 @@ fn new_round_clears_covered_set() {
 #[test]
 fn solvent_and_insolvent_views() {
     let env = Env::default();
-    // balance 400, attest 500 covered -> insolvent-for-covered.
+    // balance 400; each attestation is capped at custody (M6), so insolvency shows up only
+    // across attesters: 300 + 300 = 600 covered > 400 -> insolvent-for-covered.
     let ctx = setup(&env, 400, &[1, 2], true);
     ctx.c.open_round(&nonce(&env));
-    let (cm, ac) = slots(&env, &[1, 2]);
-    ctx.c.attest_partial(&dummy_proof(&env), &cm, &ac, &500i128, &audit(&env));
-    assert_eq!(ctx.c.proven_liabilities(), 500);
-    assert!(!ctx.c.solvent_for_covered()); // 500 > 400
+    let (cm, ac) = slots(&env, &[1]);
+    ctx.c.attest_partial(&dummy_proof(&env), &cm, &ac, &300i128, &audit(&env));
+    assert!(ctx.c.solvent_for_covered()); // 300 <= 400
+    let (cm2, ac2) = slots(&env, &[2]);
+    ctx.c.attest_partial(&dummy_proof(&env), &cm2, &ac2, &300i128, &audit(&env));
+    assert_eq!(ctx.c.proven_liabilities(), 600);
+    assert!(!ctx.c.solvent_for_covered()); // 600 > 400
+}
+
+// M6: disclosed_sum is caller-chosen (the proof only bounds sum <= disclosed_sum), so it is
+// capped at the live pool balance: one depositor cannot attest more than the pool custodies
+// and flip solvent_for_covered() false for everyone. Equal to balance still passes.
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")] // InvalidAmount (above custody)
+fn rejects_disclosed_sum_above_custody() {
+    let env = Env::default();
+    let ctx = setup(&env, 1000, &[1, 2], true);
+    ctx.c.open_round(&nonce(&env));
+    let (cm, ac) = slots(&env, &[1]);
+    ctx.c.attest_partial(&dummy_proof(&env), &cm, &ac, &1001i128, &audit(&env));
+}
+
+#[test]
+fn disclosed_sum_equal_to_custody_allowed() {
+    let env = Env::default();
+    let ctx = setup(&env, 1000, &[1, 2], true);
+    ctx.c.open_round(&nonce(&env));
+    let (cm, ac) = slots(&env, &[1]);
+    assert_eq!(ctx.c.attest_partial(&dummy_proof(&env), &cm, &ac, &1000i128, &audit(&env)), 1000);
+    assert!(ctx.c.solvent_for_covered());
+}
+
+// M7: attest extends the instance TTL and the new Covered marker's persistent TTL.
+#[test]
+fn attest_bumps_instance_and_covered_ttl() {
+    use soroban_sdk::testutils::storage::{Instance as _, Persistent as _};
+    let env = Env::default();
+    let ctx = setup(&env, 1000, &[1], true);
+    ctx.c.open_round(&nonce(&env));
+    let (cm, ac) = slots(&env, &[1]);
+    ctx.c.attest_partial(&dummy_proof(&env), &cm, &ac, &100i128, &audit(&env));
+    let (inst, covered) = env.as_contract(&ctx.c.address, || {
+        (
+            env.storage().instance().get_ttl(),
+            env.storage().persistent().get_ttl(&DataKey::Covered(1, b32(&env, 1))),
+        )
+    });
+    assert_eq!(inst, INSTANCE_TTL_EXTEND);
+    assert_eq!(covered, TTL_EXTEND);
 }
 
 #[test]

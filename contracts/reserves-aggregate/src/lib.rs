@@ -45,6 +45,15 @@ const BALANCE: Symbol = symbol_short!("balance");
 // Fixed circuit width of the reused aggregate-disclosure circuit AggregateDisclosure(5):
 // each attestation covers 1..5 of a depositor's notes; unused slots are inactive padding.
 const AGG_N: u32 = 5;
+// Persistent TTL bounds for the per-round Covered markers (ledgers at ~5s): under ~1 day
+// left (17_280) -> extend to ~31 days (535_680), the pool's leaf/root discipline, so a
+// covered note cannot be re-counted after its marker is archived.
+const TTL_THRESHOLD: u32 = 17_280;
+const TTL_EXTEND: u32 = 535_680;
+// Instance TTL bounds (round, nonce, totals live in the instance): under ~7 days left
+// (120_960) -> extend to ~30 days (518_400). Bumped from every state-changing entrypoint.
+const INSTANCE_TTL_THRESHOLD: u32 = 120_960;
+const INSTANCE_TTL_EXTEND: u32 = 518_400;
 
 /// Groth16 proof — identical layout to the verifier's / pool's `Groth16Proof`.
 #[contracttype]
@@ -63,7 +72,7 @@ pub enum Error {
     ProofRejected = 2,    // aggregate verifier rejected the proof
     UnknownCommitment = 3, // an active slot's commitment is not a live pool deposit
     AlreadyCovered = 4,   // a commitment was already counted in this round (no double-count)
-    InvalidAmount = 5,    // disclosed_sum out of the circuit's 72-bit cap range
+    InvalidAmount = 5,    // disclosed_sum negative, >= 2^72 (circuit cap range), or above live custody
     BadIoCount = 6,       // wrong slot count / active flag not in {0,1} / no active slot
     NonCanonicalField = 7, // a caller field element is not its canonical mod-r encoding
 }
@@ -104,6 +113,7 @@ impl ReservesAggregate {
     pub fn open_round(env: Env, ctx_nonce: BytesN<32>) -> u32 {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         Self::require_canonical(&env, &ctx_nonce);
         let s = env.storage().instance();
         let round: u32 = s.get::<_, u32>(&DataKey::Round).unwrap_or(0) + 1;
@@ -151,8 +161,17 @@ impl ReservesAggregate {
         if disclosed_sum < 0 || disclosed_sum >= (1i128 << 72) {
             soroban_sdk::panic_with_error!(&env, Error::InvalidAmount);
         }
+        Self::bump_instance(&env);
 
         let pool: Address = s.get(&DataKey::Pool).unwrap();
+        // The proof only shows sum(active notes) <= disclosed_sum, so disclosed_sum is caller-
+        // chosen. Unbounded, one permissionless depositor could attest ~2^72 and flip
+        // solvent_for_covered() false for the whole round. No single depositor's notes can
+        // exceed what the pool custodies, so cap each contribution at the live pool balance.
+        let balance: i128 = env.invoke_contract(&pool, &BALANCE, Vec::new(&env));
+        if disclosed_sum > balance {
+            soroban_sdk::panic_with_error!(&env, Error::InvalidAmount);
+        }
 
         // BUILD the public-input vector FROM the passed slots in circuit order
         // [commitments(5), active(5), cap, auditContextHash, ctxNonce] — the SAME binding
@@ -221,6 +240,7 @@ impl ReservesAggregate {
                 let key = DataKey::Covered(round, commitments.get(i).unwrap());
                 if !env.storage().persistent().has(&key) {
                     env.storage().persistent().set(&key, &());
+                    env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
                     newly += 1;
                 }
             }
@@ -283,6 +303,12 @@ impl ReservesAggregate {
     }
 
     // ---- helpers (identical discipline to the pool) ----
+
+    /// Keep the contract instance + code alive: extend to INSTANCE_TTL_EXTEND once under
+    /// INSTANCE_TTL_THRESHOLD ledgers remain. Called by every state-changing entrypoint.
+    fn bump_instance(env: &Env) {
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND);
+    }
 
     fn fr(env: &Env, b: &BytesN<32>) -> Bn254Fr {
         Bn254Fr::from_bytes(b.clone())

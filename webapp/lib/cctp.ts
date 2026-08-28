@@ -92,24 +92,63 @@ export function buildForwarderHookData(recipientStrkey: string): `0x${string}` {
 // ---- Circle Iris attestation (server route calls this) ----
 export type AttestResult =
   | { status: "pending" }
-  | { status: "complete"; message: string; attestation: string };
+  | { status: "complete"; message: string; attestation: string }
+  // Iris unreachable / non-2xx: the client should offer a retry, not silently poll forever.
+  | { status: "error"; error: string };
 
 /**
- * One poll of Circle Iris for a burn's attestation. 404 (not indexed yet) and any incomplete
- * status map to `pending` so the client can re-poll without seeing a 500. Returns the { message,
- * attestation } pair the Stellar mint needs once status === "complete".
+ * One poll of Circle Iris for a burn's attestation. `pending` means Iris genuinely does not have it
+ * yet (404 = not indexed, or an entry whose status/attestation is still pending). Anything else
+ * (non-2xx, network failure, timeout, malformed body) THROWS so the caller can log it and surface a
+ * retryable error instead of masking an outage as "pending". Returns the { message, attestation }
+ * pair the Stellar mint needs once status === "complete".
  */
 export async function fetchAttestation(sourceDomain: number, txHash: string): Promise<AttestResult> {
   const url = `${CCTP.irisApi}/v2/messages/${sourceDomain}?transactionHash=${txHash}`;
   const res = await fetchWithTimeout(url, { headers: { accept: "application/json" } }, 15000);
   if (res.status === 404) return { status: "pending" };
-  if (!res.ok) return { status: "pending" };
+  if (!res.ok) throw new Error(`iris responded ${res.status}`);
   const json: any = await res.json();
   const m = json?.messages?.[0];
   if (m && m.status === "complete" && m.attestation && m.attestation !== "PENDING" && m.message) {
     return { status: "complete", message: m.message, attestation: m.attestation };
   }
   return { status: "pending" };
+}
+
+// ---- Circle Iris fee schedule ----
+// GET {irisApi}/v2/burn/USDC/fees/{sourceDomainId}/{destDomainId} (Circle API reference,
+// "Get USDC transfer fees"): one entry per finality threshold, minimumFee in basis points.
+export type CctpBurnFee = {
+  finalityThreshold: number; // 1000 = fast, 2000 = standard
+  minimumFee: number; // basis points (1 = 0.01%)
+  forwardFee?: { low: number; medium: number; high: number };
+};
+
+/** Circle's current fee schedule for a src -> dst USDC burn. Throws on a non-2xx / malformed reply. */
+export async function fetchBurnFees(srcDomain: number = CCTP.evmDomain, dstDomain: number = CCTP.stellarDomain): Promise<CctpBurnFee[]> {
+  const url = `${CCTP.irisApi}/v2/burn/USDC/fees/${srcDomain}/${dstDomain}`;
+  const res = await fetchWithTimeout(url, { headers: { accept: "application/json" } }, 15000);
+  if (!res.ok) throw new Error(`iris fees responded ${res.status}`);
+  const json: unknown = await res.json();
+  if (!Array.isArray(json)) throw new Error("iris fees: unexpected response shape");
+  return json.filter((f: any) => Number.isInteger(f?.finalityThreshold) && Number.isFinite(f?.minimumFee) && f.minimumFee >= 0);
+}
+
+/**
+ * The minimum fee (bps) that applies to a burn submitted with `minFinalityThreshold`: the exact
+ * tier if listed, else the cheapest tier at or above it (a burn that accepts a slower finality
+ * cannot be charged the faster tier). null when no tier covers it.
+ */
+export function minimumFeeBps(fees: CctpBurnFee[], minFinalityThreshold: number = CCTP.minFinalityThreshold): number | null {
+  const eligible = fees.filter((f) => f.finalityThreshold >= minFinalityThreshold).sort((a, b) => a.finalityThreshold - b.finalityThreshold);
+  return eligible.length ? eligible[0]!.minimumFee : null;
+}
+
+/** Fee in USDC base units for `amount` at `bps`, rounded UP so maxFee never undercuts Circle's minimum. */
+export function feeForAmount(amount: bigint, bps: number): bigint {
+  if (amount < 0n || !Number.isInteger(bps) || bps < 0) throw new Error("feeForAmount: amount and bps must be non-negative integers");
+  return (amount * BigInt(bps) + 9999n) / 10000n;
 }
 
 // ---- Stellar mint_and_forward (server route calls this) ----

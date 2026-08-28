@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { fetchWithTimeout } from "@/lib/net";
+import { log, requestId, errMsg } from "@/lib/log";
 
 // Bridge to the Tukar TRISA companion node (trisa-node/). A serverless function cannot host
 // the two things a real TRISA Travel Rule exchange needs: a stable mTLS gRPC endpoint peers
@@ -42,25 +44,32 @@ export async function POST(req: Request) {
     );
   }
 
+  // The bridge requires its bearer token (TRISA_BRIDGE_TOKEN, shared with the node's env).
+  const bridgeToken = process.env.TRISA_BRIDGE_TOKEN;
   try {
-    const res = await fetch(`${nodeUrl.replace(/\/$/, "")}/trisa/transfer`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        beneficiaryVASP: body.beneficiaryVASP,
-        ivms101,
-        amount: typeof body.amount === "number" ? body.amount : Number(body.amount) || 0,
-        network: body.network || "Stellar",
-        asset: body.asset || "USDC",
-        txid: body.txid || "",
-      }),
-    });
+    const res = await fetchWithTimeout(
+      `${nodeUrl.replace(/\/$/, "")}/trisa/transfer`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(bridgeToken ? { authorization: `Bearer ${bridgeToken}` } : {}),
+        },
+        body: JSON.stringify({
+          beneficiaryVASP: body.beneficiaryVASP,
+          ivms101,
+          amount: typeof body.amount === "number" ? body.amount : Number(body.amount) || 0,
+          network: body.network || "Stellar",
+          asset: body.asset || "USDC",
+          txid: body.txid || "",
+        }),
+      },
+      15_000,
+    );
     const data = await res.json().catch(() => ({}));
     return NextResponse.json({ configured: true, status: res.status, ...data }, { status: res.ok ? 200 : 502 });
-  } catch (e: any) {
-    return NextResponse.json(
-      { configured: true, ok: false, error: "Could not reach TRISA node: " + ((e && e.message) || String(e)) },
-      { status: 502 },
-    );
+  } catch (e) {
+    log.error("TRISA node unreachable", { route: "travel-rule/trisa", reqId: requestId(req), err: errMsg(e) });
+    return NextResponse.json({ configured: true, ok: false, error: "Could not reach the TRISA node." }, { status: 502 });
   }
 }

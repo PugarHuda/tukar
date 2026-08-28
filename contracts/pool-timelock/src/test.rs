@@ -1168,14 +1168,150 @@ fn set_policy_registry_requires_admin() {
     c.pool.propose_set_policy_registry(&reg);
 }
 
-// The in-place upgrade entrypoint is admin-gated: a non-admin call fails auth.
+// H2: with a registry set, a withdraw that names NO corridor cannot skip the cap gate
+// (it used to bypass the registry entirely) -> PolicyRequired (#22), nothing released.
+#[test]
+#[should_panic(expected = "Error(Contract, #22)")] // PolicyRequired
+fn withdraw_requires_corridor_when_registry_set() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    tl_set_policy_registry(&env, &c, &reg);
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &100_000_000);
+    let six_usdc = 60_000_000i128;
+    c.pool.deposit(&c.user, &six_usdc, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, six_usdc),
+        &nulls, &outs, &recipient, &six_usdc, &None, &None,
+    );
+}
+
+// H2: the cap is compared in stroops, so 5.0000001 USDC does NOT pass a 5 USDC cap (the
+// old floored whole-USDC compare let anything under cap + 1 through).
+#[test]
+#[should_panic(expected = "Error(Contract, #16)")] // PolicyExceeded
+fn withdraw_rejects_fractional_over_cap() {
+    let env = Env::default();
+    let c = setup(&env);
+    let reg = env.register(MockPolicyRegistry, ());
+    tl_set_policy_registry(&env, &c, &reg); // "MX" cap = 5 whole USDC
+    StellarAssetClient::new(&env, &c.token.address).mint(&c.user, &100_000_000);
+    let over = 50_000_001i128; // 5 USDC + 1 stroop
+    c.pool.deposit(&c.user, &over, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let recipient = Address::generate(&env);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let sym = soroban_sdk::Symbol::new(&env, "MX");
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, over),
+        &nulls, &outs, &recipient, &over, &Some(sym), &None,
+    );
+}
+
+// M7: a state-changing call extends the instance TTL to the 30-day window (the fresh test
+// instance starts at the 4096-ledger minimum, under the 7-day threshold).
+#[test]
+fn state_change_bumps_instance_ttl() {
+    use soroban_sdk::testutils::storage::Instance as _;
+    let env = Env::default();
+    let c = setup(&env);
+    let before = env.as_contract(&c.pool.address, || env.storage().instance().get_ttl());
+    assert!(before < INSTANCE_TTL_THRESHOLD);
+    c.pool.deposit(&c.user, &300, &b32(&env, 1), &dummy_proof(&env), &dummy_proof(&env));
+    let after = env.as_contract(&c.pool.address, || env.storage().instance().get_ttl());
+    assert_eq!(after, INSTANCE_TTL_EXTEND);
+}
+
+// ---- H1: the code swap is TIMELOCKED (no instant admin upgrade) ----
+
+// The instant `upgrade(new_wasm_hash)` entrypoint no longer exists on this contract.
+#[test]
+fn upgrade_instant_path_removed() {
+    let env = Env::default();
+    let c = setup(&env);
+    let r = env.try_invoke_contract::<(), soroban_sdk::Error>(
+        &c.pool.address,
+        &soroban_sdk::Symbol::new(&env, "upgrade"),
+        vec![&env, BytesN::from_array(&env, &[7u8; 32]).into_val(&env)],
+    );
+    assert!(r.is_err()); // missing function: the admin key alone cannot swap code instantly
+}
+
 #[test]
 #[should_panic]
-fn upgrade_requires_admin() {
+fn propose_upgrade_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
     env.mock_auths(&[]); // switch off blanket auth: nothing is authorized
-    c.pool.upgrade(&BytesN::from_array(&env, &[7u8; 32]));
+    c.pool.propose_upgrade(&BytesN::from_array(&env, &[7u8; 32]));
+}
+
+// propose stores (hash, eta); execute before the eta is rejected (#20); cancel clears it.
+#[test]
+fn propose_upgrade_stores_pending_and_waits() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.ledger().set_timestamp(1000);
+    let h = BytesN::from_array(&env, &[7u8; 32]);
+    c.pool.propose_upgrade(&h);
+    assert_eq!(c.pool.pending_upgrade(), Some((h.clone(), 1000 + TEST_DELAY)));
+    advance(&env, TEST_DELAY - 1);
+    assert_eq!(c.pool.try_execute_upgrade(), Err(Ok(soroban_sdk::Error::from_contract_error(20))));
+    c.pool.cancel_upgrade();
+    assert!(c.pool.pending_upgrade().is_none());
+    advance(&env, 2);
+    assert_eq!(c.pool.try_execute_upgrade(), Err(Ok(soroban_sdk::Error::from_contract_error(21))));
+}
+
+// After the eta, execute reaches update_current_contract_wasm with the stored hash: no such
+// wasm is uploaded in the test env, so the HOST (not the timelock) rejects it. Any timelock
+// rejection would be a typed Contract error (#20/#21); a host error proves the swap was
+// attempted. (No Soroban wasm is committed to the repo, so a real swap is exercised on
+// testnet, see docs/CONTRACT-UPGRADE-STEPS.md.)
+#[test]
+fn execute_upgrade_after_eta_reaches_wasm_swap() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.propose_upgrade(&BytesN::from_array(&env, &[7u8; 32]));
+    advance(&env, TEST_DELAY + 1);
+    let err = c.pool.try_execute_upgrade().unwrap_err();
+    if let Ok(e) = err {
+        // a host error (e.g. Storage/MissingValue for the unknown hash), never a Contract error
+        assert!(!e.is_type(soroban_sdk::xdr::ScErrorType::Contract), "{:?}", e);
+    }
+    assert!(c.pool.pending_upgrade().is_some()); // the failed call rolled back; still queued
+}
+
+// ---- set_admin is TIMELOCKED too ----
+
+#[test]
+fn set_admin_is_timelocked() {
+    let env = Env::default();
+    let c = setup(&env);
+    let old = c.pool.admin();
+    let new_admin = Address::generate(&env);
+    env.ledger().set_timestamp(1000);
+    c.pool.propose_set_admin(&new_admin);
+    assert_eq!(c.pool.pending_set_admin(), Some((new_admin.clone(), 1000 + TEST_DELAY)));
+    assert_eq!(c.pool.admin(), old); // not yet applied
+    advance(&env, TEST_DELAY - 1);
+    assert_eq!(c.pool.try_execute_set_admin(), Err(Ok(soroban_sdk::Error::from_contract_error(20))));
+    advance(&env, 1);
+    c.pool.execute_set_admin();
+    assert_eq!(c.pool.admin(), new_admin);
+    assert!(c.pool.pending_set_admin().is_none());
+}
+
+#[test]
+#[should_panic]
+fn propose_set_admin_requires_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.mock_auths(&[]);
+    c.pool.propose_set_admin(&Address::generate(&env));
 }
 
 // ---- lossless state migration (import_state) ----
@@ -1218,6 +1354,53 @@ fn import_state_reproduces_root_leaves_and_nullifiers() {
     // policy state imported.
     assert_eq!(c.pool.asp_root(), asp);
     assert_eq!(c.pool.deny_list(), deny);
+}
+
+// A repeated leaf in the import set is rejected (DuplicateCommitment #10): it would take a
+// second tree slot backed by one commitment.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")] // DuplicateCommitment
+fn import_state_rejects_duplicate_leaf() {
+    let env = Env::default();
+    let c = setup(&env);
+    let leaves: Vec<BytesN<32>> = vec![&env, b32(&env, 60), b32(&env, 61), b32(&env, 60)];
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env], &b32(&env, 123), &deny8(&env));
+}
+
+// A FULL depth-10 source (exactly 1024 leaves) imports; only 1025 is TreeFull. The test env
+// enforces mainnet per-tx resource limits, which a 3072-write import exceeds, so they are
+// lifted here: this checks the boundary logic, not that a full import fits one transaction.
+#[test]
+fn import_state_allows_full_tree() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.host().set_invocation_resource_limits(None).unwrap();
+    env.cost_estimate().budget().reset_unlimited();
+    let mut leaves: Vec<BytesN<32>> = vec![&env];
+    for i in 0..1024u32 {
+        let mut a = [0u8; 32];
+        a[28..32].copy_from_slice(&i.to_be_bytes());
+        a[27] = 1; // distinct from every other fixture, still canonical
+        leaves.push_back(BytesN::from_array(&env, &a));
+    }
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env], &b32(&env, 123), &deny8(&env));
+    assert_eq!(c.pool.leaf_count(), 1024);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #8)")] // TreeFull
+fn import_state_rejects_over_capacity() {
+    let env = Env::default();
+    let c = setup(&env);
+    env.cost_estimate().budget().reset_unlimited();
+    let mut leaves: Vec<BytesN<32>> = vec![&env];
+    for i in 0..1025u32 {
+        let mut a = [0u8; 32];
+        a[28..32].copy_from_slice(&i.to_be_bytes());
+        a[27] = 1;
+        leaves.push_back(BytesN::from_array(&env, &a));
+    }
+    c.pool.import_state(&leaves, &b32(&env, 200), &vec![&env], &b32(&env, 123), &deny8(&env));
 }
 
 // One-shot: a second import_state is rejected (AlreadyMigrated #17), so state can't be

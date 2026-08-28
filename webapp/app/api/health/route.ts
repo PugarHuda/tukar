@@ -4,6 +4,8 @@
 import { NextResponse } from "next/server";
 import { RPC } from "@/lib/constants";
 import { fetchWithTimeout } from "@/lib/net";
+import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
+import { idosConfigured } from "@/lib/idos/consumer.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,8 +31,23 @@ async function rpcHealth(): Promise<"ok" | "unreachable"> {
   }
 }
 
-export async function GET() {
-  const rpc = await rpcHealth();
+// TRISA companion node reachability (its unauthenticated GET /healthz), only when one is wired.
+async function trisaHealth(nodeUrl: string): Promise<"ok" | "unreachable"> {
+  try {
+    const res = await fetchWithTimeout(`${nodeUrl.replace(/\/$/, "")}/healthz`, {}, 2000);
+    return res.ok ? "ok" : "unreachable";
+  } catch {
+    return "unreachable";
+  }
+}
+
+export async function GET(req: Request) {
+  // Generous, but bounded: each call fans out to the RPC (and the TRISA node when wired).
+  const rl = await rateLimit(req, { key: "health", limit: 60, windowMs: 60_000 });
+  if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
+  const trisaUrl = process.env.TRISA_NODE_URL;
+  const [rpc, trisaNode] = await Promise.all([rpcHealth(), trisaUrl ? trisaHealth(trisaUrl) : null]);
   return NextResponse.json({
     status: "ok",
     time: new Date().toISOString(),
@@ -39,8 +56,10 @@ export async function GET() {
       // Presence-only booleans for the optional integrations. Never the values.
       reclaim: Boolean(process.env.RECLAIM_APP_ID && process.env.RECLAIM_APP_SECRET && process.env.RECLAIM_PROVIDER_ID),
       schedules: Boolean(process.env.BLOB_READ_WRITE_TOKEN && process.env.AUTH_SECRET),
-      trisa: Boolean(process.env.TRISA_NODE_URL),
+      trisa: Boolean(trisaUrl),
+      ...(trisaNode ? { trisaNode } : {}),
       notabene: Boolean(process.env.NOTABENE_API_KEY),
+      idos: idosConfigured,
     },
   });
 }

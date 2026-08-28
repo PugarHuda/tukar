@@ -48,13 +48,14 @@ function ReclaimVerify() {
   };
   useEffect(() => stopPolling, []);
 
-  async function submitForVerify(proof: unknown, providerVersion?: string) {
+  // The server binds the proof to the address given at init and re-checks it here: same account.
+  async function submitForVerify(proof: unknown) {
     setState({ phase: "verifying" });
     try {
       const res = await fetch("/api/reclaim/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proof, providerVersion, address }),
+        body: JSON.stringify({ proof, address }),
       });
       const data = await res.json();
       if (data.verified)
@@ -85,7 +86,7 @@ function ReclaimVerify() {
         const proof = session?.proofs?.[0];
         if (proof) {
           stopPolling();
-          await submitForVerify(proof, session?.providerVersionString);
+          await submitForVerify(proof);
         }
       } catch {
         // transient network/CORS hiccup; keep polling until the timeout ceiling.
@@ -93,10 +94,12 @@ function ReclaimVerify() {
     }, 3000);
   }
 
+  // Init needs the connected G-address: the server bakes it into the proof's signed context.
   async function verify() {
+    if (!address) return setState({ phase: "error", message: "Connect a wallet first; the proof is bound to your account." });
     setState({ phase: "loading" });
     try {
-      const res = await fetch("/api/reclaim", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const res = await fetch("/api/reclaim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address }) });
       const data = await res.json();
       if (data.configured === false) return setState({ phase: "not-configured" });
       if (data.error || !data.requestUrl) return setState({ phase: "error", message: data.error || "No request URL returned" });
@@ -144,7 +147,7 @@ function ReclaimVerify() {
           )}
           {state.allowlist?.alreadyListed && (
             <p className="mt-2 text-tm">
-              This account is already on the ASP allow-list (leaf #{state.allowlist.leafIndex}). It can deposit now — no
+              This account is already on the ASP allow-list (leaf #{state.allowlist.leafIndex}). It can deposit now; no
               admin action needed.
             </p>
           )}
@@ -161,10 +164,12 @@ function ReclaimVerify() {
                 </pre>
                 <Button
                   variant="ghost"
-                  onClick={() => {
-                    navigator.clipboard.writeText(state.allowlist!.setAspRootCli);
-                    toast("set_asp_root CLI copied", "success");
-                  }}
+                  onClick={() =>
+                    navigator.clipboard.writeText(state.allowlist!.setAspRootCli).then(
+                      () => toast("set_asp_root CLI copied", "success"),
+                      () => toast("Copy failed; select the command and copy it manually", "error"),
+                    )
+                  }
                 >
                   Copy
                 </Button>
@@ -184,7 +189,8 @@ function ReclaimVerify() {
 
 /** Connect bar: built-in testnet key OR any supported Stellar wallet. Reusable across every route. */
 export function WalletBar() {
-  const { connected, walletName, address, connecting, connectWallet, connectDemoKey, disconnect } = useWallet();
+  const { connected, walletName, address, connecting, wrongNetwork, recheckNetwork, connectWallet, connectDemoKey, disconnect } =
+    useWallet();
   const { toast } = useToast();
 
   if (connected && address) {
@@ -198,6 +204,14 @@ export function WalletBar() {
             Disconnect
           </Button>
         </div>
+        {wrongNetwork && (
+          <p role="alert" className="flex flex-wrap items-center justify-end gap-2 text-right text-[11px] leading-snug text-red-t">
+            Your wallet is on {wrongNetwork}; switch it to Testnet. Signing is blocked until it matches.
+            <Button variant="subtle" onClick={() => recheckNetwork().catch(() => {})}>
+              Re-check
+            </Button>
+          </p>
+        )}
         <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
           <summary className="cursor-pointer list-none text-tm hover:text-orange">
             Verify identity to enable deposits (idOS or Reclaim)
@@ -215,7 +229,7 @@ export function WalletBar() {
         variant="ghost"
         busy={connecting}
         onClick={() =>
-          connectWallet().catch((e) =>
+          connectWallet((m) => toast(m)).catch((e) =>
             toast((e && e.message) || "Could not connect a wallet. Pick one, or use the testnet key.", "error"),
           )
         }
@@ -226,7 +240,7 @@ export function WalletBar() {
         Use testnet key
       </Button>
       <span className="w-full text-right text-[11px] leading-snug text-tf">
-        Testing with others? Connect your own wallet (Freighter, xBull, Albedo, Rabet, Lobstr, Hana) for your own key — the built-in testnet key is shared.
+        Testing with others? Connect your own wallet (Freighter, xBull, Albedo, Rabet, Lobstr, Hana, Ledger) for your own key; the built-in testnet key is shared.
       </span>
       <details className="w-full text-right font-mono text-[11px] leading-snug text-tf">
         <summary className="cursor-pointer list-none text-tm hover:text-orange">

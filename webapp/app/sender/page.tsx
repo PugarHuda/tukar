@@ -26,6 +26,11 @@ import {
 } from "@/lib/stellar";
 import { newNote, usdcToStroops, encodeBearerNote, decodePaymentRequest, getPoseidon, makeTree, short, type Note, type Tree } from "@/lib/zk";
 import { qrSvgString } from "@/components/sender/qr";
+import { CostCard } from "@/components/sender/CostCard";
+import { SentNotes, loadSentNotes, saveSentNotes, type SentNote } from "@/components/sender/SentNotes";
+import { SchedulePlans } from "@/components/sender/SchedulePlans";
+import { buildClaimLink, isValidPin } from "@/lib/claim-link";
+import { encodeViewNote, viewNoteFromNote } from "@/lib/view-note";
 import { SavingsNote } from "@/components/SavingsNote";
 import { CctpFund } from "@/components/CctpFund";
 import { CctpSend } from "@/components/CctpSend";
@@ -56,7 +61,11 @@ type SendResult = {
   usdc: number;
   corridor: Corridor;
   rate: number;
+  rateSource?: "reflector" | "fx-api"; // undefined = the static preview rate was all we had
+  note: Note;
   bearer: string;
+  claimLink: string; // /receiver#claim=... wrapping the bearer note (PIN-wrapped when a PIN was set)
+  pinned: boolean;
   depHash: string;
   regOk: boolean;
   regError?: string;
@@ -80,10 +89,6 @@ function computeNextDate(freq: Exclude<Frequency, "one-time">): string {
   else d.setMonth(d.getMonth() + 1);
   return d.toISOString().slice(0, 10);
 }
-const fmtDate = (iso: string) => {
-  const d = new Date(iso + "T00:00:00");
-  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-};
 const fmtRate = (r: number) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
 const fmtLocal = (v: number, c: Corridor) =>
   `${c.symbol}${v.toLocaleString("en-US", { maximumFractionDigits: v >= 1000 ? 0 : 2 })}`;
@@ -99,6 +104,10 @@ export default function SenderPage() {
   // Recurring/scheduled send — a saved plan (reminder) only, never auto-executes on-chain.
   const [frequency, setFrequency] = useState<Frequency>("one-time");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  // A schedule POST in flight: a double-tap must not create two server plans the cron would both run.
+  const [schedBusy, setSchedBusy] = useState(false);
+  // Notes this sender created (device-local), listed with live status + cancel-and-refund below the form.
+  const [sent, setSent] = useState<SentNote[]>([]);
   // null = still probing; true = server scheduler live (cron executes on-chain); false = device-local reminder.
   const [serverMode, setServerMode] = useState<boolean | null>(null);
   // Scheduler bearer token from sign-in-with-wallet. Null until the connected wallet signs in.
@@ -107,6 +116,8 @@ export default function SenderPage() {
   const [reqInput, setReqInput] = useState("");
   const [request, setRequest] = useState<{ addr: string; label: string } | null>(null);
   const [reqStatus, setReqStatus] = useState("");
+  // Optional 6-digit PIN that wraps the claim link (AES-GCM under PBKDF2). Protects the link in transit only.
+  const [pin, setPin] = useState("");
   const [fx, setFx] = useState<Fx>({});
   const [pool, setPool] = useState<{ commitments: string; balance: string } | null>(null);
   const [poolBumped, setPoolBumped] = useState(false);
@@ -188,12 +199,13 @@ export default function SenderPage() {
     } catch {}
   }
   async function saveSchedule() {
-    if (frequency === "one-time" || !(num > 0) || num > MAX_USDC) return;
+    if (schedBusy || frequency === "one-time" || !(num > 0) || num > MAX_USDC) return;
     if (serverMode) {
       if (!schedToken) {
         toast("Connect a wallet to schedule (it signs you in).", "error");
         return;
       }
+      setSchedBusy(true);
       try {
         const r = await fetch("/api/schedules", {
           method: "POST",
@@ -209,6 +221,8 @@ export default function SenderPage() {
         }
       } catch {
         toast("Could not reach the scheduler", "error");
+      } finally {
+        setSchedBusy(false);
       }
       return;
     }
@@ -217,9 +231,10 @@ export default function SenderPage() {
     persistSchedules([plan, ...schedules]);
     toast("Plan saved on this device", "success");
   }
-  // Remove is device-local only (the server store is append-only via the API). Hidden in serverMode.
+  // Server mode: SchedulePlans already DELETEd the plan, just drop it from state. Local mode: drop the reminder.
   function removeSchedule(id: string) {
-    persistSchedules(schedules.filter((s) => s.id !== id));
+    if (serverMode) setSchedules((cur) => cur.filter((s) => s.id !== id));
+    else persistSchedules(schedules.filter((s) => s.id !== id));
   }
   function prefillSchedule(s: Schedule) {
     setAmount(s.amount);
@@ -228,6 +243,10 @@ export default function SenderPage() {
     setFrequency(s.frequency);
     if (request) clearRequest();
     toast("Plan loaded. Review and send it yourself.", "success");
+  }
+  function persistSent(next: SentNote[]) {
+    setSent(next);
+    saveSentNotes(next);
   }
 
   const corridor = CORRIDORS.find((c) => c.code === code) || CORRIDORS[0];
@@ -256,6 +275,7 @@ export default function SenderPage() {
   // ---- boot: pool count, live FX, prover/tree warmup ----
   useEffect(() => {
     refreshPool();
+    setSent(loadSentNotes());
     // Real USD->local FX: Reflector on-chain oracle where the testnet feed carries it, a public
     // FX API for the rest. Non-blocking; failure keeps the static fallback so the preview is sane.
     (async () => {
@@ -297,7 +317,7 @@ export default function SenderPage() {
     try {
       const ls = await loadLeavesFromChain();
       const onchain = await readCurrentRoot();
-      if (onchain != null && tree.root(ls) === onchain) return ls;
+      if (ls !== null && onchain != null && tree.root(ls) === onchain) return ls;
     } catch {}
     return null;
   }
@@ -359,6 +379,10 @@ export default function SenderPage() {
       setSendStatus("Keep it under 1,000,000,000 USDC.");
       return;
     }
+    if (pin && !isValidPin(pin)) {
+      setSendStatus("The claim-link PIN must be exactly 6 digits, or leave it empty.");
+      return;
+    }
     setBusy(true);
     setSendStatus("");
     const ref = "PAY-" + String(Date.now()).slice(-6);
@@ -410,13 +434,19 @@ export default function SenderPage() {
     // Success either way: even if registration didn't confirm, the deposit landed and the note
     // IS a valid bearer asset — the recipient's console can finish registering it.
     const bearer = encodeBearerNote({ ref, ...note, corridor: c.code });
+    // Keep the note on this device: it stays refundable until the receiver spends it.
+    persistSent([{ ref, ...note, corridor: c.code, depHash: dep.hash || "", createdAt: new Date().toISOString() }, ...loadSentNotes()]);
+    // Claim link (/receiver#claim=...) wrapping the bearer note, PIN-wrapped when a PIN was set. The QR
+    // encodes the link so a phone camera opens the Receiver step directly. Falls back to the raw string.
+    let claimLink = "";
     let svg: string | null = null;
     try {
-      svg = await qrSvgString(bearer);
+      claimLink = await buildClaimLink(bearer, pin || undefined);
+      svg = await qrSvgString(claimLink, "#0a0705", "#f3ad79", "Claim link QR code");
     } catch {
       svg = null;
     }
-    setResult({ ref, usdc: num, corridor: c, rate: effRate, bearer, depHash: dep.hash || "", regOk: reg.ok, regError: reg.error, svg });
+    setResult({ ref, usdc: num, corridor: c, rate: effRate, rateSource: fx[code]?.source, note, bearer, claimLink, pinned: !!pin, depHash: dep.hash || "", regOk: reg.ok, regError: reg.error, svg });
     setBusy(false);
     setScreen("success");
   }
@@ -474,7 +504,9 @@ export default function SenderPage() {
   }
   async function shareBearer() {
     if (!result) return;
-    const text = `Claim your Tukar payment:\n${result.bearer}\n\nPaste it into the Receiver step to collect local fiat.`;
+    const text = result.claimLink
+      ? `Claim your Tukar payment:\n${result.claimLink}\n\nOr paste this note into the Receiver step:\n${result.bearer}${result.pinned ? "\n\nThe link needs the 6-digit PIN, sent separately." : ""}`
+      : `Claim your Tukar payment:\n${result.bearer}\n\nPaste it into the Receiver step to collect local fiat.`;
     if (navigator.share) {
       try {
         await navigator.share({ title: "Tukar payment", text });
@@ -482,6 +514,26 @@ export default function SenderPage() {
       } catch {}
     }
     copyBearer();
+  }
+  // The claim link built at send time (fragment only, so it never reaches a server).
+  async function copyClaimLink() {
+    if (!result?.claimLink || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(result.claimLink);
+      toast("Claim link copied. Anyone who opens it can claim the money.", "success");
+    } catch {
+      toast("Could not copy the claim link", "error");
+    }
+  }
+  // View-only note (tukview1:): the commitment opening without the privKey, for a regulator. Cannot spend.
+  async function copyViewNote() {
+    if (!result || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(encodeViewNote(viewNoteFromNote({ ...result.note, corridor: result.corridor.code, depositTx: result.depHash || undefined })));
+      toast("View-only note copied. It can prove facts about this payment but cannot spend it.", "success");
+    } catch {
+      toast("Could not copy the view-only note", "error");
+    }
   }
   function reset() {
     setResult(null);
@@ -559,9 +611,14 @@ export default function SenderPage() {
             setFrequency={setFrequency}
             schedules={schedules}
             serverMode={serverMode}
+            schedToken={schedToken}
+            schedBusy={schedBusy}
             onSaveSchedule={saveSchedule}
             onRemoveSchedule={removeSchedule}
             onPrefillSchedule={prefillSchedule}
+            sentNotes={sent}
+            onSentChange={persistSent}
+            connected={connected}
             corridor={corridor}
             fxSource={fx[code]?.source}
             effRate={effRate}
@@ -596,6 +653,9 @@ export default function SenderPage() {
             recipient={recipient}
             corridor={corridor}
             receive={receive}
+            fxSource={fx[code]?.source}
+            pin={pin}
+            setPin={setPin}
             connected={connected}
             address={address}
             busy={busy}
@@ -612,7 +672,7 @@ export default function SenderPage() {
         )}
 
         {screen === "success" && result && (
-          <SuccessScreen result={result} copied={copied} onCopy={copyBearer} onShare={shareBearer} onAnother={reset} />
+          <SuccessScreen result={result} copied={copied} onCopy={copyBearer} onShare={shareBearer} onCopyLink={copyClaimLink} onCopyView={copyViewNote} onAnother={reset} />
         )}
       </main>
     </div>
@@ -634,9 +694,14 @@ function ComposeScreen(props: {
   setFrequency: (v: Frequency) => void;
   schedules: Schedule[];
   serverMode: boolean | null;
+  schedToken: string | null;
+  schedBusy: boolean;
   onSaveSchedule: () => void;
   onRemoveSchedule: (id: string) => void;
   onPrefillSchedule: (s: Schedule) => void;
+  sentNotes: SentNote[];
+  onSentChange: (next: SentNote[]) => void;
+  connected: boolean;
   corridor: Corridor;
   fxSource?: "reflector" | "fx-api";
   effRate: number;
@@ -653,9 +718,9 @@ function ComposeScreen(props: {
   continueHint: string;
   onContinue: () => void;
 }) {
-  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, serverMode, onSaveSchedule, onRemoveSchedule, onPrefillSchedule, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
+  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, serverMode, schedToken, schedBusy, onSaveSchedule, onRemoveSchedule, onPrefillSchedule, sentNotes, onSentChange, connected, corridor, fxSource, effRate, receive, pool, poolBumped, request, reqInput, setReqInput, reqStatus, onLoadRequest, onClearRequest, canContinue, continueHint, onContinue } = props;
   const locked = !!request;
-  const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "at the edge";
+  const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "indicative (static rate)";
   return (
     <div className="animate-tk-pop">
       <div className="mb-7">
@@ -724,6 +789,8 @@ function ComposeScreen(props: {
         />
       </Card>
 
+      <CostCard code={code} usdc={Number(amount)} receive={receive} fxSource={fxSource} className="mt-4" />
+
       {frequency !== "one-time" && (
         <div className="mt-4 rounded-tile border border-orange/40 bg-orange/5 p-3.5">
           <div className="flex items-center justify-between gap-3">
@@ -735,73 +802,15 @@ function ComposeScreen(props: {
               ? "Automated on-chain. A daily cron runs this plan: it mints a note and executes the deposit + shielded-tree registration on-chain for you. Delivering the claim note to the recipient (the withdraw leg) stays a manual step."
               : "Preview. Your plan is saved on this device as a reminder. Automatic on-chain execution needs a scheduler or relayer and is on the roadmap. Tap a saved plan to pre-fill and send it yourself."}
           </p>
-          <Button variant="reveal" full className="mt-3" disabled={!canContinue} onClick={onSaveSchedule}>
+          <Button variant="reveal" full className="mt-3" busy={schedBusy} disabled={!canContinue || schedBusy} onClick={onSaveSchedule}>
             {serverMode ? "Schedule" : "Save"} {frequency} plan for {recipient || "recipient"}
           </Button>
         </div>
       )}
 
-      {schedules.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Scheduled sends</div>
-            <span className="font-mono text-[10px] text-tf">{serverMode ? "runs on-chain daily" : "saved on this device"}</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {schedules.map((s) => {
-              const sc = CORRIDORS.find((c) => c.code === s.code);
-              const last = s.history && s.history[0];
-              return (
-                <div key={s.id} className="flex items-center gap-3 rounded-tile border border-line bg-black/20 p-3">
-                  <button
-                    onClick={() => onPrefillSchedule(s)}
-                    className="min-w-0 flex-1 text-left"
-                    title="Tap to pre-fill this plan for a manual send."
-                  >
-                    <div className="truncate text-sm font-semibold text-tp">
-                      ${s.amount} USDC · {sc ? sc.country : s.code}
-                    </div>
-                    <div className="mt-0.5 truncate font-mono text-[11px] text-tf">
-                      {s.frequency} · to {s.recipient || "recipient"} · next {fmtDate(s.nextDate)}
-                    </div>
-                    {last && (
-                      <div className="mt-0.5 truncate font-mono text-[11px]">
-                        {last.depHash ? (
-                          <a
-                            href={txExplorer(last.depHash)}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className={last.regOk ? "text-green-t underline underline-offset-2" : "text-orange underline underline-offset-2"}
-                          >
-                            last run: tx {short(last.depHash)} {last.regOk ? "✓" : "· registering"}
-                          </a>
-                        ) : (
-                          <span className="text-red-t">last run failed: {last.error || "unknown error"}</span>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                  {!serverMode && (
-                    <button
-                      onClick={() => onRemoveSchedule(s.id)}
-                      aria-label="Remove scheduled plan"
-                      className="shrink-0 rounded-md border border-line-input px-2 py-1 font-mono text-[11px] text-tm transition-colors hover:border-red/50 hover:text-red-t"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p className="mt-2 font-mono text-[11px] leading-relaxed text-tf">
-            {serverMode
-              ? "Runs daily on-chain: each due plan's deposit and shielded-tree registration execute automatically. Handing the claim note to the recipient (the withdraw leg) stays the next step."
-              : "Reminders only. Tap a plan to pre-fill the form, then send it yourself. No money moves automatically."}
-          </p>
-        </div>
-      )}
+      <SchedulePlans schedules={schedules} serverMode={serverMode} token={schedToken} corridors={CORRIDORS} onPrefill={onPrefillSchedule} onRemoved={onRemoveSchedule} />
+
+      <SentNotes notes={sentNotes} onChange={onSentChange} connected={connected} />
 
       {request ? (
         <div className="mt-4 rounded-tile border border-orange/40 bg-orange/5 p-3.5">
@@ -880,6 +889,9 @@ function SendScreen(props: {
   recipient: string;
   corridor: Corridor;
   receive: number;
+  fxSource?: "reflector" | "fx-api";
+  pin: string;
+  setPin: (v: string) => void;
   connected: boolean;
   address: string | null;
   busy: boolean;
@@ -889,7 +901,7 @@ function SendScreen(props: {
   onSend: () => void;
   onBack: () => void;
 }) {
-  const { usdc, recipient, corridor, receive, connected, address, busy, anchorBusy, status, onAnchor, onSend, onBack } = props;
+  const { usdc, recipient, corridor, receive, fxSource, pin, setPin, connected, address, busy, anchorBusy, status, onAnchor, onSend, onBack } = props;
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
@@ -902,9 +914,25 @@ function SendScreen(props: {
 
       <Card className="p-5">
         <Recap k="Amount" v={`$${usdc} USDC`} />
-        <Recap k="They receive ≈" v={`${fmtLocal(receive, corridor)} ${corridor.currency}`} />
+        <Recap k="They receive ≈" v={`${fmtLocal(receive, corridor)} ${corridor.currency}${fxSource ? "" : " · indicative (static rate)"}`} />
         <Recap k="Destination" v={corridor.country} last />
       </Card>
+
+      <div className="mt-4 rounded-tile border border-line bg-black/20 p-3.5">
+        <Input
+          label="Claim-link PIN (optional, 6 digits)"
+          id="claim-pin"
+          inputMode="numeric"
+          maxLength={6}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="leave empty for a plain link"
+          aria-label="Optional 6-digit PIN for the claim link"
+        />
+        <p className="mt-2 font-mono text-[11px] leading-relaxed text-tf">
+          The claim link carries the payment itself. A PIN only protects the link while it travels; it is not a strong secret, so send the PIN separately.
+        </p>
+      </div>
 
       {!connected && (
         <Card className="mt-4 p-5">
@@ -1000,8 +1028,8 @@ function ProgressScreen(props: {
   );
 }
 
-function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () => void; onShare: () => void; onAnother: () => void }) {
-  const { result, copied, onCopy, onShare, onAnother } = props;
+function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () => void; onShare: () => void; onCopyLink: () => void; onCopyView: () => void; onAnother: () => void }) {
+  const { result, copied, onCopy, onShare, onCopyLink, onCopyView, onAnother } = props;
   const local = result.usdc * result.rate;
   return (
     <div className="animate-tk-pop">
@@ -1012,7 +1040,7 @@ function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () 
             <path className="tk-draw-path" d="M8.5 12 11 14.5 15.5 9" />
           </svg>
         </div>
-        <h2 className="text-2xl font-extrabold tracking-[-0.02em]">Sent and shielded</h2>
+        <h2 className="text-2xl font-extrabold tracking-[-0.02em]">{result.regOk ? "Sent and shielded" : "Deposited, registration pending"}</h2>
         <p className="mx-auto mt-2 max-w-[380px] text-sm text-tm">
           {result.regOk
             ? "Your payment is in the pool and spendable. Share the claim note so the recipient can collect local fiat."
@@ -1023,7 +1051,7 @@ function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () 
       <Card className="p-5">
         <Recap k="Reference" v={result.ref} />
         <Recap k="Amount" v={`$${result.usdc} USDC`} />
-        <Recap k="They receive ≈" v={`${fmtLocal(local, result.corridor)} ${result.corridor.currency}`} />
+        <Recap k="They receive ≈" v={`${fmtLocal(local, result.corridor)} ${result.corridor.currency}${result.rateSource ? "" : " · indicative (static rate)"}`} />
         <Recap
           k="Deposit tx"
           v={
@@ -1064,8 +1092,9 @@ function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () 
           Whoever holds this string can claim the payment. Share it only with the recipient. They paste it into{" "}
           <Link href="/receiver" className="text-orange underline underline-offset-2">
             the Receiver step
-          </Link>{" "}
-          (or scan the QR) to off-ramp to local fiat.
+          </Link>
+          {result.claimLink ? ", or scan the QR, which opens the claim link there" : ""} to off-ramp to local fiat.
+          {result.pinned ? " The link is PIN-wrapped: the recipient needs the 6-digit PIN you set." : ""}
         </p>
       </Card>
 
@@ -1073,6 +1102,20 @@ function SuccessScreen(props: { result: SendResult; copied: boolean; onCopy: () 
         <Button variant="subtle" full onClick={onShare}>
           Share claim note
         </Button>
+        {result.claimLink && (
+          <Button variant="subtle" full onClick={onCopyLink}>
+            Copy claim link{result.pinned ? " (PIN-wrapped)" : ""}
+          </Button>
+        )}
+        <p className="text-center font-mono text-[11px] leading-relaxed text-tf">
+          This link carries the payment itself. Anyone who opens it can claim the money. A PIN only protects the link while it travels; it is not a strong secret, so send the PIN separately.
+        </p>
+        <Button variant="ghost" full onClick={onCopyView}>
+          Export view-only note
+        </Button>
+        <p className="text-center font-mono text-[11px] leading-relaxed text-tf">
+          Lets an auditor verify this payment without being able to spend it.
+        </p>
         <Button full onClick={onAnother}>
           Send another
         </Button>

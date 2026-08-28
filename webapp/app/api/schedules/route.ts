@@ -8,7 +8,7 @@
 // store is private (server-only reads). Caps below (amount + plan-count) are enforced per owner.
 // The cron is the privileged executor and fails closed on CRON_SECRET.
 import { NextResponse } from "next/server";
-import { isConfigured, readSchedules, writeSchedules, computeNextDate, type StoredSchedule, type Frequency } from "@/lib/schedules";
+import { isConfigured, readSchedules, writeSchedules, computeNextDate, CorruptScheduleFile, type StoredSchedule, type Frequency } from "@/lib/schedules";
 import { authOwner } from "@/lib/auth";
 import { log, requestId, errMsg } from "@/lib/log";
 
@@ -28,6 +28,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ configured: true, schedules: await readSchedules(owner) });
   } catch (e) {
     log.error("read failed", { route: "schedules", reqId: requestId(req), err: errMsg(e) });
+    // A corrupt file is reported as such (not as "no plans"), so the client never assumes empty.
+    if (e instanceof CorruptScheduleFile) return NextResponse.json({ configured: true, error: "Your stored schedules are unreadable.", corrupt: true, schedules: [] }, { status: 500 });
     return NextResponse.json({ configured: true, error: "Could not read schedules.", schedules: [] }, { status: 500 });
   }
 }
@@ -67,6 +69,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ configured: true, schedule: plan });
   } catch (e) {
     log.error("write failed", { route: "schedules", reqId: requestId(req), err: errMsg(e) });
+    // readSchedules threw on a corrupt file, so the write above never ran: nothing was overwritten.
+    if (e instanceof CorruptScheduleFile) return NextResponse.json({ error: "Your stored schedules are unreadable; the new plan was not saved.", corrupt: true }, { status: 500 });
     return NextResponse.json({ error: "Could not save the schedule." }, { status: 500 });
   }
 }

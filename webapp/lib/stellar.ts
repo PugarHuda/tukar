@@ -22,6 +22,9 @@ import { server } from "./soroban/rpc";
 import { buf, g1, g2, buf32, scProof, type Groth16Proof } from "./soroban/proof";
 import { friendlyPoolError, poolErrorCode } from "./soroban/errors";
 import { addrField, readDenyList } from "./soroban/reads";
+// signAndSend with rebuild-and-retry on PRE-send transient faults only; once the network has the
+// tx it polls that hash instead of resubmitting (see ./soroban/send for why). Shared with the relayer.
+import { sendTx } from "./soroban/send";
 
 // Re-export the public contract-ID / config constants so route code can import them from
 // lib/stellar (their original home) OR lib/constants (a light, SDK-free bundle).
@@ -82,20 +85,26 @@ export function walletSigner(): WalletSigner | null {
 // JWT + the SEP-24 transfer server. Shared by the on-ramp (deposit) and off-ramp (withdraw).
 async function anchorAuth(): Promise<{ bearer: { Authorization: string }; SEP24: string; address: string }> {
   const address = activeAddress();
-  const toml = await (await fetchWithTimeout(`${ANCHOR.base}/.well-known/stellar.toml`, {}, 15000)).text();
-  const grab = (k: string) => (toml.match(new RegExp(`^${k}\\s*=\\s*"([^"]+)"`, "m")) || [])[1];
-  const WEB_AUTH = grab("WEB_AUTH_ENDPOINT"),
-    SEP24 = grab("TRANSFER_SERVER_SEP0024");
-  if (!WEB_AUTH || !SEP24) throw new Error("anchor stellar.toml is missing endpoints");
+  // SEP-1 via the SDK resolver: a real TOML parse (size-capped) instead of regex grabbing, and it
+  // gives us SIGNING_KEY, the anchor's SEP-10 server key we verify the challenge against.
+  const toml = await Sdk.StellarToml.Resolver.resolve(ANCHOR.home, { timeout: 15000 });
+  const { SIGNING_KEY, WEB_AUTH_ENDPOINT: WEB_AUTH, TRANSFER_SERVER_SEP0024: SEP24 } = toml;
+  if (!WEB_AUTH || !SEP24 || !SIGNING_KEY) throw new Error("anchor stellar.toml is missing endpoints or SIGNING_KEY");
   const chal = await (await fetchWithTimeout(`${WEB_AUTH}?account=${address}&home_domain=${ANCHOR.home}`, {}, 15000)).json();
   if (!chal.transaction) throw new Error("SEP-10 challenge failed: " + (chal.error || "no transaction"));
-  const netPass = chal.network_passphrase || PASSPHRASE;
+  // The network is OURS, never the anchor's: a misconfigured or hostile anchor must not be able to
+  // hand us a transaction for another network (e.g. mainnet) to sign.
+  if (chal.network_passphrase !== PASSPHRASE) throw new Error("SEP-10 challenge is for a different network");
+  // Full SEP-10 client-side validation BEFORE anything signs it: server signature by SIGNING_KEY,
+  // sequence 0, time bounds, home_domain / web_auth_domain manage_data ops, no other operations.
+  // readChallengeTx throws on any violation, so nothing but a well-formed auth challenge is signed.
+  const { tx, clientAccountID } = Sdk.WebAuth.readChallengeTx(chal.transaction, SIGNING_KEY, PASSPHRASE, ANCHOR.home, new URL(WEB_AUTH).host);
+  if (clientAccountID !== address) throw new Error("SEP-10 challenge is for a different account");
   let signedXdr: string;
   if (_wallet && _wallet.signTransaction) {
-    const res = await _wallet.signTransaction(chal.transaction, { networkPassphrase: netPass, address });
+    const res = await _wallet.signTransaction(chal.transaction, { networkPassphrase: PASSPHRASE, address });
     signedXdr = res.signedTxXdr || res;
   } else {
-    const tx = new Sdk.Transaction(chal.transaction, netPass);
     tx.sign(Sdk.Keypair.fromSecret(DEMO_SECRET));
     signedXdr = tx.toXDR();
   }
@@ -237,33 +246,6 @@ async function poolWriteClient(): Promise<any> {
     }
   }
   return _poolWrite;
-}
-
-// signAndSend with a rebuild-and-retry on TRANSIENT faults. A retry self-heals a sequence
-// race on the shared embedded demo key AND the load-shedding the public testnet throws under
-// contention. A contract revert (Error(Contract,#N)) is DETERMINISTIC — never retried.
-const _sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const _msg = (e: any) => String(e?.message ?? e ?? "");
-const _isContractRevert = (e: any) => /Error\(Contract,\s*#\d+\)/.test(_msg(e));
-const _isTransient = (e: any) =>
-  !_isContractRevert(e) &&
-  /txbadseq|tx_bad_seq|bad_seq|try_again_later|timed?\s?out|timeout|txtoolate|\b(?:429|50\d)\b|failed to (?:send|submit)|network|fetch/i.test(_msg(e));
-async function sendTx(buildAt: () => Promise<any>, attempts = 5): Promise<any> {
-  let lastErr: any;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      const at = await buildAt();
-      return await at.signAndSend();
-    } catch (e) {
-      lastErr = e;
-      if (i < attempts && _isTransient(e)) {
-        await _sleep(1200 + i * 900);
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw lastErr;
 }
 
 // ---- testnet wallet setup helpers (for the optional Freighter path) ----

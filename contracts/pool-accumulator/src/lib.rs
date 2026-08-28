@@ -34,13 +34,12 @@
 //! figures. `attest_reserves` opens the (already-public) accumulator and checks it against live
 //! custody: `total_liabilities <= balance()`, now a TIGHT solvency statement.
 //!
-//! ponytail: the withdraw-side fold clamps at 0 rather than trapping on underflow. On a fresh
+//! ponytail: the withdraw-side fold TRAPS (Overflow #19) if it would go below 0. On a fresh
 //! deposits-from-genesis pool (the intended PoR deployment) `TotalLiabilities >= released` always
-//! holds, so it never underflows and the total is EXACT. A MIGRATED pool (`import_state`) seeds
-//! the accumulator at 0 because import can't recover hidden amounts (see `import_state`), so a
-//! post-import withdraw would fold below 0; we clamp to 0 so migration withdrawals still work
-//! (attest is already documented unsound on a migrated pool). Upgrade path: seed
-//! `TotalLiabilities` in `import_state` from the source's attested total for exact attest there too.
+//! holds, so an underflow can only mean a value mint and must not be hidden by a clamp. A
+//! MIGRATED pool (`import_state`) seeds the accumulator at 0 because import can't recover hidden
+//! amounts (see `import_state`), so its withdraws trap too until `TotalLiabilities` is seeded.
+//! Upgrade path: seed `TotalLiabilities` in `import_state` from the source's attested total.
 //!
 //! The stateful corridor contract that orchestrates the three ZK
 //! verifiers and custodies the corridor's tokens.
@@ -75,6 +74,12 @@ const DENY_LEN: u32 = 8;
 // keeps its leaves/roots readable without per-entry maintenance from the caller.
 const TTL_THRESHOLD: u32 = 17_280;
 const TTL_EXTEND: u32 = 535_680;
+// Instance TTL bounds. The instance (plus code) holds every setter, the current root and the
+// leaf count, so if it is archived the pool stops. At ~5s per ledger: when under ~7 days
+// (120_960 ledgers) remain, extend to ~30 days (518_400). Bumped from every state-changing
+// entrypoint, so normal use keeps the instance alive without separate maintenance.
+const INSTANCE_TTL_THRESHOLD: u32 = 120_960;
+const INSTANCE_TTL_EXTEND: u32 = 518_400;
 
 /// Groth16 proof — identical layout to the verifier's `Groth16Proof`.
 #[contracttype]
@@ -108,6 +113,7 @@ pub enum PoolError {
     AlreadyMigrated = 17,
     Insolvent = 18,
     Overflow = 19,
+    PolicyRequired = 22, // a policy registry is set but the withdraw named no corridor
 }
 
 // The transfer/withdraw JoinSplit is fixed at 2 inputs and 2 outputs (Transfer(10,2,2)).
@@ -247,6 +253,7 @@ impl Pool {
     pub fn set_fx_oracle(env: Env, oracle: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::FxOracle, &oracle);
     }
 
@@ -258,10 +265,12 @@ impl Pool {
     /// Admin-only: set (or replace) the per-corridor policy registry this pool enforces
     /// caps against. Additive (mirrors set_fx_oracle) so cap enforcement can be wired
     /// onto an already-deployed pool without changing constructor arity. When set,
-    /// `withdraw` reads the corridor's cap_usdc from it and rejects an over-cap withdraw.
+    /// `withdraw` reads the corridor's cap_usdc from it and rejects an over-cap withdraw, and
+    /// every withdraw must name its off-ramp corridor (PolicyRequired otherwise).
     pub fn set_policy_registry(env: Env, registry: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::PolicyRegistry, &registry);
     }
 
@@ -278,6 +287,7 @@ impl Pool {
     pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.deployer().update_current_contract_wasm(new_wasm_hash);
     }
 
@@ -307,6 +317,7 @@ impl Pool {
     /// via the reconstructable `leaves()` list — the same discipline `register_root_verified`
     /// already relies on. Pending change-note outputs that were recorded but never registered as
     /// leaves are out of scope (import takes the registered tree, its root, and the nullifier set).
+    /// `total_liabilities` seeds the accumulator (this crate only; see the seed note below).
     pub fn import_state(
         env: Env,
         leaves: Vec<BytesN<32>>,
@@ -314,9 +325,13 @@ impl Pool {
         nullifiers: Vec<BytesN<32>>,
         asp_root: BytesN<32>,
         deny_list: Vec<BytesN<32>>,
+        total_liabilities: i128,
     ) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        if total_liabilities < 0 {
+            soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
+        }
         // One-shot: never run twice, and only into a virgin pool (no prior deposits/registers),
         // so migrated leaf indices are exactly [0..leaves.len()) and nothing is imported on top
         // of existing state.
@@ -329,9 +344,10 @@ impl Pool {
         if deny_list.len() != DENY_LEN {
             soroban_sdk::panic_with_error!(&env, PoolError::BadDenyList);
         }
-        if leaves.len() >= 1u32 << 10 {
+        if leaves.len() > 1u32 << 10 {
             soroban_sdk::panic_with_error!(&env, PoolError::TreeFull);
         }
+        Self::bump_instance(&env);
         // Canonical encodings only, exactly as the normal write paths require — so the migrated
         // storage keys are byte-identical to what a live deposit/withdraw would have written and
         // a non-canonical re-encoding can't smuggle a duplicate key past the double-spend guard.
@@ -342,6 +358,11 @@ impl Pool {
         let mut i = 0u32;
         for leaf in leaves.iter() {
             Self::require_canonical(&env, &leaf);
+            // A repeated leaf would take a second tree slot backed by ONE commitment
+            // (record_commitment is idempotent, so it would not notice) - reject it.
+            if env.storage().persistent().has(&DataKey::Commitment(leaf.clone())) {
+                soroban_sdk::panic_with_error!(&env, PoolError::DuplicateCommitment);
+            }
             Self::record_commitment(&env, &leaf); // Commitment(leaf) + Count bump + TTL (backing)
             let ins_key = DataKey::Inserted(leaf.clone());
             env.storage().persistent().set(&ins_key, &()); // insert-once guard
@@ -365,12 +386,12 @@ impl Pool {
         // Policy state.
         env.storage().instance().set(&DataKey::AspRoot, &asp_root);
         env.storage().instance().set(&DataKey::DenyList, &deny_list);
-        // ponytail: import brings in leaves (commitments) but NOT their hidden amounts, so it
-        // canNOT populate TotalLiabilities — the accumulator stays 0 after an import and would
-        // UNDER-count imported notes. attest_reserves is therefore sound only on a FRESH,
-        // deposits-from-genesis instance (the intended PoR deployment). A migrated pool must not
-        // rely on attest_reserves without a separate opening-based reserves proof. Upgrade path:
-        // pass the source's attested total into import_state and seed TotalLiabilities from it.
+        // Seed the accumulator. Import brings in leaves (commitments) but NOT their hidden
+        // amounts, so the caller supplies the source's outstanding total (operator records, or
+        // the source's own total_liabilities()). Since the withdraw fold traps on underflow, an
+        // under-seeded migrated pool cannot withdraw past its seed; attest_reserves on a migrated
+        // pool is only as sound as this figure (caller's responsibility, like `nullifiers`).
+        env.storage().instance().set(&DataKey::TotalLiabilities, &total_liabilities);
         // Seal: import can never run again.
         env.storage().instance().set(&DataKey::Migrated, &true);
         env.events().publish((symbol_short!("migrated"), i), root);
@@ -387,6 +408,7 @@ impl Pool {
     pub fn set_threshold_verifier(env: Env, verifier: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::ThresholdVerifier, &verifier);
     }
 
@@ -400,6 +422,7 @@ impl Pool {
     pub fn set_aggregate_verifier(env: Env, verifier: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::AggregateVerifier, &verifier);
     }
 
@@ -414,6 +437,7 @@ impl Pool {
     pub fn set_auditor(env: Env, auditor: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::Auditor, &auditor);
     }
 
@@ -431,6 +455,7 @@ impl Pool {
     pub fn register_audit_request(env: Env, audit_context_hash: BytesN<32>) {
         let auditor: Address = env.storage().instance().get(&DataKey::Auditor).unwrap();
         auditor.require_auth();
+        Self::bump_instance(&env);
         Self::require_canonical(&env, &audit_context_hash);
         let key = DataKey::AuditRequest(audit_context_hash);
         env.storage().persistent().set(&key, &());
@@ -446,6 +471,7 @@ impl Pool {
     pub fn set_range_verifier(env: Env, verifier: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::RangeVerifier, &verifier);
     }
 
@@ -463,6 +489,7 @@ impl Pool {
     pub fn set_asp_root(env: Env, asp_root: BytesN<32>) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::AspRoot, &asp_root);
     }
 
@@ -475,6 +502,7 @@ impl Pool {
         }
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        Self::bump_instance(&env);
         env.storage().instance().set(&DataKey::DenyList, &deny_list);
     }
 
@@ -650,6 +678,7 @@ impl Pool {
         Self::require_canonical(&env, &old_root);
         Self::require_canonical(&env, &new_leaf);
         Self::require_canonical(&env, &new_root);
+        Self::bump_instance(&env);
         let cur: BytesN<32> = env.storage().instance().get(&DataKey::CurrentRoot).unwrap();
         if old_root != cur {
             soroban_sdk::panic_with_error!(&env, PoolError::UnknownRoot);
@@ -729,6 +758,7 @@ impl Pool {
             soroban_sdk::panic_with_error!(&env, PoolError::DuplicateCommitment);
         }
         from.require_auth();
+        Self::bump_instance(&env);
 
         // 1. Compliance: the AUTHENTICATED depositor `from` is an allow-listed
         // source, bound to this commitment. The contract derives the source key
@@ -821,6 +851,7 @@ impl Pool {
         if public_amount != Self::amount_bytes(&env, 0) {
             soroban_sdk::panic_with_error!(&env, PoolError::AmountNotBound);
         }
+        Self::bump_instance(&env);
         Self::require_known_root(&env, &root);
         let pi = Self::transfer_inputs(&env, &root, &public_amount, &ext_data_hash, &nullifiers, &out_commitments);
         Self::verify(&env, DataKey::TransferVerifier, &proof, &pi);
@@ -855,6 +886,7 @@ impl Pool {
         if public_amount != Self::neg_amount_bytes(&env, amount) {
             soroban_sdk::panic_with_error!(&env, PoolError::AmountNotBound);
         }
+        Self::bump_instance(&env);
         Self::require_known_root(&env, &root);
         // Bind the RECIPIENT into the proof: the contract recomputes ext_data_hash
         // from (recipient, public_amount) instead of trusting a caller argument.
@@ -881,24 +913,32 @@ impl Pool {
                 soroban_sdk::panic_with_error!(&env, PoolError::SlippageExceeded);
             }
         }
-        // Per-corridor cap gate (the enforced-pool addition). If a policy registry is set
-        // AND this withdraw names an off-ramp corridor, read that corridor's cap_usdc from
-        // the live registry cross-contract and refuse to release more than the cap. Runs
+        // Per-corridor cap gate (the enforced-pool addition). If a policy registry is set,
+        // the withdraw MUST name its off-ramp corridor (PolicyRequired), so the gate cannot
+        // be skipped by omitting the symbol; the corridor's cap_usdc is read from the live
+        // registry cross-contract and the pool refuses to release more than the cap. Runs
         // AFTER proof verification and the slippage gate but BEFORE nullifiers are spent, so
         // an over-cap withdraw burns no nullifier and can be retried under the cap. A
-        // corridor with no registry entry is uncapped (allow). The cap is in whole USDC;
-        // the released amount is 7-dp stroops, so we compare on the floored whole-USDC unit.
-        if let Some(sym) = &offramp_symbol {
-            if let Some(registry) = env.storage().instance().get::<_, Address>(&DataKey::PolicyRegistry) {
-                let entry: Option<PolicyEntry> = env.invoke_contract(
-                    &registry,
-                    &Symbol::new(&env, "policy"),
-                    vec![&env, sym.clone().into_val(&env)],
-                );
-                if let Some(p) = entry {
-                    if amount / USDC_STROOPS > p.cap_usdc {
-                        soroban_sdk::panic_with_error!(&env, PoolError::PolicyExceeded);
-                    }
+        // corridor with no registry entry is uncapped (allow). The cap is in whole USDC and
+        // the released amount is 7-dp stroops, so the CAP is scaled up to stroops (never the
+        // amount floored down): cap + 0.0000001 USDC is still over the cap.
+        if let Some(registry) = env.storage().instance().get::<_, Address>(&DataKey::PolicyRegistry) {
+            let sym = match &offramp_symbol {
+                Some(s) => s.clone(),
+                None => soroban_sdk::panic_with_error!(&env, PoolError::PolicyRequired),
+            };
+            let entry: Option<PolicyEntry> = env.invoke_contract(
+                &registry,
+                &Symbol::new(&env, "policy"),
+                vec![&env, sym.into_val(&env)],
+            );
+            if let Some(p) = entry {
+                let cap_stroops = match p.cap_usdc.checked_mul(USDC_STROOPS) {
+                    Some(c) => c,
+                    None => soroban_sdk::panic_with_error!(&env, PoolError::PolicyExceeded),
+                };
+                if amount > cap_stroops {
+                    soroban_sdk::panic_with_error!(&env, PoolError::PolicyExceeded);
                 }
             }
         }
@@ -909,14 +949,17 @@ impl Pool {
         // Liability accumulator, withdraw side (see module header). The released `amount` (Z) is
         // public and bound to the proof's `public_amount == -Z` (checked above), and the JoinSplit
         // conserves value so the unspent-note set changes by exactly -Z. Fold -Z so the accumulator
-        // stays equal to true live outstanding liabilities. Clamp at 0 (never negative): a
-        // deposits-from-genesis pool always has total >= Z so it never underflows; a MIGRATED pool
-        // seeds the accumulator at 0 (import can't recover hidden amounts), so its first withdraws
-        // would drive it below 0 — clamping keeps migration withdrawals working (attest is already
-        // documented unsound on a migrated pool). ponytail: clamp-at-0; seed TotalLiabilities in
-        // import_state if exact attest on a migrated pool is ever needed.
+        // stays equal to true live outstanding liabilities. NEVER clamp: on a deposits-from-genesis
+        // pool total >= Z always holds, so total < Z means more value is leaving than was ever
+        // deposited, i.e. a value mint. Trap with Overflow (#19) instead of hiding it. A MIGRATED
+        // pool seeds the accumulator at 0 (import can't recover hidden amounts), so its withdraws
+        // trap here too: seed TotalLiabilities at import before relying on a migrated accumulator
+        // pool (attest is documented unsound there anyway).
         let prev: i128 = env.storage().instance().get(&DataKey::TotalLiabilities).unwrap_or(0);
-        let total = if amount >= prev { 0 } else { prev - amount };
+        let total = match prev.checked_sub(amount) {
+            Some(t) if t >= 0 => t,
+            _ => soroban_sdk::panic_with_error!(&env, PoolError::Overflow),
+        };
         env.storage().instance().set(&DataKey::TotalLiabilities, &total);
         Self::token(&env).transfer(&env.current_contract_address(), &recipient, &amount);
         env.events().publish((symbol_short!("withdraw"), recipient), amount);
@@ -1145,6 +1188,7 @@ impl Pool {
     /// figure — both sides come from contract state. Reveals ONLY the aggregate total, never an
     /// individual note amount.
     pub fn attest_reserves(env: Env) -> Attestation {
+        Self::bump_instance(&env);
         let liabilities = Self::total_liabilities(env.clone());
         let reserves = Self::balance(env.clone());
         if liabilities > reserves {
@@ -1163,6 +1207,11 @@ impl Pool {
     }
 
     // ---- internals ----
+    /// Keep the contract instance + code alive: extend to INSTANCE_TTL_EXTEND once under
+    /// INSTANCE_TTL_THRESHOLD ledgers remain. Called by every state-changing entrypoint.
+    fn bump_instance(env: &Env) {
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND);
+    }
     fn token(env: &Env) -> TokenClient {
         let addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         TokenClient::new(env, &addr)

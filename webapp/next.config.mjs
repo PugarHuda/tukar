@@ -27,9 +27,11 @@ const nextConfig = {
     //   connect-src sepolia.base.org    -> viem Base Sepolia public RPC for the CCTP receive leg (lib/cctp.ts)
     //   connect-src api.onramper.com    -> off-ramp quote fetch on the receiver (lib/stellar.ts onramperQuote)
     //   connect-src api.reclaimprotocol -> Reclaim session-status poll when the ASP flow is configured (components/WalletBar.tsx)
+    //   connect-src iris-api-sandbox     -> CCTP fee quote fetched in the browser (lib/cctp.ts fetchBurnFees via components/CctpFund.tsx)
     //   connect-src *.idos.network       -> idOS reusable-KYC: kwil node reads + enclave (components/idos/IdosConnect.tsx)
     //   frame-src enclave.playground.idos.network -> the idOS enclave is an iframe mounted into #idOS-enclave
-    //   connect-src *.ingest.sentry.io  -> Sentry browser SDK error/perf ingest, ONLY reached when a DSN is set (no-op otherwise)
+    //   connect-src *.ingest.sentry.io  -> Sentry browser SDK error/perf ingest, ONLY reached when a DSN is set (no-op otherwise);
+    //                                      the provisioned project is EU-hosted (ingest.de), the us/global variants are kept for a future move
     //   img-src https:                  -> og/explorer/remote thumbnails; media-src 'self' -> the deck /demo-id.mp4
     const csp = [
       "default-src 'self'",
@@ -39,7 +41,7 @@ const nextConfig = {
       "font-src 'self' data:",
       "media-src 'self'",
       "worker-src 'self' blob:",
-      "connect-src 'self' https://soroban-testnet.stellar.org https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://api.reclaimprotocol.org https://nodes.playground.idos.network https://enclave.playground.idos.network https://*.ingest.sentry.io https://*.ingest.us.sentry.io",
+      "connect-src 'self' https://soroban-testnet.stellar.org https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://api.reclaimprotocol.org https://iris-api-sandbox.circle.com https://nodes.playground.idos.network https://enclave.playground.idos.network https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
       "frame-src 'self' https://enclave.playground.idos.network",
       "frame-ancestors 'self'",
       "object-src 'none'",
@@ -116,4 +118,7 @@ export default withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: !process.env.CI,
   sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  // Create a Sentry cron monitor for each vercel.json cron (the recurring-deposit runner also
+  // check-ins explicitly via Sentry.withMonitor, so a missed or overlong run raises an issue).
+  webpack: { automaticVercelMonitors: true },
 });

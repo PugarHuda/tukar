@@ -8,9 +8,10 @@
 // recipient or auto-withdraw — that transfer+withdraw leg stays a labeled manual step.
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 import { isConfigured, readSchedules, writeSchedules, listAllOwners, computeNextDate, type RunReceipt, type StoredSchedule } from "@/lib/schedules";
 import { relayerDeposit, relayerRegister } from "@/lib/relayer";
-import { newNote, usdcToStroops } from "@/lib/zk";
+import { newNote, usdcToStroops, encodeBearerNote } from "@/lib/zk";
 import { withLock } from "@/lib/lock";
 import { log, requestId, errMsg } from "@/lib/log";
 
@@ -35,6 +36,17 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // Sentry cron check-in around the authorised run (no-op with no DSN): a missed 09:00 UTC run, a
+  // thrown run, or one that outlives maxDuration shows up as a monitor issue. Schedule mirrors
+  // vercel.json; maxRuntime/checkinMargin are minutes.
+  return Sentry.withMonitor("recurring-deposit", () => run(req), {
+    schedule: { type: "crontab", value: "0 9 * * *" },
+    maxRuntime: 2,
+    checkinMargin: 10,
+  });
+}
+
+async function run(req: Request) {
   if (!isConfigured()) return NextResponse.json({ configured: false });
 
   // Sweep every owner's private schedule file and collect the plans due today across all of them.
@@ -45,14 +57,21 @@ export async function GET(req: Request) {
   type DuePlan = { owner: string; list: StoredSchedule[]; plan: StoredSchedule };
   const due: DuePlan[] = [];
   for (const owner of owners) {
-    const list = await readSchedules(owner);
+    // A corrupt file throws (readSchedules never treats it as empty); skip that owner, not the run.
+    let list: StoredSchedule[];
+    try {
+      list = await readSchedules(owner);
+    } catch (e) {
+      log.error("skipping owner: unreadable schedule file", { route: "cron/recurring", owner, err: errMsg(e) });
+      continue;
+    }
     for (const plan of list) if (plan.nextDate <= today) due.push({ owner, list, plan });
   }
   if (due.length === 0) return NextResponse.json({ configured: true, processed: 0, due: 0, owners: owners.length });
 
   // Oldest due first, so nothing starves across owners.
   due.sort((a, b) => a.plan.nextDate.localeCompare(b.plan.nextDate));
-  const { owner, list, plan: target } = due[0];
+  const { owner, plan: target } = due[0];
   const pending = due.length - 1; // remaining due plans (any owner), executed on later runs
 
   // DISTRIBUTED LOCK, then CLAIM FIRST, then move money. Two layers against a double deposit:
@@ -66,11 +85,18 @@ export async function GET(req: Request) {
   const lockKey = `recurring:${owner}:${target.id}:${today}`;
   const outcome = await withLock(lockKey, LOCK_TTL_MS, async () => {
     const runAt = new Date().toISOString();
-    target.nextDate = computeNextDate(target.frequency);
-    await writeSchedules(owner, list); // claim: the plan is no longer due for any concurrent run
+    // Re-read inside the lock and claim against THAT copy: the sweep's read is stale by now, and
+    // writing it back would silently drop a plan the owner added or removed in between. Skip if
+    // the plan vanished or was already advanced by another run.
+    const current = await readSchedules(owner);
+    const plan = current.find((x) => x.id === target.id);
+    if (!plan) return { skipped: "plan removed before the run" };
+    if (plan.nextDate > today) return { skipped: "plan already advanced" };
+    plan.nextDate = computeNextDate(plan.frequency);
+    await writeSchedules(owner, current); // claim: the plan is no longer due for any concurrent run
 
     // Mint a fresh note for the plan amount, then deposit + register on-chain.
-    const note = await newNote(usdcToStroops(target.amount));
+    const note = await newNote(usdcToStroops(plan.amount));
     const dep = await relayerDeposit(note);
     let regOk = false;
     let regError: string | undefined;
@@ -81,12 +107,15 @@ export async function GET(req: Request) {
     }
 
     // Record the result. Re-read this owner's file so a concurrent write to a different plan in the
-    // same file is not clobbered; update only our target's history.
+    // same file is not clobbered; update only our target's history. The bearer note (the ONLY
+    // spending key for the deposit just made) goes into the owner-private receipt, else the USDC
+    // the relayer just locked in the pool would be unspendable forever.
     const receipt: RunReceipt = {
       at: runAt,
       depHash: dep.hash,
       regOk,
       error: dep.ok ? regError : dep.error, // deposit error, else the (optional) register error
+      note: dep.ok ? encodeBearerNote({ ...note, ref: "SCHEDULED", corridor: plan.code }) : undefined,
     };
     try {
       const fresh = await readSchedules(owner);
@@ -106,6 +135,9 @@ export async function GET(req: Request) {
   // money rather than risk a second deposit.
   if (!outcome.ran) {
     return NextResponse.json({ configured: true, processed: 0, skipped: true, reason: outcome.reason, id: target.id, pending });
+  }
+  if ("skipped" in outcome.result) {
+    return NextResponse.json({ configured: true, processed: 0, skipped: true, reason: outcome.result.skipped, id: target.id, pending });
   }
 
   return NextResponse.json({

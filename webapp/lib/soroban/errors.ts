@@ -15,6 +15,9 @@ export const POOL_ERRORS: Record<number, string> = {
   10: "this commitment was already deposited (duplicate deposit rejected — it would lock funds)",
   11: "the FX oracle has no live price for this currency (off-ramp quote unavailable)",
   12: "the live FX rate would deliver less than your minimum (slippage too high — release blocked, note unspent)",
+  // preview-track pools (pool-enforced / pool-accumulator / pool-timelock)
+  16: "this withdrawal is over the corridor's on-chain cap (release blocked, note unspent)",
+  22: "this pool enforces corridor caps: the withdrawal must name its off-ramp corridor (release blocked, note unspent)",
 };
 
 export function friendlyPoolError(e: any): string {

@@ -54,6 +54,41 @@ fn set_policy_upserts_and_appends() {
     assert_eq!(c.policy(&Symbol::new(&env, "PH")).unwrap().cap_usdc, 3000);
 }
 
+// A negative cap is rejected by set_policy (InvalidCap #1) and by the constructor.
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")] // InvalidCap
+fn set_policy_rejects_negative_cap() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (c, _admin) = seed(&env);
+    c.set_policy(&Symbol::new(&env, "MX"), &-1, &0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")] // InvalidCap
+fn constructor_rejects_negative_cap() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let corridors = vec![&env, Symbol::new(&env, "MX")];
+    let entries = vec![&env, PolicyEntry { cap_usdc: -5, disclosure: 0 }];
+    env.register(PolicyRegistry, (admin, corridors, entries));
+}
+
+// set_policy extends the instance TTL to the 30-day window (fresh instance starts under the
+// 7-day threshold).
+#[test]
+fn set_policy_bumps_instance_ttl() {
+    use soroban_sdk::testutils::storage::Instance as _;
+    let env = Env::default();
+    env.mock_all_auths();
+    let (c, _admin) = seed(&env);
+    let before = env.as_contract(&c.address, || env.storage().instance().get_ttl());
+    assert!(before < INSTANCE_TTL_THRESHOLD);
+    c.set_policy(&Symbol::new(&env, "MX"), &5000, &0);
+    let after = env.as_contract(&c.address, || env.storage().instance().get_ttl());
+    assert_eq!(after, INSTANCE_TTL_EXTEND);
+}
+
 // set_policy requires the admin signature; an unauthorized call fails.
 #[test]
 #[should_panic]

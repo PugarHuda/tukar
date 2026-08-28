@@ -134,6 +134,32 @@ export async function readCorridorPolicies(): Promise<Record<string, { capUsdc: 
   }
 }
 
+/**
+ * Read ONE corridor's live policy from the on-chain registry (one simulate, for the Sender's
+ * pre-flight card). `policy(code)` returns Option, so an ok read with no value is the honest
+ * "no policy set" ({ policy: null }); a failed read is null so the caller can say "registry
+ * unreadable" instead of "no policy".
+ */
+export async function readCorridorPolicy(code: string): Promise<{ policy: { capUsdc: number; disclosure: number } | null } | null> {
+  try {
+    const p = await simulate(POLICY_REGISTRY, "policy", Sdk.xdr.ScVal.scvSymbol(code));
+    if (!p.ok) return null;
+    if (p.value == null) return { policy: null };
+    return { policy: { capUsdc: Number(p.value.cap_usdc), disclosure: Number(p.value.disclosure) } };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What a Sender send has actually cost on testnet, in stroops: fee_charged of the demo key's
+ * pool.deposit (tx 540002b5b12927ef2b3c255f3071a217dad59978b2505da27e4e191360823f7f) and
+ * register_root_verified (tx 8c3b20aa59116c2a909e9143749a69b6d82b433d84ec55a85129491981168111),
+ * 2026-08-26, typical of the last several. A documented observation, not a quote: the exact fee
+ * is set by simulation when the user signs, and a first-ever write that extends ledger TTLs runs higher.
+ */
+export const OBSERVED_SEND_FEE_STROOPS = { deposit: 94_002, register: 91_599 } as const;
+
 /** Read the pool's live custody balance + commitment count from chain. */
 export async function readPoolState(): Promise<{ balance: string; commitments: string }> {
   const [bal, count] = await Promise.all([simulate(POOL, "balance"), simulate(POOL, "commitment_count")]);
@@ -204,18 +230,19 @@ export async function readCurrentRoot(): Promise<bigint | null> {
  * DURABLE on-chain state via `leaves()`. Unlike event reconstruction this does
  * NOT depend on RPC event retention, so the browser tree always mirrors the real
  * on-chain tree — reload-safe and correct even when other users have deposited.
- * Returns BigInt[] in tree order (or [] on error).
+ * Returns BigInt[] in tree order, or null when the chain could NOT be read (RPC blip / sim
+ * error), so a caller never mistakes a failed read for an empty tree.
  */
-export async function loadLeavesFromChain(): Promise<bigint[]> {
+export async function loadLeavesFromChain(): Promise<bigint[] | null> {
   const cnt = await simulate(POOL, "leaf_count");
-  if (!cnt.ok) return [];
+  if (!cnt.ok) return null;
   const n = Number(cnt.value);
   const out: bigint[] = [];
   const CHUNK = 64; // paginate so this scales past a single read budget
   const u32 = (x: number) => Sdk.nativeToScVal(x, { type: "u32" });
   for (let start = 0; start < n; start += CHUNK) {
     const r = await simulate(POOL, "leaf_range", u32(start), u32(CHUNK));
-    if (!r.ok || !Array.isArray(r.value)) return [];
+    if (!r.ok || !Array.isArray(r.value)) return null;
     for (const b of r.value) out.push(bytesToBig(b));
   }
   return out;
@@ -233,6 +260,7 @@ export async function isKnownCommitment(commitmentDec: string | bigint): Promise
   try {
     const target = BigInt(commitmentDec);
     const leaves = await loadLeavesFromChain();
+    if (leaves === null) return null; // could not read the chain — NOT "confirmed absent"
     return leaves.some((l) => l === target);
   } catch (_) {
     return null; // could not read the chain — NOT "confirmed absent"

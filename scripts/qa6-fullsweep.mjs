@@ -44,9 +44,16 @@ async function api() {
     trisa.json?.configured === false ? ok("TRISA gated honestly (not deployed -> configured:false)") : bad("TRISA gate", trisa.body.slice(0, 80));
 
     const cctp = await call("/api/cctp/attest", { method: "POST", headers: J, body: JSON.stringify({ txHash: "0x0000000000000000000000000000000000000000000000000000000000000001", sourceDomain: 6 }) });
-    cctp.json?.status === "pending" ? ok("CCTP attest polls Iris (pending)") : bad("CCTP attest", cctp.body.slice(0, 80));
+    // "pending" = Iris reachable and no attestation for the dummy hash; "error" = the route could
+    // not reach Iris at all and says so honestly (happens on networks that block circle.com).
+    cctp.json?.status === "pending"
+      ? ok("CCTP attest polls Iris (pending)")
+      : cctp.json?.status === "error" && typeof cctp.json?.error === "string"
+        ? ok("CCTP attest honest error (Iris unreachable from here)")
+        : bad("CCTP attest", cctp.body.slice(0, 80));
 
-    const rc = await call("/api/reclaim", { method: "POST", headers: J, body: "{}" });
+    // Init binds the Reclaim session to a wallet address, so a valid G address is required.
+    const rc = await call("/api/reclaim", { method: "POST", headers: J, body: JSON.stringify({ address: "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS" }) });
     rc.status === 200 && (rc.json?.configured === true || rc.json?.configured === false) ? ok("reclaim responds (configured=" + rc.json?.configured + ")") : bad("reclaim", rc.status + " " + rc.body.slice(0, 80));
 
     const nonce = await call("/api/schedules/nonce?address=GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS");

@@ -30,6 +30,9 @@ import {
   RESERVES_VERIFIER,
   RESERVES_AGGREGATE,
 } from "@/lib/stellar";
+import { readMonitoringWindow, deposits, velocity, nearCap, repeatedActors, adminEvents, stroopsToUsdc, POOL_TIMELOCK, type MonWindow, type Bucket } from "@/lib/anomaly";
+import { fmtUsdc } from "@/lib/zk";
+import { POOL_ENFORCED } from "@/lib/constants";
 
 // Public contract IDs from deployments/testnet.json that lib/stellar doesn't re-export
 // (the pool admin identity + token + the three verifiers only referenced for display).
@@ -43,13 +46,6 @@ const TREE_CAP = 1 << 10; // Merkle depth 10
 // ---- format helpers ----
 const short = (id: string) => id.slice(0, 6) + "…" + id.slice(-4);
 const shortHash = (h: string) => h.slice(0, 8) + "…" + h.slice(-6);
-const fmtUsdc = (stroops: string) => {
-  try {
-    return (Number(BigInt(stroops)) / 1e7).toLocaleString("en-US", { maximumFractionDigits: 2 });
-  } catch {
-    return stroops;
-  }
-};
 const toHex32 = (dec: string) => BigInt(dec).toString(16).padStart(64, "0");
 const fmtAge = (s: number | null) => (s == null ? "—" : s < 90 ? s + "s" : s < 5400 ? Math.round(s / 60) + "m" : Math.round(s / 3600) + "h");
 const fmtRate = (r: number) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(3));
@@ -124,7 +120,16 @@ function CopyBlock({ text, copiedLabel = "CLI command copied" }: { text: string;
     <div className="relative">
       <button
         type="button"
-        onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); toast(copiedLabel, "success"); setTimeout(() => setDone(false), 1600); })}
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(text);
+            setDone(true);
+            toast(copiedLabel, "success");
+            setTimeout(() => setDone(false), 1600);
+          } catch {
+            toast("Copy failed. Select the text and copy it manually.", "error");
+          }
+        }}
         className={`absolute right-2 top-2 z-10 rounded-md border px-2 py-1 font-mono text-[10px] transition-colors ${done ? "border-green/40 text-green-t" : "border-line-input bg-white/[0.05] text-ts hover:border-orange/50 hover:text-tp"}`}
       >
         {done ? "copied ✓" : "copy"}
@@ -145,9 +150,11 @@ const CONTRACTS: { role: "pool" | "verifier" | "oracle" | "token" | "policy"; to
   { role: "verifier", tone: "muted", name: "threshold disclosure", id: THRESHOLD_VERIFIER, note: "amount ≤ threshold" },
   { role: "verifier", tone: "muted", name: "aggregate disclosure", id: AGGREGATE_VERIFIER, note: "Σ portfolio ≤ cap" },
   { role: "verifier", tone: "muted", name: "range disclosure", id: RANGE_VERIFIER, note: "band lower ≤ amt ≤ upper" },
+  { role: "verifier", tone: "muted", name: "reserves (proof-of-reserves)", id: RESERVES_VERIFIER, note: "33 inputs · Σ openings = liabilities" },
   { role: "oracle", tone: "green", name: "Reflector SEP-40 FX", id: REFLECTOR_FX, note: "USD base · off-ramp quote" },
   { role: "token", tone: "amber", name: "USDC (Stellar Asset Contract)", id: TOKEN, note: "real testnet USDC" },
 ];
+const VERIFIER_COUNT = CONTRACTS.filter((c) => c.role === "verifier").length;
 
 type PoolHealth = { commitments: string; balance: string; leaves: number; root: bigint | null };
 
@@ -177,6 +184,11 @@ function PoolHealthSection() {
       try {
         const [state, root, leaves] = await Promise.all([readPoolState(), readCurrentRoot(), loadLeavesFromChain()]);
         if (!live) return;
+        // A null / "?" read is "could not read the chain", never "0 of 1024 leaves".
+        if (!state || leaves == null || state.balance === "?" || state.commitments === "?") {
+          setStatus("err");
+          return;
+        }
         setHealth({ commitments: state.commitments, balance: state.balance, leaves: leaves.length, root });
         setStatus("ok");
       } catch {
@@ -202,6 +214,7 @@ function PoolHealthSection() {
 
   const n = health?.leaves ?? 0;
   const rootHex = health?.root != null ? "0x" + health.root.toString(16).padStart(64, "0") : null;
+  const unread = status === "err" ? "could not read the chain" : "reading…";
 
   return (
     <Panel seq="01" className="w-full">
@@ -220,17 +233,19 @@ function PoolHealthSection() {
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <PoolCard label="Commitments recorded" value={health ? fmtCount(health.commitments) : status === "loading" ? <Skeleton className="h-7 w-16" /> : "—"} sub="deposits bound on-chain" accent />
-        <PoolCard label="Tree fill" value={health ? n.toLocaleString("en-US") : status === "loading" ? <Skeleton className="h-7 w-20" /> : "—"} sub={`${n} / ${TREE_CAP} leaves (2¹⁰ cap)`}>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-            <div className="h-full rounded-full bg-orange transition-[width] duration-500" style={{ width: `${Math.min(100, (n / TREE_CAP) * 100).toFixed(1)}%` }} />
-          </div>
+        <PoolCard label="Commitments recorded" value={health ? fmtCount(health.commitments) : status === "loading" ? <Skeleton className="h-7 w-16" /> : "—"} sub={health ? "deposits bound on-chain" : unread} accent />
+        <PoolCard label="Tree fill" value={health ? n.toLocaleString("en-US") : status === "loading" ? <Skeleton className="h-7 w-20" /> : "—"} sub={health ? `${n} / ${TREE_CAP} leaves (2¹⁰ cap)` : unread}>
+          {health && (
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="h-full rounded-full bg-orange transition-[width] duration-500" style={{ width: `${Math.min(100, (n / TREE_CAP) * 100).toFixed(1)}%` }} />
+            </div>
+          )}
         </PoolCard>
-        <PoolCard label="Custody balance" value={health ? `${fmtUsdc(health.balance)}` : status === "loading" ? <Skeleton className="h-7 w-24" /> : "—"} sub="USDC held by the pool" />
+        <PoolCard label="Custody balance" value={health ? `${fmtUsdc(health.balance)}` : status === "loading" ? <Skeleton className="h-7 w-24" /> : "—"} sub={health ? "USDC held by the pool" : unread} />
         <PoolCard
           label="Current Merkle root"
           value={<span className="font-mono text-[13px]" title={rootHex ?? undefined}>{rootHex ? rootHex.slice(0, 12) + "…" : status === "loading" ? <Skeleton className="mt-1 h-5 w-28" /> : "—"}</span>}
-          sub="append-only accumulator"
+          sub={health ? (rootHex ? "append-only accumulator" : "root read failed") : unread}
         />
       </div>
 
@@ -322,7 +337,7 @@ function PoolHealthSection() {
         );
       })()}
 
-      <SubHead title="Deployed contract inventory" sub="7 BN254 verifiers · pool · oracle · token" />
+      <SubHead title="Deployed contract inventory" sub={`${VERIFIER_COUNT} BN254 verifiers · pool · policy · oracle · token`} />
       <TableWrap>
         <thead>
           <tr>
@@ -472,14 +487,14 @@ function AdminForms({ policy }: { policy: Policy | null }) {
   );
 }
 
-// Per-corridor / per-jurisdiction policy: the amount cap + required-disclosure mode a
-// licensed anchor configures per corridor. These are now REAL on-chain records in the policy
-// registry (read live via readCorridorPolicies); the map below is the FALLBACK the console
-// renders if that read fails, so the page never breaks. The globally-enforced policy remains
-// the single ASP allow-root + deny-list read live above (checked by the compliance circuit on
-// every deposit). The cap + disclosure values are illustrative, not real regulatory figures.
-// The required-disclosure values map to Tukar's four disclosure circuits (exact / threshold /
-// range / aggregate) a regulator in that jurisdiction could demand.
+// Per-corridor policy: the amount cap + required-disclosure mode per corridor. The records
+// live on-chain in the policy registry (read live via readCorridorPolicies); the map below is
+// only the LOCAL FALLBACK rendered when that read fails, so the page never breaks. Enforcement
+// is split and the copy says so: the ASP allow-root + deny-list are checked by the compliance
+// circuit on every deposit to the live pool, while the per-corridor cap is enforced on withdraw
+// only by the preview enforcement pool (POOL_ENFORCED), not by the main live pool. The values
+// are testnet figures the operator set, not regulatory limits. The required-disclosure values
+// map to Tukar's four disclosure circuits (exact / threshold / range / aggregate).
 type Disclosure = "exact" | "threshold" | "range" | "aggregate";
 type PolicyMap = Record<string, { thresholdUsdc: number; disclosure: Disclosure }>;
 // Registry disclosure enum -> UI string (index = the u32 the contract stores).
@@ -510,7 +525,8 @@ const DISCLOSURES: Disclosure[] = ["exact", "threshold", "range", "aggregate"];
 const uniformPolicy = (thresholdUsdc: number, disclosure: Disclosure): PolicyMap =>
   Object.fromEntries(Object.keys(CORRIDOR_POLICY).map((c) => [c, { thresholdUsdc, disclosure }]));
 const PRESETS: { key: string; label: string; note: string; build: () => PolicyMap }[] = [
-  { key: "default", label: "Default (on-chain)", note: "live per-corridor records from the policy registry", build: () => ({ ...CORRIDOR_POLICY }) },
+  // Label + note for "default" are overridden at render time by whether the registry read succeeded.
+  { key: "default", label: "Default", note: "", build: () => ({ ...CORRIDOR_POLICY }) },
   { key: "eu", label: "EU (MiCA / TFR)", note: "illustrative EU-style travel-rule shape", build: () => uniformPolicy(1000, "exact") },
   { key: "us", label: "US (FinCEN)", note: "illustrative US-style CTR reporting shape", build: () => uniformPolicy(10000, "threshold") },
   { key: "apac", label: "APAC", note: "illustrative APAC mixed shape", build: () => uniformPolicy(3000, "range") },
@@ -532,8 +548,9 @@ function policyAsCode(rootHex: string | null, policy: PolicyMap): string {
     `asp_allow_root: ${rootHex ? "0x" + rootHex : "0x… (pool.asp_root)"}`,
     "sanctions_deny_list: pool.deny_list()   # 8 non-membership field elements",
     "",
-    "# PER-CORRIDOR — real on-chain records in the policy registry,",
-    "# admin-signed by the corridor operator (set_policy, no redeploy):",
+    "# PER-CORRIDOR — records in the policy registry, admin-signed by the corridor",
+    "# operator (set_policy, no redeploy). Enforced on withdraw only by the preview",
+    "# enforcement pool; the main live pool does not read them:",
     "corridors:",
     ...rows,
   ].join("\n");
@@ -563,21 +580,24 @@ function DemonstratedPolicy({ rootHex, livePolicy }: { rootHex: string | null; l
   };
 
   const cellInput = "rounded-md border border-line-input bg-input px-2 py-1 font-mono text-tp transition-colors focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]";
-  const activeNote = PRESETS.find((x) => x.key === presetKey)?.note ?? "custom edits";
+  // One source of truth for the copy: is the table showing the live registry or the local fallback?
+  const defaultLabel = livePolicy ? "Default (on-chain)" : "Default (fallback)";
+  const defaultNote = livePolicy ? "live records from the policy registry" : "local fallback map, the registry read was unavailable";
+  const activeNote = presetKey === "default" ? defaultNote : PRESETS.find((x) => x.key === presetKey)?.note ?? "custom edits";
+  const source = livePolicy ? "the live registry records" : "the local fallback map";
 
   return (
     <>
-      <SubHead title="Per-corridor policy registry" sub={livePolicy ? "on-chain policy registry · admin-signed by the corridor operator" : "on-chain read unavailable · showing fallback map"} />
+      <SubHead title="Per-corridor policy registry" sub={livePolicy ? "read live from the policy registry · admin-signed by the corridor operator" : "registry read unavailable · showing the local fallback map"} />
       <div className="mb-4 flex items-start gap-3 rounded-tile border border-line bg-black/20 p-4">
         <span aria-hidden className="mt-0.5 text-tf">◇</span>
         <p className="text-[12.5px] leading-relaxed text-tm">
-          <b className="text-ts">On-chain policy registry (admin-signed by the corridor operator).</b>{" "}
           {livePolicy ? (
-            <>The per-corridor amount cap and required disclosure below are REAL records read live from the policy registry <span className="font-mono text-ts">{short(POLICY_REGISTRY)}</span>, a contract separate from the pool. The corridor operator re-points them with an admin-signed <span className="font-mono text-ts">set_policy</span> (no redeploy), the same admin-op pattern as the allow-root and deny-list above.</>
+            <><b className="text-ts">Live from the policy registry.</b> The cap and required disclosure per corridor below are records read live from <span className="font-mono text-ts">{short(POLICY_REGISTRY)}</span>, a contract separate from the pool; the corridor operator re-points them with an admin-signed <span className="font-mono text-ts">set_policy</span>, no redeploy.</>
           ) : (
-            <>The on-chain registry read is unavailable right now, so this shows the fallback map. The allow-root and deny-list above are global and enforced on-chain today.</>
+            <><b className="text-ts">Registry read unavailable.</b> The table shows a local fallback map that is not read from chain. Refresh to retry.</>
           )}{" "}
-          The cap and disclosure values are illustrative, not real regulatory figures.
+          <b className="text-ts">Enforcement:</b> the allow-root and deny-list above are checked by the compliance circuit on every deposit to the live pool. The per-corridor cap is enforced on withdraw only by the preview enforcement pool <span className="font-mono text-ts">{short(POOL_ENFORCED)}</span> (it reads the registry cross-contract and reverts PolicyExceeded); the main live pool <span className="font-mono text-ts">{short(POOL)}</span> does not read the registry. The values are testnet figures the operator set, not regulatory limits.
         </p>
       </div>
 
@@ -590,13 +610,13 @@ function DemonstratedPolicy({ rootHex, livePolicy }: { rootHex: string | null; l
             onClick={() => applyPreset(p.key)}
             className={`rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${presetKey === p.key ? "border-orange/60 bg-orange/[0.08] text-orange-l3" : "border-line-input text-ts hover:border-orange/40 hover:text-tp"}`}
           >
-            {p.label}
+            {p.key === "default" ? defaultLabel : p.label}
           </button>
         ))}
         {presetKey === "custom" && <Badge tone="amber">custom edits</Badge>}
       </div>
       <p className="mb-4 font-mono text-[10.5px] text-tf">
-        {activeNote}. Presets are illustrative shapes, not real regulatory rulesets. Edit any threshold or disclosure inline to model a corridor; the table and the policy-as-code below update live and never drift.
+        {activeNote}. The non-default presets are illustrative shapes, not regulatory rulesets. Edit any threshold or disclosure inline to model a corridor; the table and the policy-as-code below update together.
       </p>
 
       <TableWrap>
@@ -652,12 +672,12 @@ function DemonstratedPolicy({ rootHex, livePolicy }: { rootHex: string | null; l
         </tbody>
       </TableWrap>
       <p className="mb-3 mt-2 font-mono text-[10.5px] text-tf">
-        Allowed source and sanctions screening are the real global on-chain policy (same allow-root + deny-list for every corridor). Amount threshold and required disclosure are the illustrative per-corridor reference model.
+        Allowed source and sanctions screening are the global on-chain policy (same allow-root + deny-list for every corridor, checked on every live-pool deposit). Amount threshold and required disclosure come from {source}; the cap is enforced only by the preview enforcement pool, not the main live pool.
       </p>
 
       <SubHead title="Policy as code" sub="the config object an anchor supplies · copy" />
       <p className="mb-3 text-[12.5px] leading-relaxed text-tm">
-        The same policy expressed as the config an anchor would hand the layer. The <code className="font-mono text-ts">asp_allow_root</code> and <code className="font-mono text-ts">sanctions_deny_list</code> lines are the real on-chain values. The <code className="font-mono text-ts">corridors</code> block is the reference model, not enforced per-corridor on-chain today.
+        The same policy expressed as the config an anchor would hand the layer. The <code className="font-mono text-ts">asp_allow_root</code> and <code className="font-mono text-ts">sanctions_deny_list</code> lines are the live on-chain values. The <code className="font-mono text-ts">corridors</code> block mirrors {source}, enforced on withdraw only by the preview enforcement pool.
       </p>
       <CopyBlock text={policyAsCode(rootHex, policy)} copiedLabel="policy config copied" />
 
@@ -773,9 +793,10 @@ function CompliancePolicySection() {
       <p className="mb-4 text-[12.5px] leading-relaxed text-tm">
         These are admin-only writes. This browser holds only the non-admin demo key, so nothing is signed here. Each form builds the exact <code className="font-mono text-ts">stellar contract invoke</code> command for the operator key <span className="font-mono text-ts">{short(ADMIN)}</span> to run offline. No admin secret ever touches the page.
       </p>
-      <AdminForms key={rootHex ?? status} policy={policy} />
+      {/* Prefixed keys: both fall back to `status`, and siblings sharing a key trip a React warning. */}
+      <AdminForms key={`admin-${rootHex ?? status}`} policy={policy} />
 
-      <DemonstratedPolicy key={corridorPolicy ? "chain" : status} rootHex={rootHex} livePolicy={corridorPolicy} />
+      <DemonstratedPolicy key={`policy-${corridorPolicy ? "chain" : status}`} rootHex={rootHex} livePolicy={corridorPolicy} />
     </Panel>
   );
 }
@@ -1032,13 +1053,199 @@ function CorridorAnchorSection() {
   );
 }
 
+// ---------- 5 · MONITORING ----------
+const fmtUtc = (sec: number) => new Date(sec * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+const fmtN = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+function BarList({ buckets, label }: { buckets: Bucket[]; label: (b: Bucket) => string }) {
+  const max = Math.max(1, ...buckets.map((b) => b.count));
+  return (
+    <div className="flex flex-col gap-1">
+      {buckets.map((b) => (
+        <div key={b.startSec} className="flex items-center gap-2">
+          <span className="w-24 shrink-0 font-mono text-[11px] text-tf">{label(b)}</span>
+          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+            <span className="block h-full rounded-full bg-orange/60" style={{ width: `${((b.count / max) * 100).toFixed(0)}%` }} />
+          </span>
+          <span className="w-28 shrink-0 text-right font-mono text-[11px] text-ts">{b.count} · {fmtN(b.usdc)} USDC</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MonitoringSection() {
+  const [win, setWin] = useState<MonWindow | null>(null);
+  const [caps, setCaps] = useState<Record<string, { capUsdc: number; disclosure: number }> | null>(null);
+  const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
+  const [minN, setMinN] = useState(5);
+
+  useEffect(() => {
+    let live = true;
+    readMonitoringWindow()
+      .then((w) => { if (live) { setWin(w); setStatus("ok"); } })
+      .catch(() => { if (live) setStatus("err"); });
+    // Caps read is isolated: without it the structuring heuristic says so instead of guessing.
+    readCorridorPolicies().then((c) => { if (live) setCaps(c); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  const deps = win ? deposits(win.events) : [];
+  const vel = win ? velocity(deps, win.fromSec, win.toSec) : null;
+  const capList = caps ? Object.values(caps).map((c) => c.capUsdc) : [];
+  const near = nearCap(deps, capList);
+  const rep = repeatedActors(deps, Math.max(1, minN));
+  const admin = win ? adminEvents(win.events) : [];
+  const withdrawals = win ? win.events.filter((e) => e.kind === "withdraw") : [];
+  const depositedUsdc = deps.reduce((n, d) => n + stroopsToUsdc(d.amount), 0);
+  const days = win ? (win.toSec - win.fromSec) / 86400 : null;
+  const corridorsForCap = (cap: number) => (caps ? Object.entries(caps).filter(([, c]) => c.capUsdc === cap).map(([code]) => code).join(", ") : "");
+  const hourLabel = (b: Bucket) => new Date(b.startSec * 1000).toISOString().slice(11, 16) + " UTC";
+  const dayLabel = (b: Bucket) => new Date(b.startSec * 1000).toISOString().slice(5, 10);
+
+  return (
+    <Panel seq="05" className="w-full">
+      <SectionHead
+        seq="05"
+        title="Monitoring"
+        sub={status === "err" ? <StatusPill tone="red" label="event read failed" /> : status === "loading" ? <StatusPill tone="amber" label="reading events…" /> : <StatusPill tone="green" label="RPC getEvents · pool + token + registry + timelock" />}
+      />
+
+      <div className="mb-4 rounded-tile border border-line bg-black/20 px-4 py-3 text-[12.5px] leading-relaxed text-tm">
+        {win ? (
+          <>
+            The public testnet RPC retains <b className="text-tp">{win.retentionLedgers.toLocaleString("en-US")}</b> ledgers of events, about <b className="text-tp">{days!.toFixed(1)} days</b>. Everything below is computed from ledgers <span className="font-mono text-ts">{win.fromLedger.toLocaleString("en-US")}</span> to <span className="font-mono text-ts">{win.toLedger.toLocaleString("en-US")}</span>, <span className="font-mono text-ts">{fmtUtc(win.fromSec)}</span> to <span className="font-mono text-ts">{fmtUtc(win.toSec)}</span>. Older activity has aged out of the RPC and is not counted.
+            {win.truncated && <> <b className="text-amber">The page cap was hit, so the newest events are missing from this view.</b></>}
+          </>
+        ) : status === "err" ? (
+          <>Could not read the event window from the RPC. Refresh to retry; the other sections read independently.</>
+        ) : (
+          <Skeleton className="h-4 w-3/4" />
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <PoolCard label="Deposits in window" value={win ? deps.length : "—"} sub={win ? `${fmtN(depositedUsdc)} USDC moved in` : "pending"} accent />
+        <PoolCard label="Withdrawals in window" value={win ? withdrawals.length : "—"} sub={win ? `${fmtN(withdrawals.reduce((n, w) => n + (w.amount != null ? stroopsToUsdc(w.amount) : 0), 0))} USDC released` : "pending"} />
+        <PoolCard label="Admin events in window" value={win ? admin.length : "—"} sub="registry set_policy + timelock" />
+        <PoolCard label="Failed invocations" value={<span className="text-tf">not observable</span>} sub="see note below" />
+      </div>
+      <p className="mt-2 font-mono text-[10.5px] text-tf">
+        Failed pool calls are not measured: this RPC serves getEvents only for successful contract calls (the diagnostic event type is rejected), and getTransactions cannot filter by contract, so reverted deposits and rejected proofs would need an indexer with diagnostic events enabled.
+      </p>
+
+      <SubHead title="Deposit velocity" sub="count · USDC per bucket" />
+      {vel ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-tile border border-line bg-black/20 p-4">
+            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.1em] text-tf">Last 24 hours, by hour</div>
+            <BarList buckets={vel.hourly} label={hourLabel} />
+          </div>
+          <div className="rounded-tile border border-line bg-black/20 p-4">
+            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.1em] text-tf">Whole window, by UTC day</div>
+            <BarList buckets={vel.daily} label={dayLabel} />
+          </div>
+        </div>
+      ) : (
+        <Skeleton className="h-24 w-full" />
+      )}
+
+      <SubHead title="Structuring heuristic" sub="deposits within 10% under a corridor cap" />
+      <div className="rounded-tile border border-line bg-black/20 p-4 text-[12.5px] leading-relaxed text-tm">
+        {!win ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : !caps ? (
+          <>Corridor caps could not be read from the policy registry, so this heuristic has nothing to compare against.</>
+        ) : (
+          <>
+            <b className="text-tp">{near.total}</b> of {deps.length} deposits sit in the band just under a cap (at least 90% of the cap, below the cap). <span className="text-tf">Heuristic: a deposit carries no corridor on-chain, so each is tested against every distinct cap in the registry. Amounts are the public deposit amounts, not note contents.</span>
+            {near.byCap.length > 0 && (
+              <ul className="mt-2 flex flex-col gap-1 font-mono text-[11.5px] text-ts">
+                {near.byCap.map((b) => (
+                  <li key={b.cap}>
+                    cap {fmtN(b.cap)} USDC ({corridorsForCap(b.cap)}): {b.hits.length} deposit{b.hits.length > 1 ? "s" : ""}{" "}
+                    {b.hits.slice(0, 5).map((h) => (
+                      <a key={h.txHash} href={txExplorer(h.txHash)} target="_blank" rel="noreferrer" className="mr-2 text-orange-l3 hover:text-orange">{shortHash(h.txHash)} ↗</a>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+
+      <SubHead title="Repeated-actor heuristic" sub="same depositor, N or more deposits inside any 24h span" />
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-[12.5px] text-tm">
+        <label htmlFor="mon-min-n" className="font-mono text-[10px] uppercase tracking-[0.12em] text-tf">N =</label>
+        <input id="mon-min-n" type="number" min={1} step={1} value={minN} onChange={(e) => setMinN(Math.max(1, Math.round(Number(e.target.value) || 1)))} className="w-20 rounded-md border border-line-input bg-input px-2 py-1 font-mono text-[12px] text-tp focus:border-orange/60 focus:outline-none" />
+        <span className="text-tf">Depositor is the sender of the USDC transfer in the same transaction as the deposit event.</span>
+      </div>
+      <TableWrap>
+        <thead>
+          <tr>
+            <th className={TH}>Depositor</th>
+            <th className={TH}>Deposits in window</th>
+            <th className={TH}>Max in any 24h</th>
+          </tr>
+        </thead>
+        <tbody>
+          {status === "loading" && <SkeletonRows cols={3} rows={2} />}
+          {win && rep.actors.length === 0 && (
+            <tr><td className={`${TD} text-[11.5px] text-tm`} colSpan={3}>No depositor reached {Math.max(1, minN)} deposits in a 24h span{rep.unattributed ? ` (${rep.unattributed} deposit${rep.unattributed > 1 ? "s" : ""} had no matching token transfer and could not be attributed)` : ""}.</td></tr>
+          )}
+          {rep.actors.map((a) => (
+            <tr key={a.actor}>
+              <td className={`${TD} font-mono text-[12px] text-ts`} title={a.actor}>{short(a.actor)}</td>
+              <td className={`${TD} font-mono text-[12px] text-tm`}>{a.total}</td>
+              <td className={`${TD} font-mono text-[12px] text-orange-l3`}>{a.maxInWindow}</td>
+            </tr>
+          ))}
+        </tbody>
+      </TableWrap>
+
+      <SubHead title="Admin setter events" sub="ledger close time · newest first" />
+      <TableWrap>
+        <thead>
+          <tr>
+            <th className={TH}>Time</th>
+            <th className={TH}>Contract</th>
+            <th className={TH}>Event</th>
+            <th className={TH}>Detail</th>
+            <th className={TH}>Transaction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {status === "loading" && <SkeletonRows cols={5} rows={2} />}
+          {win && admin.length === 0 && (
+            <tr><td className={`${TD} text-[11.5px] text-tm`} colSpan={5}>No policy-registry or timelock events in the window.</td></tr>
+          )}
+          {admin.map((e) => (
+            <tr key={e.txHash + e.kind + e.ledger}>
+              <td className={`${TD} font-mono text-[12px] text-tm`}>{fmtUtc(e.closedAt)}</td>
+              <td className={`${TD} font-mono text-[12px]`}>{CONTRACT_LINK(e.contract)}</td>
+              <td className={TD}><Badge tone="amber">{e.kind}</Badge></td>
+              <td className={`${TD} font-mono text-[11px] text-ts`}>{[e.detail, e.data].filter(Boolean).join(" · ") || "—"}</td>
+              <td className={`${TD} font-mono text-[12px]`}><a href={txExplorer(e.txHash)} target="_blank" rel="noreferrer" className="text-ts hover:text-orange-l3">{shortHash(e.txHash)} ↗</a></td>
+            </tr>
+          ))}
+        </tbody>
+      </TableWrap>
+      <p className="mt-2 font-mono text-[10.5px] text-tf">
+        Observable: <span className="text-ts">policy</span> from the registry {short(POLICY_REGISTRY)} (set_policy, caps) and <span className="text-ts">tl_prop / tl_exec / tl_cancel</span> from the preview timelock pool {short(POOL_TIMELOCK)}. Not observable: the live pool {short(POOL)} emits no event from set_asp_root, set_deny_list, set_auditor or set_fx_oracle, so those writes only show as the current values in section 02, not as a history.
+      </p>
+    </Panel>
+  );
+}
+
 // ---------- page ----------
-type SectionId = "pool" | "policy" | "oracle" | "corridor";
+type SectionId = "pool" | "policy" | "oracle" | "corridor" | "monitoring";
 const NAV: (NavItem & { id: SectionId })[] = [
   { id: "pool", key: "pool", label: "Pool health" },
   { id: "policy", key: "policy", label: "Compliance policy" },
   { id: "oracle", key: "oracle", label: "Oracle health" },
   { id: "corridor", key: "corridor", label: "Corridor & anchor" },
+  { id: "monitoring", key: "monitoring", label: "Monitoring" },
 ];
 
 export default function OperatorPage() {
@@ -1070,6 +1277,7 @@ export default function OperatorPage() {
           {section === "policy" && <CompliancePolicySection />}
           {section === "oracle" && <OracleHealthSection />}
           {section === "corridor" && <CorridorAnchorSection />}
+          {section === "monitoring" && <MonitoringSection />}
         </div>
 
         <p className="mt-10 text-center font-mono text-[11px] text-tf">

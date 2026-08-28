@@ -43,14 +43,3 @@ export function traditionalRemittanceFee(usdcAmount: number): Savings | null {
     sentence: `Sending ${amountText} the usual way costs about ${feeText} in fees (6.2% global average, World Bank). Tukar settles on-chain for a fraction of a cent plus the live FX rate.`,
   };
 }
-
-// ponytail: self-check. `node --experimental-strip-types lib/savings.ts` or a ts-runner.
-export function demo() {
-  const s = traditionalRemittanceFee(500)!;
-  console.assert(Math.round(s.fee) === 31, `500 USDC => ~$31, got ${s.fee}`);
-  console.assert(Math.round(s.feeAnnual) === 372, `500/mo => ~$372/yr, got ${s.feeAnnual}`);
-  console.assert(traditionalRemittanceFee(0) === null, "0 => null");
-  console.assert(traditionalRemittanceFee(-5) === null, "negative => null");
-  console.assert(traditionalRemittanceFee(NaN) === null, "NaN => null");
-  console.log("savings demo ok:", s.sentence);
-}

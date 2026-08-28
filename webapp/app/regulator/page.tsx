@@ -5,7 +5,7 @@
 // selective-disclosure receipt (in-browser snarkjs AND the live on-chain verifier, routed
 // per type by lib/zk.verifyReceipt), register aggregate audit requests on-chain, and keep a
 // session audit trail. No new on-chain logic — every call routes through the shared libs.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
 import { Button, Spinner, StatusPill, Skeleton, useToast } from "@/components/ui";
@@ -45,6 +45,10 @@ import {
 
 import { CORRIDORS, corridorByCode, type Corridor } from "@/components/receiver/corridors";
 import { DEMO_TRAVEL_ADDRESS } from "@/lib/trp";
+import { scheduleSignIn } from "@/lib/auth-client";
+import { ViewNoteCard } from "@/components/regulator/ViewNoteCard";
+import { ComplianceExportCard } from "@/components/regulator/ComplianceExportCard";
+import { disclosureFromReceipt, type DisclosureRecord, type AuditRequestRecord } from "@/lib/compliance-export";
 
 type TabId = "reports" | "verify" | "issue" | "travel" | "trail";
 const NAV: (NavItem & { id: TabId })[] = [
@@ -85,6 +89,13 @@ export default function RegulatorPage() {
   // Last receipt the Verify tab confirmed this session, shared with the Travel Rule tab so its
   // reference payload is driven by a real disclosed figure rather than a mock.
   const [lastVerified, setLastVerified] = useState<{ res: ReceiptVerification; receipt: AuditReceipt } | null>(null);
+  // Session records the compliance export pack (Pool report tab) draws from: every disclosure this
+  // console verified and bound, and every audit request it registered. Tabs unmount on switch, so
+  // they live here.
+  const [disclosures, setDisclosures] = useState<DisclosureRecord[]>([]);
+  const [auditRequests, setAuditRequests] = useState<AuditRequestRecord[]>([]);
+  const addDisclosure = useCallback((d: DisclosureRecord) => setDisclosures((prev) => [...prev, d]), []);
+  const addAuditRequest = useCallback((a: AuditRequestRecord) => setAuditRequests((prev) => [...prev, a]), []);
 
   // load persisted trail once (client only — avoids SSR localStorage access)
   useEffect(() => {
@@ -142,9 +153,9 @@ export default function RegulatorPage() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-5">
-          {tab === "reports" && <ReportsTab setStatus={setStatus} />}
-          {tab === "verify" && <VerifyTab addTrail={addTrail} onVerified={setLastVerified} />}
-          {tab === "issue" && <IssueTab setStatus={setStatus} addTrail={addTrail} />}
+          {tab === "reports" && <ReportsTab setStatus={setStatus} disclosures={disclosures} auditRequests={auditRequests} />}
+          {tab === "verify" && <VerifyTab addTrail={addTrail} onVerified={setLastVerified} onDisclosure={addDisclosure} />}
+          {tab === "issue" && <IssueTab setStatus={setStatus} addTrail={addTrail} onAuditRequest={addAuditRequest} />}
           {tab === "travel" && <TravelRuleTab last={lastVerified} onGoVerify={() => setTab("verify")} />}
           {tab === "trail" && <TrailTab trail={trail} setTrail={setTrail} />}
         </div>
@@ -193,12 +204,21 @@ function TableWrap({ children }: { children: React.ReactNode }) {
 }
 
 // ================= 01 · REPORTS / POOL VIEW =================
-function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
+function ReportsTab({
+  setStatus,
+  disclosures,
+  auditRequests,
+}: {
+  setStatus: (s: string) => void;
+  disclosures: DisclosureRecord[];
+  auditRequests: AuditRequestRecord[];
+}) {
   const [loading, setLoading] = useState(true);
   const [pool, setPool] = useState<{ balance: string; commitments: string } | null>(null);
   const [root, setRoot] = useState<bigint | null>(null);
   const [aspRoot, setAspRoot] = useState<string | null>(null);
   const [deny, setDeny] = useState<string[] | null>(null);
+  const [policyReadAt, setPolicyReadAt] = useState("");
   const [leafCount, setLeafCount] = useState<number | null>(null);
   const [activity, setActivity] = useState<{ kind: string; ledger: number; txHash: string }[]>([]);
   const [err, setErr] = useState("");
@@ -218,10 +238,12 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
       setPool(p);
       setRoot(r);
       setDeny(d);
-      setLeafCount(leaves.length);
+      // leaves is null when the chain read failed (distinct from an empty pool).
+      setLeafCount(leaves ? leaves.length : null);
       setActivity(act);
       setAspRoot(await readAspRoot());
-      setStatus(`Live · ${p.commitments} commitments · ${leaves.length} leaves on-chain.`);
+      setPolicyReadAt(new Date().toISOString());
+      setStatus(`Live · ${p.commitments} commitments · ${leaves ? `${leaves.length} leaves on-chain` : "leaf read failed, refresh to retry"}.`);
     } catch (e: any) {
       const m = (e && e.message) || String(e);
       setErr(m);
@@ -234,6 +256,8 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const policy = useMemo(() => ({ aspRoot, denyList: deny, readAt: policyReadAt }), [aspRoot, deny, policyReadAt]);
 
   return (
     <>
@@ -248,7 +272,11 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi k="Commitments" v={pool ? fmtCount(pool.commitments) : loading ? <Skeleton className="h-6 w-14" /> : "—"} />
-          <Kpi k="Leaf count" v={leafCount != null ? leafCount.toLocaleString("en-US") : loading ? <Skeleton className="h-6 w-12" /> : "—"} />
+          <Kpi
+            k="Leaf count"
+            v={leafCount != null ? leafCount.toLocaleString("en-US") : loading ? <Skeleton className="h-6 w-12" /> : "unavailable"}
+            title={leafCount == null && !loading ? "Could not read the pool leaves from the chain. Refresh from chain to retry." : undefined}
+          />
           <Kpi
             k="Custody balance"
             v={pool ? (pool.balance === "?" ? "?" : fmtUsdc(pool.balance)) : loading ? <Skeleton className="h-6 w-20" /> : "—"}
@@ -347,6 +375,8 @@ function ReportsTab({ setStatus }: { setStatus: (s: string) => void }) {
           </tbody>
         </TableWrap>
       </CardBox>
+
+      <ComplianceExportCard disclosures={disclosures} auditRequests={auditRequests} policy={policy} />
     </>
   );
 }
@@ -382,9 +412,11 @@ function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
 function VerifyTab({
   addTrail,
   onVerified,
+  onDisclosure,
 }: {
   addTrail: (e: Omit<TrailEntry, "ts">) => void;
   onVerified: (v: { res: ReceiptVerification; receipt: AuditReceipt } | null) => void;
+  onDisclosure: (d: DisclosureRecord) => void;
 }) {
   const { toast } = useToast();
   const [text, setText] = useState("");
@@ -418,6 +450,7 @@ function VerifyTab({
       // Share a confirmed disclosure with the Travel Rule tab only when it is valid AND bound to
       // real on-chain state — an unbound/invalid proof must not drive a "real" reference payload.
       onVerified(v.ok && v.bound ? { res: v, receipt: r } : null);
+      if (v.ok && v.bound) onDisclosure(disclosureFromReceipt(v, r));
       addTrail({
         action: "Verified disclosure",
         type: v.type,
@@ -430,7 +463,7 @@ function VerifyTab({
     } finally {
       setBusy(false);
     }
-  }, [text, addTrail]);
+  }, [text, addTrail, onVerified, onDisclosure]);
 
   const anchor = useCallback(async () => {
     if (!receipt) return;
@@ -449,7 +482,7 @@ function VerifyTab({
     } catch (e: any) {
       setAnchorState({ busy: false, error: (e && e.message) || String(e) });
     }
-  }, [receipt, addTrail]);
+  }, [receipt, addTrail, toast]);
 
   const mark = (b: boolean) =>
     b ? <b className="text-green-t">✓ valid</b> : <b className="text-red-t">✗ invalid</b>;
@@ -556,6 +589,8 @@ function VerifyTab({
         )}
       </CardBox>
 
+      <ViewNoteCard addTrail={addTrail} onDisclosure={onDisclosure} />
+
       <CardBox
         title="How routing works"
         sub="Each receipt type maps to its own verification key and on-chain verifier contract. The exact type uses the disclosure verifier; threshold, aggregate, and range each have their own BN254 verifier, deployed additively."
@@ -586,10 +621,19 @@ function VerifyTab({
 }
 
 // ================= 03 · ISSUE AUDIT REQUEST =================
-function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; addTrail: (e: Omit<TrailEntry, "ts">) => void }) {
+function IssueTab({
+  setStatus,
+  addTrail,
+  onAuditRequest,
+}: {
+  setStatus: (s: string) => void;
+  addTrail: (e: Omit<TrailEntry, "ts">) => void;
+  onAuditRequest: (a: AuditRequestRecord) => void;
+}) {
   const { connected } = useWallet();
   const { toast } = useToast();
-  const [leaves, setLeaves] = useState<bigint[]>([]);
+  // null = the chain read failed (distinct from an empty pool), so the UI offers a retry.
+  const [leaves, setLeaves] = useState<bigint[] | null>([]);
   const [loadingLeaves, setLoadingLeaves] = useState(true);
   const [selected, setSelected] = useState<string[]>([]);
   const [nonce, setNonce] = useState("");
@@ -598,16 +642,17 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
   const [out, setOut] = useState<{ ok: boolean; html: React.ReactNode } | null>(null);
   const [auditStr, setAuditStr] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      setLoadingLeaves(true);
-      try {
-        setLeaves(await loadLeavesFromChain());
-      } finally {
-        setLoadingLeaves(false);
-      }
-    })();
+  const loadLeaves = useCallback(async () => {
+    setLoadingLeaves(true);
+    try {
+      setLeaves(await loadLeavesFromChain().catch(() => null));
+    } finally {
+      setLoadingLeaves(false);
+    }
   }, []);
+  useEffect(() => {
+    loadLeaves();
+  }, [loadLeaves]);
 
   const toggle = (dec: string) =>
     setSelected((prev) => (prev.includes(dec) ? prev.filter((x) => x !== dec) : prev.length >= AGG_N ? prev : [...prev, dec]));
@@ -652,6 +697,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
       // that went into issuedHash (read back from the same build input, so it is byte-for-byte
       // what was hashed). The holder proves against this and cannot trim the set.
       setAuditStr(encodeAuditRequest({ ctxNonce: input.ctxNonce, commitments: input.commitments, active: input.active, cap: input.cap }));
+      onAuditRequest({ issuedHash, commitments: selected, capStroops: capStroops.toString(), txHash: reg.hash || undefined, registeredAt: new Date().toISOString() });
       setStatus("Audit request registered on-chain.");
       setOut({
         ok: true,
@@ -689,7 +735,7 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
     } finally {
       setBusy(false);
     }
-  }, [selected, nonce, cap, setStatus, addTrail]);
+  }, [selected, nonce, cap, setStatus, addTrail, onAuditRequest]);
 
   return (
     <CardBox
@@ -702,6 +748,13 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
       <div className="mt-2 max-h-64 overflow-y-auto rounded-tile border border-line bg-black/20 p-2">
         {loadingLeaves ? (
           <div className="p-4 text-center text-[13px] text-tf">Loading on-chain leaves…</div>
+        ) : leaves == null ? (
+          <div className="flex items-center justify-center gap-3 p-4 text-center text-[13px] text-amber">
+            Could not read the pool leaves from the chain.
+            <Button variant="subtle" onClick={loadLeaves}>
+              Retry
+            </Button>
+          </div>
         ) : !leaves.length ? (
           <div className="p-4 text-center text-[13px] text-tf">
             No commitments in the pool yet. Deposit one through the Sender route first.
@@ -788,8 +841,11 @@ function IssueTab({ setStatus, addTrail }: { setStatus: (s: string) => void; add
 
       {auditStr && (
         <div className="mt-4 rounded-tile border border-line bg-black/20 p-4">
-          <div className="font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Audit request to share (tukaudit1:)</div>
+          <label htmlFor="audit-str" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+            Audit request to share (tukaudit1:)
+          </label>
           <textarea
+            id="audit-str"
             readOnly
             value={auditStr}
             spellCheck={false}
@@ -937,8 +993,13 @@ function TravelRuleTab({
   onGoVerify: () => void;
 }) {
   const { toast } = useToast();
+  const { connected, address, kind } = useWallet();
   const [corridorCode, setCorridorCode] = useState("ID");
   const corridor = corridorByCode(corridorCode);
+  // Optional settlement tx hash: when present the send route also POSTs the TRP step-2
+  // confirmation ({txid}) to the beneficiary's callback and reports its status.
+  const [txid, setTxid] = useState("");
+  const txidOk = /^[0-9a-f]{64}$/i.test(txid.trim());
 
   // Real TRP exchange state: the response from the beneficiary VASP (approved/rejected) plus the
   // request-identifier and which peer it hit. Reset whenever the payload changes.
@@ -953,6 +1014,7 @@ function TravelRuleTab({
     approved?: { address: string; callback: string };
     rejected?: string;
     error?: string;
+    confirmation?: { status: number; ok: boolean } | null;
   } | null>(null);
 
   // TRISA companion-node send: real TRISA network when the always-on node is deployed and
@@ -967,6 +1029,10 @@ function TravelRuleTab({
     result?: { envelopeId: string; beneficiary: string; endpoint: string; transferState: string; receivedAt?: string; rejected?: string };
   } | null>(null);
 
+  // Lifecycle of a sent inquiry, read back from our callback route (GET by request-identifier).
+  const [lifecycle, setLifecycle] = useState<{ status: number; body: unknown } | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+
   const exampleOnly = !last;
   const amount = last ? disclosedFigure(last.res, last.receipt) : "250.00 (example figure, verify a receipt to use a real one)";
   const reference = last ? last.res.commitment : "(commitment hash from the verified disclosure)";
@@ -980,7 +1046,26 @@ function TravelRuleTab({
   useEffect(() => {
     setTrp(null);
     setTrisa(null);
+    setLifecycle(null);
   }, [json, dest]);
+
+  const checkLifecycle = async () => {
+    if (!trp || trp.requestIdentifier === "—") return;
+    setLifecycleBusy(true);
+    try {
+      const res = await fetch(`/api/travel-rule/callback?id=${encodeURIComponent(trp.requestIdentifier)}`);
+      const text = await res.text();
+      let body: unknown = text;
+      try {
+        body = JSON.parse(text);
+      } catch {}
+      setLifecycle({ status: res.status, body });
+    } catch (e: any) {
+      setLifecycle({ status: 0, body: "lifecycle read failed: " + ((e && e.message) || String(e)) });
+    } finally {
+      setLifecycleBusy(false);
+    }
+  };
 
   // Real TRP send: POST the IVMS101 payload to our outbound TRP endpoint, which builds a spec
   // 3.2.1 transfer inquiry, signs the canonical body (Ed25519), sets the three TRP headers, and
@@ -991,13 +1076,29 @@ function TravelRuleTab({
     setSending(true);
     setTrp(null);
     try {
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (dest === "notabene") {
+        // Posting to a real external VASP is not anonymous: the route requires the wallet sign-in
+        // bearer (the same SEP-53 flow the sender's scheduler uses). The self-hosted path is unchanged.
+        if (!connected || !address) {
+          setTrp({ ok: false, mode: "notabene", note: "", status: 0, requestIdentifier: "—", error: "Connect a wallet to send to the Notabene sandbox." });
+          return;
+        }
+        const token = await scheduleSignIn(address, kind);
+        if (!token) {
+          setTrp({ ok: false, mode: "notabene", note: "", status: 0, requestIdentifier: "—", error: "Wallet sign-in is not configured on this server (AUTH_SECRET), so the Notabene send cannot be authorized." });
+          return;
+        }
+        headers.Authorization = `Bearer ${token}`;
+      }
       const res = await fetch("/api/travel-rule/send", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers,
         body: JSON.stringify({
           ivms101: payload,
           amount,
           destination: dest === "notabene" ? { notabene: true } : DEMO_TRAVEL_ADDRESS,
+          ...(txidOk ? { txid: txid.trim().toLowerCase() } : {}),
         }),
       });
       const data = await res.json();
@@ -1011,6 +1112,7 @@ function TravelRuleTab({
         approved: inner.approved,
         rejected: inner.rejected,
         error: data.error,
+        confirmation: data.confirmation ?? null,
       });
       if (data.ok && inner.approved) toast("Beneficiary VASP approved the transfer inquiry", "success");
     } catch (e: any) {
@@ -1145,8 +1247,11 @@ function TravelRuleTab({
           </p>
 
           <div className="mt-3">
-            <label className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">Beneficiary VASP</label>
+            <label htmlFor="trp-dest" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+              Beneficiary VASP
+            </label>
             <select
+              id="trp-dest"
               value={dest}
               onChange={(e) => setDest(e.target.value as "self" | "notabene")}
               className="mt-[7px] rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
@@ -1157,6 +1262,24 @@ function TravelRuleTab({
             <p className="mt-2 font-mono text-[11px] break-all text-tf">
               Travel Address: <span className="text-orange-pale">{DEMO_TRAVEL_ADDRESS}</span>
             </p>
+            {dest === "notabene" && !connected && (
+              <p className="mt-2 text-[12.5px] text-amber">Connect a wallet to send to the Notabene sandbox.</p>
+            )}
+          </div>
+
+          <div className="mt-3">
+            <label htmlFor="trp-txid" className="block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+              Settlement transaction hash (optional, sends the TRP confirmation)
+            </label>
+            <input
+              id="trp-txid"
+              value={txid}
+              onChange={(e) => setTxid(e.target.value)}
+              spellCheck={false}
+              placeholder="64-hex Stellar tx hash of the settled withdraw"
+              className="mt-[7px] w-full max-w-xl rounded-[11px] border border-line-input bg-input px-3.5 py-2.5 font-mono text-sm text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:outline-none focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)]"
+            />
+            {txid.trim() && !txidOk && <p className="mt-1 text-[11px] text-amber">Not a 64-hex transaction hash; the confirmation will not be sent.</p>}
           </div>
 
           <div className="mt-3 flex items-center gap-3">
@@ -1176,6 +1299,27 @@ function TravelRuleTab({
                 settlement address <span className="font-mono">{short(trp.approved.address)}</span> · callback{" "}
                 <span className="font-mono">{trp.approved.callback}</span>
               </div>
+              {trp.confirmation && (
+                <div className={`mt-1 ${trp.confirmation.ok ? "text-ts" : "text-amber"}`}>
+                  Transfer confirmation (txid) {trp.confirmation.ok ? "accepted" : "not accepted"} by the beneficiary callback · HTTP {trp.confirmation.status}
+                </div>
+              )}
+              <div className="mt-2 flex items-center gap-3">
+                <Button variant="subtle" onClick={checkLifecycle} busy={lifecycleBusy}>
+                  Check lifecycle
+                </Button>
+                {lifecycle &&
+                  (lifecycle.status === 404 ? (
+                    <span className="text-tm">No lifecycle record for this request-identifier yet (404).</span>
+                  ) : (
+                    <span className="text-tm">HTTP {lifecycle.status || "network error"}</span>
+                  ))}
+              </div>
+              {lifecycle && lifecycle.status !== 404 && (
+                <pre className="mt-2 overflow-x-auto rounded-lg border border-line-input bg-input px-3 py-2 font-mono text-[11px] text-tp">
+                  {typeof lifecycle.body === "string" ? lifecycle.body : JSON.stringify(lifecycle.body, null, 2)}
+                </pre>
+              )}
               <div className="mt-1 text-tm">
                 {trp.mode === "notabene"
                   ? "Sent to the Notabene sandbox — a real, independent VASP over live TRP."

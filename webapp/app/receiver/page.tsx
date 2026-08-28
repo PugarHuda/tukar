@@ -20,10 +20,13 @@ import {
 import { getPoseidon, makeTree, decodeBearerNote, encodePaymentRequest } from "@/lib/zk";
 import { PaymentCard } from "@/components/receiver/PaymentCard";
 import { CORRIDORS, corridorByCode, type ClaimedNote, type FxRate } from "@/components/receiver/corridors";
+import { claimPayloadFromHash, isPinWrapped, openClaimPayload, isValidPin } from "@/lib/claim-link";
 
 type Prover = { poseidon: any; F: any; tree: { root: (l: bigint[]) => bigint; pathElements: (l: bigint[], i: number) => bigint[] } };
 
 const STORE_KEY = `tukar:rcv:notes:${POOL}`;
+// Drop a handled #claim= bearer payload from the address bar (and history entry).
+const dropHash = () => history.replaceState(null, "", location.pathname + location.search);
 
 export default function ReceiverPage() {
   const { connected } = useWallet();
@@ -37,6 +40,12 @@ export default function ReceiverPage() {
   const [tab, setTab] = useState<"payments" | "claim" | "request">("payments");
 
   const [claimInput, setClaimInput] = useState("");
+  const claimBoxRef = useRef<HTMLTextAreaElement>(null);
+  // A note pasted before hydration never fires onChange; adopt what is already in the box.
+  useEffect(() => {
+    const v = claimBoxRef.current?.value;
+    if (v) setClaimInput(v);
+  }, []);
   const [reqAmount, setReqAmount] = useState("");
   const [reqString, setReqString] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -45,6 +54,12 @@ export default function ReceiverPage() {
   // spendable, or already spent — so a receiver knows before a withdraw, not from a failure.
   const [nsBusy, setNsBusy] = useState(false);
   const [nsResult, setNsResult] = useState<{ status: string; reason: string } | null>(null);
+
+  // PIN-wrapped `/receiver#claim=` link waiting for its 6 digits (unwrapped in the browser).
+  const [pinPayload, setPinPayload] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
 
   const [status, setStatusState] = useState<{ text: string; busy: boolean }>({ text: "Loading the zero-knowledge prover.", busy: true });
   const setStatus = useCallback((text: string, busy = false) => setStatusState({ text, busy }), []);
@@ -71,6 +86,7 @@ export default function ReceiverPage() {
     if (!tree) return leavesRef.current;
     try {
       const ls = await loadLeavesFromChain();
+      if (ls == null) return leavesRef.current; // chain read failed (not "no leaves"): keep the cached mirror
       const onchain = await readCurrentRoot();
       if (onchain != null && tree.root(ls) === onchain) {
         leavesRef.current = ls;
@@ -169,6 +185,56 @@ export default function ReceiverPage() {
     },
     [setStatus],
   );
+
+  // ---- claim link (#claim=<payload>): same tukar1: note, delivered in the URL fragment ----
+  // The fragment never reaches a server. A plain payload claims straight away; a PIN-wrapped one
+  // waits for the 6 digits. The bearer payload is dropped from the address bar once handled.
+  useEffect(() => {
+    const p = claimPayloadFromHash(location.hash);
+    if (p == null) return;
+    setTab("claim");
+    let wrapped: boolean;
+    try {
+      wrapped = isPinWrapped(p);
+    } catch (e: any) {
+      dropHash();
+      setStatus("Couldn't read that claim link: " + ((e && e.message) || "invalid link"));
+      return;
+    }
+    if (wrapped) {
+      setPinPayload(p);
+      return;
+    }
+    dropHash();
+    openClaimPayload(p)
+      .then((note) => {
+        setClaimInput(note);
+        claim(note);
+      })
+      .catch((e: any) => setStatus("Couldn't read that claim link: " + ((e && e.message) || "invalid link")));
+  }, [claim, setStatus]);
+
+  const unlockPin = useCallback(async () => {
+    if (!pinPayload || pinBusy) return;
+    if (!isValidPin(pin)) {
+      setPinError("Enter the 6 digits the sender gave you.");
+      return;
+    }
+    setPinBusy(true);
+    setPinError(null);
+    try {
+      const note = await openClaimPayload(pinPayload, pin);
+      dropHash();
+      setPinPayload(null);
+      setPin("");
+      setClaimInput(note);
+      claim(note);
+    } catch (e: any) {
+      setPinError((e && e.message) || "Could not unlock this link.");
+    } finally {
+      setPinBusy(false);
+    }
+  }, [pinPayload, pinBusy, pin, claim]);
 
   // ---- check note status against the live pool (read-only) ----
   const checkStatus = useCallback(async () => {
@@ -388,14 +454,56 @@ export default function ReceiverPage() {
         <p className="mt-2 text-[13px] leading-relaxed text-tm">
           Paste the bearer note (<span className="font-mono text-ts">tukar1:…</span>) the sender gave you, or scan its QR. Whoever holds the note can receive it.
         </p>
+        {pinPayload && (
+          <form
+            className="mt-3 rounded-tile border border-orange/40 bg-black/20 p-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              unlockPin();
+            }}
+          >
+            <div className="font-mono text-[10px] tracking-[0.12em] text-orange uppercase">PIN-protected claim link</div>
+            <p className="mt-2 text-[12px] leading-relaxed text-tm">
+              This link carries your payment as an encrypted bearer note. Enter the 6-digit PIN the sender gave you to unlock it in your browser. Nothing is sent anywhere.
+            </p>
+            <div className="mt-3">
+              <Input
+                id="claimPin"
+                label="PIN"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                autoComplete="one-time-code"
+                placeholder="6 digits"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+              />
+            </div>
+            <div className="mt-2.5 flex gap-2">
+              <Button type="submit" variant="primary" busy={pinBusy} disabled={pinBusy}>
+                Unlock
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => { setPinPayload(null); setPin(""); setPinError(null); }}>
+                Cancel
+              </Button>
+            </div>
+            {pinError && <p className="mt-2 text-[12px] text-red-t">{pinError}</p>}
+          </form>
+        )}
+        <label htmlFor="claimNote" className="mt-3 block font-mono text-[10px] tracking-[0.12em] text-tf uppercase">
+          Bearer note
+        </label>
         <textarea
+          id="claimNote"
+          ref={claimBoxRef}
           value={claimInput}
           onChange={(e) => setClaimInput(e.target.value)}
           placeholder="tukar1:…"
           autoComplete="off"
           spellCheck={false}
           rows={3}
-          className="mt-3 w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)] focus:outline-none"
+          className="mt-[7px] w-full resize-y rounded-[11px] border border-line-input bg-input px-3.5 py-3 font-mono text-[12px] text-tp transition-all duration-150 hover:border-white/20 focus:border-orange/60 focus:shadow-[0_0_0_3px_rgba(255,122,26,0.12)] focus:outline-none"
         />
         <div className="mt-2.5 flex gap-2">
           <Button variant="primary" onClick={() => claim(claimInput)}>

@@ -133,6 +133,24 @@ the ASP allow-list; Circle CCTP V2 bidirectional USDC bridging.
 
 ---
 
+### Registered on-chain footprint (per the SCF Official Rules, section 3A)
+
+Everything SDF or the review panel would measure is attributable to these identifiers. All activity on
+them is real user or team testing; we have never generated synthetic, wash, or sybil traffic and will
+not, and we will update this list if it materially changes.
+
+| Kind | Identifier |
+|---|---|
+| Pool (custody, roots, nullifiers) | `CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ` |
+| Groth16 verifiers (transfer, compliance, disclosure, merkleUpdate, threshold, aggregate, range) | `CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE`, `CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2`, `CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V`, `CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H`, `CDGOSIZQIMACRLIE76SQKKHUOKURGTGC4T2CKM2K62YP6463QR2KLHVR`, `CCTN437J4BX6S4JDMGUZFS2IEHV4ECHHK4ZLMM3N6VU5IIX2777AZJYA`, `CDUONEVPPH7WI7EPSXZE3YXEF4FHHJM7HFJOTZBCJNJSUG26UMENUPQW` |
+| Additive contracts (policy registry, reserves, reserves verifier, reserves aggregate, enforcement pool, exact accumulator, timelock pool) | `CAQ7KBNFJOJI34B5V3GNI7ACW6YEOAD4JRYSOX3EUW5UOXFKBDZBDAZ3`, `CCMIHWMVDTO6X4FPJSHXEQBYQQID3QIKCLMNVS5UKMPRHWLPUK4ALXMC`, `CBCVFPJBKVWACXQMVTWK5LO7UVABUKVAE2EYERGTSXO4ZTHFAT2VD5JI`, `CA6Q5SWRAV3P432YNL4OE6IZ52LNBBS5WWE2HILDYRZDGFBY47PKC7XN`, `CBIGD4YLHXTUBBMRLK2BSWWGOMOFKR6EA6TFHFSIVH26PGFFDIHXRKTY`, `CBZOGXYS4X45SRWM45ZMUDM2KSJJQI3OQAP5BBC2CQXRRVSVUVO6A3YK`, `CDTE5CHIKXNJLTCJFBV6F3HLVD2B2GGYZ7NFTDW24DCQNK6F63H56FJ2` |
+| Application-operated wallets | operator/admin `GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS`; embedded testnet demo and relayer key `GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ` |
+| Network | Stellar testnet today (Protocol 28); mainnet identifiers will be registered at the Tranche 3 deployment |
+
+Committed threshold (Tranche 3, proposed for the panel to ratify or adjust): 500 completed shielded
+remittances (deposit + registration + withdraw) from at least 100 distinct non-team wallets over the
+90 days after mainnet launch, measured on the registered pool.
+
 ## 4. Differentiation
 
 Tukar's wedge is compliant privacy on the chain built for cross-border money. It is

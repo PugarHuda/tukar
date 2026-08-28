@@ -10,8 +10,20 @@
 //! redeploy, mirroring how the pool's `set_asp_root` / `set_deny_list` work.
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol, Vec,
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol, Vec,
 };
+
+// Instance TTL bounds (every record lives in the instance): at ~5s per ledger, under ~7 days
+// left (120_960) -> extend to ~30 days (518_400). Bumped on every set_policy.
+const INSTANCE_TTL_THRESHOLD: u32 = 120_960;
+const INSTANCE_TTL_EXTEND: u32 = 518_400;
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum PolicyError {
+    InvalidCap = 1, // cap_usdc must be >= 0 (whole USDC); a negative cap is meaningless
+}
 
 /// A per-corridor policy record. `disclosure` mirrors the operator UI's enum:
 /// 0 = exact, 1 = threshold, 2 = range, 3 = aggregate.
@@ -48,6 +60,9 @@ impl PolicyRegistry {
         for i in 0..corridors.len() {
             let c = corridors.get(i).unwrap();
             let e = entries.get(i).unwrap();
+            if e.cap_usdc < 0 {
+                soroban_sdk::panic_with_error!(&env, PolicyError::InvalidCap);
+            }
             s.set(&DataKey::Policy(c), &e);
         }
     }
@@ -57,6 +72,10 @@ impl PolicyRegistry {
     pub fn set_policy(env: Env, corridor: Symbol, cap_usdc: i128, disclosure: u32) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        if cap_usdc < 0 {
+            soroban_sdk::panic_with_error!(&env, PolicyError::InvalidCap);
+        }
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND);
 
         let s = env.storage().instance();
         let mut corridors: Vec<Symbol> = s.get(&DataKey::Corridors).unwrap_or(Vec::new(&env));
