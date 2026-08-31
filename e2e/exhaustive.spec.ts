@@ -266,10 +266,13 @@ test.describe("API: methods, malformed bodies, gates", () => {
     const trp = await request.post("/api/travel-rule", junk);
     expect(trp.status()).toBe(400);
     expect((await trp.json()).rejected).toMatch(/api-version|not valid JSON/);
-    // config gates come BEFORE parsing on reclaim / idos / trisa
+    // Config gates come BEFORE parsing on reclaim / idos / trisa, so the answer always states
+    // `configured` either way. When the gate is closed that is the whole reply and the junk body is
+    // never read. When it is open, as it is in production, the body is then read and rejected. This
+    // used to assert 200 unconditionally, which only held on a target where Reclaim was unset.
     const rc = await request.post("/api/reclaim", junk);
-    expect(rc.status()).toBe(200);
     expect((await rc.json()).configured).toBe(health.checks.reclaim);
+    expect(rc.status()).toBe(health.checks.reclaim ? 400 : 200);
     const idos = await request.post("/api/idos/credential", junk);
     expect([200, 400, 429]).toContain(idos.status()); // 429 if the rate-limit test already ran on this IP
     const trisa = await request.post("/api/travel-rule/trisa", junk);
@@ -449,9 +452,11 @@ test.describe("API: methods, malformed bodies, gates", () => {
       expect(rv.status()).toBe(400);
       expect(typeof vj.error).toBe("string");
     } else expect(vj).toEqual({ verified: false, configured: false });
-    // a fake proof never verifies and never 500s with internals
+    // A fake proof never verifies and never 500s with internals. On a configured target it does not
+    // even reach verification: the proof is not bound to a session, so it is refused with 400 and
+    // "Proof does not match this session", which is a better answer than a 500 from the verifier.
     const fake = await request.post("/api/reclaim/verify", { headers: J, data: { proof: { identifier: "x", claimData: {}, signatures: ["0x00"], witnesses: [] }, address: G } });
-    expect([200, 500]).toContain(fake.status());
+    expect([200, 400, 500]).toContain(fake.status());
     const fj = await fake.json();
     expect(fj.verified).toBe(false);
     expect(JSON.stringify(fj)).not.toMatch(/at .*\.js|stack|RECLAIM_APP/);
