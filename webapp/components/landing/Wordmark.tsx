@@ -1,26 +1,48 @@
-// The Tukar mark: a stencilled label box with the name and a short tape seal across its corner.
-// One drawn asset in the world's own stroke; used in the header, footer, and the favicon.
-export function Wordmark({ height = 30, className = "" }: { height?: number; className?: string }) {
-  const w = Math.round(height * 3.6);
+// The Tukar lockup: the Tukar mark, then the name.
+//
+// The mark itself is never restyled to match a surface. It was drawn for a dark ground (orange
+// strokes around a near-black diamond core), and every header here is label paper, where bare
+// orange on cream falls to about 2:1 and reads as washed out. So the mark keeps its own colours and
+// sits on its own dark plate, which is exactly how icon-192.png has always presented it.
+const MARK_INK = "#0a0705";
+
+/** The mark on its dark plate, drawn into a 32x32 box. Paths are the mark's own, unchanged. */
+function Mark({ size }: { size: number }) {
   return (
-    <svg width={w} height={height} viewBox="0 0 108 30" className={className} aria-hidden="true" focusable="false">
-      <rect x="1" y="1" width="106" height="28" rx="2" fill="#f6f1e7" stroke="#161311" strokeWidth="2" />
-      <text x="54" y="22" textAnchor="middle" fontFamily="var(--font-stencil), sans-serif" fontSize="20" letterSpacing="2" fill="#161311">
-        TUKAR
-      </text>
-      {/* a corner of packing tape: translucent, with two fibre streaks, crossing the label edge */}
-      <g style={{ mixBlendMode: "multiply" }}>
-        <path d="M84 -3l28 14-5 9L79 6z" fill="#b07a40" fillOpacity="0.5" />
-        <path d="M86 1l22 11M83 5l22 11M88 -2l20 10" stroke="#fff3dd" strokeWidth="0.8" strokeOpacity="0.5" />
-        <path d="M84 -3l-1 3 2 2-2 3 1 3" fill="none" stroke="#7a4f22" strokeWidth="0.7" strokeOpacity="0.6" />
-      </g>
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <rect x="0" y="0" width="32" height="32" rx="4" fill={MARK_INK} />
+      <path d="M28 16 22 5.6 10 5.6 4 16 10 26.4 22 26.4Z" stroke="#ff8a3d" strokeWidth="2" fill="none" strokeLinejoin="round" />
+      <path d="M1 16H12M20 16H31" stroke="#ffb070" strokeWidth="2" strokeLinecap="round" />
+      <path d="M16 11 21 16 16 21 11 16Z" fill="#ff7a1a" />
+      <path d="M16 13.2 18.8 16 16 18.8 13.2 16Z" fill={MARK_INK} />
     </svg>
   );
 }
 
-// Favicon-sized version: the box outline with a stencilled T.
+export function Wordmark({ height = 30, className = "" }: { height?: number; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-2 ${className}`}>
+      <Mark size={height} />
+      <span
+        className="font-stencil leading-none text-ink"
+        style={{ fontSize: Math.round(height * 0.72), letterSpacing: "0.04em" }}
+      >
+        TUKAR
+      </span>
+    </span>
+  );
+}
+
+// Favicon. This is what the site actually loads (app/layout.tsx passes it to metadata.icons), so it
+// has to carry the real mark: app/icon.svg is never requested while this is set.
 export const ICON_DATA_URI =
   "data:image/svg+xml," +
   encodeURIComponent(
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='2' width='28' height='28' rx='2' fill='#d4a468' stroke='#161311' stroke-width='2'/><rect x='7' y='9' width='18' height='14' fill='#f6f1e7' stroke='#161311' stroke-width='1.5'/><path d='M10 13h12M16 13v7' stroke='#161311' stroke-width='3'/><path d='M2 6l10-4' stroke='#d8342b' stroke-width='3'/></svg>",
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>" +
+      "<rect x='0' y='0' width='32' height='32' rx='4' fill='#0a0705'/>" +
+      "<path d='M28 16 22 5.6 10 5.6 4 16 10 26.4 22 26.4Z' stroke='#ff8a3d' stroke-width='2' fill='none' stroke-linejoin='round'/>" +
+      "<path d='M1 16H12M20 16H31' stroke='#ffb070' stroke-width='2' stroke-linecap='round'/>" +
+      "<path d='M16 11 21 16 16 21 11 16Z' fill='#ff7a1a'/>" +
+      "<path d='M16 13.2 18.8 16 16 18.8 13.2 16Z' fill='#0a0705'/>" +
+      "</svg>",
   );

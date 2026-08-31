@@ -667,10 +667,7 @@ export default function SenderPage() {
             >
               <Mark kind="back" size={12} /> Home
             </Link>
-            <span className="inline-flex items-center">
-              <Wordmark height={26} />
-              <span className="sr-only">Tukar</span>
-            </span>
+            <Wordmark height={26} />
             <Badge tone="orange">SEND</Badge>
           </div>
           <div className="mt-3 flex justify-end">
