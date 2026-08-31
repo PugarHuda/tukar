@@ -51,6 +51,35 @@ export async function walletKit(): Promise<KitStatic> {
   return (await kitModule()).StellarWalletsKit;
 }
 
+/**
+ * Open the kit's wallet picker and resolve with the chosen address, or reject when the user
+ * dismisses it.
+ *
+ * Why this wrapper: authModal() paints the picker, then awaits refreshSupportedWallets() (each
+ * module races a 1s timer) and only subscribes to its own close event afterwards. On the first
+ * open the wallet list appears only when that finishes, so the gap is invisible; on every later
+ * open the list is already painted, so the picker looks ready for up to a second while a click
+ * outside or on the X is dropped on the floor. The picker then stays open and this promise never
+ * settles, leaving "Connect wallet" spinning forever. We subscribe to the close event first and
+ * re-emit it until the kit is listening, so the first dismissal always closes the picker.
+ */
+export async function openWalletPicker(): Promise<{ address: string }> {
+  const { StellarWalletsKit, closeEvent } = await kitModule();
+  let dismissed = false;
+  const unsub = closeEvent.subscribe(() => {
+    dismissed = true;
+  });
+  const replay = setInterval(() => {
+    if (dismissed) closeEvent.next();
+  }, 150);
+  try {
+    return await StellarWalletsKit.authModal();
+  } finally {
+    clearInterval(replay);
+    unsub();
+  }
+}
+
 /** Subscribe to a kit event; resolves to the unsubscribe function. Names confirmed in types/mod.d.ts. */
 export async function onKitEvent(
   type: "DISCONNECT" | "STATE_UPDATED",
@@ -118,6 +147,11 @@ export async function signMessageWithWallet(message: string, address: string, ki
   if (kind === "demo" || kind === null) {
     const sig = Keypair.fromSecret(DEMO_SECRET).sign(Buffer.from(await sep53Hash(message)));
     return Buffer.from(sig).toString("base64");
+  }
+  // A passkey smart wallet (lib/passkey.ts) is a contract account with a secp256r1 signer: there is
+  // no ed25519 key to produce a SEP-53 signature, and the server verifies SEP-53 against a G-address.
+  if (kind === "passkey") {
+    throw new Error("A passkey smart wallet cannot sign messages (SEP-53 needs an ed25519 key); connect Freighter, xBull, Lobstr or Hana for this step.");
   }
   assertNetwork();
   const kit = await walletKit();

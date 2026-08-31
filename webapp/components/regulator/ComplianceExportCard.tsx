@@ -33,7 +33,9 @@ export function ComplianceExportCard({ disclosures, auditRequests, policy }: { d
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [from, setFrom] = useState("");
-  const [to, setTo] = useState(today());
+  // Starts empty and is filled after mount: a date computed during render is baked into the
+  // prerendered input value and never corrected on hydration (stale across midnight UTC).
+  const [to, setTo] = useState("");
   const [fx, setFx] = useState<PhpRate | null | undefined>(undefined); // undefined = not fetched yet
 
   const load = useCallback(async () => {
@@ -42,8 +44,9 @@ export function ComplianceExportCard({ disclosures, auditRequests, policy }: { d
     try {
       const w = await readPoolEvents();
       setWin(w);
-      setFrom(w.events.length ? day(w.events[0].closedAt) : today());
-      setTo(today());
+      // Keep a hand-picked range across a refresh; only fill the fields that are still empty.
+      setFrom((cur) => cur || (w.events.length ? day(w.events[0].closedAt) : today()));
+      setTo((cur) => cur || today());
     } catch (e: any) {
       setWin(null);
       setErr("Could not read pool events from the RPC: " + ((e && e.message) || String(e)));

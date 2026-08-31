@@ -46,6 +46,8 @@ import {
 
 import { CORRIDORS, corridorByCode, type Corridor } from "@/components/receiver/corridors";
 import { DEMO_TRAVEL_ADDRESS } from "@/lib/trp";
+import { isValidLei, lookupLei, type LeiRecord } from "@/lib/gleif";
+import { validateReceipt } from "@/lib/receipt-link";
 import { scheduleSignIn } from "@/lib/auth-client";
 import { ViewNoteCard } from "@/components/regulator/ViewNoteCard";
 import { ComplianceExportCard } from "@/components/regulator/ComplianceExportCard";
@@ -202,6 +204,9 @@ function ReportsTab({
       setActivity(act);
       setAspRoot(await readAspRoot());
       setPolicyReadAt(new Date().toISOString());
+      // readPoolState answers "?" for a field whose simulation failed: that is a failed read, not
+      // a live figure, so it takes the error path instead of a "Live · ? commitments" banner.
+      if (p.commitments === "?" || p.balance === "?") throw new Error("Pool balance or commitment count could not be read from the chain. Refresh from chain to retry.");
       setStatus(`Live · ${p.commitments} commitments · ${leaves ? `${leaves.length} leaves on-chain` : "leaf read failed, refresh to retry"}.`);
     } catch (e: any) {
       const m = (e && e.message) || String(e);
@@ -368,15 +373,20 @@ function VerifyTab({
     setRes(null);
     setReceipt(null);
     setAnchorState({ busy: false });
-    let r: AuditReceipt;
+    let parsed: unknown;
     try {
-      r = JSON.parse(text.trim());
+      parsed = JSON.parse(text.trim());
     } catch {
       setError("Not valid JSON.");
       return;
     }
-    if (!r || !r.proof || !Array.isArray(r.publicSignals) || r.publicSignals.length < 3) {
-      setError("Missing proof or publicSignals. Paste a full Tukar audit receipt.");
+    // Same shape + per-type public-signal count check the /verify link path runs, so a short
+    // aggregate/range receipt is refused here instead of throwing inside fmtUsdc mid-verify.
+    let r: AuditReceipt;
+    try {
+      r = validateReceipt(parsed);
+    } catch (e: any) {
+      setError(`Missing proof or publicSignals. Paste a full Tukar audit receipt. (${(e && e.message) || String(e)})`);
       return;
     }
     setBusy(true);
@@ -843,12 +853,17 @@ function placeholderNaturalPerson() {
 // An IVMS101 legalPerson block for a VASP. The role and geographic scope are real (they follow
 // from the corridor and the sending/receiving side); the registered name is a descriptive
 // placeholder because the specific licensed anchor is chosen at production integration time.
-function vaspLegalPerson(name: string, country: string) {
+// When an LEI is supplied it becomes the legalPerson's nationalIdentification (IVMS101 type
+// LEIX, no countryOfIssue for an LEI), and a GLEIF-resolved record replaces the placeholder name
+// and country of registration with the registered legal entity.
+type OriginatorLei = { lei: string; record: LeiRecord | null };
+function vaspLegalPerson(name: string, country: string, lei?: OriginatorLei) {
   return {
     name: {
-      nameIdentifier: [{ legalPersonName: name, legalPersonNameIdentifierType: "LEGL" }],
+      nameIdentifier: [{ legalPersonName: lei?.record?.legalName || name, legalPersonNameIdentifierType: "LEGL" }],
     },
-    countryOfRegistration: country,
+    countryOfRegistration: lei?.record?.country || country,
+    ...(lei ? { nationalIdentification: { nationalIdentifier: lei.lei, nationalIdentifierType: "LEIX" } } : {}),
     customerNumber: ANCHOR_PII,
   };
 }
@@ -860,8 +875,9 @@ function buildTravelRulePayload(opts: {
   corridor: Corridor;
   network: string;
   exampleOnly: boolean;
+  originatorLei?: OriginatorLei;
 }) {
-  const { amount, reference, anchorTx, corridor, network, exampleOnly } = opts;
+  const { amount, reference, anchorTx, corridor, network, exampleOnly, originatorLei } = opts;
   return {
     _note: exampleOnly
       ? "REFERENCE / EXAMPLE, no receipt loaded. Verify a disclosure to drive this from a real disclosed figure."
@@ -879,7 +895,7 @@ function buildTravelRulePayload(opts: {
     originatingVASP: {
       // real: this is the sending side of the corridor (United States on-ramp anchor).
       role: "Sending anchor (VASP), on-ramped the originator, holds their KYC identity",
-      legalPerson: vaspLegalPerson("Sending anchor (licensed USD on-ramp VASP)", "US"),
+      legalPerson: vaspLegalPerson("Sending anchor (licensed USD on-ramp VASP)", "US", originatorLei),
     },
     beneficiaryVASP: {
       // real: this is the receiving side, fixed by the selected corridor.
@@ -913,6 +929,28 @@ function TravelRuleTab({
   // confirmation ({txid}) to the beneficiary's callback and reports its status.
   const [txid, setTxid] = useState("");
   const txidOk = /^[0-9a-f]{64}$/i.test(txid.trim());
+
+  // Optional originating-VASP LEI: format + ISO 17442 check digits locally, then the legal name
+  // resolved live from GLEIF (free API, 24h cached in lib/gleif.ts). Unknown LEI = honest null.
+  const [lei, setLei] = useState("");
+  const leiNorm = lei.trim().toUpperCase();
+  const leiOk = isValidLei(leiNorm);
+  const [leiLookup, setLeiLookup] = useState<{ lei: string; record: LeiRecord | null; error?: string } | null>(null);
+  useEffect(() => {
+    if (!leiOk) {
+      setLeiLookup(null);
+      return;
+    }
+    let live = true;
+    lookupLei(leiNorm)
+      .then((record) => live && setLeiLookup({ lei: leiNorm, record }))
+      .catch((e) => live && setLeiLookup({ lei: leiNorm, record: null, error: (e && e.message) || String(e) }));
+    return () => {
+      live = false;
+    };
+  }, [leiNorm, leiOk]);
+  const leiResolved = leiLookup && leiLookup.lei === leiNorm ? leiLookup : null;
+  const originatorLei = leiOk ? { lei: leiNorm, record: leiResolved?.record ?? null } : undefined;
 
   // Real TRP exchange state: the response from the beneficiary VASP (approved/rejected) plus the
   // request-identifier and which peer it hit. Reset whenever the payload changes.
@@ -952,7 +990,7 @@ function TravelRuleTab({
   const anchorTx = last?.receipt.anchor?.txHash;
   const network = last?.receipt.network || "Test SDF Network ; September 2015";
 
-  const payload = buildTravelRulePayload({ amount, reference, anchorTx, corridor, network, exampleOnly });
+  const payload = buildTravelRulePayload({ amount, reference, anchorTx, corridor, network, exampleOnly, originatorLei });
   const json = JSON.stringify(payload, null, 2);
 
   // Drop any earlier response when the shown payload or destination changes.
@@ -962,16 +1000,29 @@ function TravelRuleTab({
     setLifecycle(null);
   }, [json, dest]);
 
+  // The lifecycle record exposes the settlement address, callback and peer key, so the GET is
+  // gated: it needs the inquiry's signing key (a real TRP peer) or the wallet-signed bearer the
+  // Notabene send already uses. The browser holds no TRP key, so it signs in with the wallet.
   const checkLifecycle = async () => {
     if (!trp || trp.requestIdentifier === "—") return;
+    if (!connected || !address) {
+      setLifecycle({ status: 0, body: "Connect a wallet to check the lifecycle (the record is only served to the signing peer or a signed-in wallet)." });
+      return;
+    }
     setLifecycleBusy(true);
     try {
-      const res = await fetch(`/api/travel-rule/callback?id=${encodeURIComponent(trp.requestIdentifier)}`);
+      const token = await scheduleSignIn(address, kind);
+      if (!token) {
+        setLifecycle({ status: 0, body: "Wallet sign-in is not configured on this server, so the lifecycle read cannot be authorized." });
+        return;
+      }
+      const res = await fetch(`/api/travel-rule/callback?id=${encodeURIComponent(trp.requestIdentifier)}`, { headers: { Authorization: `Bearer ${token}` } });
       const text = await res.text();
       let body: unknown = text;
       try {
         body = JSON.parse(text);
       } catch {}
+      if (res.status === 401) body = "Not authorized to read this lifecycle record: " + (typeof body === "object" && body && "error" in body ? String((body as any).error) : text);
       setLifecycle({ status: res.status, body });
     } catch (e: any) {
       setLifecycle({ status: 0, body: "lifecycle read failed: " + ((e && e.message) || String(e)) });
@@ -1012,6 +1063,7 @@ function TravelRuleTab({
           amount,
           destination: dest === "notabene" ? { notabene: true } : DEMO_TRAVEL_ADDRESS,
           ...(txidOk ? { txid: txid.trim().toLowerCase() } : {}),
+          ...(leiOk ? { lei: leiNorm } : {}),
         }),
       });
       const data = await res.json();
@@ -1115,6 +1167,30 @@ function TravelRuleTab({
             )}
           </div>
 
+          <div className="mt-3 w-full max-w-xs">
+            <Input
+              id="tr-lei"
+              label="Originating VASP LEI (optional)"
+              value={lei}
+              onChange={(e) => setLei(e.target.value)}
+              spellCheck={false}
+              maxLength={20}
+              placeholder="20-char ISO 17442 LEI, e.g. 635400JAHDSBACQGBS84"
+              className="font-mono uppercase"
+            />
+            {leiNorm && !leiOk && <p className="mt-1 text-[11px] text-tape-deep">Not a valid LEI: 20 characters with ISO 17442 check digits (mod 97).</p>}
+            {leiOk && !leiResolved && <p className="mt-1 text-[11px] text-ink-3">Check digits OK. Resolving the legal name from GLEIF…</p>}
+            {leiResolved?.record && (
+              <p className="mt-1 text-[11px] text-ink-2">
+                GLEIF: <b className="text-ink">{leiResolved.record.legalName}</b> ({leiResolved.record.country}, {leiResolved.record.status}) goes into originatingVASP as nationalIdentification LEIX.
+              </p>
+            )}
+            {leiResolved && !leiResolved.record && !leiResolved.error && (
+              <p className="mt-1 text-[11px] text-tape-deep">Check digits OK, but GLEIF has no record for this LEI. It is still sent as LEIX; the name stays the anchor placeholder.</p>
+            )}
+            {leiResolved?.error && <p className="mt-1 text-[11px] text-tape-deep">GLEIF unreachable ({leiResolved.error}). The LEI is still sent as LEIX.</p>}
+          </div>
+
           {!exampleOnly && last && (
             <p className="mt-3 text-[12.5px] text-ink-3">
               Source: a <b className="capitalize text-ink">{last.res.type}</b> disclosure, {last.res.summary}, bound to commitment{" "}
@@ -1138,7 +1214,7 @@ function TravelRuleTab({
               </Button>
             </div>
           </div>
-          <pre className={`${preCls} max-h-[420px]`}>{json}</pre>
+          <pre tabIndex={0} className={`${preCls} max-h-[420px]`}>{json}</pre>
         </Sheet>
 
         <Sheet
@@ -1209,12 +1285,16 @@ function TravelRuleTab({
                 {lifecycle &&
                   (lifecycle.status === 404 ? (
                     <span className="text-ink-3">No lifecycle record for this request-identifier yet (404).</span>
+                  ) : lifecycle.status === 0 ? (
+                    // Status 0 is never a network error: it is this browser refusing to send the
+                    // read (no wallet, or no wallet sign-in on this server). Say which.
+                    <span className="text-ink-3">{typeof lifecycle.body === "string" ? lifecycle.body : "The lifecycle read was not sent."}</span>
                   ) : (
-                    <span className="font-mono text-ink-2">HTTP {lifecycle.status || "network error"}</span>
+                    <span className="font-mono text-ink-2">HTTP {lifecycle.status}</span>
                   ))}
               </div>
-              {lifecycle && lifecycle.status !== 404 && (
-                <pre className={`${preCls} text-[11px]`}>{typeof lifecycle.body === "string" ? lifecycle.body : JSON.stringify(lifecycle.body, null, 2)}</pre>
+              {lifecycle && lifecycle.status !== 404 && lifecycle.status !== 0 && (
+                <pre tabIndex={0} className={`${preCls} text-[11px]`}>{typeof lifecycle.body === "string" ? lifecycle.body : JSON.stringify(lifecycle.body, null, 2)}</pre>
               )}
               <div className="mt-2 text-ink-3">
                 {trp.mode === "notabene"

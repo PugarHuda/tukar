@@ -35,9 +35,11 @@ regulator without seeing everyone's transactions.
 
 The only remittance flow on Stellar where privacy is on-chain (Groth16 BN254 proofs verified by
 Soroban contracts) and compliance is also on-chain and provable (policy registry, enforcement pool,
-proof-of-reserves accumulator, timelocked admin), not a promise in a PDF. Reusable KYC (idOS,
-Reclaim) instead of re-verifying every time. Everything is live on Stellar testnet and verifiable from
-the explorer; nothing in the product is mocked.
+proof-of-reserves accumulator, timelocked admin), not a promise in a PDF. Reusable KYC instead of
+re-verifying every time: Reclaim's zkTLS proof is bound to the wallet address server-side and does
+populate the on-chain allow-list, while an idOS credential is verified but cannot be tied to a Stellar
+address with a consumer's permissions, so it adds no allow-list entry and the app says so. Everything
+is live on Stellar testnet and verifiable from the explorer; nothing in the product is mocked.
 
 ## Operating Context
 
@@ -93,7 +95,8 @@ the explorer; nothing in the product is mocked.
 - 5th place, Stellar Privacy / Real-World ZK hackathon (DoraHacks); APAC hackathon grand finalist.
 - 15 contracts live on Stellar testnet with explorer links (README contract table,
   `deployments/testnet.json`); real deposit transactions on Protocol 28.
-- Test evidence: 284 contract tests, 153 unit tests, Playwright multi-browser e2e, qa6 sweep.
+- Test evidence: 314 contract tests across eight crates, 231 unit tests across 32 files, Playwright
+  multi-browser e2e (chromium, firefox, webkit, 390px mobile), qa6 sweep 66/0.
 - No real user testimonials, no volume numbers, no partner logos. Do not fabricate any.
 
 ## Product Principles

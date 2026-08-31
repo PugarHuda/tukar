@@ -26,7 +26,7 @@ private for the user and provable to a regulator, on a real corridor."
 costing over six percent. We take a thin fee on settlement volume, paid by the anchors."
 
 **SLIDE 5 — The tech** (~8s)
-"Seven zero-knowledge circuits, eight contracts live on testnet. Every proof is built in the
+"Eight zero-knowledge circuits, fifteen contracts live on testnet. Every proof is built in the
 browser and verified on-chain."
 
 **SLIDE 6 — Real and verified** (~8s)

@@ -20,6 +20,7 @@
       "title": { "displayName": "Title", "purpose": "Stencil sub-heads: manifest steps, role names, stub titles, sheet headers, nav items, primary button text. Never below 15px." },
       "amount": { "displayName": "Amount", "purpose": "Money in stencil tabular digits. The only stencil use that is not uppercase text." },
       "action": { "displayName": "Action", "purpose": "Stencil at 22px for the words on tear-off stubs and primary buttons." },
+      "lead": { "displayName": "Lead", "purpose": "Barlow 17px for the one opening paragraph of a surface: hero label copy, section intros, the sender and receiver leads." },
       "body": { "displayName": "Body", "purpose": "Barlow sentences on label paper, 60ch to 72ch measure." },
       "row": { "displayName": "Row", "purpose": "Barlow 14px for ledger and manifest rows, form captions, and card copy." },
       "small": { "displayName": "Small", "purpose": "Barlow 13.5px for footnotes and typed-caption sentences. Nothing else is set below Small except the 11px Label and 12.5px Typed steps." },

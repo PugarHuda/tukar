@@ -16,7 +16,7 @@ import {
   faucetUsdc,
   type WalletSigner,
 } from "@/lib/stellar";
-import { walletKit, onKitEvent, checkNetwork, clearNetworkGuard, assertNetwork, kitError } from "@/lib/wallet-kit";
+import { walletKit, openWalletPicker, onKitEvent, checkNetwork, clearNetworkGuard, assertNetwork, kitError } from "@/lib/wallet-kit";
 
 const PASSPHRASE = "Test SDF Network ; September 2015";
 
@@ -82,6 +82,12 @@ export type WalletState = {
   connectWallet: (onStep?: (m: string) => void) => Promise<void>;
   /** Use the built-in throwaway testnet key (real testnet txs, no install). */
   connectDemoKey: () => void;
+  /**
+   * Passkey smart wallet (WebAuthn, no seed phrase; lib/passkey.ts). "create" registers a passkey and
+   * deploys its contract account through the fee-sponsoring relayer; "connect" signs in with an
+   * existing one. Address is a C-address; transactions are signed by the passkey and relayed.
+   */
+  connectPasskey: (mode: "create" | "connect", onStep?: (m: string) => void) => Promise<void>;
   disconnect: () => void;
 };
 
@@ -115,6 +121,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setWalletSigner(null);
     clearNetworkGuard();
     kitConn.current = null;
+    // Drop the passkey kit's connected wallet too (no-op unless that module was ever loaded).
+    import("@/lib/passkey").then((m) => m.disconnectPasskey()).catch(() => {});
     setKind(null);
     setWalletName(null);
     setAddress(null);
@@ -175,7 +183,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const kit = await withTimeout(walletKit(), 8000, "wallet kit failed to load");
       // Opens the kit modal; the user picks a wallet and grants access. authModal sets that wallet as
       // the active module and returns its address, or rejects if the user cancels.
-      const { address: addr } = await kit.authModal().catch((e) => {
+      const { address: addr } = await openWalletPicker().catch((e) => {
         throw kitError(e);
       });
       if (!addr || typeof addr !== "string") throw new Error("no wallet selected");
@@ -219,6 +227,65 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [installKitWallet, subscribeKit]);
 
+  // Install a passkey smart wallet as the active signer and record it. The stored keyId lets the
+  // reload path reconnect silently (no WebAuthn prompt: a local record or on-chain derivation).
+  const installPasskey = useCallback((pk: typeof import("@/lib/passkey"), kit: Awaited<ReturnType<typeof pk.passkeyKit>>, contractId: string, keyId: string) => {
+    const signer = pk.makePasskeySigner(kit, contractId);
+    setWalletSigner(signer);
+    clearNetworkGuard();
+    kitConn.current = null;
+    setKind("passkey");
+    setWalletName("passkey wallet");
+    setAddress(contractId);
+    setWrongNetwork(null);
+    trackWallet("passkey", contractId);
+    try {
+      localStorage.setItem("tukar:conn", "passkey:" + keyId);
+    } catch {}
+    // ponytail: dev-only handle so an e2e run can drive the real signer (signAuthEntry / submit) with a
+    // virtual authenticator; never present in production bundles.
+    if (process.env.NODE_ENV !== "production") (window as any).__tukarPasskey = { kit, signer, contractId, keyId };
+  }, []);
+
+  const connectPasskey = useCallback(
+    async (mode: "create" | "connect", onStep?: (m: string) => void) => {
+      setConnecting(true);
+      try {
+        const pk = await withTimeout(import("@/lib/passkey"), 8000, "passkey kit failed to load");
+        const kit = await pk.passkeyKit();
+        let contractId: string, keyId: string;
+        if (mode === "create") {
+          onStep?.("register a passkey in your browser…");
+          const r = await pk.createPasskeyWallet("Tukar wallet");
+          contractId = r.contractId;
+          keyId = r.keyId;
+          onStep?.(`smart wallet deployed, fee paid by the relayer (tx ${r.hash.slice(0, 8)}…)`);
+        } else {
+          onStep?.("choose your passkey…");
+          const r = await pk.connectPasskeyWallet();
+          contractId = r.contractId;
+          keyId = r.keyId;
+        }
+        installPasskey(pk, kit, contractId, keyId);
+        // Best-effort test USDC: a contract account holds USDC as a SAC balance (no trustline, no XLM
+        // needed since the relayer pays fees), so the demo key sends a SAC transfer once, when empty.
+        try {
+          const bal = await pk.usdcBalance(contractId);
+          if (bal === 0n) {
+            onStep?.("sending test USDC to your smart wallet…");
+            await pk.faucetUsdcToContract(contractId);
+          }
+          onStep?.("passkey wallet ready");
+        } catch {
+          onStep?.("connected, testnet funding step skipped");
+        }
+      } finally {
+        setConnecting(false);
+      }
+    },
+    [installPasskey],
+  );
+
   // Rehydrate the connection across reloads. Demo key restores instantly; a kit wallet session is
   // re-established SILENTLY (no popup): the kit persists the connected address itself, so getAddress()
   // reads it from memory without touching the wallet. If nothing is cached, we leave it disconnected.
@@ -229,6 +296,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     if (saved === "demo") {
       connectDemoKey();
+    } else if (saved && saved.startsWith("passkey:")) {
+      const keyId = saved.slice(8);
+      (async () => {
+        try {
+          const pk = await withTimeout(import("@/lib/passkey"), 8000, "load");
+          const { contractId } = await pk.connectPasskeyWallet(keyId); // silent: no WebAuthn prompt
+          installPasskey(pk, await pk.passkeyKit(), contractId, keyId);
+        } catch {
+          // stale record or the wallet no longer resolves: leave disconnected
+        }
+      })();
     } else if (saved && saved.startsWith("kit:")) {
       const id = saved.slice(4);
       (async () => {
@@ -262,6 +340,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     recheckNetwork,
     connectWallet,
     connectDemoKey,
+    connectPasskey,
     disconnect,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

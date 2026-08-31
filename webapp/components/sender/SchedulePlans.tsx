@@ -10,13 +10,17 @@ import { short } from "@/lib/zk";
 import { Button, useToast } from "@/components/ui";
 import { Label, Ext, CAP, TYPED } from "@/components/sender/Label";
 
-export type PlanRun = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string };
-export type SchedulePlan = { id: string; amount: string; code: string; recipient: string; frequency: "weekly" | "monthly"; nextDate: string; history?: PlanRun[] };
+// `skipped` = the run held the plan without moving money (rate condition not met, oracle
+// unreadable, spending guard); it stays due and is re-checked the next day.
+export type PlanRun = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number };
+export type PlanCondition = { symbol: string; minRate: number };
+export type SchedulePlan = { id: string; amount: string; code: string; recipient: string; frequency: "weekly" | "monthly"; nextDate: string; history?: PlanRun[]; condition?: PlanCondition };
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso + "T00:00:00");
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
+export const fmtRate = (r: number) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
 
 export function SchedulePlans(props: {
   schedules: SchedulePlan[];
@@ -77,8 +81,14 @@ export function SchedulePlans(props: {
                     ${s.amount} USDC · {sc ? sc.country : s.code}
                   </div>
                   <div className={`mt-0.5 truncate ${TYPED}`}>
-                    {s.frequency} · to {s.recipient || "recipient"} · next {fmtDate(s.nextDate)}
+                    {s.frequency} · to {s.recipient || "recipient"} · next {fmtDate(s.nextDate)} (UTC)
                   </div>
+                  {s.condition && (
+                    <div className={`mt-0.5 truncate ${TYPED}`}>
+                      only when USD to {s.condition.symbol} is at least {fmtRate(s.condition.minRate)}
+                      {serverMode ? " (Reflector oracle, checked each daily run)" : " (saved with the reminder; nothing checks it on this device)"}
+                    </div>
+                  )}
                 </button>
                 <button
                   onClick={() => cancel(s.id)}
@@ -92,7 +102,9 @@ export function SchedulePlans(props: {
               {/* Link lives outside the prefill button: an <a> inside a <button> is invalid markup. */}
               {last && (
                 <div className={`mt-1 truncate ${TYPED}`}>
-                  {last.depHash ? (
+                  {last.skipped ? (
+                    <span className="text-ink-2">last run held: {last.skipped}</span>
+                  ) : last.depHash ? (
                     <Ext href={txExplorer(last.depHash)} className={last.regOk ? "" : "text-ink-2"}>
                       last run: tx {short(last.depHash)} {last.regOk ? "registered" : "· registering"}
                     </Ext>

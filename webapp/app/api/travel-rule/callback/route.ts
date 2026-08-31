@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getTrpLifecycle, putTrpLifecycle, verifyTrpRequest } from "@/lib/trp";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { log, requestId, errMsg } from "@/lib/log";
+import { authOwner } from "@/lib/auth";
 
 // TRP 3.2.1 transfer confirmation endpoint: the callback URL this beneficiary handed out in its
 // approval. The originator POSTs {txid} once it has settled on-chain, or {canceled:"..."} when it
@@ -58,6 +59,13 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   const rl = await rateLimit(req, { key: "travel-rule-callback-get", limit: 60, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
+  // The record names the settlement address, the peer's callback and its key, so reading it is an
+  // operator action and needs the wallet-signed scheduler bearer. A peer never needs this route: it
+  // learns the outcome from the inquiry response and closes the transfer with a signed POST above.
+  // Authenticating by echoing `x-trp-public-key` would be no authentication at all, since that key
+  // is public by construction; anyone holding it could read another party's settlement details.
+  if (!authOwner(req)) return NextResponse.json({ error: "Operator bearer token required." }, { status: 401 });
 
   const id = new URL(req.url).searchParams.get("id") || "";
   if (!UUID.test(id)) return NextResponse.json({ error: "Missing or malformed id (request-identifier)." }, { status: 400 });

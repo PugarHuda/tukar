@@ -79,17 +79,32 @@ export default function VerifyPage() {
 
   // A `/verify#r=<payload>` link: the receipt lives in the URL fragment (never sent to the server),
   // is decoded here, prefills the paste box, and runs the SAME verification as a paste.
+  // Opening a second link in a tab that already shows /verify only changes the fragment, so this
+  // also listens for hashchange: leaving the previous receipt's verdict on screen would be a
+  // verdict about a receipt that is no longer the one in the URL.
   useEffect(() => {
-    const p = receiptPayloadFromHash(location.hash);
-    if (p == null) return;
-    decodeReceiptPayload(p)
-      .then((r) => {
-        const s = JSON.stringify(r, null, 2);
-        setText(s);
-        setFromLink(true);
-        return run(s);
-      })
-      .catch((e: any) => setError(`This verification link could not be read: ${(e && e.message) || e}. Ask for the receipt JSON and paste it instead.`));
+    const load = () => {
+      const p = receiptPayloadFromHash(location.hash);
+      if (p == null) return;
+      const stillCurrent = () => receiptPayloadFromHash(location.hash) === p;
+      decodeReceiptPayload(p)
+        .then((r) => {
+          if (!stillCurrent()) return; // a newer link won the race
+          const s = JSON.stringify(r, null, 2);
+          setText(s);
+          setFromLink(true);
+          return run(s);
+        })
+        .catch((e: any) => {
+          if (!stillCurrent()) return;
+          setRes(null);
+          setFromLink(false);
+          setError(`This verification link could not be read: ${(e && e.message) || e}. Ask for the receipt JSON and paste it instead.`);
+        });
+    };
+    load();
+    window.addEventListener("hashchange", load);
+    return () => window.removeEventListener("hashchange", load);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

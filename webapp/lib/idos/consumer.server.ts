@@ -57,9 +57,25 @@ async function consumer(): Promise<idOSConsumerType> {
   return _consumer;
 }
 
+// WHY A VERIFIED SHARE IS NOT A WALLET BINDING.
+// An idOS access grant identifies its owner by idOS user id (ag_owner_user_id), never by wallet.
+// To tie a Stellar address to that owner we would have to read the wallets registered to that user
+// id, and the installed SDK has no such read: @idos-network/consumer 's whole surface is
+// getCredentialShared*/getAccessGrants*/getCredentialsSharedByUser/verifyCredential, and the kwil
+// action set underneath it (@idos-network/kwil-infra/actions actionSchema) has exactly one wallet
+// read, `get_wallets`, which takes no arguments and is scoped to the kwil @caller (us, the
+// consumer). The only address-keyed action, `has_profile`, answers a boolean about SOME profile,
+// which does not identify the owner. `create_ag_by_dag_for_copy` does verify an owner wallet
+// signature, but its SQL supports EVM signatures only, so it cannot prove a Stellar address either.
+// So we refuse to derive an allow-list entry from a share and say so, rather than pretending the
+// SEP-53 signature (which proves wallet control, not idOS ownership) is a binding.
+export const WALLET_BINDING_UNAVAILABLE =
+  "Credential verified. This app's idOS consumer cannot read the wallets registered to the credential owner, so the share cannot be bound to your Stellar address and no ASP allow-list entry was computed.";
+
 export type CredentialReadResult = {
   verified: boolean;
-  // Why verification did not pass (missing issuer config, bad signature, etc.) — for honest UI.
+  // Why verification did not pass (missing issuer config, bad signature, etc.), or on success why
+  // the verified credential still yields no allow-list entry. Shown to the user verbatim.
   reason?: string;
   // A minimal, non-PII summary the UI can show. We never return the raw decrypted content.
   credentialType?: string;
@@ -72,7 +88,8 @@ export type CredentialReadResult = {
  * itself is the access-control gate: it only succeeds when the user actually granted this consumer,
  * so a caller cannot make us read an arbitrary credential. The access grant is then re-read from
  * idOS and must name this consumer as grantee and the copy's owner as grantor, and the content
- * must pass status/expiry/residency checks before the credential counts as verified.
+ * must pass status/expiry/residency checks before the credential counts as verified. A verified
+ * result is never a wallet binding (see WALLET_BINDING_UNAVAILABLE); callers must not treat it as one.
  */
 export async function readSharedCredential(sharedCredentialId: string): Promise<CredentialReadResult> {
   const c = await consumer();
@@ -121,5 +138,6 @@ export async function readSharedCredential(sharedCredentialId: string): Promise<
   const contentProblem = checkCredentialContent(credential, copy!.public_notes);
   if (contentProblem) return { verified: false, reason: contentProblem, credentialType, issuer };
 
-  return { verified: true, credentialType, issuer };
+  // Verified, and deliberately unbound: see WALLET_BINDING_UNAVAILABLE.
+  return { verified: true, reason: WALLET_BINDING_UNAVAILABLE, credentialType, issuer };
 }

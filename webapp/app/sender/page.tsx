@@ -30,13 +30,16 @@ import { newNote, usdcToStroops, encodeBearerNote, decodePaymentRequest, getPose
 import { qrSvgString } from "@/components/sender/qr";
 import { CostCard } from "@/components/sender/CostCard";
 import { SentNotes, loadSentNotes, saveSentNotes, type SentNote } from "@/components/sender/SentNotes";
-import { SchedulePlans } from "@/components/sender/SchedulePlans";
-import { buildClaimLink, isValidPin } from "@/lib/claim-link";
+import { SchedulePlans, type SchedulePlan } from "@/components/sender/SchedulePlans";
+import { SpendingGuard } from "@/components/sender/SpendingGuard";
+import { guardCheck, spentInWindows, loadLocalGuard, saveLocalGuard, type SpendingGuard as Guard } from "@/lib/spending-guard";
+import { buildClaimLink, isValidPin, normalizePin } from "@/lib/claim-link";
 import { encodeViewNote, viewNoteFromNote } from "@/lib/view-note";
 import { SavingsNote } from "@/components/SavingsNote";
 import { CctpFund } from "@/components/CctpFund";
 import { CctpSend } from "@/components/CctpSend";
 import { scheduleSignIn } from "@/lib/auth-client";
+import { checkPayUri } from "@/lib/sep7";
 
 // The 10 corridors, codes/currencies match app.js CORRIDORS (the receiver keys off `corridor`
 // in the bearer note, so codes must line up). `oracle` = the symbol Reflector's on-chain SEP-40
@@ -81,14 +84,19 @@ const MAX_USDC = 1_000_000_000; // same cap the send path enforces on-chain
 // configured (Vercel Blob + cron), the plan is stored server-side and the daily cron executes its
 // deposit + shielded-tree registration on-chain automatically (history carries the run receipts).
 type Frequency = "one-time" | "weekly" | "monthly";
-type RunReceipt = { at: string; depHash?: string; regOk?: boolean; error?: string };
-type Schedule = { id: string; amount: string; code: string; recipient: string; frequency: Exclude<Frequency, "one-time">; nextDate: string; history?: RunReceipt[] };
+type Schedule = SchedulePlan;
 const SCHEDULES_KEY = "tukar:schedules";
-// Next reminder date from now. Local-only; a real scheduler/relayer would own this on-chain.
+// Next run date as a UTC calendar date, mirroring lib/schedules.ts computeNextDate (server-only, so
+// not importable here): weekly +7 days; monthly clamped to the target month's length.
 function computeNextDate(freq: Exclude<Frequency, "one-time">): string {
   const d = new Date();
-  if (freq === "weekly") d.setDate(d.getDate() + 7);
-  else d.setMonth(d.getMonth() + 1);
+  if (freq === "weekly") d.setUTCDate(d.getUTCDate() + 7);
+  else {
+    const day = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()));
+  }
   return d.toISOString().slice(0, 10);
 }
 const fmtRate = (r: number) => (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2));
@@ -106,6 +114,12 @@ export default function SenderPage() {
   // Recurring/scheduled send, a saved plan (reminder) only, never auto-executes on-chain.
   const [frequency, setFrequency] = useState<Frequency>("one-time");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  // "Send only when USD to <local> is at least X" for a scheduled plan; oracle corridors only.
+  const [minRate, setMinRate] = useState("");
+  // Self-set spending guard (device copy; mirrored to the scheduler when signed in) and the
+  // amount the sender re-typed to override it. Reset whenever the amount changes.
+  const [guard, setGuard] = useState<Guard>({});
+  const [overrideFor, setOverrideFor] = useState("");
   // A schedule POST in flight: a double-tap must not create two server plans the cron would both run.
   const [schedBusy, setSchedBusy] = useState(false);
   // Notes this sender created (device-local), listed with live status + cancel-and-refund below the form.
@@ -185,6 +199,10 @@ export default function SenderPage() {
         setSchedToken(token);
         const j = await (await fetch("/api/schedules", { headers: { Authorization: `Bearer ${token}` } })).json();
         if (alive && Array.isArray(j?.schedules)) setSchedules(j.schedules);
+        // The scheduler's copy of the guard fills an unset device guard, never overrides one.
+        if (alive && j?.guard && (j.guard.daily != null || j.guard.monthly != null)) {
+          setGuard((cur) => (cur.daily == null && cur.monthly == null ? (saveLocalGuard(j.guard), j.guard) : cur));
+        }
       } catch {
         if (alive) toast("Could not sign in to the scheduler with this wallet", "error");
       }
@@ -202,6 +220,13 @@ export default function SenderPage() {
   }
   async function saveSchedule() {
     if (schedBusy || frequency === "one-time" || !(num > 0) || num > MAX_USDC) return;
+    // A rate condition only where the cron can read the rate on-chain (Reflector feed).
+    const minRateNum = Number(minRate);
+    if (minRate.trim() && !(minRateNum > 0 && Number.isFinite(minRateNum))) {
+      toast("The minimum rate must be a positive number, or leave it empty.", "error");
+      return;
+    }
+    const condition = corridor.oracle && minRate.trim() ? { symbol: corridor.oracle, minRate: minRateNum } : undefined;
     if (serverMode) {
       if (!schedToken) {
         toast("Connect a wallet to schedule (it signs you in).", "error");
@@ -212,7 +237,7 @@ export default function SenderPage() {
         const r = await fetch("/api/schedules", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${schedToken}` },
-          body: JSON.stringify({ amount: amount.trim(), code, recipient, frequency }),
+          body: JSON.stringify({ amount: amount.trim(), code, recipient, frequency, ...(condition ? { condition } : {}) }),
         });
         const j = await r.json();
         if (j?.schedule) {
@@ -229,9 +254,28 @@ export default function SenderPage() {
       return;
     }
     const id = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-    const plan: Schedule = { id, amount: amount.trim(), code, recipient, frequency, nextDate: computeNextDate(frequency) };
+    const plan: Schedule = { id, amount: amount.trim(), code, recipient, frequency, nextDate: computeNextDate(frequency), ...(condition ? { condition } : {}) };
     persistSchedules([plan, ...schedules]);
     toast("Plan saved on this device", "success");
+  }
+  // Save the guard on this device always; in server mode also with the owner's wallet-signed plans
+  // (PUT /api/schedules/guard), where the cron enforces it. The device copy is what gates Continue.
+  async function saveGuard(g: Guard) {
+    setGuard(g);
+    saveLocalGuard(g);
+    setOverrideFor("");
+    if (serverMode && schedToken) {
+      try {
+        const r = await fetch("/api/schedules/guard", { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${schedToken}` }, body: JSON.stringify(g) });
+        const j = await r.json();
+        toast(j?.guard ? "Guard saved on this device and with your scheduled plans." : j?.error || "Guard saved on this device; the scheduler did not accept it.", j?.guard ? "success" : "error");
+        return;
+      } catch {
+        toast("Guard saved on this device; could not reach the scheduler.", "error");
+        return;
+      }
+    }
+    toast("Guard saved on this device.", "success");
   }
   // Server mode: SchedulePlans already DELETEd the plan, just drop it from state. Local mode: drop the reminder.
   function removeSchedule(id: string) {
@@ -243,6 +287,7 @@ export default function SenderPage() {
     setCode(s.code);
     setRecipient(s.recipient);
     setFrequency(s.frequency);
+    setMinRate(s.condition ? String(s.condition.minRate) : "");
     if (request) clearRequest();
     toast("Plan loaded. Review and send it yourself.", "success");
   }
@@ -255,6 +300,11 @@ export default function SenderPage() {
   const effRate = fx[code]?.rate ?? corridor.rate;
   const num = Number(amount);
   const receive = isFinite(num) && num > 0 ? num * effRate : 0;
+  // Spending guard over the real Sent notes store (stroops -> USDC), for the amount in the form.
+  const spent = spentInWindows(sent.map((n) => ({ at: n.createdAt, usdc: Number(n.amount) / 1e7 })));
+  const guardVerdict = guardCheck(guard, spent, num);
+  const overridden = overrideFor !== "" && overrideFor === amount.trim();
+  const guardBlocked = !guardVerdict.ok && !overridden ? guardVerdict.reason : null;
 
   // ---- live pool state (real, from chain) ----
   const refreshPool = useCallback(async (): Promise<number> => {
@@ -278,6 +328,7 @@ export default function SenderPage() {
   useEffect(() => {
     refreshPool();
     setSent(loadSentNotes());
+    setGuard(loadLocalGuard());
     // Real USD->local FX: Reflector on-chain oracle where the testnet feed carries it, a public
     // FX API for the rest. Non-blocking; failure keeps the static fallback so the preview is sane.
     (async () => {
@@ -409,14 +460,22 @@ export default function SenderPage() {
     }
     const dep = await depositOnChain(note);
     if (!dep.ok) {
-      // Honest compliance block: a sanctioned/deny-listed source makes the non-membership
-      // constraint unsatisfiable, so no valid proof exists and the deposit can't proceed.
-      const blocked = dep.denyRejected || dep.code === 4;
+      // Three distinct compliance outcomes, each said as what it is: a deny-listed source (the
+      // non-membership constraint is unsatisfiable, no proof exists), a source that is simply not
+      // on the ASP allow-list (no membership path to prove), and PoolError #4 BadDenyList (the
+      // proof's deny-list inputs no longer match the pool's on-chain list, so retry proves against
+      // the current one). Everything else is a plain deposit failure with its reason.
+      const notListed = /not an approved ASP source/.test(dep.error || "");
+      const blocked = dep.denyRejected || notListed || dep.code === 4;
       setSteps({ proof: "fail", deposit: "pend", register: "pend" });
       setProgStatus(
-        blocked
+        dep.denyRejected
           ? "This source is on the sanctions deny-list, so the compliance proof is unsatisfiable and the deposit cannot proceed."
-          : "Deposit failed: " + dep.error,
+          : notListed
+            ? "This wallet is not on the ASP allow-list, so no compliance proof can be built for it. Send with the built-in testnet key, or ask the operator to add this key to the allow-list."
+            : dep.code === 4
+              ? "The pool's on-chain deny-list changed since this proof was built, so the deny-list check failed on-chain. Send again to prove against the current list."
+              : "Deposit failed: " + dep.error,
       );
       setBusy(false);
       setTimeout(() => setScreen("send"), blocked ? 4200 : 3200);
@@ -545,19 +604,38 @@ export default function SenderPage() {
     setScreen("compose");
   }
 
-  // ---- fulfill a payment request the Receiver emitted (tukreq1:) ----
-  function loadRequest() {
+  // ---- fulfill a payment request the Receiver emitted (tukreq1: or a SEP-7 web+stellar:pay URI) ----
+  async function loadRequest() {
     const raw = reqInput.trim();
     if (!raw) return;
     try {
-      const json = decodePaymentRequest(raw);
-      const label = /^G[A-Z2-7]{55}$/.test(json.addr) ? `Requested payee · ${json.addr.slice(0, 6)}…${json.addr.slice(-4)}` : "requested payee";
+      let addr: string;
+      let amt: string;
+      let via = "";
+      if (raw.startsWith("web+stellar:")) {
+        // SEP-7: parse, then verify the signature against origin_domain's stellar.toml key. The
+        // URI carries the request; the deposit itself is still the shielded pool contract call.
+        setReqStatus("Checking the SEP-7 request signature…");
+        const chk = await checkPayUri(raw);
+        if (!chk.ok) throw new Error(chk.reason);
+        const r = chk.request;
+        if (r.assetCode && r.assetCode !== "USDC") throw new Error(`Tukar requests are USDC, this one asks for ${r.assetCode}`);
+        if (!r.amount) throw new Error("the request carries no amount");
+        addr = r.destination;
+        amt = r.amount;
+        via = chk.verifiedDomain ? ` · SEP-7, signed by ${chk.verifiedDomain}` : " · SEP-7, unsigned";
+      } else {
+        const json = decodePaymentRequest(raw);
+        addr = json.addr;
+        amt = json.amount;
+      }
+      const label = /^G[A-Z2-7]{55}$/.test(addr) ? `Requested payee · ${addr.slice(0, 6)}…${addr.slice(-4)}${via}` : "requested payee";
       preReqAmount.current = amount; // remember what to restore on Clear
-      setAmount(json.amount);
+      setAmount(amt);
       setRecipient(label);
-      setRequest({ addr: json.addr, label });
+      setRequest({ addr, label });
       setReqInput("");
-      setReqStatus(`Loaded a request for ${json.amount} USDC. Review and continue to send.`);
+      setReqStatus(`Loaded a request for ${amt} USDC. Review and continue to send.`);
     } catch (e: any) {
       setReqStatus("Couldn't load that request: " + ((e && e.message) || "invalid string"));
     }
@@ -574,7 +652,7 @@ export default function SenderPage() {
   // the packing slip (cost, request, standing orders) on the right from 1024px, one column below.
   // <main> stays the 520px label column; the slip is an <aside> sibling on the same box, and the
   // stubs that end each screen (Continue, Edit, Share) sit under the label in their own row.
-  const canContinue = isFinite(num) && num > 0 && num <= MAX_USDC;
+  const canContinue = isFinite(num) && num > 0 && num <= MAX_USDC && !guardBlocked;
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1100px] px-3 pb-16 pt-5 sm:px-7">
@@ -610,7 +688,7 @@ export default function SenderPage() {
           <span aria-hidden className="absolute inset-y-3 left-[574px] hidden w-[2px] bg-ink/25 lg:block" />
 
           <main className="relative z-[1] mx-auto w-full max-w-[520px] lg:col-start-1 lg:row-start-1">
-            {connected && kind === "freighter" && screen !== "success" && (
+            {connected && !!kind && kind !== "demo" && screen !== "success" && (
               <div className={`mb-5 ${NOTICE}`}>
                 <b className="text-ink">Heads up.</b> Only allow-listed sources can deposit. The built-in
                 testnet key is on the demo ASP allow-list, but this connected wallet is not, so a deposit will
@@ -633,10 +711,19 @@ export default function SenderPage() {
                 setRecipient={setRecipient}
                 frequency={frequency}
                 setFrequency={setFrequency}
+                minRate={minRate}
+                setMinRate={setMinRate}
                 schedules={schedules}
                 serverMode={serverMode}
                 schedBusy={schedBusy}
                 onSaveSchedule={saveSchedule}
+                guard={guard}
+                spent={spent}
+                guardBlocked={guardBlocked}
+                overridden={overridden}
+                onOverride={() => setOverrideFor(amount.trim())}
+                onSaveGuard={saveGuard}
+                signedIn={!!schedToken}
                 sentNotes={sent}
                 onSentChange={persistSent}
                 connected={connected}
@@ -697,7 +784,13 @@ export default function SenderPage() {
             {screen === "compose" && (
               <ComposeTail
                 canContinue={canContinue}
-                continueHint={num > MAX_USDC ? "Keep it under 1,000,000,000 USDC to continue." : "Enter an amount greater than 0 to continue."}
+                continueHint={
+                  num > MAX_USDC
+                    ? "Keep it under 1,000,000,000 USDC to continue."
+                    : guardBlocked
+                      ? "Your spending guard holds this amount. Lower it, raise the guard, or type the amount in the guard to send anyway."
+                      : "Enter an amount greater than 0 to continue."
+                }
                 pool={pool}
                 poolBumped={poolBumped}
                 onContinue={() => {
@@ -709,6 +802,7 @@ export default function SenderPage() {
                     setSendStatus("Keep it under 1,000,000,000 USDC.");
                     return;
                   }
+                  if (guardBlocked) return;
                   setScreen("send");
                 }}
               />
@@ -761,10 +855,19 @@ function ComposeScreen(props: {
   setRecipient: (v: string) => void;
   frequency: Frequency;
   setFrequency: (v: Frequency) => void;
+  minRate: string;
+  setMinRate: (v: string) => void;
   schedules: Schedule[];
   serverMode: boolean | null;
   schedBusy: boolean;
   onSaveSchedule: () => void;
+  guard: Guard;
+  spent: { today: number; month: number };
+  guardBlocked: string | null;
+  overridden: boolean;
+  onOverride: () => void;
+  onSaveGuard: (g: Guard) => Promise<void>;
+  signedIn: boolean;
   sentNotes: SentNote[];
   onSentChange: (next: SentNote[]) => void;
   connected: boolean;
@@ -775,8 +878,11 @@ function ComposeScreen(props: {
   locked: boolean; // fulfilling a payment request: amount and recipient are read-only
   canContinue: boolean;
 }) {
-  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, schedules, serverMode, schedBusy, onSaveSchedule, sentNotes, onSentChange, connected, corridor, fxSource, effRate, receive, locked, canContinue } = props;
+  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, minRate, setMinRate, schedules, serverMode, schedBusy, onSaveSchedule, guard, spent, guardBlocked, overridden, onOverride, onSaveGuard, signedIn, sentNotes, onSentChange, connected, corridor, fxSource, effRate, receive, locked, canContinue } = props;
   const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "indicative (static rate)";
+  // The plan box's save button ignores the spending guard: scheduling is not a send, and the cron
+  // applies the guard at run time.
+  const canSchedule = isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= MAX_USDC;
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
@@ -856,11 +962,39 @@ function ComposeScreen(props: {
             </p>
             <Badge tone={serverMode ? "green" : "amber"} className="shrink-0">{serverMode ? "AUTOMATED" : "PREVIEW"}</Badge>
           </div>
-          <Button variant="reveal" full className="mt-3" busy={schedBusy} disabled={!canContinue || schedBusy} onClick={onSaveSchedule}>
+          {corridor.oracle ? (
+            <div className="mt-3">
+              <Input
+                label={`Send only when rate is at least (${corridor.currency} per USD, optional)`}
+                id="min-rate"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={minRate}
+                onChange={(e) => setMinRate(e.target.value)}
+                placeholder={`now ${fmtRate(effRate)}`}
+                aria-label={`Minimum USD to ${corridor.currency} rate for this plan`}
+                className="font-mono tabular-nums"
+              />
+              <p className={`mt-2 ${TYPED}`}>
+                {serverMode
+                  ? `Each daily run reads USD to ${corridor.currency} from the Reflector oracle on-chain and holds the plan while the rate is below this; a held run is recorded with the rate it saw and re-checked the next day. If the feed cannot be read, the plan is held, not sent blind.`
+                  : `Saved with the reminder on this device. Nothing checks the rate automatically in preview mode; the scheduler does once it is provisioned.`}
+              </p>
+            </div>
+          ) : (
+            <p className={`mt-3 ${TYPED}`}>
+              {corridor.currency} has no Reflector on-chain feed (its rate comes from an HTTP fallback), so this plan cannot be conditioned on the rate. Rate conditions are available for MXN, BRL, ARS and THB.
+            </p>
+          )}
+          <Button variant="reveal" full className="mt-3" busy={schedBusy} disabled={!canSchedule || schedBusy} onClick={onSaveSchedule}>
             {serverMode ? "Schedule" : "Save"} {frequency} plan for {recipient || "recipient"}
           </Button>
         </Label>
       )}
+
+      <SpendingGuard guard={guard} spent={spent} amount={Number(amount)} amountText={amount.trim()} blocked={guardBlocked} overridden={overridden} onOverride={onOverride} onSave={onSaveGuard} serverMode={serverMode} signedIn={signedIn} />
 
       <SentNotes notes={sentNotes} onChange={onSentChange} connected={connected} />
     </div>
@@ -915,7 +1049,7 @@ function RequestLoader(props: {
                 Load
               </Button>
             </div>
-            <p className={`mt-2 ${TYPED}`}>Paste a request the recipient made in the Receiver step to prefill the amount and payee.</p>
+            <p className={`mt-2 ${TYPED}`}>Paste a request the recipient made in the Receiver step to prefill the amount and payee. A SEP-7 web+stellar:pay URI works too; its signature is checked against the issuing domain&apos;s stellar.toml.</p>
           </div>
         </Card>
       )}
@@ -1002,9 +1136,8 @@ function SendScreen(props: {
           label="Claim-link PIN (optional, 6 digits)"
           id="claim-pin"
           inputMode="numeric"
-          maxLength={6}
           value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          onChange={(e) => setPin(normalizePin(e.target.value))}
           placeholder="leave empty for a plain link"
           aria-label="Optional 6-digit PIN for the claim link"
           className="font-mono tracking-[0.2em]"
@@ -1014,14 +1147,13 @@ function SendScreen(props: {
         </p>
       </Card>
 
+      {/* One WalletBar per page (the header): a second mount here would create a duplicate idOS
+          enclave element, and the enclave attaches by id. The copy points up instead. */}
       {!connected && (
         <Label className="mt-4" bar="Connect to sign on-chain">
           <p className="text-[13px] leading-relaxed text-ink-2">
-            Use the built-in testnet key for a real testnet transaction with no install, or connect Freighter to sign with your own wallet.
+            Use the wallet strip at the top: the built-in testnet key gives a real testnet transaction with no install, or connect your own wallet to sign with it.
           </p>
-          <div className="mt-3">
-            <WalletBar />
-          </div>
         </Label>
       )}
 
@@ -1156,7 +1288,7 @@ function SuccessScreen({ result }: { result: SendResult }) {
         </dl>
         <span className={`tk-stamp absolute bottom-4 right-5 animate-tk-ring text-[17px] ${result.regOk ? "" : "tk-stamp-ink"}`}>
           {result.regOk ? "Cleared" : "Deposited"}
-          <small className="mt-0.5 block font-mono text-[10px] tracking-[0.1em]">{result.regOk ? "proof on-chain" : "tree pending"}</small>
+          <small className="mt-0.5 block font-mono text-[11px] tracking-[0.08em]">{result.regOk ? "proof on-chain" : "tree pending"}</small>
         </span>
       </Card>
     </div>

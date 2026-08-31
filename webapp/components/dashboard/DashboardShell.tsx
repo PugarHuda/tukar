@@ -39,7 +39,7 @@ export function DashboardShell({
     if (!open) return;
     const panel = drawerRef.current;
     const focusables = () =>
-      Array.from(panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []);
+      Array.from(panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ?? []);
     // Deferred a frame: WebKit ignores a synchronous focus() into a drawer opened by the same tap.
     const raf = requestAnimationFrame(() => (panel?.querySelector<HTMLElement>("nav button") ?? focusables()[0])?.focus());
 
@@ -107,7 +107,12 @@ export function DashboardShell({
       )}
 
       {/* Main: the kraft desk, scrolls independently on desktop */}
-      <main className="min-w-0 flex-1 lg:h-screen lg:overflow-y-auto">{children}</main>
+      {/* While the drawer is open the desk is inert: not focusable, not clickable, not read. */}
+      {/* tabIndex: the desk is its own scroll pane on desktop, and sections that are pure readouts
+          hold nothing focusable, so without this a keyboard user cannot scroll them at all. */}
+      <main tabIndex={0} className="min-w-0 flex-1 lg:h-screen lg:overflow-y-auto" inert={open ? true : undefined}>
+        {children}
+      </main>
     </div>
   );
 }

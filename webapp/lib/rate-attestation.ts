@@ -17,9 +17,25 @@ export type BasisRecord = {
   timestamp: number | null; // absolute unix seconds, derived from ageSec (null if age unknown)
 };
 
+// The anchor's SEP-38 FIRM quote, when the receiver cashed out through the anchor with it bound
+// into the SEP-24 withdraw (quote_id). A second, independent source line beside the Reflector
+// median: what the anchor COMMITTED to pay, until when. Present only when used.
+export type AnchorQuoteLine = {
+  id: string; // the anchor's quote id (the same id in the SEP-24 request)
+  anchor: string; // anchor home domain
+  sellAmount: number; // USDC sold to the anchor (the amount the SEP-24 withdraw carries)
+  buyAsset: string; // SEP-38 asset id, e.g. "iso4217:USD"
+  buyAmount: number; // fiat the anchor committed to pay out
+  rate: number; // SEP-38 price: sell units per 1 buy unit, before fees
+  totalPrice: number; // fees included: sellAmount / buyAmount
+  feeTotal: number; // in sell-asset units
+  expiresAt: string; // ISO-8601, from the anchor
+};
+
 export type RateAttestation = {
   kind: "tukar.offramp.rate-attestation";
   version: 1;
+  anchorQuote?: AnchorQuoteLine; // omitted (not null) when unused, so older attestations hash unchanged
   corridor: { code: string; currency: string; symbol: string; oracleSymbol: string };
   amountUsdc: number;
   settledMedian: number; // local fiat at the enforced median (pool.offramp_quote_twap of the basis)
@@ -49,6 +65,7 @@ export function buildRateAttestation(input: {
   minLocalOut?: number | null;
   withdrawTx?: string | null;
   network?: string;
+  anchorQuote?: AnchorQuoteLine | null;
   nowMs?: number; // injectable for the self-check
 }): RateAttestation {
   const nowMs = input.nowMs ?? Date.now();
@@ -77,7 +94,16 @@ export function buildRateAttestation(input: {
     builtAt: new Date(builtAtSec * 1000).toISOString(),
     network: input.network ?? "Test SDF Network ; September 2015",
     withdrawTx: input.withdrawTx ?? null,
+    // Appended last and only when present: the canonical bytes of an attestation without an
+    // anchor quote are byte-identical to before this field existed.
+    ...(input.anchorQuote ? { anchorQuote: input.anchorQuote } : {}),
   };
+}
+
+// One line for the receipt: "anchor firm quote <id> at <rate>, expires <t>".
+export function anchorQuoteLine(q: AnchorQuoteLine): string {
+  const fiat = q.buyAsset.replace(/^iso4217:/, "");
+  return `Anchor firm quote ${q.id} at ${q.rate} ${q.buyAsset.startsWith("iso4217:") ? `USDC per ${fiat}` : q.buyAsset} (${q.buyAmount} ${fiat} for ${q.sellAmount} USDC, fee ${q.feeTotal} USDC), expires ${q.expiresAt}, ${q.anchor}.`;
 }
 
 // Canonical bytes for hashing/anchoring: a stable, key-ordered JSON string. The object is built
@@ -107,7 +133,8 @@ export function summarizeAttestation(a: RateAttestation): string {
   const tx = a.withdrawTx ? `withdraw tx ${a.withdrawTx.slice(0, 8)}…` : "not yet withdrawn";
   return (
     `Settled at the median ${c.symbol}${fmt(a.settledMedian)} ${c.currency} ` +
-    `over ${a.recordCount} Reflector records (freshest ${freshStr}), ${tx}.`
+    `over ${a.recordCount} Reflector records (freshest ${freshStr}), ${tx}.` +
+    (a.anchorQuote ? ` ${anchorQuoteLine(a.anchorQuote)}` : "")
   );
 }
 
@@ -129,6 +156,7 @@ export function formatAttestation(a: RateAttestation): string {
     `Built           ${a.builtAt}`,
     `Network         ${a.network}`,
     a.withdrawTx ? `Withdraw tx     ${a.withdrawTx}` : null,
+    a.anchorQuote ? `Anchor quote    ${anchorQuoteLine(a.anchorQuote)}` : null,
     "",
     summarizeAttestation(a),
     "This attests the fill was priced at the median of the same records the on-chain withdraw gate enforces. It is not a claim about the fiat a provider finally pays out.",

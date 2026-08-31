@@ -13,7 +13,11 @@ import {
   registerRootOnChain,
   extDataHashFor,
   anchorOfframp,
+  anchorAuth,
+  anchorEndpoints,
+  anchorWithdrawLimits,
   anchorTxStatus,
+  type AnchorAuth,
   onramperQuote,
   onramperOfframpUrl,
   activeAddress,
@@ -56,9 +60,13 @@ import {
 } from "@/lib/zk";
 import { CORRIDORS, corridorByCode, fmtLocal, fmtAge, type ClaimedNote, type FxRate } from "./corridors";
 import { buildRateAttestation, attestationCanonical, formatAttestation, summarizeAttestation } from "@/lib/rate-attestation";
+import { getQuoteInfo, getIndicativePrice, requestFirmQuote, fiatForAnchor, type Sep38Price, type Sep38Quote } from "@/lib/sep38";
+import { getKycStatus, putKycFields, type Kyc } from "@/lib/sep12";
+import { ANCHOR } from "@/lib/constants";
 import { SavingsNote } from "@/components/SavingsNote";
 import { receiptLink } from "@/lib/receipt-link";
 import { qrSvgString } from "@/components/sender/qr";
+import { NotifyMe } from "@/components/NotifyMe";
 
 type DiscMode = "exact" | "threshold" | "range" | "aggregate";
 
@@ -119,6 +127,14 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   // In-flight flags so every button that talks to the chain or a provider shows a busy state.
   const [quoteBusy, setQuoteBusy] = useState(false);
   const [cashBusy, setCashBusy] = useState<"onramper" | "anchor" | null>(null);
+  // Anchor desk (SEP-38 + SEP-12 + SEP-24): the indicative price read before any auth, the
+  // SEP-10 session reused across KYC status / firm quote / withdraw, the KYC read + slip, and
+  // the FIRM quote the withdraw was bound to. Component state only, nothing persists.
+  const [anchorPrice, setAnchorPrice] = useState<{ p: Sep38Price; buyAsset: string; sellAmount: number; cap: number | null } | { error: string } | null>(null);
+  const [anchorSess, setAnchorSess] = useState<AnchorAuth | null>(null);
+  const [kyc, setKyc] = useState<Kyc | null>(null);
+  const [kycForm, setKycForm] = useState<Record<string, string>>({});
+  const [firmQuote, setFirmQuote] = useState<Sep38Quote | null>(null);
   // Set when an oracle corridor's on-chain quote could not be read at withdraw time: the
   // settlement gate is fail-closed, so the withdraw is not sent and the button becomes a retry.
   const [gateError, setGateError] = useState<string | null>(null);
@@ -398,26 +414,100 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     }
   }
 
-  // ---- cash out: SEP-24 anchor (secondary) ----
+  // ---- cash out: SEP-24 anchor (secondary), priced by a SEP-38 quote, gated by SEP-12 ----
+  const errMsg = (e: any) => String((e && e.message) || e);
+  const fiatOf = (asset: string) => asset.replace(/^iso4217:/, "");
+
+  // Indicative price from the anchor's quote server as soon as the cash-out slip can show (no auth
+  // needed for GET /price). Sized to what the anchor will actually take: its SEP-24 withdraw cap
+  // (testanchor: 10 USDC), because the firm quote's sell_amount must equal the withdraw amount.
+  useEffect(() => {
+    if (!(note.revealed || done)) return;
+    let alive = true;
+    setAnchorPrice(null);
+    (async () => {
+      try {
+        const ep = await anchorEndpoints();
+        if (!ep.quote || !ep.assets.USDC) throw new Error("the anchor publishes no SEP-38 quote server for USDC");
+        const [assets, lim] = await Promise.all([getQuoteInfo(ep.quote), anchorWithdrawLimits("USDC")]);
+        const buyAsset = fiatForAnchor(cor.currency, assets);
+        const sellAmount = lim.max != null && usdc > lim.max ? lim.max : usdc;
+        const p = await getIndicativePrice(ep.quote, { sellAsset: ep.assets.USDC, buyAsset, sellAmount });
+        if (alive) setAnchorPrice({ p, buyAsset, sellAmount, cap: lim.max });
+      } catch (e) {
+        if (alive) setAnchorPrice({ error: errMsg(e) });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [note.revealed, done, cor.currency, usdc]);
+
   async function cashOutAnchor() {
     if (cashBusy) return;
     setCashBusy("anchor");
-    setStatus("Anchor: authenticating (SEP-10) and opening a USDC withdraw (SEP-24).", true);
+    setStatus("Anchor: authenticating (SEP-10) and reading your KYC status (SEP-12).", true);
     setAnchorInfo(null);
     try {
-      const { url, id, asset, sep24, bearer } = await anchorOfframp();
-      const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
-      setStatus(
-        w
-          ? `Anchor off-ramp opened for ${asset}. Complete the cash-out in the anchor window (real SEP-24, tx ${String(id).slice(0, 8)}).`
-          : `Allow pop-ups, or open: ${url}`,
-      );
-      pollAnchorStatus(sep24, bearer, id).catch(() => {});
+      const auth = anchorSess || (await anchorAuth());
+      setAnchorSess(auth);
+      const k = auth.endpoints.kyc ? await getKycStatus(auth.endpoints.kyc, auth.token) : null;
+      setKyc(k);
+      if (k && k.status !== "accepted" && k.required.length) {
+        setStatus(`Anchor KYC ${k.status.replace("_", " ")}: the anchor needs ${k.required.length} field${k.required.length === 1 ? "" : "s"} before a withdraw. Fill the slip below and send it.`);
+        return;
+      }
+      await anchorWithdraw(auth);
     } catch (e: any) {
-      setStatus("Anchor off-ramp failed. " + ((e && e.message) || e));
+      setStatus("Anchor off-ramp failed. " + errMsg(e));
     } finally {
       setCashBusy(null);
     }
+  }
+
+  // The minimal SEP-12 slip: exactly the fields the anchor's GET /customer marked required.
+  async function submitKyc() {
+    if (cashBusy || !anchorSess?.endpoints.kyc || !kyc) return;
+    setCashBusy("anchor");
+    setStatus("Sending the KYC slip to the anchor (SEP-12).", true);
+    try {
+      await putKycFields(anchorSess.endpoints.kyc, anchorSess.token, kycForm);
+      const k = await getKycStatus(anchorSess.endpoints.kyc, anchorSess.token);
+      setKyc(k);
+      if (k.status === "accepted" || !k.required.length) await anchorWithdraw(anchorSess);
+      else setStatus(`Anchor KYC ${k.status.replace("_", " ")}. ${k.message || "The anchor has not accepted this account yet."}`);
+    } catch (e: any) {
+      setStatus("Anchor KYC failed. " + errMsg(e));
+    } finally {
+      setCashBusy(null);
+    }
+  }
+
+  // Firm quote first (the anchor commits to a rate until expires_at), then the SEP-24 withdraw
+  // with that quote_id bound in. If the anchor will not commit (its CAD leg answered 502 live),
+  // say so and still open the withdraw unbound: the anchor then prices it in its own window.
+  async function anchorWithdraw(auth: AnchorAuth) {
+    const ap = anchorPrice && "p" in anchorPrice ? anchorPrice : null;
+    let quote: Sep38Quote | null = null;
+    let quoteNote = "";
+    if (ap && auth.endpoints.quote && auth.endpoints.assets.USDC) {
+      setStatus("Anchor: requesting a firm quote (SEP-38).", true);
+      try {
+        quote = await requestFirmQuote(auth.endpoints.quote, auth.token, { sellAsset: auth.endpoints.assets.USDC, buyAsset: ap.buyAsset, sellAmount: ap.sellAmount });
+        setFirmQuote(quote);
+      } catch (e) {
+        quoteNote = ` No firm quote: ${errMsg(e)}. The withdraw is open without one, so the anchor prices it in its window.`;
+      }
+    }
+    setStatus(`Anchor: opening a USDC withdraw (SEP-24)${quote ? " bound to the firm quote" : ""}.`, true);
+    const { url, id, asset, sep24, bearer } = await anchorOfframp({ auth, quote: quote ? { id: quote.id, sellAmount: quote.sellAmount, buyAsset: quote.buyAsset } : undefined });
+    const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
+    setStatus(
+      (w
+        ? `Anchor off-ramp opened for ${asset}${quote ? ` at the committed rate (quote ${quote.id.slice(0, 8)})` : ""}. Complete the cash-out in the anchor window (real SEP-24, tx ${String(id).slice(0, 8)}).`
+        : `Allow pop-ups, or open: ${url}`) + quoteNote,
+    );
+    pollAnchorStatus(sep24, bearer, id).catch(() => {});
   }
 
   // Track the real SEP-24 lifecycle (pending_user_transfer_start through completed).
@@ -493,9 +583,23 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
       basis: note.oracleDepth,
       minLocalOut: done ? Math.floor(note.localQuote * 0.99) : null,
       withdrawTx,
+      // The anchor's committed rate rides along once a SEP-24 withdraw was bound to it.
+      anchorQuote: firmQuote
+        ? {
+            id: firmQuote.id,
+            anchor: ANCHOR.home,
+            sellAmount: firmQuote.sellAmount,
+            buyAsset: firmQuote.buyAsset,
+            buyAmount: firmQuote.buyAmount,
+            rate: firmQuote.price,
+            totalPrice: firmQuote.totalPrice,
+            feeTotal: firmQuote.feeTotal,
+            expiresAt: firmQuote.expiresAt,
+          }
+        : null,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cor.oracle, cor.code, note.localQuote, note.oracleDepth, done, withdrawTx, gateUsdc]);
+  }, [cor.oracle, cor.code, note.localQuote, note.oracleDepth, done, withdrawTx, gateUsdc, firmQuote]);
 
   async function copyAttestation() {
     if (!attestation) return;
@@ -1119,6 +1223,67 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     </Expander>
   );
 
+  // ---- anchor desk slip: indicative SEP-38 price, SEP-12 KYC stamp + slip, the committed quote ----
+  const KYC_WORD: Record<Kyc["status"], string> = { not_started: "not started", needs_info: "needs info", pending: "pending", accepted: "accepted", rejected: "rejected" };
+  const fmtExpiry = (iso: string) => iso.replace("T", " ").replace(/(:\d\d)(\.\d+)?Z$/, "$1 UTC");
+  const kycNeedsSlip = !!kyc && kyc.status !== "accepted" && kyc.required.length > 0;
+  const anchorDesk = (
+    <div className={SLIP}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className={CAP}>Anchor desk</span>
+        <span className="font-mono text-[11px] text-ink-3">SEP-38 quote, {ANCHOR.home}</span>
+      </div>
+      {anchorPrice == null ? (
+        <div className="mt-1.5">
+          <Spinner label="Reading the anchor's indicative price." />
+        </div>
+      ) : "error" in anchorPrice ? (
+        <p className="mt-1.5 break-words font-mono text-[12px] leading-relaxed text-tape-deep">Anchor price unavailable: {anchorPrice.error}</p>
+      ) : (
+        <p className="mt-1.5 font-mono text-[12px] leading-relaxed text-ink">
+          Indicative: {anchorPrice.sellAmount} USDC to <b>{anchorPrice.p.buyAmount} {fiatOf(anchorPrice.buyAsset)}</b>, {anchorPrice.p.price} USDC per {fiatOf(anchorPrice.buyAsset)} before a {anchorPrice.p.feeTotal} USDC fee.
+          {anchorPrice.sellAmount !== usdc && ` The reference anchor caps a withdraw at ${anchorPrice.cap} USDC, so ${anchorPrice.sellAmount} of your ${usdcStr} USDC is quoted.`}
+          {fiatOf(anchorPrice.buyAsset) !== cor.currency && ` The anchor quotes USD and CAD only, not ${cor.currency}.`}
+        </p>
+      )}
+      {kyc && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className={`tk-stamp stamp-xs ${kyc.status === "accepted" ? "" : kyc.status === "rejected" ? "tk-stamp-red" : "tk-stamp-ink"}`}>KYC {KYC_WORD[kyc.status]}</span>
+          <span className="font-mono text-[11px] text-ink-3">
+            SEP-12, {kyc.id ? `customer ${short(kyc.id)}` : "no record at the anchor"}. The reference anchor&apos;s KYC is a test stub: it accepts the slip at once, with no review.
+          </span>
+        </div>
+      )}
+      {kycNeedsSlip && (
+        <div className="mt-3 grid gap-2">
+          {kyc!.required.map((f) => (
+            <Input
+              key={f.name}
+              id={`kyc-${note.id}-${f.name}`}
+              label={f.name.replace(/_/g, " ")}
+              placeholder={f.description}
+              type={f.name.includes("email") ? "email" : "text"}
+              autoComplete="off"
+              value={kycForm[f.name] || ""}
+              onChange={(e) => setKycForm({ ...kycForm, [f.name]: e.target.value })}
+            />
+          ))}
+          <Button variant="ghost" onClick={submitKyc} busy={cashBusy === "anchor"} disabled={!!cashBusy || kyc!.required.some((f) => !(kycForm[f.name] || "").trim())}>
+            Send KYC slip to anchor (SEP-12)
+          </Button>
+        </div>
+      )}
+      {firmQuote && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="tk-stamp stamp-xs animate-tk-ring">Rate committed</span>
+          <span className="font-mono text-[12px] leading-relaxed text-ink">
+            Firm quote {firmQuote.id.slice(0, 8)}: {firmQuote.buyAmount} {fiatOf(firmQuote.buyAsset)} for {firmQuote.sellAmount} USDC at {firmQuote.price} USDC per {fiatOf(firmQuote.buyAsset)}, fee {firmQuote.feeTotal} USDC, expires {fmtExpiry(firmQuote.expiresAt)}. Bound into the SEP-24 withdraw as quote_id.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
   // ---- cash-out section (collapsed by default, shown once revealed or withdrawn) ----
   const cashOut = (
     <Expander label="Cash out to fiat">
@@ -1126,14 +1291,17 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
         <Button variant="primary" full onClick={cashOutOnramper} busy={cashBusy === "onramper"} disabled={!!cashBusy}>
           Cash out to {cor.currency}, get a live quote
         </Button>
-        <Button variant="ghost" full onClick={cashOutAnchor} busy={cashBusy === "anchor"} disabled={!!cashBusy}>
+      </div>
+      {anchorDesk}
+      <div className="mt-3">
+        <Button variant="ghost" full onClick={cashOutAnchor} busy={cashBusy === "anchor" && !kycNeedsSlip} disabled={!!cashBusy}>
           Withdraw via anchor (SEP-24)
         </Button>
       </div>
       {onramperInfo && <p className="mt-2.5 break-words text-[13px] leading-relaxed text-ink">{onramperInfo}</p>}
       {anchorInfo && <p className="mt-2 break-words text-[13px] leading-relaxed text-ink">{anchorInfo}</p>}
       <p className={`mt-2.5 ${NOTE}`}>
-        A licensed provider (Onramper routes to MoonPay or Transak, or a SEP-24 anchor) runs KYC and pays out the fiat. Tukar never touches the money.
+        A licensed provider (Onramper routes to MoonPay or Transak, or a SEP-24 anchor) runs KYC and pays out the fiat. Tukar never touches the money. The anchor prices its own USDC code, not the pool&apos;s USDC contract.
       </p>
     </Expander>
   );
@@ -1287,6 +1455,8 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
               Reveal first to see your local figure, then withdraw on-chain and cash out.
             </p>
           )}
+          {/* Web Push stub: tell this browser when the sender's tree registration lands. */}
+          <NotifyMe className="mt-3" commitment={note.commitment} kind="spendable" url="/receiver" label="Notify me when it is ready to withdraw" />
         </div>
 
         {note.revealed && cashOut}

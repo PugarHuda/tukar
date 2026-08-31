@@ -1,9 +1,9 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
 import "@/components/landing/landing.css";
 import { CircuitsTabs } from "@/components/landing/CircuitsTabs";
 import { LaunchButton } from "@/components/landing/LaunchModal";
-import { Wordmark, ICON_DATA_URI } from "@/components/landing/Wordmark";
+import { Wordmark } from "@/components/landing/Wordmark";
 import { Seal } from "@/components/ui/Seal";
 import { CORRIDORS } from "@/components/receiver/corridors";
 import { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "@/lib/constants";
@@ -38,9 +38,7 @@ export const metadata: Metadata = {
   title: "Tukar. Send money home, sealed.",
   description:
     "Tukar is a private cross-border remittance corridor on Stellar. USDC crosses in a shielded transfer that hides amounts and counterparties (deposits and withdrawals public at the edges), proven compliant with zero-knowledge and verified on-chain by live Stellar BN254 Groth16 verifiers.",
-  manifest: "/manifest.webmanifest",
   alternates: { canonical: "/" },
-  icons: { apple: "/icon-192.png", icon: ICON_DATA_URI },
   openGraph: {
     type: "website",
     url: "https://tukar-six.vercel.app/",
@@ -57,7 +55,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = { themeColor: "#d4a468" };
+
 
 const MARQUEE = ["Stellar", "Soroban", "Circom", "Groth16", "BN254", "Poseidon", "snarkjs", "circomlib", "zk-SNARK", "WASM", "Protocol 28"];
 

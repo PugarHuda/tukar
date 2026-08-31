@@ -467,7 +467,7 @@
         <a class="btn" href="https://stellar.expert/explorer/testnet/contract/CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ">Pool on stellar.expert ↗</a>
       </div>
       <div class="tag" style="margin-top:26px">Tukar · USDC in · private crossing · local fiat out</div>
-      <div class="tag dim" style="margin-top:12px">Built with: Circom · Groth16 · snarkjs (BN254) · Poseidon · Soroban / Rust · Stellar Protocol 26 · Reflector SEP-40 oracle · SEP-1 / 24 / 41 anchors · Next.js · TypeScript · Tailwind · Freighter</div>
+      <div class="tag dim" style="margin-top:12px">Built with: Circom · Groth16 · snarkjs (BN254) · Poseidon · Soroban / Rust · Stellar Protocol 28 · Reflector SEP-40 oracle · SEP-1 / 24 / 41 anchors · Next.js · TypeScript · Tailwind · Freighter</div>
     </div>
   </div>
 </section>
@@ -510,8 +510,14 @@
     prev.disabled = cur === 0;
     next.disabled = cur === slides.length - 1;
   }
+  // `cur` is the source of truth for the next arrow press, so a smooth scroll that is still
+  // travelling must not be allowed to overwrite it with a rounded intermediate position. Without
+  // this, two quick arrow presses left `cur` mid-flight and the following press moved two slides.
+  // WebKit animates slowly enough to hit it every time; the others only hide it.
+  let target = 0, settling = false;
   function go(i) {
-    cur = Math.max(0, Math.min(slides.length - 1, i));
+    cur = target = Math.max(0, Math.min(slides.length - 1, i));
+    settling = true;
     rail.scrollTo({ left: cur * rail.clientWidth, behavior: "smooth" });
     paint();
   }
@@ -544,8 +550,21 @@
   let t;
   rail.addEventListener("scroll", () => {
     clearTimeout(t);
-    t = setTimeout(() => { cur = Math.round(rail.scrollLeft / rail.clientWidth); paint(); }, 90);
+    t = setTimeout(() => {
+      const at = Math.round(rail.scrollLeft / rail.clientWidth);
+      if (settling) {
+        if (at !== target) return; // still on its way; the reader has not moved anything
+        settling = false;
+      }
+      cur = target = at;
+      paint();
+    }, 90);
   }, { passive: true });
+  // A swipe or wheel hands control back to the reader even if our scroll never landed.
+  const yield_ = () => { settling = false; };
+  rail.addEventListener("wheel", yield_, { passive: true });
+  rail.addEventListener("touchstart", yield_, { passive: true });
+  rail.addEventListener("pointerdown", yield_, { passive: true });
   addEventListener("resize", () => rail.scrollTo({ left: cur * rail.clientWidth, behavior: "auto" }));
 
   // recorder hook (scripts/record-deck.mjs drives the slides through this)

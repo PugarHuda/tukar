@@ -6,6 +6,7 @@ import { RPC } from "@/lib/constants";
 import { fetchWithTimeout } from "@/lib/net";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { idosConfigured } from "@/lib/idos/consumer.server";
+import { isAuthConfigured } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -55,7 +56,7 @@ export async function GET(req: Request) {
       rpc,
       // Presence-only booleans for the optional integrations. Never the values.
       reclaim: Boolean(process.env.RECLAIM_APP_ID && process.env.RECLAIM_APP_SECRET && process.env.RECLAIM_PROVIDER_ID),
-      schedules: Boolean(process.env.BLOB_READ_WRITE_TOKEN && process.env.AUTH_SECRET),
+      schedules: Boolean(process.env.BLOB_READ_WRITE_TOKEN) && isAuthConfigured(),
       trisa: Boolean(trisaUrl),
       ...(trisaNode ? { trisaNode } : {}),
       notabene: Boolean(process.env.NOTABENE_API_KEY),

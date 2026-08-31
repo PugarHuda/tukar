@@ -20,8 +20,8 @@ one licensed-anchor pilot is exactly what we're raising for. Do not imply tracti
 don't have.
 
 **3. What have you shipped before that shows you can pull this off?**
-Your answer. Point to the fact that this is already 7 circuits, 8 contracts, and 52 tests
-live on testnet, which is the strongest evidence in the room.
+Your answer. Point to the fact that this is already 8 circuits, 15 contracts, 230 webapp
+tests and 314 Cargo tests live on testnet, which is the strongest evidence in the room.
 
 ## Regulatory operations
 
@@ -35,11 +35,19 @@ problem, and it's a reason to partner with a compliance vendor rather than roll 
 The licensed anchors at the edges do the KYC and Travel Rule, that is their existing job. We
 give them the private settlement plus the compliance proof and selective disclosure so they
 can meet their obligations without the public ledger leaking every customer. We are the rail,
-not the KYC layer. The deepening, and this is roadmap, not built, is to map selective
-disclosure directly to FATF Travel Rule payloads so two anchors exchange the required
-originator and beneficiary data VASP-to-VASP without leaking the public payment graph, and
-to populate the ASP allow-list by composing idOS (reusable KYC, live on Stellar) and Reclaim
-(zkTLS proof-of-personhood, live on Stellar) rather than us re-doing KYC ourselves.
+not the KYC layer. The deepening is built. A verified disclosure maps to an IVMS101 payload
+and goes out over a real OpenVASP TRP 3.2.1 exchange, so two anchors exchange the required
+originator and beneficiary data VASP-to-VASP without leaking the public payment graph: base58
+Travel Addresses, canonical JSON, detached Ed25519 signatures verified on receipt with
+optional peer-key pinning, a tracked request lifecycle, and national identification filled
+from a live GLEIF LEI lookup. A TRISA companion node ships alongside it and needs the operator
+to register a test VASP before that leg turns on. On the KYC side we compose rather than
+re-do: Reclaim (zkTLS proof-of-personhood, live on Stellar) populates the ASP allow-list,
+because its proof is bound to the Stellar address server-side before verification. idOS
+(reusable KYC, live on Stellar) is integrated and verifies a real shared credential, but it
+cannot populate the allow-list: idOS keys a credential by its owner's idOS user id, and the
+consumer SDK exposes no user-keyed wallets read, so the share cannot be tied to a Stellar
+address.
 
 **6. If a court orders you to reveal a specific user's transactions, can you?**
 Two layers. The licensed anchor knows the KYC'd identity at the edge. And the regulator can
@@ -50,9 +58,13 @@ disclosure possible and provable, it does not replace a subpoena.
 **7. Who curates the allow-list, and what stops it becoming a censorship tool?**
 A licensed compliance operator curates it, and yes, that is a deliberate gatekeeping point,
 it is exactly what separates us from a permissionless mixer. Rather than build KYC ourselves,
-the roadmap composes reusable-KYC rails already live on Stellar, idOS (reusable KYC) and
-Reclaim (zkTLS proof-of-personhood), to populate the allow-list, so membership traces back to
-existing verified credentials, not a list we invent. That composition is not built yet.
+we compose a reusable rail already live on Stellar: Reclaim zkTLS proof-of-personhood is wired
+and does populate the allow-list, so membership traces back to an existing verified credential
+rather than a list we invent. The proof is bound to the Stellar address server-side before it
+is verified, and a successful verification computes the new allow-root plus the exact
+`set_asp_root` invocation the operator signs. idOS reusable KYC is integrated alongside it but
+cannot feed the allow-list, because a consumer cannot map an idOS user id to that user's
+registered wallets, so a verified share cannot be tied to a Stellar address.
 Governance of the list is a real production question, and it is the kind of thing an anchor
 partner and a regulator would sign off on, not us alone.
 
@@ -72,7 +84,8 @@ machine, so genuinely independent contributors are a first funded step.
 
 **10. It's not audited. What is the contract attack surface?**
 Correct, not professionally audited yet. It is hardened through many adversarial self-review
-rounds against a documented threat model, with 52 passing contract tests. A professional
+rounds against a documented threat model, with 314 passing Cargo tests across the contract
+crates (52 of them on the live pool) and 230 passing webapp tests. A professional
 audit is the first use of prize or grant money.
 
 **11. What stops metadata leakage, linking a deposit to a withdrawal by timing or amount?**
@@ -110,16 +123,18 @@ Your call to name it, the logic is a high-volume, high-cost lane where a license
 already operates, so the fee pain is largest and the fiat edges already exist.
 
 **17. What stops the anchor from cutting you out and building this themselves? And how are you different from the other privacy pools (Wraith, AnchorShield, Moonlight)?**
-The moat is the compliance-and-privacy stack, seven circuits, four disclosure types, the
+The moat is the compliance-and-privacy stack, eight circuits, four disclosure types, the
 audit registry, which is a year of work, not an anchor product team's afternoon. And we
 position Tukar as the neutral compliant settlement layer that anchors plug into, one policy
 per corridor, across many anchors, so no single one owns it and rival privacy apps become
 integrators rather than competitors. On the crowded field: Wraith and AnchorShield won at
 this hackathon and Moonlight is a live SCF-funded confidential-transactions project, all on
 the compliant-privacy-pool idea, so we differentiate on being a remittance corridor with real
-fiat edges, an oracle-gated off-ramp, and the anchor-layer packaging, plus a roadmap that
-maps disclosure to the FATF Travel Rule and composes idOS and Reclaim for reusable KYC, none
-of which a generic pool touches. It is a real risk we answer by moving fast and staying
+fiat edges, an oracle-gated off-ramp, and the anchor-layer packaging, plus a built compliance
+layer a generic pool does not touch: a real OpenVASP TRP 3.2.1 Travel Rule exchange with
+verified signatures, Reclaim proof-of-personhood feeding the allow-list, cryptographic
+proof-of-reserves, and an on-chain per-corridor policy registry. It is a real risk we answer
+by moving fast and staying
 multi-anchor.
 
 **18. Is there a token?**

@@ -81,8 +81,17 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   for (const b of event.breadcrumbs ?? []) {
     if (b.message) b.message = scrubText(b.message);
     if (b.data) b.data = scrubDeep(b.data);
+    // navigation breadcrumbs carry full URLs; the fragment can hold a bearer note or a receipt
+    for (const k of ["from", "to", "url"] as const) {
+      const v = (b.data as any)?.[k];
+      if (typeof v === "string" && v.includes("#")) (b.data as any)[k] = v.split("#")[0] + "#[fragment removed]";
+    }
   }
   if (event.extra) event.extra = scrubDeep(event.extra);
+  // The page URL is attached to every event; /receiver#claim= and /verify#r= promise the fragment
+  // never leaves the browser, so it never leaves in an error report either.
+  const req = (event as any).request;
+  if (req && typeof req.url === "string" && req.url.includes("#")) req.url = req.url.split("#")[0] + "#[fragment removed]";
   return event;
 }
 

@@ -53,7 +53,10 @@ export function Sidebar({
                   type="button"
                   aria-current={on ? "page" : undefined}
                   onClick={() => onSelect(item.key)}
-                  className={`grid w-full grid-cols-[3ch_minmax(0,1fr)_auto] items-center gap-3 border-b border-ink/20 px-5 py-3 text-left transition-[background-color,color] duration-clock ease-clock ${
+                  // No crossfade here: selecting a section swaps a near-black background against
+                  // near-white text, and while those two animate past each other the row's number
+                  // and label are unreadable for the length of the transition. The swap is instant.
+                  className={`grid w-full grid-cols-[3ch_minmax(0,1fr)_auto] items-center gap-3 border-b border-ink/20 px-5 py-3 text-left ${
                     on ? "bg-ink text-label" : "text-ink hover:bg-label-2"
                   }`}
                 >

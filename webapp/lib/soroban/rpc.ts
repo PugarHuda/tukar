@@ -5,7 +5,34 @@
 // and method, so a slow oracle read or a stuck submit is visible per call in a trace.
 import * as Sdk from "@stellar/stellar-sdk";
 import * as Sentry from "@sentry/nextjs";
-import { RPC, RPC_TIMEOUT_MS, PASSPHRASE, SOURCE } from "../constants";
+import { RPC, RPC_FALLBACK, RPC_TIMEOUT_MS, PASSPHRASE, SOURCE } from "../constants";
+import { log, errMsg } from "../log";
+
+// Transient = the primary never answered (DNS, refused, aborted, the timeout below) or answered
+// 5xx. A 4xx or a JSON-RPC error body is a real answer and is never retried elsewhere.
+export function isTransientRpcError(e: unknown): boolean {
+  const status = (e as { response?: { status?: number } })?.response?.status;
+  return status === undefined || status >= 500;
+}
+
+// Every rpc.Server method funnels into `httpClient.post(serverURL, jsonrpcBody)`, so wrapping
+// that one method gives every caller (simulate, sendTransaction, contract.Client built with this
+// server) the same failover: retry the SAME request once against RPC_FALLBACK, then forget about
+// it, so the next call tries the primary again. Exported so the unit test can wrap a fake client.
+type Post = (url: string, data?: any, config?: any) => Promise<any>;
+export function withFailover<C extends { post: Post }>(client: C, primary = RPC, fallback = RPC_FALLBACK): C {
+  const post: Post = client.post.bind(client);
+  client.post = (async (url: string, data?: any, config?: any) => {
+    try {
+      return await post(url, data, config);
+    } catch (e) {
+      if (!url.startsWith(primary) || !isTransientRpcError(e)) throw e;
+      log.warn("soroban rpc failover", { primary, fallback, method: (data as { method?: string })?.method, err: errMsg(e) });
+      return post(url.replace(primary, fallback), data, config);
+    }
+  }) as C["post"];
+  return client;
+}
 
 // Every rpc.Server the app uses comes from here. The SDK default is NO timeout, so a black-holed
 // network (captive portal, dropped mobile link, Firefox offline) left a send hanging forever with
@@ -18,6 +45,7 @@ export function makeServer(): Sdk.rpc.Server {
     config.timeout = config.timeout || RPC_TIMEOUT_MS;
     return config;
   });
+  withFailover(s.httpClient);
   return s;
 }
 export const server = makeServer();

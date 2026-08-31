@@ -17,7 +17,7 @@
 // RE-EXPORTS everything below so every existing `@/lib/stellar` import keeps working unchanged.
 import * as Sdk from "@stellar/stellar-sdk";
 import { fetchWithTimeout } from "./net";
-import { RPC, PASSPHRASE, DEMO_SECRET, POOL, ANCHOR, ONRAMPER } from "./constants";
+import { RPC, PASSPHRASE, DEMO_SECRET, POOL, ANCHOR, ONRAMPER, USDC_ISSUER } from "./constants";
 import { server as rpcServer } from "./soroban/rpc";
 import { server } from "./soroban/rpc";
 import { buf, g1, g2, buf32, scProof, type Groth16Proof } from "./soroban/proof";
@@ -59,6 +59,11 @@ export type WalletSigner = {
   address: string;
   signTransaction: (xdr: string, opts?: any) => Promise<any>;
   signAuthEntry: (xdr: string, opts?: any) => Promise<any>;
+  /** Contract-account wallets (passkey smart wallets, lib/passkey.ts): a C-address cannot be a
+   *  transaction source, so pool writes are built against the SDK's null account and this signs
+   *  the auth entries + submits through a fee-sponsoring relayer. Resolves to the same
+   *  { sendTransactionResponse: { hash } } shape signAndSend returns. Keypair wallets leave it unset. */
+  submit?: (at: any) => Promise<any>;
 };
 let _wallet: WalletSigner | null = null; // { address, signTransaction, signAuthEntry }
 export function setWalletSigner(w: WalletSigner | null): void {
@@ -82,15 +87,40 @@ export function walletSigner(): WalletSigner | null {
 // ANCHOR config (imported from ./constants) = the fiat on/off-ramp's SEP home. Swapping
 // that one object to a licensed anchor is the entire change to go live — the SEP-10/24
 // flow below is byte-for-byte identical. See docs/ANCHOR.md.
+// SEP-1 discovery, memoized: one real TOML parse (size-capped, via the SDK resolver) per page
+// load. Gives SIGNING_KEY (the SEP-10 server key we verify the challenge against), the SEP-24
+// transfer server, and the SEP-12 / SEP-38 servers the receiver's KYC + firm-quote calls use.
+// `assets` maps the anchor's CURRENCIES to SEP-38 asset ids ("stellar:USDC:<issuer>"). NOTE the
+// anchor's USDC issuer is its own test asset, not the pool's USDC SAC; quotes are for THEIR code.
+export type AnchorEndpoints = { signingKey: string; webAuth: string; sep24: string; kyc: string | null; quote: string | null; assets: Record<string, string> };
+let _endpoints: Promise<AnchorEndpoints> | null = null;
+export function anchorEndpoints(): Promise<AnchorEndpoints> {
+  if (!_endpoints) {
+    _endpoints = Sdk.StellarToml.Resolver.resolve(ANCHOR.home, { timeout: 15000 })
+      .then((toml) => {
+        const { SIGNING_KEY, WEB_AUTH_ENDPOINT, TRANSFER_SERVER_SEP0024, KYC_SERVER, ANCHOR_QUOTE_SERVER, CURRENCIES } = toml;
+        if (!WEB_AUTH_ENDPOINT || !TRANSFER_SERVER_SEP0024 || !SIGNING_KEY) throw new Error("anchor stellar.toml is missing endpoints or SIGNING_KEY");
+        const assets: Record<string, string> = {};
+        for (const c of CURRENCIES || []) if (c.code) assets[c.code] = c.code === "native" ? "stellar:native" : `stellar:${c.code}:${c.issuer || ""}`;
+        return { signingKey: SIGNING_KEY, webAuth: WEB_AUTH_ENDPOINT, sep24: TRANSFER_SERVER_SEP0024, kyc: KYC_SERVER || null, quote: ANCHOR_QUOTE_SERVER || null, assets };
+      })
+      .catch((e) => {
+        _endpoints = null; // a failed discovery is not cached, the next call retries
+        throw e;
+      });
+  }
+  return _endpoints;
+}
+
+export type AnchorAuth = { bearer: { Authorization: string }; token: string; SEP24: string; address: string; endpoints: AnchorEndpoints };
+
 // SEP-1 discovery + SEP-10 web-auth against the anchor: returns an authenticated bearer
-// JWT + the SEP-24 transfer server. Shared by the on-ramp (deposit) and off-ramp (withdraw).
-async function anchorAuth(): Promise<{ bearer: { Authorization: string }; SEP24: string; address: string }> {
+// JWT + the SEP-24 transfer server. Shared by the on-ramp (deposit) and off-ramp (withdraw),
+// and exported so the receiver can reuse ONE session for KYC status, the firm quote and the withdraw.
+export async function anchorAuth(): Promise<AnchorAuth> {
   const address = activeAddress();
-  // SEP-1 via the SDK resolver: a real TOML parse (size-capped) instead of regex grabbing, and it
-  // gives us SIGNING_KEY, the anchor's SEP-10 server key we verify the challenge against.
-  const toml = await Sdk.StellarToml.Resolver.resolve(ANCHOR.home, { timeout: 15000 });
-  const { SIGNING_KEY, WEB_AUTH_ENDPOINT: WEB_AUTH, TRANSFER_SERVER_SEP0024: SEP24 } = toml;
-  if (!WEB_AUTH || !SEP24 || !SIGNING_KEY) throw new Error("anchor stellar.toml is missing endpoints or SIGNING_KEY");
+  const endpoints = await anchorEndpoints();
+  const { signingKey: SIGNING_KEY, webAuth: WEB_AUTH, sep24: SEP24 } = endpoints;
   const chal = await (await fetchWithTimeout(`${WEB_AUTH}?account=${address}&home_domain=${ANCHOR.home}`, {}, 15000)).json();
   if (!chal.transaction) throw new Error("SEP-10 challenge failed: " + (chal.error || "no transaction"));
   // The network is OURS, never the anchor's: a misconfigured or hostile anchor must not be able to
@@ -117,10 +147,10 @@ async function anchorAuth(): Promise<{ bearer: { Authorization: string }; SEP24:
     }, 15000)
   ).json();
   if (!jwtRes.token) throw new Error("SEP-10 auth failed: " + (jwtRes.error || "no token"));
-  return { bearer: { Authorization: `Bearer ${jwtRes.token}` }, SEP24, address };
+  return { bearer: { Authorization: `Bearer ${jwtRes.token}` }, token: jwtRes.token, SEP24, address, endpoints };
 }
 
-export type AnchorSession = { url: string; id: string; asset: string; address: string; sep24: string; bearer: { Authorization: string } };
+export type AnchorSession = { url: string; id: string; asset: string; address: string; sep24: string; bearer: { Authorization: string }; quoteId: string | null };
 
 export async function anchorOnramp(): Promise<AnchorSession> {
   const { bearer, SEP24, address } = await anchorAuth();
@@ -135,7 +165,7 @@ export async function anchorOnramp(): Promise<AnchorSession> {
     }, 15000)
   ).json();
   if (!intr.url) throw new Error("SEP-24 interactive deposit failed: " + (intr.error || "no url"));
-  return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer };
+  return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer, quoteId: null };
 }
 
 // Onramper (imported from ./constants) — a licensed off-ramp AGGREGATOR (routes to
@@ -181,23 +211,43 @@ export function onramperOfframpUrl(usdc: number, fiat: string): string {
 /**
  * REAL off-ramp (SEP-24 WITHDRAW): the exact protocol call a corridor uses to turn USDC
  * into local fiat at the RECEIVING edge — same SEP-10 auth, then a genuine hosted
- * withdraw session. Against SDF's reference anchor on testnet (no KYC). Returns
- * { url, id, asset, address, sep24, bearer }.
+ * withdraw session. Against SDF's reference anchor on testnet (KYC is a test stub). Returns
+ * { url, id, asset, address, sep24, bearer, quoteId }.
+ *
+ * `opts.quote` binds a SEP-38 FIRM quote into the request (SEP-24 `quote_id`, with `amount` =
+ * the quote's sell_amount and `destination_asset` = its buy asset), so the anchor pays out at the
+ * rate it committed to. Verified live: the testanchor rejects a `quote_id` it does not know
+ * (400 "Quote not found") and an `amount` that differs from the quote's sell amount, so the
+ * binding is real, not decorative. `opts.auth` reuses a SEP-10 session already in hand.
  */
-export async function anchorOfframp(): Promise<AnchorSession> {
-  const { bearer, SEP24, address } = await anchorAuth();
+export async function anchorOfframp(opts: { auth?: AnchorAuth; quote?: { id: string; sellAmount: number; buyAsset: string } } = {}): Promise<AnchorSession> {
+  const { bearer, SEP24, address } = opts.auth || (await anchorAuth());
   const info = await (await fetchWithTimeout(`${SEP24}/info`, { headers: bearer }, 15000)).json();
   const assets = Object.keys(info.withdraw || {});
   const asset = assets.includes("USDC") ? "USDC" : assets[0] || "USDC";
+  const q = opts.quote;
+  const body = q
+    ? { asset_code: asset, account: address, amount: String(q.sellAmount), quote_id: q.id, destination_asset: q.buyAsset }
+    : { asset_code: asset, account: address };
   const intr = await (
     await fetchWithTimeout(`${SEP24}/transactions/withdraw/interactive`, {
       method: "POST",
       headers: { ...bearer, "Content-Type": "application/json" },
-      body: JSON.stringify({ asset_code: asset, account: address }),
+      body: JSON.stringify(body),
     }, 15000)
   ).json();
   if (!intr.url) throw new Error("SEP-24 interactive withdraw failed: " + (intr.error || "no url"));
-  return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer };
+  return { url: intr.url, id: intr.id, asset, address, sep24: SEP24, bearer, quoteId: q ? q.id : null };
+}
+
+/** The anchor's SEP-24 withdraw limits for `asset` (min/max in asset units), from /info (no auth
+ *  needed, so the receiver can size its indicative quote before SEP-10). testanchor: USDC 1 to 10. */
+export async function anchorWithdrawLimits(asset = "USDC"): Promise<{ min: number | null; max: number | null }> {
+  const { sep24 } = await anchorEndpoints();
+  const info = await (await fetchWithTimeout(`${sep24}/info`, {}, 15000)).json();
+  const w = info?.withdraw?.[asset];
+  const n = (v: unknown) => (v == null || !isFinite(Number(v)) ? null : Number(v));
+  return { min: n(w?.min_amount), max: n(w?.max_amount) };
 }
 
 /**
@@ -228,11 +278,24 @@ async function poolWriteClient(): Promise<any> {
         networkPassphrase: PASSPHRASE,
         rpcUrl: RPC,
         server: rpcServer, // shared client with a request timeout (the SDK's own would wait forever)
-        publicKey: _wallet.address,
+        publicKey: _wallet.submit ? undefined : _wallet.address, // contract account: null-account source, relayer submits
         signTransaction: _wallet.signTransaction,
         signAuthEntry: _wallet.signAuthEntry,
       });
       _poolWrite._from = _wallet.address;
+      if (_wallet.submit) {
+        // Contract-account wallet: sendTx still calls at.signAndSend(); route it through the signer's
+        // relayer submit (passkey signs the C-address auth entries, the relayer pays the fee).
+        const submit = _wallet.submit;
+        for (const m of ["deposit", "withdraw", "register_root_verified", "register_audit_request"]) {
+          const build = _poolWrite[m].bind(_poolWrite);
+          _poolWrite[m] = async (...a: any[]) => {
+            const at = await build(...a);
+            at.signAndSend = () => submit(at);
+            return at;
+          };
+        }
+      }
     } else {
       const kp = Sdk.Keypair.fromSecret(DEMO_SECRET);
       const signer = Sdk.contract.basicNodeSigner(kp, PASSPHRASE);
@@ -252,7 +315,7 @@ async function poolWriteClient(): Promise<any> {
 }
 
 // ---- testnet wallet setup helpers (for the optional Freighter path) ----
-const USDC = new Sdk.Asset("USDC", "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B");
+const USDC = new Sdk.Asset("USDC", USDC_ISSUER);
 
 async function submitClassic(tx: any): Promise<string> {
   const sent = await server.sendTransaction(tx);

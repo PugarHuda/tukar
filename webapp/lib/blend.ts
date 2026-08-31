@@ -19,6 +19,7 @@ import * as Sdk from "@stellar/stellar-sdk";
 import { PoolV2, PoolContractV2, RequestType, I128MAX, type Request } from "@blend-capital/blend-sdk";
 import { RPC, PASSPHRASE, DEMO_SECRET } from "./constants";
 import { server } from "./soroban/rpc";
+import { awaitTx } from "./soroban/send";
 import { walletSigner, activeAddress } from "./stellar";
 import { log, errMsg } from "./log";
 
@@ -174,16 +175,13 @@ async function signAndSubmit(tx: Sdk.Transaction, address: string): Promise<stri
     signed = tx;
   }
   const sent = await server.sendTransaction(signed);
-  let status: string = sent.status;
   const hash = sent.hash;
-  for (let i = 0; i < 20 && (status === "PENDING" || status === "NOT_FOUND" || status === "TRY_AGAIN_LATER"); i++) {
-    await new Promise((r) => setTimeout(r, 1000));
-    try {
-      status = (await server.getTransaction(hash)).status as any;
-    } catch {}
-  }
-  if (status !== "SUCCESS") throw new Error(`transaction ${status}`);
-  return hash;
+  if (sent.status === "ERROR") throw new Error(`transaction rejected at submission (${sent.errorResult?.toXDR?.("base64") ?? "no result"})`);
+  // Same bounded confirmation poll as the pool writes: SUCCESS returns the hash, FAILED throws,
+  // and a still-pending transaction names its hash instead of pretending it failed.
+  const got = await awaitTx(server, hash);
+  if (got?.status === "SUCCESS") return hash;
+  throw new Error(got?.status === "FAILED" ? `transaction ${hash} failed on-chain` : `transaction ${hash} not confirmed yet; check the explorer before retrying`);
 }
 
 const supplyRequest = (amount: bigint): Request => ({ request_type: RequestType.Supply, address: BLEND_USDC, amount });

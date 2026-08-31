@@ -175,7 +175,9 @@ snarkjs zkey verify circuits/build/$c.r1cs circuits/build/pot14_hez.ptau \
         frontend/circuit/${c}_final.zkey      # => "ZKey Ok!"
 ```
 
-**ZKey Ok! for all seven** (2^14 = 16384 ≥ transfer's 15884 constraints). The build
+**ZKey Ok! for all seven** (2^14 = 16384 ≥ transfer's 15884 constraints). The eighth circuit,
+`reserves` (21471 constraints), is proved off the browser path and verifies the same way against
+the larger Hermez `powersOfTau28_hez_final_15`. The build
 scripts (`build-circuit.sh`, `build-disclosure.sh`) fetch this exact ptau and run the
 same assertion, so a stale local-ptau key can never silently replace a deployed one.
 The deployed keys are now the output of a **multi-party phase-2 ceremony** (3

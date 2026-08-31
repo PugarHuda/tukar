@@ -5,6 +5,13 @@ import { defineConfig, devices } from "@playwright/test";
 // projects (sender + operator specs, tagged @mobile) on Mobile Chrome.
 const BASE = process.env.QA_BASE || "https://tukar-six.vercel.app";
 
+// When QA_BASE points at localhost, Playwright owns the server. Starting `next start`
+// from a shell alongside the run is unreliable: the server is torn down with the shell's
+// process group mid-suite, and every test after that fails on a 404 that looks like a
+// product bug. `next dev` cannot be used here because the CSP has no 'unsafe-eval' and
+// Next's HMR runtime evals, so client JS never evaluates: the suite needs a real build.
+const local = /^https?:\/\/(localhost|127\.0\.0\.1):(\d+)/.exec(BASE);
+
 export default defineConfig({
   testDir: "e2e",
   timeout: 60_000,
@@ -12,6 +19,18 @@ export default defineConfig({
   retries: 1,
   workers: process.env.CI ? 2 : 4,
   reporter: [["list"], ["html", { open: "never" }]],
+  ...(local
+    ? {
+        webServer: {
+          command: `npm --prefix webapp run start -- -p ${local[2]}`,
+          url: `${BASE.replace(/\/$/, "")}/api/health`,
+          reuseExistingServer: true,
+          timeout: 180_000,
+          stdout: "pipe" as const,
+          stderr: "pipe" as const,
+        },
+      }
+    : {}),
   use: {
     baseURL: BASE,
     trace: "on-first-retry",

@@ -48,6 +48,9 @@ async function loadLeaves(): Promise<bigint[]> {
 
 const isNullifierUsed = (nullifierDec: string | bigint): Promise<boolean> =>
   simulate("is_nullifier_used", Sdk.nativeToScVal(buf32(nullifierDec), { type: "bytes" })).then((v) => v === true);
+// Exported for the push watcher (lib/push.ts), which stores only the nullifier a client derived and
+// asks "is it on-chain yet" without ever holding the bearer note. Throws on an RPC failure.
+export const nullifierSpent = isNullifierUsed;
 const isCommitmentKnown = (commitmentDec: string | bigint): Promise<boolean> =>
   simulate("is_commitment_known", Sdk.nativeToScVal(buf32(commitmentDec), { type: "bytes" })).then((v) => v === true);
 

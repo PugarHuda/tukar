@@ -9,7 +9,7 @@ Tukar is four focused apps:
 - **Sender** and **Receiver** are mobile-first consumer apps. Send money, then claim and cash it out.
 - **Regulator** and **Operator** are desktop consoles. Verify disclosures and audit, or watch pool health and policy.
 
-A quick warning before you start. This runs on Stellar **testnet** with free test tokens. Never use real funds. Nothing here is audited. The fiat on-ramp and off-ramp are simulated. See "What is real vs simulated" near the end for the full picture.
+A quick warning before you start. This runs on Stellar **testnet** with free test tokens. Never use real funds. Nothing here is audited. The fiat on-ramp and off-ramp make real SEP calls but run against SDF's reference testnet anchor, so no real money moves. See "What is real vs simulated" near the end for the full picture.
 
 ---
 
@@ -49,7 +49,7 @@ The Receiver app lives at `/receiver`. This is the person collecting the payment
 2. Go to the **Claim** tab. Paste the `tukar1:` claim note the sender gave you into the claim box, or scan its QR with your camera, then tap **Claim payment**. The payment now shows up in the **Payments** tab.
 3. Open the payment in **Payments** and reveal your figure. The local-currency amount is read on-chain live from the Reflector oracle (a median of recent records for corridors that carry an oracle feed), so the number you see is a real on-chain quote, not a guess.
 4. **Withdraw** the payment on-chain. This spends the note's nullifier and releases the tokens to your connected account. A min-receive gate protects the rate, so the withdrawal only settles if the on-chain quote still clears the floor. That stops you from being cashed out at a rate that moved against you.
-5. Off-ramp to local fiat from the same card. On testnet this fiat edge is a simulated anchor, so treat the cash-out as a demonstration of the flow rather than real money hitting a bank account.
+5. Off-ramp to local fiat from the same card. The SEP-24 withdraw is a real interactive flow against SDF's reference testnet anchor, with a SEP-38 firm quote bound into it, but no real money hits a bank account, so treat the cash-out as a demonstration of the flow.
 
 There is also a **Request** tab if you want to generate a payment request for a sender to fulfill, but the core claim-and-cash-out path is the three steps above.
 
@@ -76,7 +76,7 @@ The Regulator console lives at `/regulator`. It is a read-heavy desktop dashboar
 1. Open `/regulator`. The default **Pool report** tab shows live pool and policy state read from chain.
 2. Go to **Verify disclosure**, paste a receipt from section 4, and verify it. Tukar checks it two ways: in the browser with snarkjs, and against the live Stellar on-chain verifier, routed to the right verifier contract by disclosure type. A genuine receipt comes back valid and bound to its audit request. Tamper with the receipt and it comes back invalid, both off-chain (false witness rejected) and on-chain (InvalidProof).
 3. Go to **Issue audit request** to register an aggregate audit request on-chain. This is the request a disclosure receipt gets bound to.
-4. Open the **Travel Rule (reference)** tab to see how the FATF Travel Rule maps onto the corridor. This tab is a reference model, not live enforcement.
+4. Open the **Travel Rule (reference)** tab to see how the FATF Travel Rule maps onto the corridor. Two different things sit on this tab, and the split matters. The IVMS101 payload is a reference mapping: the amount, asset, corridor and transaction reference come from a disclosure you actually verified, while every PII field is an anchor-held placeholder, because Tukar holds no PII. The exchange itself is real. **Send** builds a spec OpenVASP TRP 3.2.1 transfer inquiry, signs the canonical body with Ed25519, sets the three TRP headers, and posts it either to the Notabene sandbox or to Tukar's own inbound TRP endpoint, which verifies the signature before answering. You see the beneficiary's real approved or rejected response, the assigned settlement address, and the request lifecycle. A TRISA companion node ships alongside it and stays honestly off until the operator registers a test VASP and hosts it.
 5. The **Audit trail** tab keeps a session record of what you verified and requested.
 
 ---
@@ -87,7 +87,7 @@ The Operator console lives at `/operator`. It is the desk-operator view of the c
 
 1. Open `/operator`. **Pool health** shows the USDC held in custody, publicly verifiable on-chain, along with pool activity.
 2. Review the compliance policy. Two layers are enforced on-chain today, both global: the **ASP allow-root** (only allow-listed sources can deposit) and the **deny-list** (a sanctions block-list of exactly 8 non-membership entries).
-3. Below that is the **per-corridor policy model**. This is a reference model of the per-jurisdiction config a licensed anchor would supply (an amount threshold and a required disclosure per corridor). It is clearly marked as not yet enforced per-corridor on-chain, and its numbers are illustrative, not real regulatory figures.
+3. Below that is the **per-corridor policy**. Each corridor's amount cap and required disclosure mode are real records in an on-chain policy registry contract, read live over RPC, and the admin re-points a corridor with a signed `set_policy` with no redeploy. Two honest notes stay attached. The figures themselves are demonstration values, not real regulatory thresholds. And enforcement of the cap at withdraw runs on the preview enforcement pool, not on the live pool, because the live pool has no upgrade hook; the app's deposits and withdrawals route to the live pool, where the enforced policy is still the global allow-root and deny-list.
 4. Check the **Reflector FX oracle** the pool reads for off-ramp quotes and the min-receive gate.
 5. See the deployed contract inventory and custody, so you can confirm what is live on-chain and where the money sits.
 
@@ -99,15 +99,21 @@ Tukar is honest about the line between what runs for real and what is stubbed fo
 
 **Real, on Stellar testnet:**
 
-- The zero-knowledge proofs. Compliance, transfer, and all four disclosure circuits are generated client-side in your browser.
-- The 8 deployed contracts (pool, verifiers, oracle, token).
+- The zero-knowledge proofs. Compliance, transfer, and all four disclosure circuits are generated client-side in your browser. Eight circuits in total, including the proof-of-reserves circuit.
+- The 15 deployed contracts. An 8-contract core (pool plus 7 verifiers), plus the reserves verifier, the per-corridor policy registry, two proof-of-reserves contracts, and three preview-track contracts (enforcement pool, liability accumulator, admin timelock).
 - Deposits and withdrawals. These are real signed on-chain transactions.
 - On-chain verification. Disclosure receipts are verified by the live Stellar BN254 Groth16 verifier.
 - The oracle read. FX figures come from the live Reflector SEP-40 oracle on-chain.
+- The Travel Rule exchange. OpenVASP TRP 3.2.1, with the Ed25519 signature verified on receipt and a tracked request lifecycle.
+- Cross-chain USDC. Circle CCTP V2 in both directions against the real Circle Iris sandbox. The burn leg needs your own EVM wallet with test USDC and gas.
+- Proof-of-reserves. A liability accumulator adds each proven deposit and subtracts each released withdraw, so the attested total is exact.
+- Recurring sends. A due plan executes a real on-chain deposit and tree registration.
 
-**Simulated on testnet:**
+**Standing in for production:**
 
-- The fiat on-ramp and off-ramp. These run as SEP anchors against SDF's reference anchor. There is no real KYC and no real bank movement on testnet.
+- The fiat on-ramp and off-ramp. The SEP calls are real (SEP-1, SEP-10, SEP-12, SEP-24, SEP-38 firm quotes), but they run against SDF's reference testnet anchor, whose KYC endpoint approves without review. There is no real KYC and no real bank movement on testnet, and a licensed anchor is the production step.
+- Per-corridor cap enforcement, the admin timelock, and the exact accumulator run on preview contracts rather than the live pool, pending a state migration.
+- The TRISA leg is committed code that stays off until the operator registers a test VASP and hosts the node.
 
 **Also worth stating plainly:**
 

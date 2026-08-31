@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encodeClaimPayload, openClaimPayload, isPinWrapped, buildClaimLink, claimPayloadFromHash, isValidPin } from "./claim-link";
+import { encodeClaimPayload, openClaimPayload, isPinWrapped, buildClaimLink, claimPayloadFromHash, isValidPin, normalizePin } from "./claim-link";
 
 // A realistic tukar1: note (same encoding as lib/zk.encodeBearerNote). The secrets are synthetic.
 const fe = (seed: number) => String(seed).padEnd(77, "3141592653589793238462643383279502884197169399375105820974944592307816406286");
@@ -38,6 +38,19 @@ describe("claim link", () => {
     expect(isValidPin("12345a")).toBe(false);
     await expect(encodeClaimPayload(note, "abc")).rejects.toThrow(/6 digits/);
     await expect(encodeClaimPayload("hello")).rejects.toThrow(/tukar1/);
+  });
+
+  // The PIN boxes filter in the change handler and carry no HTML maxLength, so a paste keeps all
+  // six digits however it is written. With maxLength the browser would cut the raw text to 6
+  // characters first and "123 456" would arrive as "12345".
+  it("normalizes a pasted PIN to six digits", () => {
+    expect(normalizePin("123 456")).toBe("123456");
+    expect(normalizePin("123-456")).toBe("123456");
+    expect(normalizePin("ab12cd34ef56")).toBe("123456");
+    expect(normalizePin("2a4b6c8d1e0f")).toBe("246810");
+    expect(normalizePin("1234567890")).toBe("123456");
+    expect(normalizePin("")).toBe("");
+    expect(isValidPin(normalizePin("123 456"))).toBe(true);
   });
 
   it("rejects malformed payloads", async () => {

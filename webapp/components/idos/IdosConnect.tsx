@@ -1,17 +1,19 @@
 "use client";
 
 // Real idOS reusable-KYC consumer integration. Reads the connected wallet's EXISTING idOS KYC
-// credential (minted by a trusted issuer) and reuses it here: it proves the credential to this app's
-// idOS consumer, which the operator then turns into an on-chain ASP allow-list entry. Tukar never
-// holds the KYC data itself. Honest about its dependency: it needs an idOS profile that already
-// holds a credential from a trusted issuer; it never claims instant KYC for an arbitrary user.
+// credential (minted by a trusted issuer) and proves it to this app's idOS consumer. Tukar never
+// holds the KYC data itself. Honest about its dependencies: it needs an idOS profile that already
+// holds a credential from a trusted issuer, it never claims instant KYC for an arbitrary user, and
+// it does NOT produce an ASP allow-list entry, because the consumer cannot read the wallets
+// registered to the credential's owner, so a verified share cannot be tied to an address. The server
+// says so in its `reason` (lib/idos/consumer.server.ts) and this panel prints it verbatim.
 //
 // Two real testnet reads happen with no signing: addressHasProfile() tells you truthfully whether
 // the wallet owns an idOS profile. Sharing the credential (filter + access grant) needs the enclave
 // iframe and a wallet message signature, and only succeeds when such a credential actually exists.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
-import { Button, useToast } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { Mark } from "@/components/sender/Label";
 import { signMessageWithWallet } from "@/lib/wallet-kit";
 import { idosBindingMessage } from "@/lib/idos/config";
@@ -25,21 +27,13 @@ import {
   idosClientConfigured,
 } from "@/lib/idos/config";
 
-const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
-
-type AllowlistInfo = {
-  alreadyListed: boolean;
-  leafIndex: number;
-  setAspRootCli: string;
-};
-
 type State =
   | { phase: "idle" }
   | { phase: "checking" }
   | { phase: "no-profile" }
   | { phase: "has-profile" }
   | { phase: "sharing"; step: string }
-  | { phase: "shared"; verified: boolean; reason?: string; allowlist?: AllowlistInfo }
+  | { phase: "shared"; verified: boolean; reason?: string }
   | { phase: "error"; message: string };
 
 // Build the idOS user signer for the connected Stellar wallet. In @idos-network/client 1.5.0 a
@@ -68,10 +62,13 @@ async function makeStellarSigner(address: string, kind: string | null) {
 
 export function IdosConnect() {
   const { address, kind } = useWallet();
-  const { toast } = useToast();
   const [state, setState] = useState<State>({ phase: "idle" });
   // The idle client is reused across the profile check and the share flow.
   const idleRef = useRef<any>(null);
+  // A result belongs to one wallet: switching accounts starts over instead of showing A's profile for B.
+  useEffect(() => {
+    setState({ phase: "idle" });
+  }, [address]);
 
   if (!idosClientConfigured) {
     return (
@@ -114,8 +111,8 @@ export function IdosConnect() {
   }
 
   // Browser-only + credential-dependent: log in with the wallet, find a KYC credential from the
-  // trusted issuer, grant this consumer access to it, then verify it server-side and compute the
-  // allow-list update. Only completes when the wallet actually holds such a credential.
+  // trusted issuer, grant this consumer access to it, then verify it server-side. Only completes
+  // when the wallet actually holds such a credential, and it never yields an allow-list entry.
   async function shareCredential() {
     if (!address) return;
     if (!IDOS_ISSUER_AUTH_PUBLIC_KEY) {
@@ -145,9 +142,10 @@ export function IdosConnect() {
         consumerAuthPublicKey: IDOS_CONSUMER_AUTH_PUBLIC_KEY,
       });
 
-      // The wallet proves it controls `address` for this exact share (idOS grants identify the
-      // owner by user id, not wallet), so the server can bind the allow-list update to it.
-      setState({ phase: "sharing", step: "signing the address binding" });
+      // The wallet proves it controls `address` for this exact share. That is a necessary check,
+      // not a binding: idOS identifies a grant's owner by user id, and the consumer cannot read
+      // that owner's wallets, so the server verifies the credential and stops there.
+      setState({ phase: "sharing", step: "proving control of this wallet" });
       const signature = await signMessageWithWallet(idosBindingMessage(shared.id), address, kind);
 
       setState({ phase: "sharing", step: "verifying server-side" });
@@ -161,7 +159,7 @@ export function IdosConnect() {
         setState({ phase: "error", message: "idOS is not configured on the server." });
         return;
       }
-      setState({ phase: "shared", verified: !!data.verified, reason: data.reason, allowlist: data.allowlist ?? undefined });
+      setState({ phase: "shared", verified: !!data.verified, reason: data.reason });
     } catch (e) {
       setState({ phase: "error", message: e instanceof Error ? e.message : "Sharing the idOS credential failed" });
     }
@@ -170,13 +168,15 @@ export function IdosConnect() {
   return (
     <div className="mt-2 text-left">
       <p className="leading-relaxed text-ink-2">
-        Reads your existing idOS KYC credential to reuse it here. Needs an idOS profile with a
-        credential from a trusted issuer; the operator then adds you to the on-chain allow-list.
+        Reads your existing idOS KYC credential and verifies it here. Needs an idOS profile with a
+        credential from a trusted issuer. It does not add you to the on-chain allow-list: idOS
+        identifies a credential by its owner&apos;s idOS user id, and this app&apos;s consumer cannot read
+        that owner&apos;s wallets, so a verified credential cannot be tied to your Stellar address.
       </p>
 
-      {(state.phase === "idle" || state.phase === "checking") && (
+      {(state.phase === "idle" || state.phase === "checking" || state.phase === "no-profile" || state.phase === "error") && (
         <Button variant="subtle" className="mt-2" busy={state.phase === "checking"} onClick={checkProfile} disabled={!address}>
-          {state.phase === "checking" ? "Checking idOS profile" : "Check idOS profile"}
+          {state.phase === "checking" ? "Checking idOS profile" : state.phase === "idle" ? "Check idOS profile" : "Check again"}
         </Button>
       )}
       {!address && state.phase === "idle" && (
@@ -201,7 +201,7 @@ export function IdosConnect() {
           </p>
           <div className="mt-2">
             <Button variant="subtle" onClick={shareCredential}>
-              Reuse my idOS KYC credential
+              Verify my idOS KYC credential
             </Button>
           </div>
         </div>
@@ -222,38 +222,13 @@ export function IdosConnect() {
           <p className="inline-flex items-center gap-1 font-semibold text-stamp-deep">
             <Mark kind="check" size={12} /> idOS KYC credential verified
           </p>
-          {state.allowlist?.alreadyListed && (
-            <p className="mt-1 text-ink-2">
-              This account is already on the ASP allow-list (leaf #{state.allowlist.leafIndex}). It can deposit now.
-            </p>
-          )}
-          {state.allowlist && !state.allowlist.alreadyListed && (
-            <div className="mt-1">
-              <p className="text-ink-2">
-                To enable deposits, the corridor operator applies this on-chain (admin-gated,{" "}
-                <code className="text-stamp-deep">set_asp_root</code>). The new root and witness are computed server-side; nothing here is signed.
-              </p>
-              <div className="mt-2 flex items-start gap-2">
-                <pre className="flex-1 overflow-x-auto rounded-tile border border-ink/45 bg-input p-2 font-mono text-[11px] leading-relaxed text-ink-2 shadow-inset">
-                  {state.allowlist.setAspRootCli}
-                </pre>
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    navigator.clipboard.writeText(state.allowlist!.setAspRootCli).then(
-                      () => toast("set_asp_root CLI copied", "success"),
-                      () => toast("Copy failed; select the command and copy it manually", "error"),
-                    )
-                  }
-                >
-                  Copy
-                </Button>
-              </div>
-            </div>
-          )}
-          {address && !state.allowlist && (
-            <p className="mt-1 text-ink-3">Credential verified for {shortAddr(address)}. Allow-list update was not computed.</p>
-          )}
+          {/* Printed verbatim from the server (WALLET_BINDING_UNAVAILABLE): the credential is real,
+              and it still buys no allow-list entry. Say that, do not imply otherwise. */}
+          {state.reason && <p className="mt-1 text-ink-2">{state.reason}</p>}
+          <p className="mt-1 text-ink-3">
+            Use Reclaim below to get this wallet onto the allow-list; its proof is bound to the address
+            server-side before the proof is verified.
+          </p>
         </div>
       )}
 

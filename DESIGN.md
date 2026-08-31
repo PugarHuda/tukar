@@ -55,12 +55,30 @@ typography:
     fontWeight: 400
     lineHeight: 1.05
     letterSpacing: "0.02em"
+  lead:
+    fontFamily: "Barlow, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "normal"
   body:
     fontFamily: "Barlow, system-ui, sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
+  stamp:
+    fontFamily: "Saira Stencil One, Barlow, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.1
+    letterSpacing: "0.08em"
+  stamp-large:
+    fontFamily: "Saira Stencil One, Barlow, system-ui, sans-serif"
+    fontSize: "18px"
+    fontWeight: 400
+    lineHeight: 1.1
+    letterSpacing: "0.08em"
   row:
     fontFamily: "Barlow, system-ui, sans-serif"
     fontSize: "14px"
@@ -254,10 +272,14 @@ The old world's Tailwind names still compile because `webapp/tailwind.config.ts`
 - **Label** (700, 11px, 1.5, `0.08em`, uppercase): typed captions in Courier: `CAP`, `captionCls`, the Input and Select label, `dt` in ruled fields, Badge text at 10.5px, `.stub-k` at 10.5px with `0.12em`.
 - **Typed** (400, 12.5px, 1.6): Courier for hashes, notes, provenance, `pre` blocks (11.5px), footer meta, the `subtle` button, the manifest totals at 14px, ledger cells at 13px, large printed values (`Field` in `desk.tsx`) at 19px.
 
-Three more steps sit between those: **Action** (stencil, 22px) for the words on tear-off stubs and
-primary buttons; **Row** (Barlow, 14px) for ledger and manifest rows, form captions, and card copy;
-**Small** (Barlow, 13.5px) for footnotes and typed-caption sentences. Nothing else is set below Small
-except the 11px Label and 12.5px Typed steps.
+More steps sit between those: **Lead** (Barlow, 17px) for the one opening paragraph of a surface
+(the hero label copy, section intros, the sender and receiver leads); **Action** (stencil, 22px) for
+the words on tear-off stubs and primary buttons; **Row** (Barlow, 14px) for ledger and manifest rows,
+form captions, and card copy; **Small** (Barlow, 13.5px) for footnotes and typed-caption sentences.
+Stamps have their own two sizes: **Stamp** (stencil, 13px) and **Stamp large** (18px, the hero's
+COMPLIANCE CLEARED and the receipt's landing stamp); `.stamp-xs` at 10.5px is the row-end status
+stamp. Nothing else is set below Small except the 11px Label and 12.5px Typed steps. Display clamps
+floor at 34px on a phone.
 
 ### Named Rules
 **The Stencil Names It Rule.** Saira Stencil One appears only on headings, action words, stamp text, nav items, and amounts. It is never set below 15px and never used for a sentence.

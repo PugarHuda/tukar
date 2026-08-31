@@ -21,6 +21,17 @@ import {
   type WriteResult,
 } from "@/lib/stellar";
 import { R, getPoseidon, makeTree, randomFieldElement, fullProve, CIRCUITS, encodeBearerNote, fmtUsdc, short } from "@/lib/zk";
+import { NotifyMe } from "@/components/NotifyMe";
+
+// The nullifier the receiver's claim will publish: Poseidon(commitment, leafIndex, privKey). Derived
+// here, in the sender's browser, so the push watch stores this public value and never the note.
+async function claimNullifier(n: SentNote): Promise<string> {
+  const { poseidon, F } = await getPoseidon();
+  const leaves = await loadLeavesFromChain();
+  const idx = leaves ? leaves.findIndex((l) => l === BigInt(n.commitment)) : -1;
+  if (idx < 0) throw new Error("This note is not registered in the shielded tree yet, so its claim cannot be watched. Refresh status once it is spendable.");
+  return F.toObject(poseidon([BigInt(n.commitment), BigInt(idx), BigInt(n.privKey)])).toString();
+}
 
 export type SentNote = {
   ref: string;
@@ -56,36 +67,52 @@ type Status = { status: "unregistered" | "spendable" | "spent" | "unknown"; reas
 const SHOWN = 10; // newest notes listed; keeps the status checks inside the route's 30/min limit
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Last known status per commitment, module-level so it survives the compose -> send -> success ->
+// compose remount cycle. A result younger than CACHE_MS is reused on remount (no fetch); only an
+// explicit Refresh forces past it, so a few cycles inside a minute no longer burn the route's
+// 30/min limit and flip every row to "status unavailable".
+const CACHE_MS = 60_000;
+const statusCache = new Map<string, { at: number; st: Status }>();
+
 export function SentNotes({ notes, onChange, connected }: { notes: SentNote[]; onChange: (next: SentNote[]) => void; connected: boolean }) {
   const { toast } = useToast();
-  const [statuses, setStatuses] = useState<Record<string, Status>>({});
+  const [statuses, setStatuses] = useState<Record<string, Status>>(() => {
+    const now = Date.now();
+    const s: Record<string, Status> = {};
+    for (const [c, v] of statusCache) if (now - v.at < CACHE_MS) s[c] = v.st;
+    return s;
+  });
   const [busy, setBusy] = useState<string | null>(null); // commitment being refunded
   const [msg, setMsg] = useState("");
   const shown = notes.slice(0, SHOWN);
 
-  const check = useCallback(async (n: SentNote) => {
+  const check = useCallback(async (n: SentNote, force = false) => {
+    const hit = statusCache.get(n.commitment);
+    if (!force && hit && Date.now() - hit.at < CACHE_MS) {
+      setStatuses((s) => ({ ...s, [n.commitment]: hit.st }));
+      return;
+    }
     setStatuses((s) => ({ ...s, [n.commitment]: "loading" }));
+    let st: Status = "error";
     try {
       const r = await fetch("/api/note-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: encodeBearerNote(n) }) });
       const j = await r.json();
-      setStatuses((s) => ({ ...s, [n.commitment]: r.ok && j?.status ? { status: j.status, reason: j.reason } : "error" }));
-    } catch {
-      setStatuses((s) => ({ ...s, [n.commitment]: "error" }));
-    }
+      if (r.ok && j?.status) st = { status: j.status, reason: j.reason };
+    } catch {}
+    if (st !== "error") statusCache.set(n.commitment, { at: Date.now(), st });
+    setStatuses((s) => ({ ...s, [n.commitment]: st }));
   }, []);
 
-  // Check every listed note once, sequentially (the route reads the whole leaf set per call).
+  // Check the listed notes sequentially (the route reads the whole leaf set per call); cached
+  // results are reused, so a remount inside a minute makes no calls. Refresh forces past the cache.
+  const checkAll = useCallback(
+    async (force = false) => {
+      for (const n of notes.slice(0, SHOWN)) await check(n, force);
+    },
+    [notes, check],
+  );
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      for (const n of notes.slice(0, SHOWN)) {
-        if (!alive) return;
-        await check(n);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
+    checkAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes.length]);
 
@@ -186,7 +213,7 @@ export function SentNotes({ notes, onChange, connected }: { notes: SentNote[]; o
       className="mt-4"
       bar="Sent notes"
       right={
-        <button onClick={() => shown.forEach(check)} className="underline underline-offset-2 hover:text-kraft disabled:opacity-60" disabled={!!busy}>
+        <button onClick={() => checkAll(true)} className="underline underline-offset-2 hover:text-kraft disabled:opacity-60" disabled={!!busy}>
           Refresh status
         </button>
       }
@@ -199,7 +226,10 @@ export function SentNotes({ notes, onChange, connected }: { notes: SentNote[]; o
           const tone = n.refunded ? "muted" : typeof st === "object" ? (st.status === "spendable" ? "green" : st.status === "spent" ? "muted" : "amber") : "muted";
           const refunding = busy === n.commitment;
           return (
-            <li key={n.commitment} className="py-3 first:pt-0 last:pb-0">
+            // data-note-status carries the same status the badge shows, so a reader (or a test)
+            // can pick the row's state out without matching on text that a payment reference is
+            // free to contain.
+            <li key={n.commitment} data-note-status={label} className="py-3 first:pt-0 last:pb-0">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="truncate font-mono text-sm font-bold tabular-nums text-ink">
@@ -222,12 +252,15 @@ export function SentNotes({ notes, onChange, connected }: { notes: SentNote[]; o
                   variant="subtle"
                   className="mt-2.5"
                   busy={refunding}
-                  disabled={!!busy || !connected || st === "loading" || st === undefined}
-                  title={!connected ? "Connect a wallet or the testnet key to sign the refund" : undefined}
+                  disabled={!!busy || !connected || typeof st !== "object" || st.status === "unknown"}
+                  title={!connected ? "Connect a wallet or the testnet key to sign the refund" : typeof st !== "object" || st.status === "unknown" ? "Refund needs a live on-chain status for this note first (Refresh status)" : undefined}
                   onClick={() => refund(n)}
                 >
                   {refunding ? "Refunding" : "Cancel and refund"}
                 </Button>
+              )}
+              {!spent && typeof st === "object" && st.status === "spendable" && (
+                <NotifyMe className="mt-2.5" commitment={n.commitment} kind="spent" url="/sender" label="Notify me when it is claimed" getNullifier={() => claimNullifier(n)} />
               )}
             </li>
           );

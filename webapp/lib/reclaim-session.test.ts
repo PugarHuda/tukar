@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+
+// The module under test pulls @upstash/redis cold on first import; on a loaded machine that alone
+// can pass the 5 s default budget.
+vi.setConfig({ testTimeout: 30_000 });
 
 // Exercises the in-memory backend (no Upstash env): the same bind-once / consume-once contract the
 // Redis path gets from SET NX EX + GETDEL. Clear any KV env first so the module picks the Map.

@@ -31,6 +31,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={ref}
       disabled={disabled || busy}
+      aria-busy={busy || undefined}
       className={`${base} ${variants[variant]} ${full ? "w-full" : ""} ${busy ? "opacity-80" : ""} ${className}`}
       {...rest}
     >

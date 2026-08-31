@@ -16,6 +16,14 @@ const MAX_PAYLOAD = 8 * 1024;
 
 export const isValidPin = (pin: string): boolean => /^\d{6}$/.test(pin);
 
+/**
+ * What a PIN box keeps from whatever arrived: digits only, at most 6.
+ * The change handler owns the cap, never an HTML maxLength: the browser applies maxLength to the
+ * raw insertion, so pasting "123 456" or "1a2b3c4d5e6f" is cut to 6 characters before the
+ * non-digits are stripped and real digits go missing. Typing is unaffected either way.
+ */
+export const normalizePin = (raw: string): string => raw.replace(/\D/g, "").slice(0, 6);
+
 async function pinKey(pin: string, salt: Uint8Array, usage: KeyUsage): Promise<CryptoKey> {
   const raw = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(

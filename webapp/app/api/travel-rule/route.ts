@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEMO_TA_TOKEN, TRP_API_VERSION, putTrpLifecycle, verifyTrpRequest } from "@/lib/trp";
+import { DEMO_TA_TOKEN, TRP_API_VERSION, getTrpLifecycle, putTrpLifecycle, verifyTrpRequest } from "@/lib/trp";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { log, requestId, errMsg } from "@/lib/log";
 
@@ -52,6 +52,14 @@ export async function POST(req: Request) {
   const gate = await verifyTrpRequest(req, inquiry);
   if (!gate.ok) return NextResponse.json({ rejected: gate.rejected }, { status: gate.status });
   const { requestIdentifier } = gate;
+  // The identifier becomes a store key: bound its shape. And an inquiry is answered once: re-posting a
+  // signed inquiry under the same identifier must not reset a confirmed or canceled transfer.
+  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(requestIdentifier)) {
+    return NextResponse.json({ rejected: "request-identifier must be 1 to 128 characters of [A-Za-z0-9._:-]." }, { status: 400 });
+  }
+  if (await getTrpLifecycle(requestIdentifier)) {
+    return NextResponse.json({ rejected: "This request-identifier was already answered; use a new one." }, { status: 409 });
+  }
 
   // Travel Address token. When present it must match this beneficiary's live address; a wrong or
   // expired token is a real TRP 404. Absent token is allowed (direct reference call).

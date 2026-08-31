@@ -7,7 +7,10 @@ import { goto200, watchNoise } from "./_helpers";
 // aborted requests WILL show up as network failures — those are expected in the abort tests, so we
 // assert only on crashes (pageerror + unhandledrejection) and on a visible degraded/error state.
 
-const SOROBAN = /soroban-testnet\.stellar\.org/i;
+// BOTH RPC hosts. lib/soroban/rpc.ts:24 retries a transient failure of the primary
+// (constants.ts RPC) against RPC_FALLBACK on rpc.ankr.com, so aborting only the primary no longer
+// takes the chain reads down: the page reads live state and has nothing to report.
+const SOROBAN = /soroban-testnet\.stellar\.org|rpc\.ankr\.com/i;
 
 // A failed JS chunk fetch ("Loading chunk N failed" / ChunkLoadError) is a transient CDN/network
 // hiccup on navigation, not an app logic defect — it recovered on retry every time it appeared.

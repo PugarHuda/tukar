@@ -141,8 +141,10 @@ the limits section further down.
    Stellar): a **server-side verify** checks the Reclaim proof and an **allow-list update loop**
    has the operator apply `set_asp_root`, so a verified person is added to the on-chain
    allow-root with no redeploy. [idOS](https://idos.network) reusable KYC is integrated
-   alongside it: a user shares an existing credential from a trusted issuer, the server reads
-   and verifies it, and the same allow-list update loop applies (needs the idOS consumer env).
+   alongside it: a user shares an existing credential from a trusted issuer and the server reads
+   and verifies it (needs the idOS consumer env). It does not feed the allow-list: idOS names a
+   credential's owner by idOS user id, and a consumer cannot read that owner's registered wallets,
+   so a verified share cannot be bound to a Stellar address. Reclaim is the path onto the allow-list.
 4. **Cross-chain via Circle CCTP V2.** **Bidirectional** CCTP V2 (EVM <-> Stellar) is wired, so
    value moves into and out of the corridor across chains. The burn leg needs a user EVM wallet
    to sign.
@@ -179,7 +181,8 @@ to a production, multi-anchor corridor.
   four core (shielded transfer, ASP compliance, selective disclosure, trustless
   tree update) plus three selective-disclosure variants (threshold, aggregate,
   two-sided range). Without them the product does not exist.
-- **It runs on Stellar. 8 contracts live on testnet, all exercised:**
+- **It runs on Stellar. The 8 core contracts below are live on testnet and all exercised (7 additive
+  contracts bring the deployed total to 15, see `deployments/testnet.json`):**
 
   | Contract | Role | Verified on testnet |
   |---|---|---|
@@ -288,7 +291,9 @@ Tukar is deployed and running, not a prototype in a branch.
   (`@vercel/analytics` and `@vercel/speed-insights` in `webapp/app/layout.tsx`) for page traffic
   and Core Web Vitals.
 - **Smart contracts on testnet.** 8 Soroban contracts (pool plus 7 verifiers); addresses in the
-  contract table above and in `deployments/testnet.json`. 52 passing Cargo tests.
+  contract table above and in `deployments/testnet.json`. 314 passing Cargo tests across the
+  eight crates (pool 52, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6,
+  reserves 6, reserves-aggregate 12).
 - **Architecture and docs.** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
   [`docs/ONCHAIN.md`](docs/ONCHAIN.md), [`docs/TESTING.md`](docs/TESTING.md).
 - **Real on-chain wallet interactions.** Every send, withdraw, and disclosure is a real testnet
@@ -392,7 +397,7 @@ next two sections.
 
 ## What the ZK is doing (load-bearing)
 
-The zero-knowledge is not decorative. It is the entire product. Seven circuits,
+The zero-knowledge is not decorative. It is the entire product. Eight circuits,
 all **Groth16 over BN254**, generated **client-side in the browser (WASM)** and
 verified **on-chain** by Soroban contracts using Stellar's native BN254 host
 functions (Protocol 25/26). Secrets never leave the device. Four are the core; the
@@ -626,8 +631,10 @@ reference (Apache-2.0 / GPLv3).
   snarkjs; Poseidon hashing via circomlibjs. Proofs run client-side in the browser (WASM),
   so secrets never leave the device. Trusted setup from the Hermez phase-1 ptau plus a
   3-contribution phase-2 ceremony.
-- **Smart contracts:** Rust on Soroban (Stellar), 8 contracts (a pool plus 7 BN254
-  verifiers), using Protocol 25/26 host functions. 52 passing Cargo tests.
+- **Smart contracts:** Rust on Soroban (Stellar). The core corridor is 8 contracts (a pool plus 7
+  BN254 verifiers); 7 additive contracts (policy registry, reserves, reserves verifier, reserves
+  aggregate, enforcement pool, exact accumulator, timelock pool) bring the deployed total to 15.
+  314 passing Cargo tests.
 - **Stellar standards:** SEP-1 (stellar.toml discovery), SEP-24 (interactive deposit and
   withdraw), SEP-41 / SAC (USDC), with SEP-31 as the cross-border positioning. Native
   fee-bump (CAP-15) as a proven gasless primitive.

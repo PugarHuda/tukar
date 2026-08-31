@@ -49,7 +49,7 @@ Open **https://tukar-six.vercel.app**, click **Launch the live demo**, wait for
 > browser and on-chain. The proof is sound."
 
 **1:50–2:00 · Close**
-> "Seven circuits, eight live contracts, real USDC, double-spend protection, a real
+> "Eight circuits, fifteen live contracts, real USDC, double-spend protection, a real
 > trusted setup. Open source. Tukar: real-world money, private, kept compliant — on
 > Stellar."
 
@@ -84,7 +84,7 @@ cross-border globe, then click **Launch the live demo**.
 > private — and keeps it compliant. USDC enters a corridor, crosses with its
 > amount and counterparties hidden on-chain in the shielded transfer, and exits as
 > local fiat — with zero-knowledge proofs verified inside Stellar smart contracts.
-> Seven circuits, eight live contracts, real testnet USDC. Let's run it."
+> Eight circuits, fifteen live contracts, real testnet USDC. Let's run it."
 
 > **Note — the demo is now one step per page.** Each corridor stage is its own URL
 > (`/demo/send` · `/demo/corridor` · `/demo/receive` · `/demo/audit`); the

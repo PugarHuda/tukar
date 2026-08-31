@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRateAttestation, attestationCanonical, medianConsistent } from "./rate-attestation";
+import { buildRateAttestation, attestationCanonical, medianConsistent, formatAttestation, summarizeAttestation } from "./rate-attestation";
 
 const corridor = { code: "MX", currency: "MXN", symbol: "$", oracleSymbol: "MXN" };
 // 5 raw records; middle value (sorted) is 17.0.
@@ -96,5 +96,35 @@ describe("medianConsistent", () => {
   it("returns false with no records or a non-positive settledMedian", () => {
     expect(medianConsistent(build({ basis: [] }))).toBe(false);
     expect(medianConsistent(build({ settledMedian: 0 }))).toBe(false);
+  });
+});
+
+describe("anchor firm quote line (additive)", () => {
+  const anchorQuote = {
+    id: "3cf48781-f68b-44fd-8c3b-ee4060d369bd",
+    anchor: "testanchor.stellar.org",
+    sellAmount: 10,
+    buyAsset: "iso4217:USD",
+    buyAmount: 8.5714,
+    rate: 1.0500035,
+    totalPrice: 1.1666705555,
+    feeTotal: 1,
+    expiresAt: "2026-08-30T12:00:00Z",
+  };
+
+  it("leaves the canonical bytes of an attestation without a quote unchanged", () => {
+    expect(attestationCanonical(build({ anchorQuote: null }))).toBe(attestationCanonical(build()));
+    expect("anchorQuote" in build()).toBe(false);
+  });
+
+  it("records the anchor's committed id, rate and expiry when used", () => {
+    const a = build({ anchorQuote });
+    expect(a.anchorQuote).toEqual(anchorQuote);
+    expect(attestationCanonical(a)).not.toBe(attestationCanonical(build()));
+    const text = formatAttestation(a);
+    expect(text).toContain("Anchor quote    Anchor firm quote 3cf48781-f68b-44fd-8c3b-ee4060d369bd at 1.0500035 USDC per USD");
+    expect(text).toContain("expires 2026-08-30T12:00:00Z");
+    expect(summarizeAttestation(a)).toContain("Anchor firm quote 3cf48781");
+    expect(summarizeAttestation(build())).not.toContain("Anchor firm quote");
   });
 });

@@ -119,7 +119,7 @@ The two lines that win are **"bound to a real on-chain deposit"** and
 > back **valid**, and it's tied to a real on-chain deposit. I change one character.
 > **Invalid.** Rejected on-chain. **(breathe)**
 >
-> Seven circuits, eight contracts, fifty-two tests, live on testnet. It's a
+> Eight circuits, fifteen contracts, three hundred fourteen contract tests, live on testnet. It's a
 > prototype, not audited yet, but the crypto's real and you just saw it run.
 > We're looking for a pilot anchor. Thanks.
 

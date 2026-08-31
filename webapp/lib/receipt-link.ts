@@ -12,6 +12,9 @@ export const MAX_LINK_PAYLOAD = 16 * 1024;
 export const MAX_RECEIPT_BYTES = 64 * 1024;
 
 const TYPES: DisclosureType[] = ["exact", "threshold", "aggregate", "range"];
+// Public-signal layout each circuit exposes (lib/zk.verifyReceipt + lib/soroban/verify.ts index
+// into these): a shorter receipt would read an undefined signal and throw mid-verify.
+const MIN_SIGNALS: Record<DisclosureType, number> = { exact: 3, threshold: 3, range: 4, aggregate: 13 };
 const isField = (s: unknown): s is string => typeof s === "string" && /^\d{1,78}$/.test(s);
 const isHex64 = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{64}$/i.test(s);
 
@@ -65,6 +68,8 @@ export function validateReceipt(j: unknown): AuditReceipt {
   if (r.version !== 1) throw new Error("unsupported receipt version");
   if (!TYPES.includes(r.type as DisclosureType)) throw new Error("unknown disclosure type");
   if (!Array.isArray(r.publicSignals) || !r.publicSignals.length || !r.publicSignals.every(isField)) throw new Error("malformed publicSignals");
+  const need = MIN_SIGNALS[r.type as DisclosureType];
+  if (r.publicSignals.length < need) throw new Error(`${r.type} receipt needs ${need} public signals, got ${r.publicSignals.length}`);
   const p = r.proof as Record<string, unknown> | undefined;
   if (!p || typeof p !== "object" || !Array.isArray(p.pi_a) || !Array.isArray(p.pi_b) || !Array.isArray(p.pi_c)) throw new Error("malformed proof");
   if (typeof r.network !== "string" || typeof r.verifier !== "string" || typeof r.verifiedOnChain !== "boolean") throw new Error("malformed receipt metadata");

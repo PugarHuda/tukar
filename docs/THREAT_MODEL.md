@@ -1,7 +1,8 @@
 # Tukar Threat Model and Monitoring Plan
 
-Status: testnet. Scope: the deployed testnet system (8 Soroban contracts on Stellar
-testnet plus the Next.js app at tukar-six.vercel.app). This document is the SCF #46
+Status: testnet. Scope: the deployed testnet system (15 Soroban contracts on Stellar
+testnet, of which the 8-contract core corridor of pool plus 7 verifiers is what the app
+transacts against, plus the Next.js app at tukar-six.vercel.app). This document is the SCF #46
 tranche 2 (testnet) threat model and monitoring plan. It describes the security
 posture that actually exists in this repository today, the mitigations that are in
 code, and the residual risk that remains. It does not claim a professional audit,
@@ -286,13 +287,15 @@ These are the honest limits, consistent with `README.md` and `docs/SECURITY.md`.
 
 - Not professionally audited. The system was hardened through repeated adversarial self-audit
   rounds, not an external audit. Do not use with real assets.
-- Trusted setup. A runnable multi-party phase-2 ceremony has been run and verified for all seven
+- Trusted setup. A runnable multi-party phase-2 ceremony has been run and verified for all eight
   circuits and its keys are the deployed keys, but the demo ran all rounds on one machine to prove
   the process. The one-honest-party soundness guarantee needs genuinely independent contributors,
   which a production ceremony provides.
-- Reference anchor is not licensed. On testnet the SEP anchor is SDF's reference anchor and does no
-  real KYC, so the fiat edges are simulated. Going live requires a licensed KYC anchor (a business
-  step, not a code step).
+- Reference anchor is not licensed. The SEP calls are real (SEP-1, SEP-10, SEP-12, SEP-24, and
+  SEP-38 firm quotes), but on testnet they run against SDF's reference anchor, whose SEP-12
+  customer flow accepts three fields and returns ACCEPTED with no review, so no real KYC and no
+  real bank movement happens at the fiat edges. Going live requires a licensed KYC anchor (a
+  business step, not a code step).
 - Full-pool proof-of-reserves is live and exact via a liability accumulator that folds +amount on
   deposit and -released (the public, proof-bound off-ramp amount) on withdraw, so the on-chain total
   equals the exact live outstanding liabilities and `attest_reserves` needs no depositor opening

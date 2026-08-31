@@ -198,8 +198,13 @@ function ReclaimVerify() {
 /** Connect bar: built-in testnet key OR any supported Stellar wallet. The typed strip at the top
  *  of every route: who signs, on which network, and the reusable-KYC disclosure. */
 export function WalletBar() {
-  const { connected, walletName, address, connecting, wrongNetwork, recheckNetwork, connectWallet, connectDemoKey, disconnect } =
+  const { connected, kind, walletName, address, connecting, wrongNetwork, recheckNetwork, connectWallet, connectDemoKey, connectPasskey, disconnect } =
     useWallet();
+  const passkey = kind === "passkey";
+  const runPasskey = (mode: "create" | "connect") =>
+    connectPasskey(mode, (m) => toast(m)).catch((e) =>
+      toast((e && e.message) || "Passkey sign-in failed. Your browser or device may not support passkeys.", "error"),
+    );
   const { toast } = useToast();
   // The connected strip renders Disconnect where "Use testnet key" just was, so the second half of
   // an accidental double-tap would disconnect the wallet it just connected. Disconnect stays
@@ -233,13 +238,32 @@ export function WalletBar() {
             </Button>
           </p>
         )}
+        {passkey && (
+          <p className="w-full text-right text-[11px] leading-snug text-ink-3">
+            Passkey smart wallet (contract account). Sign-in and the wallet deployment are real: the OpenZeppelin
+            relayer paid the deploy fee, and it holds USDC as a contract balance. Pool deposits and withdrawals do not
+            work from this wallet yet: the passkey signs a CAP-0071-02 address-bound auth entry that the relayer&apos;s
+            submit endpoint cannot decode, so the write is rejected before it reaches the network. Use a keypair wallet
+            or the testnet key to send. Deposits would also need this address on the ASP allow-list, like any new wallet.
+          </p>
+        )}
         <details className="group w-full text-right font-mono text-[11px] leading-snug text-ink-3">
           <summary className={SUMMARY}>
             Verify identity to enable deposits (idOS or Reclaim)
             <Mark kind="chevron" size={12} className={CHEVRON} />
           </summary>
-          <IdosConnect />
-          <ReclaimVerify />
+          {passkey ? (
+            <p className="mt-1 text-left leading-relaxed">
+              Not available for a passkey wallet: idOS signs in with an ed25519 message signature (SEP-53) and Reclaim
+              binds its proof to a G-address; a passkey contract account has neither. The scheduler sign-in has the same
+              limit. Connect Freighter, xBull, Lobstr or Hana for those steps.
+            </p>
+          ) : (
+            <>
+              <IdosConnect />
+              <ReclaimVerify />
+            </>
+          )}
         </details>
       </div>
     );
@@ -261,8 +285,15 @@ export function WalletBar() {
       <Button variant="subtle" onClick={connectDemoKey}>
         Use testnet key
       </Button>
+      <Button variant="ghost" busy={connecting} onClick={() => runPasskey("connect")}>
+        Sign in with passkey
+      </Button>
+      <Button variant="subtle" busy={connecting} onClick={() => runPasskey("create")}>
+        New passkey wallet
+      </Button>
       <span className="w-full text-right text-[11px] leading-snug text-ink-3">
         Testing with others? Connect your own wallet (Freighter, xBull, Albedo, Rabet, Lobstr, Hana, Ledger) for your own key; the built-in testnet key is shared.
+        No wallet installed? A passkey (Face ID, Touch ID, Windows Hello) creates a smart wallet on testnet with no seed phrase and the relayer pays its deploy fee. It is sign-in only for now: sending from the pool still needs a keypair wallet or the testnet key.
       </span>
       <details className="group w-full text-right font-mono text-[11px] leading-snug text-ink-3">
         <summary className={SUMMARY}>
@@ -278,8 +309,9 @@ export function WalletBar() {
           <a href="https://reclaimprotocol.org" target="_blank" rel="noopener noreferrer" className="text-ink-2 underline hover:text-stamp">
             Reclaim
           </a>{" "}
-          (zkTLS, live on Stellar). The result populates the ASP allow-list, so a user proves
-          compliance once and reuses it across corridors, and Tukar never holds KYC data itself.
+          (zkTLS, live on Stellar). Reclaim&apos;s proof is bound to your address, so it populates the ASP
+          allow-list; the idOS credential is verified but cannot be bound to a wallet with this
+          app&apos;s consumer permissions, so it adds no allow-list entry. Tukar never holds KYC data itself.
         </p>
         <IdosConnect />
         <ReclaimVerify />

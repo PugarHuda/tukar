@@ -93,7 +93,7 @@ function Figures({ cols, children }: { cols: string; children: React.ReactNode }
 /** One form box: typed caption, the figure in stencil tabular digits, a typed line under it. */
 function Figure({ label, value, sub, accent, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; accent?: boolean; children?: React.ReactNode }) {
   return (
-    <div className="min-w-0 bg-label p-4">
+    <div data-figure={label} className="min-w-0 bg-label p-4">
       <div className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-2">{label}</div>
       <div className={`mt-2 break-words font-stencil text-[26px] leading-none tabular-nums ${accent ? "text-stamp-deep" : "text-ink"}`}>{value}</div>
       {sub && <div className="mt-2 font-mono text-[11px] leading-snug text-ink-3">{sub}</div>}
@@ -222,7 +222,9 @@ function CopyBlock({ text, copiedLabel = "CLI command copied" }: { text: string;
       >
         {done ? "copied" : "copy"}
       </button>
-      <pre className="overflow-x-auto whitespace-pre border border-ink/35 bg-input p-3 pr-20 font-mono text-[11.5px] leading-relaxed text-ink">{text}</pre>
+      {/* tabIndex: the block scrolls sideways and holds nothing focusable, so a keyboard user
+          needs the box itself to take focus before the arrow keys can pan it. */}
+      <pre tabIndex={0} className="overflow-x-auto whitespace-pre border border-ink/35 bg-input p-3 pr-20 font-mono text-[11.5px] leading-relaxed text-ink">{text}</pre>
     </div>
   );
 }
@@ -1125,7 +1127,7 @@ function CorridorAnchorSection() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={a.tone}>{a.pill}</Badge>
             </div>
-            <div className="mt-2 font-stencil text-[20px] uppercase leading-none">{a.name}</div>
+            <div className="mt-2 font-stencil text-[22px] uppercase leading-none">{a.name}</div>
             <p className="mt-2 flex-1 text-[13px] leading-relaxed text-ink-2">{a.body}</p>
             {a.href && (
               <a href={a.href} target="_blank" rel="noreferrer" className={`mt-3 self-start ${TYPED_LINK}`}>
@@ -1265,7 +1267,11 @@ function MonitoringSection() {
       <SubHead title="Repeated-actor heuristic" sub="same depositor, N or more deposits inside any 24h span" />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
         <label htmlFor="mon-min-n" className={LABEL}>N =</label>
-        <input id="mon-min-n" type="number" min={1} step={1} value={minN} onChange={(e) => setMinN(Math.max(1, Math.round(Number(e.target.value) || 1)))} className={`${CELL_INPUT} w-20 text-[12px]`} />
+        <input id="mon-min-n" type="number" min={1} step={1} value={minN} onChange={(e) => {
+            // keep typing natural: an empty or partial box is left alone, only a real integer >= 1 applies
+            const n = parseInt(e.target.value, 10);
+            if (Number.isFinite(n) && n >= 1) setMinN(n);
+          }} className={`${CELL_INPUT} w-20 text-[12px]`} />
         <span className="text-ink-3">Depositor is the sender of the USDC transfer in the same transaction as the deposit event.</span>
       </div>
       <TableWrap>

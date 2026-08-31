@@ -15,7 +15,7 @@ Jawab sendiri, jangan mengarang. Sebut orang-orangnya dan satu kredensial masing
 Jawab sendiri, dengan jujur. Kalau belum ada, katakan "belum, ini masih build di testnet," lalu alihkan ke ask (permintaan pendanaan): satu pilot bersama anchor berlisensi adalah persis yang kami galang dananya. Jangan menyiratkan traksi yang tidak kalian punya.
 
 **3. Apa yang sudah pernah kalian rilis yang membuktikan kalian mampu menyelesaikan ini?**
-Jawab sendiri, jangan mengarang. Tunjuk fakta bahwa ini sudah 7 circuit, 8 contract, dan 52 test yang hidup di testnet, yang merupakan bukti terkuat di ruangan.
+Jawab sendiri, jangan mengarang. Tunjuk fakta bahwa ini sudah 8 circuit, 15 contract, 230 test webapp dan 314 test Cargo yang hidup di testnet, yang merupakan bukti terkuat di ruangan.
 
 ## Operasi regulatori
 
@@ -23,7 +23,7 @@ Jawab sendiri, jangan mengarang. Tunjuk fakta bahwa ini sudah 7 circuit, 8 contr
 Yang 8 itu cuma set demonstrasi. Di produksi, operator menyinkronkan daftar terpelihara (OFAC, UN) ke dalam allow-root dan deny-set on-chain secara terjadwal, idealnya lewat penyedia data compliance berlisensi. Cakupan global real-time adalah masalah data-ops (operasi data), bukan masalah circuit, dan justru itu alasan untuk bermitra dengan vendor compliance ketimbang membuat sendiri.
 
 **5. Bagaimana kalian memenuhi Travel Rule (aturan pertukaran data pengirim/penerima) dan kewajiban AML (anti pencucian uang) untuk corridor sungguhan?**
-Anchor berlisensi di kedua ujung yang melakukan KYC dan Travel Rule, itu memang sudah tugas mereka. Kami memberi mereka settlement (penyelesaian) yang privat plus bukti compliance dan selective disclosure (pengungkapan selektif) sehingga mereka bisa memenuhi kewajibannya tanpa ledger publik membocorkan setiap nasabah. Kami adalah rail-nya (jalur pembayaran), bukan lapisan KYC.
+Anchor berlisensi di kedua ujung yang melakukan KYC dan Travel Rule, itu memang sudah tugas mereka. Kami memberi mereka settlement (penyelesaian) yang privat plus bukti compliance dan selective disclosure (pengungkapan selektif) sehingga mereka bisa memenuhi kewajibannya tanpa ledger publik membocorkan setiap nasabah. Kami adalah rail-nya (jalur pembayaran), bukan lapisan KYC. Pendalamannya sudah dibangun: disclosure yang terverifikasi dipetakan ke payload IVMS101 dan dikirim lewat pertukaran OpenVASP TRP 3.2.1 asli (Travel Address base58, canonical JSON, tanda tangan Ed25519 terpisah yang kami verifikasi saat diterima dengan opsi pinning kunci peer, lifecycle request yang dilacak, dan national identification yang diisi dari lookup GLEIF LEI live), dengan TRISA companion node yang menyertainya dan baru aktif setelah operator mendaftarkan test VASP. Di sisi KYC kami menyusun ulang komponen yang ada: Reclaim (zkTLS proof-of-personhood) mengisi ASP allow-list karena proof-nya diikat ke alamat Stellar di sisi server sebelum diverifikasi, sedangkan idOS (reusable KYC) terintegrasi dan memverifikasi kredensial asli tapi tidak bisa mengisi allow-list, karena idOS menamai pemilik kredensial dengan idOS user id dan consumer SDK-nya tidak punya pembacaan wallet berbasis user id.
 
 **6. Kalau pengadilan memerintahkan kalian mengungkap transaksi user tertentu, bisakah kalian melakukannya?**
 Dua lapis. Anchor berlisensi tahu identitas ber-KYC di ujung. Dan regulator bisa mendaftarkan audit request (permintaan audit) yang wajib dijawab oleh holder (pemegang), yang ditegakkan oleh contract. Jujurnya, penegakan pamungkas tetap ada di anchor dan proses hukum; protokol membuat pengungkapan menjadi mungkin dan bisa dibuktikan, tapi tidak menggantikan surat perintah pengadilan.
@@ -40,7 +40,7 @@ Ada operator key yang mengatur policy (kebijakan), dan penulisan admin ditandata
 Groth16 butuh setup per-circuit. Fase satu adalah powers-of-tau Hermez yang dipercaya seluruh ekosistem. Fase dua adalah ceremony (upacara pembangkitan kunci) kami sendiri, tiga kontribusi plus public beacon (nilai acak publik), byte-identical (identik byte demi byte) dengan transkrip yang sudah di-commit. Celah jujurnya: kami menjalankan ronde-rondenya di satu mesin, jadi kontributor yang benar-benar independen adalah langkah pertama yang perlu didanai.
 
 **10. Ini belum diaudit. Seberapa besar attack surface (permukaan serangan) contract-nya?**
-Betul, belum diaudit secara profesional. Ia sudah diperkeras lewat banyak ronde self-review adversarial (peninjauan sendiri secara menyerang) terhadap threat model (model ancaman) yang terdokumentasi, dengan 52 contract test yang lulus. Audit profesional adalah penggunaan pertama dari uang hadiah atau grant.
+Betul, belum diaudit secara profesional. Ia sudah diperkeras lewat banyak ronde self-review adversarial (peninjauan sendiri secara menyerang) terhadap threat model (model ancaman) yang terdokumentasi, dengan 314 test Cargo yang lulus di seluruh crate contract (52 di antaranya pada pool yang live) dan 230 test webapp. Audit profesional adalah penggunaan pertama dari uang hadiah atau grant.
 
 **11. Apa yang mencegah kebocoran metadata, yaitu mengaitkan sebuah deposit dengan sebuah withdrawal lewat waktu atau jumlah?**
 Crossing (transaksi silang di dalam) menyembunyikan jumlah dan kedua pihak, tapi deposit dan withdrawal bersifat publik di kedua ujung secara sengaja, jadi keterhubungan (linkability) mengecil seiring bertambahnya anonymity set (kumpulan anonim). Korelasi waktu dan jumlah di ujung adalah keterbatasan yang sudah diketahui, dan mitigasi seperti fixed denomination (pecahan tetap) serta settlement delay (jeda penyelesaian) ada di roadmap.
@@ -65,7 +65,7 @@ Privat yang bermakna berarti ratusan atau lebih per epoch (periode) yang berbagi
 Terserah kamu yang menyebutnya; logikanya adalah jalur bervolume tinggi dan berbiaya tinggi di mana anchor berlisensi sudah beroperasi, jadi rasa sakit fee-nya paling besar dan ujung fiat-nya sudah ada.
 
 **17. Apa yang mencegah anchor memotong kalian dan membangun ini sendiri?**
-Moat-nya adalah stack compliance-dan-privasi, tujuh circuit, empat tipe disclosure, audit registry (daftar audit), yang merupakan setahun kerja, bukan pekerjaan satu sore tim produk anchor. Dan kami adalah rail netral lintas banyak anchor, jadi tidak ada satu pun yang memilikinya. Ini risiko nyata yang kami jawab dengan bergerak cepat dan tetap multi-anchor.
+Moat-nya adalah stack compliance-dan-privasi, delapan circuit, empat tipe disclosure, audit registry (daftar audit), pertukaran Travel Rule TRP 3.2.1, proof-of-reserves kriptografis, dan registry kebijakan per koridor on-chain, yang merupakan setahun kerja, bukan pekerjaan satu sore tim produk anchor. Dan kami adalah rail netral lintas banyak anchor, jadi tidak ada satu pun yang memilikinya. Ini risiko nyata yang kami jawab dengan bergerak cepat dan tetap multi-anchor.
 
 **18. Apakah ada token?**
 Tidak. Pendapatan berasal dari fee atas settlement. Tanpa token, semuanya tetap sederhana dan menghindari seluruh lapisan kerumitan regulatori.

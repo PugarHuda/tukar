@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Barlow, Courier_Prime, Saira_Stencil_One } from "next/font/google";
 import "./globals.css";
+import { ICON_DATA_URI } from "@/components/landing/Wordmark";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { WalletProvider } from "@/components/WalletProvider";
@@ -10,10 +11,15 @@ const barlow = Barlow({ subsets: ["latin"], variable: "--font-barlow", display: 
 const stencil = Saira_Stencil_One({ subsets: ["latin"], variable: "--font-stencil", display: "swap", weight: "400" });
 const courier = Courier_Prime({ subsets: ["latin"], variable: "--font-mono", display: "swap", weight: ["400", "700"] });
 
+// Manifest, icons, and theme color apply to every route (they used to live on the landing only).
 export const metadata: Metadata = {
   title: "Tukar",
   description: "Private cross-border remittance on Stellar. The money crosses sealed; the label is stamped compliant on-chain.",
+  manifest: "/manifest.webmanifest",
+  icons: { apple: "/icon-192.png", icon: ICON_DATA_URI },
 };
+
+export const viewport: Viewport = { themeColor: "#d4a468" };
 
 // Direction contract (Impeccable, seed e027abe0). Emitted as a real HTML comment, first in <body>,
 // so it survives the production build and every later edit reopens it.

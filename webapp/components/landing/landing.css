@@ -251,6 +251,10 @@
   -webkit-mask: radial-gradient(5px at 0 50%, transparent 97%, #000) 0 0 / 100% 18px repeat-y;
   mask: radial-gradient(5px at 0 50%, transparent 97%, #000) 0 0 / 100% 18px repeat-y;
 }
+.stub:focus-visible {
+  /* the perforation mask clips anything painted outside the box, so the ring sits inside */
+  outline-offset: -5px !important;
+}
 .stub::before {
   /* the tear line, 10px in from the punched edge */
   content: "";
@@ -595,8 +599,9 @@
   font: 700 12.5px/40px var(--font-mono), monospace;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--label);
-  border-right: 1px solid rgba(246, 241, 231, 0.35);
+  /* the tape multiplies onto the page, so only ink stays legible on it (label paper washed out) */
+  color: var(--ink);
+  border-right: 1px solid rgba(22, 19, 17, 0.35);
 }
 @keyframes marquee {
   to {

@@ -25,7 +25,7 @@ const aggregate: AuditReceipt = {
   type: "aggregate",
   capUsdc: "5000",
   commitments: [fe(11), fe(12), fe(13), fe(14), fe(15)],
-  publicSignals: [fe(11), fe(12), fe(13), fe(14), fe(15), "1", "1", "1", "1", "1", "50000000000", fe(16)],
+  publicSignals: [fe(11), fe(12), fe(13), fe(14), fe(15), "1", "1", "1", "1", "1", "50000000000", fe(16), fe(17)],
   anchor: { txHash: "a".repeat(64), sha256: "b".repeat(64), network: "Test SDF Network ; September 2015" },
 };
 
@@ -69,5 +69,11 @@ describe("receipt link", () => {
     expect(() => validateReceipt({ ...exact, verifiedOnChain: "yes" })).toThrow(/metadata/);
     expect(() => validateReceipt({ ...exact, anchor: { txHash: "abc", sha256: "b".repeat(64) } })).toThrow(/anchor/);
     expect(validateReceipt(aggregate)).toEqual(aggregate);
+  });
+
+  it("refuses a receipt with fewer public signals than its circuit exposes", () => {
+    expect(() => validateReceipt({ ...aggregate, publicSignals: aggregate.publicSignals.slice(0, 3) })).toThrow(/aggregate receipt needs 13 public signals, got 3/);
+    expect(() => validateReceipt({ ...exact, type: "range" })).toThrow(/range receipt needs 4/);
+    expect(() => validateReceipt({ ...exact, publicSignals: exact.publicSignals.slice(0, 2) })).toThrow(/exact receipt needs 3/);
   });
 });

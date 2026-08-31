@@ -18,10 +18,11 @@ import {
   activeAddress,
   POOL,
 } from "@/lib/stellar";
-import { getPoseidon, makeTree, decodeBearerNote, encodePaymentRequest } from "@/lib/zk";
+import { getPoseidon, makeTree, decodeBearerNote, encodePaymentRequest, decodePaymentRequest } from "@/lib/zk";
+import { qrSvgString } from "@/components/sender/qr";
 import { PaymentCard } from "@/components/receiver/PaymentCard";
 import { CORRIDORS, corridorByCode, type ClaimedNote, type FxRate } from "@/components/receiver/corridors";
-import { claimPayloadFromHash, isPinWrapped, openClaimPayload, isValidPin } from "@/lib/claim-link";
+import { claimPayloadFromHash, isPinWrapped, openClaimPayload, isValidPin, normalizePin } from "@/lib/claim-link";
 
 type Prover = { poseidon: any; F: any; tree: { root: (l: bigint[]) => bigint; pathElements: (l: bigint[], i: number) => bigint[] } };
 
@@ -59,6 +60,10 @@ export default function ReceiverPage() {
   const [reqAmount, setReqAmount] = useState("");
   const [reqString, setReqString] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // The same request as a standard SEP-7 web+stellar:pay URI, signed server-side with the domain
+  // key from stellar.toml (null until built; signed=false when the server has no signing secret).
+  const [sep7, setSep7] = useState<{ uri: string; signed: boolean; qr: string | null; note?: string } | null>(null);
+  const [sep7Copied, setSep7Copied] = useState(false);
 
   // "Check note status" widget: ask the pool (read-only) whether a note is unregistered,
   // spendable, or already spent, so a receiver knows before a withdraw, not from a failure.
@@ -199,30 +204,46 @@ export default function ReceiverPage() {
   // ---- claim link (#claim=<payload>): same tukar1: note, delivered in the URL fragment ----
   // The fragment never reaches a server. A plain payload claims straight away; a PIN-wrapped one
   // waits for the 6 digits. The bearer payload is dropped from the address bar once handled.
-  useEffect(() => {
-    const p = claimPayloadFromHash(location.hash);
-    if (p == null) return;
-    setTab("claim");
-    let wrapped: boolean;
-    try {
-      wrapped = isPinWrapped(p);
-    } catch (e: any) {
+  // Shared by the URL fragment on load and by the in-app QR scanner (the sender's success QR
+  // encodes a claim LINK, not a bare tukar1: note).
+  const handleClaimPayload = useCallback(
+    (p: string) => {
+      setTab("claim");
+      let wrapped: boolean;
+      try {
+        wrapped = isPinWrapped(p);
+      } catch (e: any) {
+        dropHash();
+        setStatus("Couldn't read that claim link: " + ((e && e.message) || "invalid link"));
+        return;
+      }
+      if (wrapped) {
+        setPinPayload(p);
+        return;
+      }
       dropHash();
-      setStatus("Couldn't read that claim link: " + ((e && e.message) || "invalid link"));
-      return;
-    }
-    if (wrapped) {
-      setPinPayload(p);
-      return;
-    }
-    dropHash();
-    openClaimPayload(p)
-      .then((note) => {
-        setClaimInput(note);
-        claim(note);
-      })
-      .catch((e: any) => setStatus("Couldn't read that claim link: " + ((e && e.message) || "invalid link")));
-  }, [claim, setStatus]);
+      openClaimPayload(p)
+        .then((note) => {
+          setClaimInput(note);
+          claim(note);
+        })
+        .catch((e: any) => setStatus("Couldn't read that claim link: " + ((e && e.message) || "invalid link")));
+    },
+    [claim, setStatus],
+  );
+  // On load and on every later fragment change: following a claim link while already on /receiver
+  // (pasting it in the address bar, a link from another page) only changes the fragment, so the
+  // browser fires hashchange instead of reloading. Without this the payload would sit in the
+  // address bar unhandled: no claim, no error, and the bearer note left in history.
+  useEffect(() => {
+    const read = () => {
+      const p = claimPayloadFromHash(location.hash);
+      if (p != null) handleClaimPayload(p);
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, [handleClaimPayload]);
 
   const unlockPin = useCallback(async () => {
     if (!pinPayload || pinBusy) return;
@@ -287,6 +308,18 @@ export default function ReceiverPage() {
     setCopied(false);
     if (navigator.clipboard) navigator.clipboard.writeText(str).then(() => { setCopied(true); toast("Request copied", "success"); }).catch(() => {});
     setStatus(`Requested ${amt} USDC. Share the string with the sender.`);
+    // Standard SEP-7 twin of the same request: signed by the server (domain key), QR for wallets.
+    setSep7(null);
+    setSep7Copied(false);
+    const { amount, addr, memo } = decodePaymentRequest(str);
+    fetch("/api/sep7", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destination: addr, amount, msg: memo }) })
+      .then((r) => r.json())
+      .then(async (j) => {
+        if (!j.ok || !j.uri) throw new Error(j.error || "SEP-7 request failed");
+        const qr = await qrSvgString(j.uri, "#0a0705", "#f3ad79", "SEP-7 payment request QR code").catch(() => null);
+        setSep7({ uri: j.uri, signed: Boolean(j.signed), qr, note: j.note });
+      })
+      .catch((e) => setStatus("SEP-7 request not built: " + ((e && e.message) || e)));
   }, [reqAmount, connected, setStatus, toast]);
 
   // ---- QR scan (native BarcodeDetector, degrades to paste) ----
@@ -320,11 +353,24 @@ export default function ReceiverPage() {
         if (!streamRef.current) return;
         try {
           const codes = await detector.detect(video);
-          const hit = codes.find((c: any) => /^tukar1:/.test(c.rawValue));
-          if (hit) {
-            setClaimInput(hit.rawValue);
+          // A bare tukar1: note claims directly; a /receiver#claim= link (what the sender's QR
+          // carries) goes through the same plain/PIN-wrapped path as a link opened in the browser.
+          const raw = String(codes[0]?.rawValue ?? "");
+          if (/^tukar1:/.test(raw)) {
+            setClaimInput(raw);
             stopScan();
-            claim(hit.rawValue);
+            claim(raw);
+            return;
+          }
+          const payload = raw ? claimPayloadFromHash(raw) : null;
+          if (payload != null) {
+            stopScan();
+            handleClaimPayload(payload);
+            return;
+          }
+          if (raw) {
+            stopScan();
+            setStatus("That QR code is not a Tukar bearer note or claim link. Scan the sender's QR or paste the note string instead.");
             return;
           }
         } catch {}
@@ -335,7 +381,7 @@ export default function ReceiverPage() {
       setStatus("Couldn't open the camera, paste the note string instead.");
       stopScan();
     }
-  }, [claim, setStatus, stopScan]);
+  }, [claim, handleClaimPayload, setStatus, stopScan]);
 
   useEffect(() => () => stopScan(), [stopScan]);
   // Free the camera when the receiver navigates away from the Claim tab.
@@ -502,11 +548,10 @@ export default function ReceiverPage() {
                 type="password"
                 inputMode="numeric"
                 pattern="[0-9]{6}"
-                maxLength={6}
                 autoComplete="one-time-code"
                 placeholder="6 digits"
                 value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) => setPin(normalizePin(e.target.value))}
               />
             </div>
             <div className="mt-2.5 flex gap-2">
@@ -607,6 +652,31 @@ export default function ReceiverPage() {
             </div>
             <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11.5px] leading-relaxed text-ink">{reqString}</pre>
             <p className="mt-2 text-[12.5px] leading-relaxed text-ink-2">Hand this string to the sender. Loading it prefills the amount and shows you as the payee. Whoever holds the resulting bearer note can claim it.</p>
+          </div>
+        )}
+        {sep7 && (
+          <div className="mt-4 border-t border-ink/25 pt-3" data-testid="sep7-request">
+            <div className="flex items-center justify-between gap-2">
+              <span className={CAP}>SEP-7 payment request</span>
+              <Badge tone={sep7Copied || sep7.signed ? "green" : "muted"}>{sep7Copied ? "copied" : sep7.signed ? "signed by tukar-six.vercel.app" : "unsigned"}</Badge>
+            </div>
+            {sep7.qr && (
+              <div className="mx-auto mt-3 w-full max-w-[200px] rounded-[3px] border border-ink/25 p-2" dangerouslySetInnerHTML={{ __html: sep7.qr }} />
+            )}
+            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11.5px] leading-relaxed text-ink">{sep7.uri}</pre>
+            <Button
+              variant="ghost"
+              className="mt-2"
+              onClick={() => {
+                if (navigator.clipboard) navigator.clipboard.writeText(sep7.uri).then(() => { setSep7Copied(true); toast("SEP-7 request copied", "success"); }).catch(() => {});
+              }}
+            >
+              Copy SEP-7 URI
+            </Button>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-ink-2">
+              The same request as a standard <span className="font-mono">web+stellar:pay</span> URI. Loaded in the Tukar sender it prefills the amount, payee and message and the sender still pays through the shielded pool (a contract call, not a plain payment). A generic Stellar wallet scanning it would instead pay USDC straight to this account, in the open.
+              {sep7.signed ? " The signature verifies against URI_REQUEST_SIGNING_KEY in this site's stellar.toml." : ` ${sep7.note || ""}`}
+            </p>
           </div>
         )}
         </div>

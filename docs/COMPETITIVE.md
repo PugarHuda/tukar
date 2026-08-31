@@ -65,8 +65,10 @@ we should stop positioning on it as if it were. Tukar's real differentiation is 
 these siblings do not build: the full **remittance corridor** (real fiat edges via SEP
 anchors, an oracle-gated off-ramp to local currency, four contract-verified disclosure
 types, and an on-chain audit registry), plus the **anchor-layer positioning** (Tukar as
-the layer a licensed anchor plugs into), a concrete **Travel Rule** reference, and
-**compliance-policy-as-code**. Everything above the pool is the moat, not the pool.
+the layer a licensed anchor plugs into), a working **OpenVASP TRP 3.2.1 Travel Rule
+exchange** with signatures verified on receipt, cryptographic **full-pool proof-of-reserves**,
+and **compliance policy stored on-chain per corridor**. Everything above the pool is the moat,
+not the pool.
 
 ## Mature live rivals in the Stellar directory (SCF-funded, Live)
 
@@ -109,18 +111,24 @@ compose-not-rebuild stack.
 | Block | What it gives Tukar | Status |
 |---|---|---|
 | **Reflector SEP-40 oracle** | On-chain FX read that gates off-ramp settlement | **Live** (already used) |
-| **idOS** | Reusable, portable KYC | Roadmap |
-| **Reclaim** | zkTLS proof-of-personhood | Roadmap |
-| **Circle CCTP** | Cross-chain USDC | Roadmap |
+| **Reclaim** | zkTLS proof-of-personhood, bound to the Stellar address server-side, feeding the ASP allow-list | **Built** (the operator signs the resulting `set_asp_root`) |
+| **Circle CCTP V2** | Cross-chain USDC, both directions | **Built** (the burn leg needs a user EVM wallet) |
+| **OpenVASP TRP 3.2.1** | FATF Travel Rule exchange with verified Ed25519 signatures and a request lifecycle | **Built** |
+| **TRISA** | Companion Travel Rule node alongside TRP | **Built, not activated** (needs an operator VASP registration and host) |
+| **GLEIF** | LEI lookup for the IVMS101 `nationalIdentification` block | **Built** (keyless public API) |
+| **idOS** | Reusable, portable KYC | **Built as a verified credential read.** It cannot feed the allow-list: idOS keys a credential by its owner's idOS user id and the consumer SDK exposes no user-keyed wallets read, so a share cannot be tied to a Stellar address |
 
 ## What the judges verified (the load-bearing facts)
 
-These are checkable in this repo, not claims: **7** Circom/Groth16/BN254 circuits
-(`ls circuits/*.circom`), **8** deployed-and-exercised testnet contracts
-(`deployments/testnet.json`: pool + 7 verifiers, each with a tamper-rejection proof),
-**52/52** pool contract tests (`cd contracts/pool && cargo test`), an on-chain Reflector
-SEP-40 FX read that **gates settlement** (`SlippageExceeded`, fail-closed on a stale or
-thin feed), and a native fee-bump gasless flow. This is the substance underneath the
+These are checkable in this repo, not claims: **8** Circom/Groth16/BN254 circuits
+(`ls circuits/*.circom`), **15** deployed-and-exercised testnet contracts
+(`deployments/testnet.json`: an 8-contract core of pool plus 7 verifiers each with a
+tamper-rejection proof, plus the reserves verifier, the policy registry, two reserves
+contracts, and the pool-enforced, pool-accumulator and pool-timelock preview crates),
+**52/52** pool contract tests and **314** across all 8 contract crates
+(`cargo test` per crate), **230** webapp tests (`cd webapp && npm run test`), an on-chain
+Reflector SEP-40 FX read that **gates settlement** (`SlippageExceeded`, fail-closed on a
+stale or thin feed), and a native fee-bump gasless flow. This is the substance underneath the
 positioning below. It is also larger than an earlier snapshot some reviewers saw (four
 circuits, one disclosure type): the disclosure layer is now **four** on-chain-verified
 types, which is itself part of the differentiator (see line 3 below).

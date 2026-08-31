@@ -7,10 +7,13 @@ Tukar's proving keys are Groth16 over BN254, which needs a two-phase trusted set
   deployed key to it). Nothing to redo here.
 - **Phase 2 (per-circuit):** the deployed keys are now the output of a **multi-party**
   phase-2 ceremony (3 independent contributions + a public random beacon) — the seven
-  live `frontend/circuit/*_final.zkey` are byte-identical to `ceremony/<circuit>/*_final.zkey`
-  and the on-chain verifiers embed the matching VKs. All seven circuits (transfer,
-  compliance, disclosure, merkleUpdate, thresholdDisclosure, aggregateDisclosure,
-  rangeDisclosure) have a committed transcript at `ceremony/<circuit>/TRANSCRIPT.txt`.
+  browser-shipped `frontend/circuit/*_final.zkey` are byte-identical to
+  `ceremony/<circuit>/*_final.zkey` and the on-chain verifiers embed the matching VKs.
+  All eight circuits (transfer, compliance, disclosure, merkleUpdate, thresholdDisclosure,
+  aggregateDisclosure, rangeDisclosure, and reserves) have a committed transcript at
+  `ceremony/<circuit>/TRANSCRIPT.txt`. The reserves circuit is proved off the browser path,
+  so its key ships with the reserves tooling rather than in `frontend/circuit/`; its phase-1
+  is the larger Hermez `powersOfTau28_hez_final_15`, matching its 21471 constraints.
   Production wants **multiple
   independent contributors** so that as long as *one* is honest, the toxic waste is
   unrecoverable; the demo ran all rounds on one machine to prove the *process*, so the

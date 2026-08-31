@@ -22,10 +22,15 @@ const nextConfig = {
     //   script/style 'unsafe-inline'    -> Next.js hydration inline scripts + Tailwind/Next inline styles (nonces out of scope)
     //   worker-src blob:                -> snarkjs proof workers spawn from blob: URLs
     //   connect-src soroban-testnet     -> live Soroban RPC reads + Reflector FX oracle (lib/constants.ts RPC)
+    //   connect-src rpc.ankr.com        -> one-retry Soroban RPC failover when the primary is down (lib/soroban/rpc.ts RPC_FALLBACK)
+    //   connect-src api.gleif.org       -> live LEI lookup for the Travel Rule originating VASP (lib/gleif.ts)
+    //   connect-src tukar-six.vercel.app -> SEP-7 signature check fetches origin_domain's stellar.toml (lib/sep7.ts; same-origin on prod)
     //   connect-src open.er-api.com     -> FX-rate fallback fetch (sender/receiver/demo)
     //   connect-src friendbot           -> one-click testnet XLM funding (components/WalletProvider.tsx)
     //   connect-src sepolia.base.org    -> viem Base Sepolia public RPC for the CCTP receive leg (lib/cctp.ts)
     //   connect-src api.onramper.com    -> off-ramp quote fetch on the receiver (lib/stellar.ts onramperQuote)
+    //   connect-src testanchor.stellar.org -> the SEP anchor, called from the browser: SEP-1 toml, SEP-10 auth,
+    //                                      SEP-24 withdraw, SEP-38 price/quote, SEP-12 KYC (lib/stellar.ts, lib/sep38.ts, lib/sep12.ts)
     //   connect-src api.reclaimprotocol -> Reclaim session-status poll when the ASP flow is configured (components/WalletBar.tsx)
     //   connect-src iris-api-sandbox     -> CCTP fee quote fetched in the browser (lib/cctp.ts fetchBurnFees via components/CctpFund.tsx)
     //   connect-src *.idos.network       -> idOS reusable-KYC: kwil node reads + enclave (components/idos/IdosConnect.tsx)
@@ -43,7 +48,7 @@ const nextConfig = {
       "font-src 'self' data: https://fonts.gstatic.com",
       "media-src 'self'",
       "worker-src 'self' blob:",
-      "connect-src 'self' https://soroban-testnet.stellar.org https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://api.reclaimprotocol.org https://iris-api-sandbox.circle.com https://nodes.playground.idos.network https://enclave.playground.idos.network https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
+      "connect-src 'self' https://soroban-testnet.stellar.org https://rpc.ankr.com https://api.gleif.org https://tukar-six.vercel.app https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://testanchor.stellar.org https://api.reclaimprotocol.org https://iris-api-sandbox.circle.com https://nodes.playground.idos.network https://enclave.playground.idos.network https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
       "frame-src 'self' https://enclave.playground.idos.network",
       "frame-ancestors 'self'",
       "object-src 'none'",

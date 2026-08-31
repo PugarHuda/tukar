@@ -8,10 +8,12 @@ import { useEffect, useState } from "react";
 import { readCorridorPolicy, OBSERVED_SEND_FEE_STROOPS } from "@/lib/stellar";
 import { corridorByCode, fmtLocal } from "@/components/receiver/corridors";
 import type { BenchmarkProvider } from "@/lib/benchmark";
+import { readOnChainLeg } from "@/lib/delivery-estimate";
 import { Label, CAP } from "@/components/sender/Label";
 
 type Policy = Awaited<ReturnType<typeof readCorridorPolicy>>;
 type Bench = { state: "loading" } | { state: "ok"; best: BenchmarkProvider; count: number } | { state: "none"; reason: string } | { state: "unavailable" };
+type Leg = Awaited<ReturnType<typeof readOnChainLeg>> | null | undefined; // undefined = reading, null = could not read
 
 // Registry disclosure enum -> name (index = the u32 the contract stores), same map as the operator console.
 const DISCLOSURE = ["exact", "threshold", "range", "aggregate"];
@@ -22,6 +24,19 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
   const cor = corridorByCode(code);
   const [policy, setPolicy] = useState<Policy | undefined>(undefined); // undefined = reading
   const [bench, setBench] = useState<Bench>({ state: "loading" });
+  const [leg, setLeg] = useState<Leg>(undefined);
+
+  // Measured once per page load from the pool's retained events (memoised in lib/delivery-estimate).
+  useEffect(() => {
+    let alive = true;
+    readOnChainLeg().then(
+      (l) => alive && setLeg(l),
+      () => alive && setLeg(null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -79,6 +94,18 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
 
   const diff = bench.state === "ok" ? receive - bench.best.receivedAmount : 0;
 
+  // The on-chain leg is deposit -> registered in the shielded tree (spendable), paired per
+  // commitment from real events. A withdraw cannot be paired to its deposit (the pool hides that
+  // link), so the cash-out ledger and the anchor's fiat leg are stated, not measured.
+  const legText =
+    leg === undefined
+      ? "Measuring recent transfers from the pool's on-chain events."
+      : leg === null
+        ? "On-chain leg: could not read recent pool events right now. The fiat leg depends on the anchor."
+        : leg.estimate
+          ? `On-chain leg: about ${leg.estimate.medianSec} s from deposit to spendable (median of ${leg.estimate.samples} recent transfers in the RPC event window). Cash-out is one more ledger once the recipient claims. The fiat leg depends on the anchor.`
+          : `On-chain leg: not enough recent transfers to estimate (${leg.samples} paired in the RPC event window, 3 needed). The fiat leg depends on the anchor.`;
+
   return (
     <Label className={className} bar="Cost and policy" right={cor.code}>
       <Row k="Network fee">
@@ -87,6 +114,7 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
       <Row k="Relayer fee">0. There is no relayer today; you sign and pay the network fee yourself.</Row>
       <Row k="FX source">{fxText}</Row>
       <Row k="Corridor policy">{policyText}</Row>
+      <Row k="Delivery time">{legText}</Row>
       <Row k="Market benchmark" last>
         {!benchable ? (
           `Benchmark needs an amount between 0 and ${BENCH_MAX_USD.toLocaleString("en-US")} USD.`

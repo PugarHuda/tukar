@@ -163,9 +163,18 @@ As deployed on testnet (see `deployments/testnet.json`):
 | **`rangeDisclosure` verifier** | …for the two-sided range circuit; routed via `pool.disclose_range` (`lower ≤ amount ≤ upper`). |
 | **token (SAC)** | The asset the pool custodies — a **real testnet USDC** asset (SAC `CAT6F6HX…FVA2`). `deposit` moves the actual typed amount in; `withdraw` releases it. |
 
-As deployed: **8 contracts** live on testnet — the pool plus the 7 verifiers (see
-`deployments/testnet.json` for ids). The three disclosure-variant verifiers were
-deployed **additively** on top of the four core contracts.
+As deployed: **15 contracts** live on testnet. The **core 8** are the pool plus the 7
+verifiers in the table above; the three disclosure-variant verifiers were deployed
+**additively** on top of the four original core contracts. Seven more were added
+additively without touching those 8 addresses: the **reserves verifier** (the 8th BN254
+verifier, for `reserves.circom`), the **policy registry** (per-corridor cap and required
+disclosure, admin-repointable), **reserves** and **reserves-aggregate** (full-pool and
+voluntary proof-of-reserves), and three **preview-track** contracts, **pool-enforced**
+(per-corridor cap gate at withdraw), **pool-accumulator** (exact liability accumulator)
+and **pool-timelock** (propose, delay, execute on the five compliance-critical setters).
+The preview track exists because the live pool has no upgrade hook, so adopting those
+three needs an `import_state` migration that changes the live address. See
+`deployments/testnet.json` for every id.
 
 The **policy/verification split**: each verifier only checks cryptographic
 validity; the pool enforces business rules (binding, nullifier uniqueness, known

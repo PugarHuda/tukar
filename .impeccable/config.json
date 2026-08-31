@@ -32,6 +32,16 @@
         "rule": "design-system-font",
         "value": "theme(fontfamily.mono)",
         "createdAt": "2026-08-28T16:50:50.892Z"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "34px",
+        "createdAt": "2026-08-29T01:31:27.409Z"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "10.5px",
+        "createdAt": "2026-08-29T01:31:28.370Z"
       }
     ]
   }

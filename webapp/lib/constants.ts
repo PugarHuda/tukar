@@ -3,9 +3,15 @@
 // re-exports the public ones, so route code can import them from either module.
 
 export const RPC = "https://soroban-testnet.stellar.org";
+// Second public testnet Soroban RPC (Ankr, no key, ~7 day ledger retention; verified live with
+// getHealth/getNetwork on 2026-08-29). lib/soroban/rpc.ts retries ONE request here when the primary
+// fails with a network error, timeout, or 5xx, then goes back to the primary on the next call.
+export const RPC_FALLBACK = "https://rpc.ankr.com/stellar_testnet_soroban";
 // Per-request ceiling for every rpc.Server we create (the SDK default is 0 = wait forever). A
 // healthy testnet call answers in well under 2 s; 30 s only ever fires on a dead network.
 export const RPC_TIMEOUT_MS = 30_000;
+// Circle/SDF testnet USDC issuer (the pool's settlement asset, via its SAC).
+export const USDC_ISSUER = "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B";
 export const PASSPHRASE = "Test SDF Network ; September 2015";
 
 // BN254 scalar field modulus (reduce ext-data keccak / address field into a field element).

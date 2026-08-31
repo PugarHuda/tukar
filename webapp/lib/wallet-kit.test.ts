@@ -16,6 +16,10 @@ describe("signMessageWithWallet", () => {
     expect(kp.verify(other, Buffer.from(sig, "base64"))).toBe(false);
   });
 
+  it("passkey kind refuses SEP-53 honestly (contract account, no ed25519 key)", async () => {
+    await expect(signMessageWithWallet("m", "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "passkey")).rejects.toThrow(/passkey smart wallet cannot sign messages/);
+  });
+
   it("network guard blocks kit signing while the wallet is off Testnet, and clears", async () => {
     const mainnet = { getNetwork: async () => ({ network: "Public", networkPassphrase: "Public Global Stellar Network ; September 2015" }) };
     expect(await checkNetwork(mainnet as any)).toBe("Public");

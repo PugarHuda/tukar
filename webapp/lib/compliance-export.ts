@@ -22,6 +22,7 @@ export type PoolEvent = {
   amountStroops?: string; // deposit / withdraw carry a public amount
   commitment?: string; // deposit
   recipient?: string; // withdraw (Stellar address)
+  newLeaf?: string; // root: the commitment just registered (pairs with a deposit's `commitment`)
 };
 export type PoolEventWindow = { events: PoolEvent[]; oldestLedger: number; latestLedger: number };
 
@@ -52,8 +53,16 @@ export function decodePoolEvent(ev: { topic?: any[]; value?: any; ledger: number
     out.amountStroops = String(val);
     const r = native(ev.topic?.[1]);
     if (typeof r === "string") out.recipient = r;
+  } else if (kind === "root") {
+    const leaf = native(ev.topic?.[1]);
+    if (leaf != null) out.newLeaf = bytesToDec(leaf);
   }
   return out;
+}
+
+/** The ledger a getEvents cursor points at: cursor = "<TOID>-<eventIndex>", TOID = ledger << 32 | tx << 12 | op. */
+export function cursorLedger(cursor: string): number {
+  return Number(BigInt(cursor.split("-")[0]) >> 32n);
 }
 
 /** Every pool event the RPC still retains (oldest first), paged through getEvents. */
@@ -66,7 +75,12 @@ export async function readPoolEvents(): Promise<PoolEventWindow> {
   for (let page = 0; page < 50; page++) {
     const res = await server.getEvents(cursor ? { filters, cursor, limit: LIMIT } : { filters, startLedger: Math.max(1, health.oldestLedger), limit: LIMIT });
     for (const ev of res.events || []) events.push(decodePoolEvent(ev));
-    if (!res.events || res.events.length < LIMIT || !res.cursor) break;
+    // The RPC scans a bounded ledger span per call (about 10k ledgers on public testnet, measured
+    // 2026-08-29) and returns an EMPTY page with a cursor when that span holds no events, well
+    // before the retention window ends. A short page ends the read only once the cursor has
+    // reached the latest ledger; otherwise follow the cursor.
+    if (!res.cursor) break;
+    if ((res.events?.length ?? 0) < LIMIT && cursorLedger(res.cursor) >= res.latestLedger) break;
     cursor = res.cursor;
   }
   events.sort((a, b) => a.ledger - b.ledger);

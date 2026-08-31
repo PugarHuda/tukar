@@ -267,7 +267,7 @@ export function ViewNoteCard({ addTrail, onDisclosure }: { addTrail: (e: Trail) 
                 <Field k="Contents" v={fmtUsdc(imported.note.amount)} u="USDC" />
                 <Field k="Corridor" v={corridor ? `${corridor.country} (${corridor.currency})` : imported.note.corridor} />
                 <Field k="Deposit" v={imported.note.depositTx ? <Out href={txExplorer(imported.note.depositTx)} className="text-[15px]">{short(imported.note.depositTx)}</Out> : <span className="text-ink-3">not recorded in the note</span>} />
-                <Field k="Private key" v={<><span className="tk-redact align-middle" aria-label="not in the note" /> <span className="text-[12px] text-ink-3">not in the note, cannot spend</span></>} />
+                <Field k="Private key" v={<><span className="tk-redact align-middle" role="img" aria-label="not in the note" /> <span className="text-[12px] text-ink-3">not in the note, cannot spend</span></>} />
               </dl>
             </div>
             {imported.leafIndex == null ? (

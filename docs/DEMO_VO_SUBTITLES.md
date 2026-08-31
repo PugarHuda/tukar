@@ -24,10 +24,10 @@ SUBTITLE:
 - "The crossing in the middle is private. The amount and both people are hidden on-chain."
 - "But it stays provable to a regulator. Private in the middle, accountable at the edges."
 
-[SCREEN] scroll to the stats: 7 ZK circuits, 8 contracts on testnet.
+[SCREEN] scroll to the stats: 8 ZK circuits, 15 contracts on testnet.
 
 SUBTITLE:
-- "Seven zero-knowledge circuits, eight contracts live on Stellar testnet. All of this runs for real."
+- "Eight zero-knowledge circuits, fifteen contracts live on Stellar testnet. All of this runs for real."
 
 ---
 
@@ -220,7 +220,7 @@ SUBTITLE:
 SUBTITLE:
 - "So that's Tukar end to end. A consumer sends money home, their family cashes out in local fiat,"
 - "the transfer in between is private, and every step is provable to a regulator on-chain."
-- "Seven circuits, eight contracts, all live on testnet today."
+- "Eight circuits, fifteen contracts, all live on testnet today."
 - "Private in the middle, accountable at the edges."
 
 ---
@@ -293,7 +293,7 @@ rejected) · honest-scope note · policy / deny-list view.
 Operator: Merkle root + depth · deposits bound · ASP allow/deny counts · Reflector
 oracle spot vs average + off-ramp quote · contract IDs + explorer links.
 
-Cross-cutting to mention once: real on-chain on Stellar testnet · 7 circuits /
-8 contracts / 52 passing tests · installable app, no seed phrase · not audited,
-fiat edges simulated · [gasless fee-bump exists as a proven primitive, not the
+Cross-cutting to mention once: real on-chain on Stellar testnet · 8 circuits /
+15 contracts / 314 Cargo + 230 webapp tests passing · installable app, no seed phrase ·
+not audited, fiat edges run against SDF's reference testnet anchor · [gasless fee-bump exists as a proven primitive, not the
 in-app default].

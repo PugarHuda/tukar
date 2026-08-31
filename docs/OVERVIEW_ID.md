@@ -131,20 +131,28 @@ Pemegang pembayaran bisa buktiin satu hal ke auditor, sisanya tetap rahasia:
 
 ## 6. Stack teknis (yang bikin ini nyata)
 
-- **ZK:** Circom 2, Groth16 over BN254, snarkjs, Poseidon (circomlibjs). **7 circuit.**
-- **Kontrak:** Rust di Soroban (Stellar), **8 kontrak** (pool + 7 verifier), host function
-  Protocol 25/26. **52 test lolos.**
-- **Standar Stellar:** SEP-1 (stellar.toml), SEP-24 (deposit/withdraw interaktif), SEP-41/SAC
-  (USDC), Reflector SEP-40 (oracle), fee-bump CAP-15.
+- **ZK:** Circom 2, Groth16 over BN254, snarkjs, Poseidon (circomlibjs). **8 circuit.**
+- **Kontrak:** Rust di Soroban (Stellar), **15 kontrak** (inti: pool + 7 verifier; tambahan:
+  verifier reserves, policy-registry, reserves, reserves-aggregate, plus pool-enforced,
+  pool-accumulator, dan pool-timelock di jalur preview), host function Protocol 25/26.
+  **314 test Cargo lolos** (52 di pool yang live) dan **230 test webapp lolos.**
+- **Standar Stellar:** SEP-1 (stellar.toml), SEP-10, SEP-12 (status KYC), SEP-24
+  (deposit/withdraw interaktif), SEP-38 (firm quote), SEP-41/SAC (USDC), SEP-7 (URI
+  pembayaran), Reflector SEP-40 (oracle), fee-bump CAP-15.
+- **Lapisan compliance yang sudah jalan:** pertukaran Travel Rule OpenVASP TRP 3.2.1 dengan
+  verifikasi tanda tangan Ed25519 (plus TRISA companion node yang menunggu pendaftaran VASP),
+  Circle CCTP V2 dua arah, proof-of-reserves kriptografis yang eksak, dan Reclaim
+  proof-of-personhood yang mengisi ASP allow-list.
 - **Frontend:** Next.js + React + TypeScript + Tailwind, static export di Vercel, PWA
   (bisa di-install). Live: https://tukar-six.vercel.app
 
 ---
 
 ## 7. Angka penting (hafal ini)
-**7 circuit · 8 kontrak on-chain · 52 test lolos.** USDC testnet asli. Fiat edges disimulasi.
-Belum diaudit profesional. Semua yang di tengah (proof, deposit, verifikasi) nyata dan bisa
-dicek on-chain sekarang.
+**8 circuit · 15 kontrak on-chain · 314 test Cargo + 230 test webapp lolos.** USDC testnet
+asli. Fiat edges memakai panggilan SEP asli ke reference anchor testnet milik SDF, jadi anchor
+berlisensi masih langkah production. Belum diaudit profesional. Semua yang di tengah (proof,
+deposit, verifikasi, Travel Rule, CCTP, reserves) nyata dan bisa dicek on-chain sekarang.
 
 ## 8. Satu kalimat kalau ditanya "ini apa"
 "Tukar itu koridor kirim uang lintas negara di Stellar yang **privat buat pengguna tapi bisa

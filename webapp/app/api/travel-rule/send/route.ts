@@ -3,6 +3,7 @@ import { buildInquiry, canonicalize, decodeTravelAddress, signCanonical, trpHead
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { authOwner } from "@/lib/auth";
 import { fetchWithTimeout } from "@/lib/net";
+import { isValidLei } from "@/lib/gleif";
 import { log, requestId, errMsg } from "@/lib/log";
 
 // Outbound TRP originator endpoint. Builds an IVMS101 transfer inquiry, signs the canonical body,
@@ -29,6 +30,18 @@ export async function POST(req: Request) {
   const ivms101 = body?.ivms101 ?? body?.IVMS101;
   if (!ivms101 || typeof ivms101 !== "object") {
     return NextResponse.json({ ok: false, error: "Missing ivms101 payload." }, { status: 400 });
+  }
+
+  // Optional originating-VASP LEI (ISO 17442, check digits verified). When valid it is stamped into
+  // the IVMS101 originatingVASP legalPerson as a nationalIdentification of type LEIX, so an API
+  // caller posting a bare payload gets the same block the regulator tab builds.
+  const lei = typeof body.lei === "string" ? body.lei.trim().toUpperCase() : "";
+  if (lei && !isValidLei(lei)) {
+    return NextResponse.json({ ok: false, error: "Invalid originating VASP LEI (20 chars, ISO 17442 check digits)." }, { status: 400 });
+  }
+  const legalPerson = ivms101?.originatingVASP?.legalPerson;
+  if (lei && legalPerson && typeof legalPerson === "object") {
+    legalPerson.nationalIdentification = { nationalIdentifier: lei, nationalIdentifierType: "LEIX" };
   }
 
   const origin = new URL(req.url).origin;
@@ -126,6 +139,7 @@ export async function POST(req: Request) {
       status: res.status,
       apiVersion: TRP_API_VERSION,
       requestIdentifier,
+      originatingVaspLei: lei || null,
       signature: { alg: sig.alg, digest: sig.digest },
       response,
     });
