@@ -76,6 +76,8 @@ export const GROUPS: Group[] = [
       doc("PRODUCT.md", "Product"),
       doc("DESIGN.md", "Design system"),
       doc("docs/USER_GUIDE.md", "User guide"),
+      doc("docs/ONBOARDING.md", "Testnet pilot kit"),
+      doc("docs/USER_INTERVIEWS.md", "User interview kit"),
       doc("docs/ROADMAP_IMPLEMENTATION.md", "Roadmap and what was built"),
       doc("docs/COMPETITIVE.md", "Where Tukar sits"),
     ],

@@ -19,7 +19,10 @@ describe("document set", () => {
       "docs/CONTRACT-UPGRADE-STEPS.md",
       "docs/ACTIVATION-STEPS.md",
       "docs/SESSION-HANDOFF.md",
-      "docs/ONBOARDING.md",
+      // Pre-send business correspondence to named companies, and an admin key procedure.
+      // Neither belongs on a public documentation site.
+      "docs/ANCHOR_OUTREACH.md",
+      "docs/KEY-ROTATION.md",
     ]) {
       expect(files).not.toContain(excluded);
     }

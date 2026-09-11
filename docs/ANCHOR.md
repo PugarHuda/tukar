@@ -69,9 +69,12 @@ contract code.
    (https://developer.moneygram.com/moneygram-developer/docs/integrate-moneygram-ramps),
    create a developer account there, then request sandbox access so MoneyGram whitelists
    your Stellar key. **What to prepare before emailing:**
-   - Your `stellar.toml` **`SIGNING_KEY`** (the public `G...` key that signs SEP-10
-     challenges, for the non-custodial/wallet model). This is the ONLY key they need to
-     allowlist; never send a secret.
+   - The public `G...` key they should allowlist. Our reading is that for the non-custodial
+     model this is the key that signs SEP-10 challenges, but that is an assumption drawn from
+     the integration guide rather than something MoneyGram has confirmed to us, and Tukar's own
+     `stellar.toml` deliberately publishes no `SIGNING_KEY` because Tukar is a client of an
+     anchor and not an anchor itself. Ask them which key they want rather than asserting it.
+     Whatever the answer, it is a public key. Never send a secret.
    - Integration model: **non-custodial** (the user's wallet / your SEP-10 key signs).
    - The asset + network: **USDC on Stellar** (testnet first).
 
