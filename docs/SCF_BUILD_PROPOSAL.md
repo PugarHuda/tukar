@@ -31,7 +31,11 @@ answered with a flattering subset. Tukar closes that on-chain. An auditor regist
 with `register_audit_request`, which pins the exact set of commitments the answer must cover into
 a context hash. `disclose_aggregate` recomputes that hash from the proof's public inputs and
 panics with `UnknownAuditRequest` (error 15) against anything the auditor never registered, so
-the request and the answer are both on-chain and bound to each other. A holder cannot answer "sum
+the request and the answer are both on-chain and bound to each other. One bound before you read
+further: the gate rests entirely on the auditor role, and on the live testnet pool that role is
+still the demo key whose secret ships in the client bundle, so anyone can register a hash there
+today. The contract mechanism is real and tested, the live role assignment is open, and
+repointing it is a single admin call listed as a mainnet precondition. A holder cannot answer "sum
 of everything" with a subset they picked. That is a completeness guarantee, not a disclosure
 feature, and no other project named in Section 4 has one. Counting contracts and tests is not
 traction and a panel that has opened the Nethermind repository will not be moved by fifteen

@@ -184,6 +184,12 @@ specific audit request on-chain, and disclose_aggregate rejects any audit hash t
 never registered. The holder has to answer that exact request over the exact set, so they
 cannot cherry-pick.
 
+Say the next part before anyone asks it, because it is checkable in one call. On the live
+testnet pool the auditor role is still the demo key whose secret ships in the client bundle,
+so on that deployment anyone can register a hash and the gate does not bind today. The
+contract logic is real and tested; the live role assignment is open. Repointing it is one
+admin call and a mainnet precondition.
+
 **18. Is proving on a phone actually realistic?**
 Yes. The Groth16 proofs run in the browser via WASM in a few seconds, which is fine for the
 act of sending money, and the demo does it on a mobile-first layout. The secret never

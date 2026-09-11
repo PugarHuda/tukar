@@ -447,6 +447,19 @@ answer are both on-chain and bound to each other. Ordinary spends are non-repudi
 construction: a nullifier is recorded permanently and a withdraw binds
 `ext_data_hash = keccak256(recipient || public_amount)` so the recipient and amount of a
 release cannot later be disputed.
+
+Bound on the live deployment, stated here rather than left for a reviewer to find. The
+registry gate is only as strong as the auditor role, and on the live pool
+`CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ` that role is set to
+`GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ`, which is the demo key whose
+secret ships in the client bundle. `register_audit_request` requires the auditor's auth and
+nothing more, so on the live deployment anyone can register any context hash, and the
+completeness property described above does not bind today. The mechanism is real in the
+contract and is tested; it is the live role assignment that is open. Repointing `auditor` at
+a key that is not published is a single admin call and is a precondition for mainnet, not a
+feature. It is listed with the key rotation in 3.5 because the same compromised admin key
+can set it back.
+
 Residual risk, and this one is a real gap. The live pool emits events for only four
 actions: `(deposit, index)`, `(withdraw, recipient)`, `(transfer,)`, and `(root, new_leaf)`
 (`env.events().publish` at four sites in `lib.rs`). `set_asp_root`, `set_deny_list`,

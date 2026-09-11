@@ -264,6 +264,10 @@ chain, and `disclose_aggregate` rejects any context hash that was not registered
 (`UnknownAuditRequest`), so a holder cannot answer a "sum of everything" request with a
 cherry-picked subset. So a regulator gets a specific, complete, contract-verified fact tied
 to a genuine deposit, which a plain shielded-transfer primitive has no mechanism to offer.
+The comparison is between mechanisms, so one caveat belongs with it: on the live testnet pool
+the auditor role is still the published demo key, which means the gate is open there today even
+though the contract logic is real and tested. Repointing the role is a single admin call and a
+mainnet precondition, covered in `THREAT_MODEL.md` 3.12.
 
 **4. Oracle-gated settlement binds privacy to real-world FX.**
 None of the neighbours tie fund movement to an on-chain FX oracle. Tukar's off-ramp

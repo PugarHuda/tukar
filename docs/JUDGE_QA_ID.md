@@ -60,6 +60,8 @@ Rate off-ramp dibaca on-chain dari oracle Reflector, atas median dari lima sumbe
 **16. Dalam audit agregat, bukankah pemegang dana bisa saja meninggalkan pembayaran yang tidak mereka sukai?**
 Tidak, dan ini ditegakkan oleh kontrak, bukan dengan memercayai UI. Regulator mendaftarkan permintaan audit yang spesifik on-chain, dan disclose_aggregate menolak audit hash apa pun yang tidak pernah didaftarkan. Pemegang dana harus menjawab permintaan itu persis, atas himpunan yang persis, jadi mereka tidak bisa memilih-milih (cherry-pick).
 
+Sebutkan bagian ini sebelum ditanya, karena bisa dicek cuma dengan satu panggilan. Di pool testnet yang live, peran auditor masih demo key yang secret-nya ikut terkirim ke browser, jadi di deployment itu siapa pun bisa mendaftarkan hash dan gate-nya belum mengikat hari ini. Logika kontraknya nyata dan sudah dites; yang terbuka adalah penetapan perannya. Memindahkannya cuma satu panggilan admin dan jadi syarat sebelum mainnet.
+
 **17. Apakah proving di ponsel benar-benar realistis?**
 Ya. Proof Groth16 berjalan di browser lewat WASM dalam beberapa detik, yang oke saja untuk tindakan mengirim uang, dan demo-nya melakukannya dengan layout mobile-first. Rahasianya tidak pernah keluar dari perangkat, dan itulah intinya. Kami tunjukkan proof yang sedang dibangun di ponsel dalam walkthrough-nya.
 
