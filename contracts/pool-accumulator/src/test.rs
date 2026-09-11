@@ -1615,3 +1615,45 @@ fn accumulator_unchanged_on_rejected_duplicate() {
     assert!(r.is_err());
     assert_eq!(c.pool.total_liabilities(), 300); // unchanged: no partial fold
 }
+
+// The membership views must refuse a non-canonical encoding, for the same reason the write
+// paths do. `n` and `n + r` are one field element under two storage keys, so an unguarded
+// `is_nullifier_used(n + r)` reports a spent nullifier as unspent. The migration tooling in
+// `scripts/read-pool-state.mjs` builds the carried nullifier list from exactly this answer,
+// and a spent nullifier left behind is a note that can be spent again on the destination.
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")] // NonCanonicalField
+fn is_nullifier_used_rejects_noncanonical_alias() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.is_nullifier_used(&noncanonical(&env));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")] // NonCanonicalField
+fn is_commitment_known_rejects_noncanonical_alias() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.pool.is_commitment_known(&noncanonical(&env));
+}
+
+#[test]
+fn membership_views_still_answer_for_canonical_input() {
+    let env = Env::default();
+    let c = setup(&env);
+    let commitment = b32(&env, 1);
+    assert!(!c.pool.is_commitment_known(&commitment));
+    c.pool.deposit(&c.user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+    assert!(c.pool.is_commitment_known(&commitment));
+    assert!(!c.pool.is_nullifier_used(&b32(&env, 77)));
+}
+
+// A field element at or above r. FIELD_R itself is the smallest such value, so it is the
+// tightest case the guard has to catch.
+fn noncanonical(env: &Env) -> BytesN<32> {
+    BytesN::from_array(env, &[
+        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81,
+        0x58, 0x5d, 0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93,
+        0xf0, 0x00, 0x00, 0x01,
+    ])
+}

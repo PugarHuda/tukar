@@ -8,9 +8,11 @@
 > Section 5, and 6a shows the three components it is made of so a reviewer can argue with
 > each input rather than with the total.
 > The team is one person and Section 8 says so plainly, including what the record does not
-> evidence. Exactly one item in this document still needs the owner: the recorded team video
-> link in Section 8. Nothing else is left open, including the documentation-site question, which
-> Section 11 now answers.
+> evidence. One item in this document still needs the owner to produce it: the recorded team
+> video link in Section 8. Two statements in Section 9 are commitments the owner must confirm
+> before submitting, the award-wallet custody practice and the acceptance of modified
+> testnet-only milestones under Official Rules 2A. Nothing else is left open, including the
+> documentation-site question, which Section 11 now answers.
 
 ---
 
@@ -230,7 +232,7 @@ That is 15 Soroban contracts across the core corridor and the additive productio
 track. The identity/admin key is `corredor`
 (`GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS`).
 
-**Tests.** 317 passing Cargo tests across the contract crates, counted from `#[test]` in the
+**Tests.** 333 passing Cargo tests across the contract crates, counted from `#[test]` in the
 repository on 2026-09-11: pool 55, pool-enforced 71, pool-accumulator 78, pool-timelock 89,
 policy-registry 6, reserves 6, reserves-aggregate 12. The eighth crate, `reserves-testpool`,
 is a test double for the cross-contract read and carries no tests of its own. Plus
@@ -436,7 +438,11 @@ individually.
 
 Paid on acceptance of the award. No development deliverable beyond acceptance and the
 kickoff. Deliverable **D0.1**: signed acceptance, published tranche plan, and a public tracking
-issue mapping each deliverable below to a verifiable artifact.
+issue mapping each deliverable below to a verifiable artifact. Verifiable: the acceptance on
+file with SDF, and a public tracking issue in the repository carrying one open item per
+deliverable label below, each naming the artifact that closes it and linking that artifact when
+it lands. D0.1 is priced at **$13,500** in Section 6 against a cost basis of $875; the balance
+is working capital for the Tranche #2 overhang, which Section 6a states rather than hides.
 
 ### Tranche #1, MVP, production-grade core (20%)
 
@@ -713,7 +719,8 @@ operational burden, or something that by definition cannot be done by one person
 | Engagement | Deliverables | Weeks | Rate | Amount | Why it is bought in |
 |---|---|---:|---:|---:|---|
 | Backend and data engineer, transaction-level indexer and alert transport | D2.3 | 10 | $2,600 | **$26,000** | The indexer is a new always-on service with its own datastore, not a feature of the app. `docs/THREAT_MODEL.md` 5.5 requires it because a reverted transaction publishes no events and RPC retention is about 7 days, so contract error codes are not countable without it. Ingestion, backfill, retention and an alert transport in front of it are backend and data-pipeline work, a different discipline from circuits and contracts. Handbook activity: Core Development ("backend infrastructure or indexing tools"). |
-| Infrastructure and SRE engineer, TRISA node hosting and mTLS certificate lifecycle | D2.2 | 5 | $2,800 | **$14,000** | `trisa-node/` is about 520 lines of Go that already compiles and passes IVMS101 tests, so the code is not the cost. The cost is running a VASP endpoint: directory registration, a stable public endpoint, mutual-TLS issuance, rotation and expiry handling, and the counterparty exchange. A missed certificate renewal takes the Travel Rule leg down, which is an on-call burden a solo founder cannot hold alongside the rest of the plan. Handbook activity: Core Development. |
+| Infrastructure and SRE engineer, TRISA node hosting and mTLS certificate lifecycle | D2.2 | 5 | $2,800 | **$14,000** | `trisa-node/` is about 520 lines of Go that already compiles and passes IVMS101 tests, so the code is not the cost. The cost is running a VASP endpoint: registration in the TRISA test directory, which is a
+technical enrolment and not a legal or entity filing, a stable public endpoint, mutual-TLS issuance, rotation and expiry handling, and the counterparty exchange. A missed certificate renewal takes the Travel Rule leg down, which is an on-call burden a solo founder cannot hold alongside the rest of the plan. Handbook activity: Core Development. |
 | Anchor integration engineer | D2.1, D3.2 | 7 | $2,600 | **$18,200** | `webapp/lib/stellar.ts` already resolves SEP-1, SEP-10, SEP-24 and SEP-38, so the protocol code is not the cost either. The cost is anchor-side: sandbox onboarding, mapping one specific anchor's SEP-12 KYC field set, then production credentials and reconciliation runbooks in Tranche #3. This is calendar-bound work that runs on the anchor's schedule rather than the founder's, and it is the line that most needs someone who has integrated a licensed anchor before. Handbook activity: Core Development ("integrating external protocols or creating adapters"). |
 | Product design and UX | D2.1, D3.3 | 6 | $1,800 | **$10,800** | The anchor flow adds a KYC and interactive-deposit path to a four-role app, and D3.3 ships a public SDK that needs integration docs an outside developer can follow. The existing UI was built by the founder and is functional; an anchor-facing money flow and a public developer surface are where non-specialist design costs the project users. Handbook activity: Frontend and UX. |
 | Trusted-setup ceremony, independent contributors and coordination | D3.1 | fixed fee | | **$11,000** | Section 9 states that the demo ceremony ran every round on one machine. The one-honest-party soundness guarantee needs contributors who are genuinely independent of the founder, so this is the one line on the project that a solo team cannot supply from inside, by definition. It pays a coordinator and a set of contracted independent contributors across all 8 circuits against a defined deliverable: published transcripts that verify, and verifier contracts regenerated against the new keys. **This is not an audit and is not funded as one.** It produces no security opinion and no findings report. See the exclusions below. Handbook activity: Deployment and Release. |
@@ -736,7 +743,7 @@ money and it gets its own line, with the eligibility question raised above rathe
 |---|---|---:|
 | Soroban RPC, paid tier, testnet through mainnet | $400/month for 6 months. Free tiers do not carry an indexer backfill or a monitored mainnet corridor. | **$2,400** |
 | Indexer datastore and worker | $250/month for 6 months. Managed Postgres plus an always-on ingestion worker, sized for retention well past RPC's roughly 7 days. | **$1,500** |
-| TRISA node hosting, endpoint and certificates | $300/month for 6 months. VM, static public endpoint, directory registration, mTLS certificate issuance and renewal. | **$1,800** |
+| TRISA node hosting, endpoint and certificates | $300/month for 6 months. VM, static public endpoint, TRISA test-directory registration (technical enrolment, not an entity filing), mTLS certificate issuance and renewal. | **$1,800** |
 | CI and proving machines | $250/month for 6 months. Groth16 proving and circuit compilation need more memory than standard runners, plus a host for the D3.1 ceremony coordination. | **$1,500** |
 | Mainnet on-chain costs | Contract instance reserves for the corridor pool and its seven core verifiers, ledger entry rent, and transaction fees across the Tranche #3 window. | **$1,040** |
 | App hosting and preview environments | $120/month for 6 months. | **$720** |
@@ -812,7 +819,7 @@ says what SCF pays and when.
 | **D1.3** Admin-key hardening on the live pool | Timelock applied via the migration, multisig admin account configuration, regression of the contract and live e2e suites | Core Development, Testing and Verification | $3,800 | **$7,625** |
 | *Tranche #1 subtotal (20%)* | | | $13,450 | **$27,000** |
 | **D2.1** Candidate licensed-anchor flow on testnet | Contracted anchor sandbox onboarding and SEP-12 KYC mapping, ASP allow-list fed from the anchor KYC signal, designed anchor flow in the app | Core Development, Frontend and UX | $23,475 | **$12,000** |
-| **D2.2** TRISA companion node for a live Travel Rule leg | VASP registration, contracted node hosting with the mTLS certificate lifecycle, IVMS101 exchange against a counterparty endpoint | Core Development | $18,425 | **$9,425** |
+| **D2.2** TRISA companion node for a live Travel Rule leg | TRISA test-directory VASP registration (a technical enrolment, not a legal entity registration), contracted node hosting with the mTLS certificate lifecycle, IVMS101 exchange against a counterparty endpoint | Core Development | $18,425 | **$9,425** |
 | **D2.3** Threat model re-issue plus the monitoring and alerting stack | Contracted transaction-level indexer and its datastore, alert transport and rules, Sentry DSN, admin and auditor account watches, setter events, threshold tuning, re-run of the threat model against the migrated pool | Core Development, Testing and Verification | $32,415 | **$16,575** |
 | **D2.4** Scoped testnet pilot | Running the corridor with a small set of real testers and publishing the pilot report | Testing and Verification | $4,875 | **$2,500** |
 | *Tranche #2 subtotal (30%)* | | | $79,190 | **$40,500** |
@@ -895,8 +902,17 @@ not under the team's control and is named as a business dependency in Section 9.
 the window would not move that date, it would only remove the slack that absorbs it.
 
 Each tranche completion form must be submitted within 90 calendar days of receiving the
-previous tranche payment, and silence past that window forfeits the remaining balance, so the
-month boundaries above leave slack rather than running to the edge of each window.
+previous tranche payment, and silence past that window forfeits the remaining balance (Official
+Rules 5.8), so the month boundaries above leave slack rather than running to the edge of each
+window. The gaps are the check that matters, and they are stated rather than left to be measured
+off the table: Tranche #1 completes about 2 months after the Tranche #0 payment, Tranche #2
+about 2 months after the Tranche #1 payment, and Tranche #3 about 2 months after the Tranche #2
+payment, so each form falls roughly 30 days inside its own 90-day window before any review
+latency on the preceding payment pushes the following deadline further out. The longest exposure
+is the Tranche #2 to Tranche #3 gap, because Tranche #3 is the one that waits on a licensed
+anchor's schedule. If that date slips, the response is the one Section 8 already commits to:
+submit the Tranche #3 completion form inside the window with reduced scope and say what moved,
+rather than let the window lapse and forfeit the balance.
 
 ---
 
@@ -969,7 +985,7 @@ And on Stellar specifically, which is Tukar itself:
 - Fifth place in the Stellar Privacy / Real-World ZK hackathon, hosted on DoraHacks.
 - Payments and Consumer Applications Grand Finalist in the Stellar APAC hackathon.
 - 15 Soroban contracts deployed and exercised on testnet with public explorer links, 8 Circom
-  circuits with a multi-party phase-2 ceremony, 317 Cargo tests, 282 frontend unit tests, and
+  circuits with a multi-party phase-2 ceremony, 333 Cargo tests, 282 frontend unit tests, and
   Playwright end-to-end suites that drive the live deployment.
 
 **On scaling: no. There is no such record, and this proposal is not going to imply one.** Not
@@ -1082,11 +1098,11 @@ that the owner still has to record.
   IDR or PHP over a published SEP-24 endpoint except MoneyGram, whose network reaches both
   corridors as cash-out only. No anchor has been approached and none has agreed to anything.
   That is the largest execution risk in this plan and it is named rather than assumed away.
-  If the target jurisdiction is not ready in the award window, the handbook's option to
-  keep the final tranche on testnet applies: Tukar can deliver the full mainnet-ready
-  system and the anchor integration on testnet, and defer the fiat mainnet go-live until a
-  licensed anchor and jurisdiction are in place, without blocking the technical
-  deliverables.
+  If the target jurisdiction is not ready in the award window, or if SDF conditions the award
+  on testnet-only deployment under Official Rules 2A, the final tranche stays on testnet on the
+  terms set out in 9a below: Tukar delivers the full mainnet-ready system and the anchor
+  integration on testnet, and defers the fiat mainnet go-live until a licensed anchor and
+  jurisdiction are in place, without blocking the technical deliverables.
 - **Trusted setup.** A runnable multi-party phase-2 ceremony has been run and verified for
   every circuit and its keys are the deployed keys, but the demo ran all rounds on one
   machine to prove the process. The one-honest-party soundness guarantee needs genuinely
@@ -1101,12 +1117,60 @@ that the owner still has to record.
 - **Testnet only, no users or revenue yet.** The market sizing in Section 1 is the
   opportunity and the model, not traction. The scoped pilot in Tranche #2 is the first real
   usage, and mainnet volume follows Tranche #3.
+- **Custody of the award funds, and a key failure this project has already had.** The award is
+  paid in XLM to a wallet this project secures, and under Official Rules 5.9 SDF has no
+  obligation to recover, replace or replenish funds that are lost, stolen or misdirected. That
+  rule lands on a project that has already disclosed a key-handling failure of its own, so it is
+  answered here rather than skipped: the corridor admin secret was committed to this public
+  repository and is treated as compromised (D1.3 in Section 5, `docs/THREAT_MODEL.md` 3.5). It
+  is a testnet key, no funds can be moved with it because the pool has no admin withdraw, mint
+  or pause and the four core verifiers have no setter, and the blast radius is bounded to
+  compliance settings and three disclosure verifiers. The handling was still wrong and is not
+  presented as anything else. What changes for the award: the award wallet will be a new Stellar
+  account created for the award alone, under a multisig threshold, with the signing keys held on
+  hardware and off any development machine. It will share no key material with the corridor
+  admin, the relayer, or any identifier registered in Section 3, and no award-wallet secret
+  enters this repository, the application bundle, an environment file, or an AI-assisted
+  session. The corridor gets the same treatment at Tranche #1 through D1.3: a fresh admin key
+  created at the migration, behind the timelock and a Stellar multisig account.
 - **Operational hardening items.** A Content-Security-Policy and baseline security headers now
   ship on all routes. The admin timelock on the privileged setters now ships on the preview track
   (`pool-timelock`, propose then delay then execute on the five compliance setters, e2e-proven);
   applying it to the live pool via the migration and pairing the admin with a Stellar multisig
   account is the remaining step. The relayer and demo keys are intentionally public testnet keys.
   The open items are named in the threat model and the live-pool admin hardening is Tranche #1 work.
+
+### 9a. If SDF conditions the award on testnet only (Official Rules 2A)
+
+Official Rules 2A lets SDF condition an award on modified milestones where a participant's
+jurisdiction carries additional regulatory restrictions, for example by restricting funded
+deployment to testnet and excluding mainnet launch from the Award scope. This proposal is filed
+by a sole founder resident in Indonesia for a product whose whole point is moving money across a
+licensed fiat edge, so that condition is a live possibility rather than boilerplate, and it is
+better answered here than negotiated after an award. Nothing in this section is a legal position
+about any jurisdiction, and this proposal makes no claim about how SDF or any regulator should
+read the founder's.
+
+The plan survives the condition without a rewrite, because mainnet appears only in Tranche #3
+and each of its four deliverables has a testnet form that keeps its verifiable success criterion.
+
+| Deliverable | What it becomes under a testnet-only condition |
+|---|---|
+| **D3.1** Mainnet deployment and verification | The production trusted-setup ceremony runs exactly as specified, and the regenerated verifiers plus the migrated pool are redeployed to testnet under the new keys, with the same published transcripts, the same reproducible verification record and the same attested build. Only the network changes. |
+| **D3.2** Corridor go-live with a licensed anchor | A completed licensed-anchor integration exercised end to end against that anchor's own sandbox: SEP-10, SEP-24, the SEP-12 KYC field mapping and the reconciliation runbooks, with the fiat leg left unswitched. The recorded end-to-end run is the evidence in either form. |
+| **D3.3** Public SDK / API and documentation | Unchanged. The published package and the runnable integration example target the testnet addresses instead of mainnet ones. |
+| **D3.4** Go-live monitoring | The Tranche #2 stack points at the testnet corridor with thresholds tuned against the D2.4 pilot traffic rather than mainnet traffic, which is the same work against a smaller baseline. |
+
+Two things are genuinely lost under that condition and are stated rather than papered over.
+There is no real remittance and no real user money inside the award window, so the corridor's
+commercial premise stays untested and the first proof that an anchor will pay for this moves
+past the award. And the voluntary usage target in Section 3 is void, because it is defined on
+the mainnet pool; no substitute testnet number is offered in its place, because testnet activity
+the team can generate itself is not evidence of anything.
+
+Tukar would take the modified milestones as SDF sets them rather than treat a mainnet launch as
+a precondition of accepting the award, and would record the substitution in the tranche
+completion forms.
 
 The path from here to mainnet is deliberately short because the architecture is already
 built. Tranche #1 makes the core production-grade and upgradeable, Tranche #2 puts it on a
@@ -1159,7 +1223,7 @@ was found by adversarial self-review of AI-written contract code, and the monito
 section 5 had to be rewritten after the threat-model pass established that the live pool's
 policy setters emit no events at all, contradicting an earlier AI-drafted plan that assumed
 they did. The controls are: everything is verified against the running system rather than
-against the model's description of it (317 Cargo tests, 282 unit tests, Playwright suites
+against the model's description of it (333 Cargo tests, 282 unit tests, Playwright suites
 driving the live deployment, real on-chain transactions), the repository is public so the
 code can be read, and the system is explicitly not audited and carries a
 do-not-use-with-real-assets warning until the Audit Bank audit that precedes mainnet.

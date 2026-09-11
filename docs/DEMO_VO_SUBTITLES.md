@@ -291,6 +291,6 @@ Operator: Merkle root + depth · deposits bound · ASP allow/deny counts · Refl
 oracle spot vs average + off-ramp quote · contract IDs + explorer links.
 
 Cross-cutting to mention once: real on-chain on Stellar testnet · 8 circuits /
-15 contracts / 317 Cargo + 282 webapp tests passing · installable app, no seed phrase ·
+15 contracts / 333 Cargo + 282 webapp tests passing · installable app, no seed phrase ·
 not audited, fiat edges run against SDF's reference testnet anchor · [gasless fee-bump exists as a proven primitive, not the
 in-app default].

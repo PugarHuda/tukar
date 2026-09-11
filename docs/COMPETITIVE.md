@@ -162,8 +162,10 @@ these siblings do not build: the full **remittance corridor** (real fiat edges v
 anchors, an oracle-gated off-ramp to local currency, four contract-verified disclosure
 types, and an on-chain audit registry), plus the **anchor-layer positioning** (Tukar as
 the layer a licensed anchor plugs into), a working **OpenVASP TRP 3.2.1 Travel Rule
-exchange** with signatures verified on receipt, cryptographic **full-pool proof-of-reserves**,
-and **compliance policy stored on-chain per corridor**. Everything above the pool is the moat,
+exchange** with signatures verified on receipt, a **liability accumulator for proof of reserves**
+(built and exercised, with zero coverage of the live corridor until the Tranche 1 migration, so
+it belongs in this list as a mechanism rather than as evidence), and **compliance policy stored
+on-chain per corridor**. Everything above the pool is the moat,
 not the pool.
 
 ## Mature live rivals in the Stellar directory (SCF-funded, Live)
@@ -221,7 +223,7 @@ These are checkable in this repo, not claims: **8** Circom/Groth16/BN254 circuit
 (`deployments/testnet.json`: an 8-contract core of pool plus 7 verifiers each with a
 tamper-rejection proof, plus the reserves verifier, the policy registry, two reserves
 contracts, and the pool-enforced, pool-accumulator and pool-timelock preview crates),
-**55/55** pool contract tests and **317** across all 8 contract crates
+**55/55** pool contract tests and **333** across all 8 contract crates
 (`cargo test` per crate), **230** webapp tests (`cd webapp && npm run test`), an on-chain
 Reflector SEP-40 FX read that **gates settlement** (`SlippageExceeded`, fail-closed on a
 stale or thin feed), and a native fee-bump gasless flow. This is the substance underneath the
@@ -299,9 +301,15 @@ architecture rather than as novel work
 remittance vertical above that primitive: fiat edges through the anchor SEP stack, an
 off-ramp to local currency, an on-chain Reflector FX read that gates settlement, four
 disclosure types verified by their own Soroban contracts with a registry that rejects
-unregistered context hashes, a full-pool liability accumulator for proof of reserves, and
-a working OpenVASP TRP Travel Rule leg. The improvement claimed is the composition and
-the vertical, not the pool.
+unregistered context hashes, a liability accumulator for proof of reserves, and a working
+OpenVASP TRP Travel Rule leg. The improvement claimed is the composition and the vertical,
+not the pool.
+
+Two of those four are weaker than the sentence makes them sound, and both bounds are stated
+where the claim is made rather than left for a reviewer to find. The registry pins the set of
+payments an answer must cover, not the cap it is tested against, and on the live pool the
+auditor role is still the published demo key. The accumulator covers zero of the live pool's
+61 leaves. Neither changes what was built; both change what can honestly be claimed today.
 
 Where that leaves the individual neighbours. **SPP** is the primitive and Tukar concedes
 the primitive to it. **Arcane** is the same problem in a horizontal shape with off-chain

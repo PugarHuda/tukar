@@ -15,7 +15,7 @@ Jawab sendiri, jangan mengarang. Sebut orang-orangnya dan satu kredensial masing
 Jawab sendiri, dengan jujur. Kalau belum ada, katakan "belum, ini masih build di testnet," lalu alihkan ke ask (permintaan pendanaan): satu pilot bersama anchor berlisensi adalah persis yang kami galang dananya. Jangan menyiratkan traksi yang tidak kalian punya.
 
 **3. Apa yang sudah pernah kalian rilis yang membuktikan kalian mampu menyelesaikan ini?**
-Jawab sendiri, jangan mengarang. Tunjuk fakta bahwa ini sudah 8 circuit, 15 contract, 282 test webapp dan 317 test Cargo yang hidup di testnet, yang merupakan bukti terkuat di ruangan.
+Jawab sendiri, jangan mengarang. Tunjuk fakta bahwa ini sudah 8 circuit, 15 contract, 282 test webapp dan 333 test Cargo yang hidup di testnet, yang merupakan bukti terkuat di ruangan.
 
 ## Operasi regulatori
 
@@ -40,7 +40,7 @@ Ada operator key yang mengatur policy (kebijakan), dan penulisan admin ditandata
 Groth16 butuh setup per-circuit. Fase satu adalah powers-of-tau Hermez yang dipercaya seluruh ekosistem. Fase dua adalah ceremony (upacara pembangkitan kunci) kami sendiri, tiga kontribusi plus public beacon (nilai acak publik), byte-identical (identik byte demi byte) dengan transkrip yang sudah di-commit. Celah jujurnya: kami menjalankan ronde-rondenya di satu mesin, jadi kontributor yang benar-benar independen adalah langkah pertama yang perlu didanai.
 
 **10. Ini belum diaudit. Seberapa besar attack surface (permukaan serangan) contract-nya?**
-Betul, belum diaudit secara profesional. Ia sudah diperkeras lewat banyak ronde self-review adversarial (peninjauan sendiri secara menyerang) terhadap threat model (model ancaman) yang terdokumentasi, dengan 317 test Cargo yang lulus di seluruh crate contract (55 di antaranya pada pool yang live) dan 282 test webapp. Audit profesional adalah penggunaan pertama dari uang hadiah atau grant.
+Betul, belum diaudit secara profesional. Ia sudah diperkeras lewat banyak ronde self-review adversarial (peninjauan sendiri secara menyerang) terhadap threat model (model ancaman) yang terdokumentasi, dengan 333 test Cargo yang lulus di seluruh crate contract (55 di antaranya pada pool yang live) dan 282 test webapp. Audit profesional adalah penggunaan pertama dari uang hadiah atau grant.
 
 **11. Apa yang mencegah kebocoran metadata, yaitu mengaitkan sebuah deposit dengan sebuah withdrawal lewat waktu atau jumlah?**
 Crossing (transaksi silang di dalam) menyembunyikan jumlah dan kedua pihak, tapi deposit dan withdrawal bersifat publik di kedua ujung secara sengaja, jadi keterhubungan (linkability) mengecil seiring bertambahnya anonymity set (kumpulan anonim). Korelasi waktu dan jumlah di ujung adalah keterbatasan yang sudah diketahui, dan mitigasi seperti fixed denomination (pecahan tetap) serta settlement delay (jeda penyelesaian) ada di roadmap.

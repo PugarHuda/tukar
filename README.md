@@ -113,7 +113,7 @@ for the average cost of sending $200.
 
 ### What shipped this session, and what's still ahead
 
-The core (8 circuits, 15 Soroban contracts, 317 Cargo and 282 webapp tests, the live corridor, in-circuit
+The core (8 circuits, 15 Soroban contracts, 333 Cargo and 282 webapp tests, the live corridor, in-circuit
 compliance, four selective-disclosure types, and the oracle gate) runs on testnet today. The
 compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along five
 lines, and this session moved most of them from reference demos into working, testnet-live
@@ -153,11 +153,23 @@ the limits section further down.
 5. **Recurring private remittances.** **Recurring on-chain sends** ship with wallet-signed
    authorization and a private per-owner store, so a worker can schedule a monthly send.
 
-Two more pieces landed alongside these. **Full-pool cryptographic proof-of-reserves** now runs
-on testnet via an exact liability accumulator that folds each deposit's proven amount into an
-on-chain running total AND subtracts the public off-ramp amount on each withdraw, so
-`attest_reserves` checks the total against custody with no depositor opening witnesses at read
-time; a no-redeploy **voluntary aggregate** any set of depositors can contribute to also ships. The
+Two more pieces landed alongside these. An **exact liability accumulator** folds each deposit's
+proven amount into an on-chain running total and subtracts the public off-ramp amount on each
+withdraw, so `attest_reserves` checks the total against custody with no depositor opening
+witnesses at read time; a no-redeploy **voluntary aggregate** any set of depositors can
+contribute to also ships.
+
+Read the numbers before reading that as proof of reserves for the corridor, because they are
+not close. On 2026-09-12 the live pool holds 61 leaves and 5,682 USDC. The accumulator is
+deployed on its own preview pool with `leaf_count` 1 and `total_liabilities` 10000000, which is
+one note of 0.1 USDC. The reserves contract pointed at the live pool returns `latest_attestation`
+null and `is_solvent` false, because no attestation has ever been posted. The voluntary
+aggregate reports `covered_count` 0 and `proven_liabilities` 0 against those 5,682 USDC. So the
+mechanism is built and exercised, and its coverage of the live corridor is zero. Applying it
+there needs the state migration, which is Tranche 1 work. It is also worth being exact about the
+word cryptographic: the accumulator itself is an `i128` counter compared against `balance()`, and
+the cryptography is the pre-existing amount-binding proof that fixes what each deposit may add.
+The
 accumulator folds +amount on deposit and -released (the public, proof-bound off-ramp amount) on
 withdraw, so the on-chain total equals the exact live outstanding liabilities, a tight solvency
 statement rather than an over-count.
@@ -297,7 +309,7 @@ Tukar is deployed and running, not a prototype in a branch.
   (`@vercel/analytics` and `@vercel/speed-insights` in `webapp/app/layout.tsx`) for page traffic
   and Core Web Vitals.
 - **Smart contracts on testnet.** 8 Soroban contracts (pool plus 7 verifiers); addresses in the
-  contract table above and in `deployments/testnet.json`. 317 passing Cargo tests across the
+  contract table above and in `deployments/testnet.json`. 333 passing Cargo tests across the
   eight crates (pool 55, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6,
   reserves 6, reserves-aggregate 12).
 - **Architecture and docs.** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
@@ -622,10 +634,12 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   regulator**; in the no-install demo the auditor role is the demo key (every demo role is one
   person), so the demo exercises the mechanism rather than a true separation of parties.
 - **New-feature scope, honestly bounded.** Four of this session's additions ship with a stated
-  ceiling. **Full-pool proof-of-reserves** is live and exact via a liability accumulator that folds
-  +amount on deposit and -released on withdraw, so the on-chain total equals the exact live
-  outstanding liabilities and `attest_reserves` is a tight solvency statement; applying it to the
-  live pool needs the state migration (the accumulator ships on the preview track).
+  ceiling. The **liability accumulator** folds +amount on deposit and -released on withdraw, so
+  the on-chain total equals the exact outstanding liabilities of whatever pool carries it and
+  `attest_reserves` is a tight solvency statement for that pool. On the live corridor its
+  coverage is zero: the accumulator runs on a preview pool holding one note, and the reserves
+  contract aimed at the live pool has no attestation posted. Applying it to the live pool needs
+  the state migration.
   **Per-corridor on-chain cap enforcement** on the *live* pool needs a state migration (the live
   pool has no upgrade hook), so it ships on a **preview track** for now. **Circle CCTP V2** is
   bidirectional and wired, but the burn leg needs a user EVM wallet to sign. The **TRISA companion
@@ -650,7 +664,7 @@ reference (Apache-2.0 / GPLv3).
 - **Smart contracts:** Rust on Soroban (Stellar). The core corridor is 8 contracts (a pool plus 7
   BN254 verifiers); 7 additive contracts (policy registry, reserves, reserves verifier, reserves
   aggregate, enforcement pool, exact accumulator, timelock pool) bring the deployed total to 15.
-  317 passing Cargo tests.
+  333 passing Cargo tests.
 - **Stellar standards:** SEP-1 (stellar.toml discovery), SEP-24 (interactive deposit and
   withdraw), SEP-41 / SAC (USDC), with SEP-31 as the cross-border positioning. Native
   fee-bump (CAP-15) as a proven gasless primitive.

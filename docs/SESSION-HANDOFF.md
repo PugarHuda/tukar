@@ -45,7 +45,7 @@ To activate in prod: accept the Sentry marketplace terms; set the idOS consumer 
 
 Driven by three audits (code gap-hunt, integration depth, Playwright exhaustive QA) and two research
 sweeps (ecosystem adoption, product features). Everything below is real and tested: tsc 0, lint clean,
-vitest 282, qa6 66/0 on the local build, cargo 317 across the eight contract crates.
+vitest 282, qa6 66/0 on the local build, cargo 333 across the eight contract crates.
 
 Security and correctness fixes:
 - SEP-10: the anchor challenge is verified with `WebAuth.readChallengeTx` against the toml `SIGNING_KEY`

@@ -64,7 +64,7 @@ Additive contracts (the productionization surface):
 
 Application-operated wallets: operator/admin GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS; embedded testnet demo and relayer key GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ. Mainnet identifiers will be registered at the Tranche #3 deployment.
 
-TESTS, counted from the repository on 2026-09-11. 317 passing Cargo tests, counted from #[test] in the crates: pool 55, pool-enforced 71, pool-accumulator 78, pool-timelock 89, policy-registry 6, reserves 6, reserves-aggregate 12. The eighth crate, reserves-testpool, is a test double for the cross-contract read and carries none of its own. Plus 282 frontend unit tests across 36 files, run on 2026-09-11, circuit-soundness suites (threshold 4/4, range 5/5, aggregate 6/6), and Playwright real-click end-to-end suites run across multiple browsers against the live deployment, including a Protocol 28 write-path check that performs a real on-chain deposit and registration.
+TESTS, counted from the repository on 2026-09-11. 333 passing Cargo tests, counted from #[test] in the crates: pool 55, pool-enforced 71, pool-accumulator 78, pool-timelock 89, policy-registry 6, reserves 6, reserves-aggregate 12. The eighth crate, reserves-testpool, is a test double for the cross-contract read and carries none of its own. Plus 282 frontend unit tests across 36 files, run on 2026-09-11, circuit-soundness suites (threshold 4/4, range 5/5, aggregate 6/6), and Playwright real-click end-to-end suites run across multiple browsers against the live deployment, including a Protocol 28 write-path check that performs a real on-chain deposit and registration.
 
 ALSO SHIPPED ON TESTNET. A deployed web app with four role apps (sender, receiver, regulator, operator) plus a public receipt verifier; real on-chain deposit and withdraw with a Reflector SEP-40 oracle-gated off-ramp; selective disclosure verified on-chain with tampered proofs rejected; a Travel Rule flow (OpenVASP TRP 3.2.1 plus a TRISA companion node); Reclaim proof-of-personhood; Circle CCTP V2 bidirectional bridging; and a tuned Content-Security-Policy on all app routes.
 
@@ -105,6 +105,21 @@ WHERE TUKAR IS ACTUALLY DIFFERENT, four axes, each checkable in the repository:
 Consumer wallets and remittance incumbents on Stellar move money well and ship no privacy-plus-compliance layer, so they are prospective customers rather than competitors. The realistic competitive risk is not a rival privacy pool and it is not Arcane or Remi taking this corridor specifically. It is an anchor deciding privacy is not worth the integration cost, which is why the funded work aims at making the integration a published SDK rather than a bespoke project.
 ```
 
+**Market analysis, the business side**
+```
+THE MARKET, on two public figures and no others. Remittances into low- and middle-income countries reached about $669B in 2023 (World Bank, Migration and Development Brief 39), and sending $200 still costs about 6.2% on average (World Bank Remittance Prices Worldwide), more than double the UN's 3% target. Everything else about market size in this submission is opportunity, not traction, and is labelled that way.
+
+WHO PAYS. The model is B2B2C. The end users are the migrant worker sending money home and the family receiving it in local currency, but the paying customer is the licensed anchor, PSP or VASP that needs a private settlement leg it can still audit. Tukar is infrastructure between anchors rather than a consumer brand acquiring users one at a time, which is also why the go-to-market is one corridor and one licensed anchor rather than a user-acquisition spend, which the award could not fund anyway.
+
+WHY AN ANCHOR WOULD BUY. An anchor on a public stablecoin rail leaks its customers' amounts and counterparties onto a permanent ledger, which is a privacy problem and a competitive one at the same time, and it cannot fix that with a mixer because it then cannot answer its regulator. Private in the middle and provable at the edges is the only position that solves both for that buyer. The disclosure family is the part a compliance officer actually uses, and the on-chain audit-request registry is the part that stops a holder answering a regulator with a subset they picked themselves.
+
+REVENUE, HONESTLY. There is no revenue and no pricing in market today. The intended model is a per-transfer corridor fee charged to the anchor, benchmarked against the 6.2% average it displaces. It cannot be validated before a licensed anchor and real volume exist. The Tranche #2 scoped pilot and the Tranche #3 corridor go-live are the first points at which any of it is testable, and that is a real weakness of this submission rather than a scheduling detail.
+
+WHY STELLAR, AND WHY IT STILL WORKS AT SCALE. The corridor needs four things together that a general smart-contract chain does not give together. Fees low enough that they do not eat a transfer often under $200. Native BN254 pairing host functions, so a Groth16 proof is verified on-chain inside the payment rather than off-chain beside it, which is what makes the compliance claim checkable by anyone instead of asserted by a server. A standard anchor stack (SEP-1, SEP-10, SEP-24, SEP-38), so a licensed fiat edge is an integration rather than a bespoke build per country, which is the only way a corridor count grows without headcount growing with it. And native fee-bump, so the receiving family never has to hold XLM to be paid. Remittance economics break on per-transaction cost, so a corridor that pays for proof verification on-chain only scales where that verification is a host function rather than a contract loop.
+
+THE COMPETITIVE RISK, NAMED. It is not a rival privacy pool, and it is not Arcane or Remi taking this corridor specifically. It is an anchor deciding privacy is not worth the integration cost, which is why the funded work aims at making the integration a published SDK rather than a bespoke project.
+```
+
 **Planned Stellar Integration**
 ```
 Already integrated on testnet, not just planned. Soroban smart contracts in Rust: a pool that custodies real testnet USDC plus eight BN254 Groth16 verifier contracts (seven core plus the reserves verifier), using Stellar's native BN254 host functions for on-chain pairing checks (they arrived in Protocol 25 "X-Ray" and 26 "Yardstick"; testnet has run Protocol 28 "Adapter" since 2026-08-27 and the mainnet vote is scheduled for 2026-09-16).
@@ -126,6 +141,71 @@ Reasoning, as submitted: Open Track fits on composition, not on inventing a prim
 
 ---
 
+## Budget, deliverables and award conditions
+
+**Total request**
+```
+$135,000 worth of XLM, over a 6-month timeline
+```
+
+**Tranche plan, with a specific amount and a success criterion on every deliverable**
+```
+$135,000 is 90% of the $150,000 cap, over 6 months, which is the maximum timeline the handbook allows. The payout follows the fixed 10 / 20 / 30 / 40 split: $13,500 on acceptance, $27,000 at Tranche #1, $40,500 at Tranche #2, $54,000 at Tranche #3, and the final tranche is the mainnet launch. The full derivation is in docs/SCF_BUILD_PROPOSAL.md sections 5 to 7; every number a reviewer needs is repeated here so the submission stands alone.
+
+TRANCHE #0, award acceptance, 10%, $13,500
+D0.1 Signed acceptance, published tranche plan, public tracking issue. $13,500. DONE WHEN the acceptance is on file with SDF and a public tracking issue carries one open item per deliverable label below, each naming the artifact that closes it. Stated plainly because a reviewer will notice it: this deliverable's cost basis is $875. The balance is working capital against the Tranche #2 cost overhang described below, not $13,500 of work.
+
+TRANCHE #1, MVP, production-grade core, 20%, $27,000
+D1.1 Execute the state migration of the live corridor onto the upgradeable pool. $11,750. DONE WHEN the target pool's leaf_count, current_root and every spent nullifier match the source, and a note spent on the source is rejected as NullifierUsed on the migrated pool.
+D1.2 Apply the exact full-pool proof-of-reserves accumulator to the live pool. $7,625. DONE WHEN a deposit-then-withdraw sequence on the migrated pool leaves total_liabilities equal to the true remaining sum on-chain and attest_reserves succeeds at that exact post-withdraw total.
+D1.3 Admin-key hardening applied to the live pool. $7,625. DONE WHEN the migrated pool routes the five compliance-critical setters through the timelock (a setter observably waits out the delay on testnet), the admin is a Stellar multisig account under a fresh key, and the contract tests plus the live end-to-end suite still pass on the migrated pool.
+
+TRANCHE #2, testnet expansion, anchor flow and monitoring, 30%, $40,500
+D2.1 Candidate licensed-anchor flow on testnet. $12,000. DONE WHEN one end-to-end testnet run is recorded: a SEP-10 challenge signed against the candidate anchor's own auth endpoint, a SEP-24 interactive session polled to a definitive state, and the ASP allow-list populated from that anchor's KYC signal, plus the SEP-12 field mapping. If every candidate refuses, the deliverable is the refusal log and the scope change reported in the completion form, which is a smaller but real outcome.
+D2.2 TRISA companion node for a live Travel Rule leg. $9,425. DONE WHEN two VASP endpoints that are not the same operator exchange the required originator and beneficiary IVMS101 data over a live mutually authenticated TRISA leg for a testnet corridor transfer without leaking the shielded payment graph, and a certificate rotation completes without taking the leg down.
+D2.3 Threat model re-issue plus the monitoring and alerting stack. $16,575. DONE WHEN the threat model is re-run against the migrated pool and re-issued, a transaction-level indexer shows a deliberately reverted call from a wallet the operator has never seen with its exact error code and still readable past the roughly 7-day RPC retention window, and alert rules fire on a deliberately triggered test condition.
+D2.4 Scoped testnet pilot. $2,500. DONE WHEN a short pilot report is published and the testers' testnet transactions are publicly inspectable on stellar.expert.
+
+TRANCHE #3, mainnet go-live, 40%, $54,000
+D3.1 Mainnet contract deployment and verification. $23,750. DONE WHEN the production trusted-setup ceremony publishes transcripts that verify, the verifiers are regenerated against the new keys, and a deposit, a withdraw and a disclosure are verified on-chain at published mainnet addresses with a reproducible verification record.
+D3.2 One corridor go-live with a licensed anchor. $13,250. DONE WHEN one real mainnet remittance is recorded end to end through the licensed anchor. Subject to the jurisdiction condition answered in the next field.
+D3.3 Public SDK / API and integration documentation. $14,250. DONE WHEN the package and the integration docs are published with a runnable integration example against the deployed contracts.
+D3.4 Go-live monitoring. $2,750. DONE WHEN the monitoring and alerting stack runs against the production contracts with paging rules on the fund-safety signals and thresholds tuned against the real baseline.
+
+WHAT THE $135,000 IS MADE OF, so a reviewer can argue with an input rather than with the total. Founder, 26 weeks full time, $45,500 (leaving a current full-time role for the award window, which the proposal states as the commitment the whole plan rests on). Five contracted specialist engagements, $80,000: backend and data engineer for the transaction-level indexer $26,000, infrastructure and SRE engineer for the TRISA node and its mTLS certificate lifecycle $14,000, anchor integration engineer $18,200, product design and UX $10,800, trusted-setup ceremony with independent contributors $11,000 as a fixed fee. Infrastructure for six months, $9,500. That is $135,000 exactly. About 28 of the roughly 54 engineering weeks in this plan are bought in, because one person cannot supply them, and the proposal names each engagement and the acceptance test it is paid against.
+
+WHERE COST AND TRANCHE WEIGHTING DO NOT MATCH, stated rather than smoothed. The 10 / 20 / 30 / 40 split is fixed by SCF and the cost basis does not fall in that ratio: by cost the shares are about 1% / 10% / 59% / 31%, because almost every contracted engagement lands in Tranche #2, which costs $79,190 against a $40,500 payment. The other three tranches run surpluses that cover that overhang exactly, and the engagements are staged so commitments follow received funds. The estimates are not adjusted to hide it.
+
+INELIGIBLE EXPENSES, checked line by line against the handbook's list. No audit cost: a professional audit is planned separately through the Audit Bank and no line here pays for one. The D3.1 trusted-setup ceremony is named explicitly because it could be mistaken for one; it is a cryptographic key-generation procedure producing verifiable transcripts, delivers no security opinion and no findings report, and the contracted parties are ceremony contributors rather than auditors. No marketing or user acquisition: the D2.4 pilot pays for running and verifying the corridor, not for acquiring users, and the Integration Track validation-testing exception is not claimed because this is an Open Track submission. No bounties, token giveaways or prize pools: the ceremony contributors are contracted against a defined deliverable, not paid against an open call. No legal fees or entity registration: the TRISA work is a technical test-directory enrolment, and the licensed-anchor and jurisdiction work is a business dependency rather than a budget line. No reimbursement for past work: the existing testnet architecture, the 15 deployed contracts, the 8 circuits and the hackathon work are prior work and are not billed. One line is flagged against the handbook rather than defended: six months of infrastructure at $9,500 could be read as operational overhead, so it is a separate line and not buried in a blended rate, and if the panel reads it that way it should be struck and the request falls to $125,500.
+
+THE 90-DAY CADENCE. Month 0 acceptance, Months 1 to 2 Tranche #1, Months 3 to 4 Tranche #2, Months 5 to 6 Tranche #3. Each completion form therefore falls about 2 months after the preceding tranche payment, roughly 30 days inside the 90 calendar days Official Rules 5.8 allows, before any review latency on the preceding payment pushes the following deadline further out. The longest exposure is Tranche #2 to Tranche #3, because Tranche #3 waits on a licensed anchor's schedule. If that slips, the Tranche #3 completion form goes in inside the window with reduced scope and a statement of what moved, rather than the window being allowed to lapse.
+```
+
+**Onchain growth, and how it is measured**
+```
+Every remittance is on Stellar by construction: a Soroban pool deposit, a shielded transfer with an on-chain root update, and a withdraw, with the fiat edges spoken over the anchor SEP stack. Usage is therefore transactions on the registered pool contract, not off-chain activity that merely references Stellar. It is measured on that registered address and anyone can recompute it: completed shielded remittances (deposit plus registration plus withdraw), distinct non-team wallets, and pool custody balance, all readable from Soroban RPC and on stellar.expert.
+
+The voluntary target after Tranche #3, and it is voluntary because the Open Track does not gate its final tranche on an on-chain metric: 500 completed shielded remittances from at least 100 distinct non-team wallets over the 90 days after mainnet launch, measured on the registered pool. It is stated as a target a panel can hold this project to, not as a tranche-release condition and not as a claim of current traction. There are no users and no volume today.
+```
+
+**If SDF conditions this award on testnet only (Official Rules 2A)**
+```
+Official Rules 2A lets SDF condition an award on modified milestones where a participant's jurisdiction carries additional regulatory restrictions, for example by restricting funded deployment to testnet and excluding mainnet launch from the Award scope. This submission is from a sole founder resident in Indonesia for a product whose whole point is moving money across a licensed fiat edge, so that condition is a live possibility rather than boilerplate, and it is answered here rather than left to be negotiated after an award. Nothing in this answer is a legal position about any jurisdiction, and no claim is made about how SDF or any regulator should read the founder's.
+
+The plan survives it without a rewrite, because mainnet appears only in Tranche #3 and each of its four deliverables has a testnet form that keeps its success criterion. D3.1 runs the same production ceremony and redeploys the regenerated verifiers and the migrated pool to testnet under the new keys, with the same published transcripts and the same reproducible verification record; only the network changes. D3.2 becomes a completed licensed-anchor integration exercised end to end against that anchor's own sandbox, SEP-10, SEP-24, the SEP-12 KYC field mapping and the reconciliation runbooks, with the fiat leg left unswitched, and the recorded end-to-end run is the evidence in either form. D3.3 is unchanged, with the published package and runnable example pointed at testnet addresses. D3.4 tunes the monitoring stack against the D2.4 pilot traffic rather than mainnet traffic, which is the same work against a smaller baseline.
+
+Two things are genuinely lost and are not papered over. There is no real remittance and no real user money inside the award window, so the corridor's commercial premise stays untested and the first proof that an anchor will pay for this moves past the award. And the voluntary usage target above is void, because it is defined on the mainnet pool; no substitute testnet number is offered in its place, because testnet activity the team can generate itself is not evidence of anything. Tukar would take the modified milestones as SDF sets them rather than treat a mainnet launch as a precondition of accepting the award.
+```
+
+**Custody of the award funds (Official Rules 5.9)**
+```
+The award is paid in XLM to a wallet this project secures, and SDF has no obligation to recover, replace or replenish funds that are lost, stolen or misdirected. That rule lands on a project that has already disclosed a key-handling failure of its own, so it is answered rather than skipped. The corridor admin secret was committed to this public repository and is treated as compromised; it is disclosed in docs/THREAT_MODEL.md section 3.5 and it is the reason Tranche #1 carries an admin-key hardening deliverable at all. It is a testnet key, no funds can be moved with it because the pool has no admin withdraw, mint or pause and the four core verifiers have no setter, and the blast radius is bounded to compliance settings and three disclosure verifiers. The handling was still wrong and is not presented as anything else.
+
+What changes for the award: the award wallet will be a new Stellar account created for the award alone, under a multisig threshold, with the signing keys held on hardware and off any development machine. It will share no key material with the corridor admin, the relayer, or any identifier registered under Current Traction above, and no award-wallet secret will enter this repository, the application bundle, an environment file, or an AI-assisted session. The corridor itself gets the same treatment at Tranche #1: a fresh admin key created at the migration, behind the timelock and a Stellar multisig account.
+```
+
+---
+
 ## Open Track required disclosures
 
 **Disclosure of AI-generated and AI-assisted artifacts** (Open Track requires full disclosure)
@@ -136,7 +216,7 @@ Practically all of the code and prose was written in a human-directed loop with 
 
 AI-written code carries a real risk of confident mistakes and this project has hit it twice, both recorded rather than smoothed over. First, a non-canonical nullifier double-spend vector was found by adversarial self-review of AI-written contract code: Bn254Fr::from_bytes silently reduces mod r, so a spent nullifier replayed as n+r would feed the same verifier input but land on a different storage key and miss the double-spend check; the fix requires canonical encoding on every field element used as a key and rejects the rest with NonCanonicalField (#14). Second, the monitoring plan had to be rewritten once the threat-model pass established that the live pool's policy setters emit no events at all, contradicting an earlier AI-drafted plan that assumed they did.
 
-The controls are that everything is verified against the running system rather than against a description of it (317 Cargo tests, 282 unit tests, Playwright suites against the live deployment, real on-chain transactions), the repository is public, and the system carries an explicit not-audited, do-not-use-with-real-assets warning until the Audit Bank audit that precedes mainnet.
+The controls are that everything is verified against the running system rather than against a description of it (333 Cargo tests, 282 unit tests, Playwright suites against the live deployment, real on-chain transactions), the repository is public, and the system carries an explicit not-audited, do-not-use-with-real-assets warning until the Audit Bank audit that precedes mainnet.
 ```
 
 **Threat model and monitoring plan** (required Tranche #2 deliverable, drafted ahead of need)

@@ -483,6 +483,7 @@ impl Pool {
 
     /// Whether an aggregate audit-request hash has been registered by the auditor.
     pub fn is_audit_request(env: Env, audit_context_hash: BytesN<32>) -> bool {
+        Self::require_canonical(&env, &audit_context_hash);
         env.storage().persistent().has(&DataKey::AuditRequest(audit_context_hash))
     }
 
@@ -1156,16 +1157,29 @@ impl Pool {
     }
 
     // ---- views ----
+    // The four membership views below canonicalise their argument before touching storage, and
+    // that is not decoration. A storage key is the raw 32 bytes, while `Bn254Fr::from_bytes`
+    // reduces mod r, so `n` and `n + r` are the same field element under two different keys.
+    // Every WRITE path already refuses the non-canonical encoding through `require_canonical`,
+    // which is what stops the double-spend. The reads had no such guard, so
+    // `is_nullifier_used(n + r)` answered false for a nullifier that is genuinely spent. Nothing
+    // is stolen by that on its own, but the state-migration tooling and the monitoring plan both
+    // decide what to do from exactly these answers, and a spent nullifier reported as unspent is
+    // a note that becomes spendable again on the destination pool. Refusing rather than silently
+    // reducing keeps the reads consistent with the writes and makes a confused caller visible.
     pub fn current_root(env: Env) -> BytesN<32> {
         env.storage().instance().get(&DataKey::CurrentRoot).unwrap()
     }
     pub fn is_root_known(env: Env, root: BytesN<32>) -> bool {
+        Self::require_canonical(&env, &root);
         env.storage().persistent().has(&DataKey::Root(root))
     }
     pub fn is_nullifier_used(env: Env, nullifier: BytesN<32>) -> bool {
+        Self::require_canonical(&env, &nullifier);
         env.storage().persistent().has(&DataKey::Nullifier(nullifier))
     }
     pub fn is_commitment_known(env: Env, commitment: BytesN<32>) -> bool {
+        Self::require_canonical(&env, &commitment);
         env.storage().persistent().has(&DataKey::Commitment(commitment))
     }
     pub fn commitment_count(env: Env) -> u32 {

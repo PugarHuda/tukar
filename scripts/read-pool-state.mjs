@@ -33,6 +33,20 @@ const READER_PUBKEY = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
 const hex = (buf) => Buffer.from(buf).toString("hex");
 const normHex = (s) => String(s).replace(/^0x/, "").toLowerCase().padStart(64, "0");
 
+// BN254 scalar field order r. A field element has exactly one canonical 32-byte encoding, the
+// one below r, and the pool only ever STORES that one: `require_canonical` rejects anything
+// else on every write path. The read views do not have that guard, they hash the raw bytes
+// into a storage key, so `is_nullifier_used(n + r)` answers false for a nullifier that really
+// is spent. That matters here more than anywhere else in the repository: this script builds the
+// nullifier list the state migration carries, and a spent nullifier wrongly reported as unspent
+// is a note that becomes spendable again on the destination pool. So canonicalise before
+// asking, and say out loud when an input needed it rather than silently fixing it.
+const FIELD_R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+const canonicalise = (h) => {
+  const v = BigInt("0x" + h);
+  return { hex: (v % FIELD_R).toString(16).padStart(64, "0"), wasCanonical: v < FIELD_R };
+};
+
 async function readClient(poolId) {
   return Sdk.contract.Client.from({
     contractId: poolId,
@@ -78,11 +92,19 @@ export async function readPoolState(poolId, { nullifiers = [], log = console.log
   log(`          enumeration is IMPOSSIBLE for this ABI.`);
   const wantNulls = nullifiers.map(normHex);
   let verifiedSpent = 0;
-  for (const n of wantNulls) {
+  let nonCanonical = 0;
+  for (const raw of wantNulls) {
+    const { hex: n, wasCanonical } = canonicalise(raw);
+    if (!wasCanonical) {
+      nonCanonical += 1;
+      log(`  NOTE: supplied nullifier ${raw.slice(0, 16)}... is not canonical (>= r).`);
+      log(`        Reduced to ${n.slice(0, 16)}... before asking the pool. Asking with the raw`);
+      log(`        bytes would have answered "not spent" for a nullifier that IS spent.`);
+    }
     const used = (await c.is_nullifier_used({ nullifier: Buffer.from(n, "hex") })).result;
     if (used) verifiedSpent += 1;
   }
-  log(`  supplied nullifiers : ${wantNulls.length}`);
+  log(`  supplied nullifiers : ${wantNulls.length}${nonCanonical ? ` (${nonCanonical} canonicalised)` : ""}`);
   log(`  of those, on-chain is_nullifier_used=true: ${verifiedSpent}/${wantNulls.length}`);
   const nullifier_complete = wantNulls.length > 0 && verifiedSpent === wantNulls.length;
   if (wantNulls.length === 0) {

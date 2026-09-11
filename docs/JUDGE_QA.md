@@ -7,7 +7,7 @@ say them the way they read, and keep the honest caveats in. Category is Payments
 Consumer Applications.
 
 Quick facts to lean on: 8 Circom/Groth16/BN254 circuits, 15 Soroban contracts live on
-testnet, 282 webapp tests and 317 Cargo tests. Real testnet USDC. Not audited yet.
+testnet, 282 webapp tests and 333 Cargo tests. Real testnet USDC. Not audited yet.
 Four things that used to be roadmap are now built and on testnet: a real OpenVASP TRP 3.2.1
 Travel Rule exchange with verified Ed25519 signatures, a lifecycle store and a TRISA
 companion node; Circle CCTP V2 bidirectional cross-chain; cryptographic full-pool

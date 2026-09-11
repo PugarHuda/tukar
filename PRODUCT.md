@@ -104,7 +104,7 @@ or on the preview track as labelled above; nothing in the product is mocked.
 - 5th place, Stellar Privacy / Real-World ZK hackathon (DoraHacks); APAC hackathon grand finalist.
 - 15 contracts live on Stellar testnet with explorer links (README contract table,
   `deployments/testnet.json`); real deposit transactions on Protocol 28.
-- Test evidence: 317 contract tests across eight crates, 282 unit tests across 32 files, Playwright
+- Test evidence: 333 contract tests across eight crates, 282 unit tests across 36 files, Playwright
   multi-browser e2e (chromium, firefox, webkit, 390px mobile), qa6 sweep 66/0.
 - No real user testimonials, no volume numbers, no partner logos. Do not fabricate any.
 

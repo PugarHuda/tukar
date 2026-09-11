@@ -228,6 +228,29 @@ input/output counts are pinned (`TRANSFER_NINS`/`TRANSFER_NOUTS`) so a caller ca
 shift the nullifier-vs-commitment boundary in the flat public vector to spend one fewer
 nullifier. Verified live: a cross-wallet double-spend is rejected on-chain
 (`test:e2e`).
+
+The guard covers the write paths and, on the live pool, not the reads. Found on 2026-09-12
+while re-examining this section rather than reported from outside. `require_canonical` is
+applied at fourteen call sites, all of them on paths that change state, which is why the
+double-spend itself is closed. The four membership views are not among them:
+`is_root_known`, `is_nullifier_used`, `is_commitment_known` and `is_audit_request` take the
+raw bytes straight to a storage lookup. So `is_nullifier_used(n + r)` answers false for a
+nullifier that is genuinely spent.
+
+Nothing is stolen by that answer on its own, because no non-canonical value can ever have been
+stored. What it reaches is everything that DECIDES from the answer. Two places matter.
+`scripts/read-pool-state.mjs` builds the nullifier list the state migration carries, and the
+completeness warning it prints is derived from this exact view, so a spent nullifier reported
+as unspent is a note that becomes spendable again on the destination pool. And section 5 of
+this document leans on the same reads for monitoring.
+
+Fixed where it can be. The views now canonicalise-or-refuse in `pool-enforced` and
+`pool-accumulator`, the two crates that carry an `upgrade` hook, with tests that pin the
+refusal at `FIELD_R` itself, the tightest case. The live pool has no upgrade hook, so there it
+stays open and the mitigation is client-side: `read-pool-state.mjs` now reduces a supplied
+nullifier before asking and says out loud when an input needed it, rather than silently
+correcting it. Anyone building monitoring against the live pool's views has to do the same.
+
 Residual risk. Correctness depends on the nullifier derivation in the transfer circuit
 and on the canonical-encoding guard covering every field element used as a key. Both are
 covered by the current tests and the guard, but neither has a professional audit.

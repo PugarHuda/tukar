@@ -174,9 +174,12 @@ document that names its own limitations.
 
 - [x] This scope will be completed within 30 days or less.
 - [x] Instawards support execution, not open-ended exploration.
-- [x] A project may receive no more than two follow-on Instawards.
-- [x] Each Instaward is capped at $5,000.
-- [x] Total Instawards funding may not exceed $15,000.
+- [x] A project may receive no more than two follow-on disbursements.
+- [x] Total Instawards funding may not exceed $15,000 in the aggregate.
+- [x] $5,000 is the top of the range the rules give for an initial Instaward, which is
+      $1,000 to $5,000 depending on scope and readiness. It is not a per-award cap, and this
+      request sits at the top of that range rather than under a ceiling. Section 5 is the
+      argument for why the scope earns it, and the two reductions there are real offers.
 
 ## Before it goes in
 
