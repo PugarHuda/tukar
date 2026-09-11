@@ -1,12 +1,12 @@
-# Trusted Setup — Multi-Party Phase-2 Ceremony
+# Trusted Setup: Multi-Party Phase-2 Ceremony
 
 Tukar's proving keys are Groth16 over BN254, which needs a two-phase trusted setup.
 
-- **Phase 1 (universal):** the **real Hermez `powersOfTau28_hez_final_14`** ceremony —
-  already multi-party, and reproducibly waste-free (`snarkjs zkey verify` binds every
+- **Phase 1 (universal):** the **real Hermez `powersOfTau28_hez_final_14`** ceremony.
+  It is already multi-party, and reproducibly waste-free (`snarkjs zkey verify` binds every
   deployed key to it). Nothing to redo here.
 - **Phase 2 (per-circuit):** the deployed keys are now the output of a **multi-party**
-  phase-2 ceremony (3 independent contributions + a public random beacon) — the seven
+  phase-2 ceremony (3 independent contributions + a public random beacon). The seven
   browser-shipped `frontend/circuit/*_final.zkey` are byte-identical to
   `ceremony/<circuit>/*_final.zkey` and the on-chain verifiers embed the matching VKs.
   All eight circuits (transfer, compliance, disclosure, merkleUpdate, thresholdDisclosure,
@@ -30,9 +30,9 @@ bash scripts/ceremony-phase2.sh compliance     # or: npm run ceremony
 It performs, into `ceremony/<circuit>/` (the **deployed** `circuits/build/*_final.zkey`
 are left untouched, so the live verifier contracts keep matching):
 
-1. `groth16 setup` — initial phase-2 zkey from the circuit r1cs + Hermez phase-1
+1. `groth16 setup` to make the initial phase-2 zkey from the circuit r1cs + Hermez phase-1
 2. **3 independent contributions** (`zkey contribute`), each adding secret entropy
-3. a **public random beacon** (`zkey beacon`) — a final round nobody can bias
+3. a **public random beacon** (`zkey beacon`), a final round nobody can bias
 4. `zkey verify` against the r1cs + Hermez ptau → **`ZKey Ok!`**
 5. exports the verification key and writes `TRANSCRIPT.txt`
 
@@ -67,5 +67,5 @@ the pool if its id changes):
    deploy it; update `deployments/testnet.json`.
 3. Re-run the soundness suites (`npm run test:negative`, `test:proving`, `test:asp`).
 
-Because this changes live contract ids, it is deliberately a separate, deliberate step —
-not part of the demo build.
+Because this changes live contract ids, it is deliberately a separate step, not part of
+the demo build.

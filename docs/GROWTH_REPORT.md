@@ -23,8 +23,8 @@ Proof links:
 - Responses sheet: <link to docs/onboarded-users.xlsx once collected>
 
 ### What shipped this month
-- <feature or fix> — commit: <link>
-- <feature or fix> — commit: <link>
+- <feature or fix>, commit: <link>
+- <feature or fix>, commit: <link>
 
 ### Feedback themes and what we changed (iteration)
 Summarize the real feedback, then the change and its commit. One row per theme.

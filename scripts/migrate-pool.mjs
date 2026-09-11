@@ -29,7 +29,13 @@ const POOL_ENFORCED_WASM = "contracts/pool-enforced/target/wasm32v1-none/release
 
 // Wiring — the SAME separate contracts the live pool uses (from deployments/testnet.json).
 const CORREDOR = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"; // admin
-const CORREDOR_SECRET = "SB75LZWW3JGQQYE6ZU75MEVD5AXKF2YAIWV4C4C4Y4FYUJ4X3FKD334I";
+// The corridor admin secret is read from the environment and is never stored in this repo.
+// Export it in your shell before running, from the `corredor` CLI alias.
+const CORREDOR_SECRET = process.env.CORREDOR_SECRET;
+if (!CORREDOR_SECRET) {
+  console.error("CORREDOR_SECRET is not set. Export the corridor admin secret before running this script.");
+  process.exit(1);
+}
 const TOKEN = "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2";
 const V = {
   transfer: "CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE",

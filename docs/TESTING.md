@@ -1,30 +1,30 @@
-# Tukar — QA & Testing
+# Tukar QA & Testing
 
 A full QA pass covering repo hygiene, circuit soundness, contract unit tests, and
 on-chain behaviour (positive + negative) on Stellar testnet.
 
-## Test matrix — every suite, last full run (all green)
+## Test matrix from the last full run (all suites green)
 
 | Type | Suite | Command | Result |
 |---|---|---|---|
-| **Unit** — contract | pool (Rust) | `cargo test` in `contracts/pool` | **52/52** |
-| **Unit** — contract | all eight contract crates | `cargo test` per crate | **314** (pool 52, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6, reserves 6, reserves-aggregate 12) |
-| **Unit** — frontend | client Merkle tree | `npm run test:unit` | **15/15** |
-| **Unit** — circuit soundness | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
-| **Soundness** — widened ASP | multi-member allow-list, real proofs | `npm run test:asp` | **4/4** |
-| **Soundness** — threshold disclosure | prove amount ≤ threshold w/o revealing amount | `npm run test:threshold` | **4/4** |
-| **Soundness** — two-sided range disclosure | prove lower ≤ amount ≤ upper w/o revealing amount | `npm run test:range` | **5/5** |
-| **Soundness** — aggregate disclosure | prove Σ portfolio ≤ cap, bound to a registered audit request | `npm run test:aggregate` | **6/6** |
+| **Unit** (contract) | pool (Rust) | `cargo test` in `contracts/pool` | **52/52** |
+| **Unit** (contract) | all eight contract crates | `cargo test` per crate | **314** (pool 52, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6, reserves 6, reserves-aggregate 12) |
+| **Unit** (frontend) | client Merkle tree | `npm run test:unit` | **15/15** |
+| **Unit** (circuit soundness) | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
+| **Soundness** (widened ASP) | multi-member allow-list, real proofs | `npm run test:asp` | **4/4** |
+| **Soundness** (threshold disclosure) | prove amount ≤ threshold w/o revealing amount | `npm run test:threshold` | **4/4** |
+| **Soundness** (two-sided range disclosure) | prove lower ≤ amount ≤ upper w/o revealing amount | `npm run test:range` | **5/5** |
+| **Soundness** (aggregate disclosure) | prove Σ portfolio ≤ cap, bound to a registered audit request | `npm run test:aggregate` | **6/6** |
 | **Proving** | valid / tampered / false-witness | `npm run test:proving` | pass |
 | **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×7 | **7/7 ZKey Ok** |
-| **Integration** — routing | per-page nav + no-flash + reload | `npm run test:pages` | **10/10** |
-| **Integration** — receiver UI | withdrawn-note auto-hide + off-ramp to another corridor | `npm run test:offramp` | **9/9** |
-| **Integration** — full flow | deposit→reveal→withdraw→disclose→tamper | `npm run test:e2e` | **11/11** |
-| **Integration** — bearer P2P | export→wipe→import→withdraw | `npm run test:bearer` | **4/4** |
-| **Integration** — QR | decode bearer + request QR | `npm run test:qr` | **2/2** |
-| **Integration** — landing | links/CTA/no-errors | `npm run test:landing` | **5/5** |
-| **Integration** — anchor UI | in-UI SEP-10+24 on-ramp | `npm run test:anchor` | **5/5** |
-| **Integration** — anchor SEPs | SEP-1/10/6/24/31 | `npm run sep:anchor` | **5/5** |
+| **Integration** (routing) | every route returns 200 and renders its key content | `npx playwright test e2e/routes.spec.ts` | **9/9 per browser** |
+| **Integration** (receiver UI) | withdrawn-note auto-hide + off-ramp to another corridor | `npm run test:offramp` | **9/9** |
+| **Integration** (full flow) | deposit→reveal→withdraw→disclose→tamper | `npm run test:e2e` | **11/11** |
+| **Integration** (bearer P2P) | export→wipe→import→withdraw | `npm run test:bearer` | **4/4** |
+| **Integration** (QR) | decode bearer + request QR | `npm run test:qr` | **2/2** |
+| **Integration** (landing) | links/CTA/no-errors | `npm run test:landing` | **5/5** |
+| **Integration** (anchor UI) | in-UI SEP-10+24 on-ramp | `npm run test:anchor` | **5/5** |
+| **Integration** (anchor SEPs) | SEP-1/10/6/24/31 | `npm run sep:anchor` | **5/5** |
 
 Every suite in the matrix is green. Regression pass: all of the above were re-run
 together after each change.
@@ -50,7 +50,7 @@ cd contracts/pool && cargo test          # 52/52
 
 > `npm run circuit:all` fetches the **real Hermez** phase-1 ptau
 > (`powersOfTau28_hez_final_14.ptau`, ~19 MB) on first run and asserts each rebuilt
-> zkey derives from it (`snarkjs zkey verify`) — so the build is reproducibly
+> zkey derives from it (`snarkjs zkey verify`). The build is therefore reproducibly
 > waste-free, not generated from a local phase-1. See §5.
 
 ## 1. Repo hygiene ✅
@@ -73,19 +73,19 @@ cd contracts/pool && cargo test          # 52/52
 `npm run test:negative` → **6/6 passed**. `npm run test:proving` → valid/tampered/
 false-witness all behave correctly.
 
-**Manual circuit review (2026-06-30)** — complements the runtime negative tests by
+**Manual circuit review (2026-06-30)** complements the runtime negative tests by
 checking the Circom source for under-constrained signals (the soundness holes a
 passing happy-path can't reveal):
 - **Every private signal is constrained.** In `transfer`, `compliance`, `disclosure`
   and `merkleUpdate`, each `signal input` feeds a `===`/`<==` constraint (Poseidon
-  preimage, Merkle path, nullifier, or range) — no `<--` left dangling.
+  preimage, Merkle path, nullifier, or range), and no `<--` is left dangling.
 - **All amounts are range-checked:** transfer inputs **and** outputs to 248 bits
   (wrap-free value conservation, not just an inductive invariant); disclosure amount
   to 64 bits.
 - **Path indices are boolean-forced** in `DualMux` (`s*(1-s)===0`), so a malformed
   Merkle witness can't bend the path even if a caller skips `Num2Bits`.
 - **`merkleUpdate` proves the slot is empty** (leaf=0 must reproduce the public
-  `oldRoot`) and that the same private siblings yield `newRoot` — siblings can't be
+  `oldRoot`) and that the same private siblings yield `newRoot`. Siblings can't be
   faked (Poseidon CR + public `oldRoot`).
 - **Dummy JoinSplit inputs are sound:** zero-value inputs skip Merkle membership
   (`(root-r)*inAmount===0`) but still bind a nullifier; the frontend draws the
@@ -95,7 +95,7 @@ passing happy-path can't reveal):
 Result: no under-constrained signal or missing range check found.
 
 ## 3. Contract unit tests ✅
-`contracts/pool` — **52/52 passed** (`cargo test`): deposit pulls USDC + records
+In `contracts/pool`, **52/52 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**
@@ -108,7 +108,7 @@ diagnostic. The admin `register_root` backdoor was removed, so the only way to
 advance the root is a
 `merkleUpdate` proof. The leaf inserted by `register_root_verified` must be a
 commitment already recorded by a real `deposit` (or change-note output) and may be
-inserted at most once — `register_root_verified_rejects_undeposited_leaf`
+inserted at most once. `register_root_verified_rejects_undeposited_leaf`
 (`UnknownCommitment`) and `register_root_verified_rejects_double_insert`
 (`LeafAlreadyInserted`) cover the **unbacked-leaf drain** defense. The merkleUpdate
 `leafIndex` is now a **public** input the pool pins to its own `LeafCount`, so a
@@ -121,7 +121,7 @@ pinning that closes the unpinned-split double-spend (T17) is covered by
 
 > **What these unit tests do and don't cover.** `cargo test` runs against a **mock
 > verifier that returns `true`** (`test.rs`), so it validates the pool's *binding,
-> authorization, state-machine and oracle-gate logic* — not Groth16 soundness itself.
+> authorization, state-machine and oracle-gate logic*, not Groth16 soundness itself.
 > Real proof verification (valid → `true`, tampered/false-witness → rejected) is
 > covered separately by `npm run test:negative` (circuit soundness, §2) and by the
 > **live on-chain** results against the deployed Nethermind BN254 verifiers (§4).
@@ -129,20 +129,20 @@ pinning that closes the unpinned-split double-spend (T17) is covered by
 
 ## 4. On-chain behaviour (Stellar testnet) ✅
 
-Positive — all return `true`:
+Positive cases (all return `true`):
 
 | Call | Contract | Result |
 |---|---|---|
 | `disclosure.verify` | `CAYGUR…J4W4V` | `true` |
 | `transfer.verify` | `CACHZSW…3PUNE` | `true` |
 | `compliance.verify` | `CDXYGM3…XBCG2` | `true` |
-| `pool.deposit` | `CBIYQAC…DK2MHTWJ` | success — moved real USDC in, bound to the commitment |
-| `pool.withdraw` | `CBIYQAC…DK2MHTWJ` | success — released USDC, amount bound to negative `public_amount` |
-| `pool.register_root_verified` | `CBIYQAC…DK2MHTWJ` | success — trustless root advance (merkleUpdate proof) |
-| `pool.poseidon_hash(1,2)` | `CBIYQAC…DK2MHTWJ` | `0x115cc0f5…4417189a` — circomlib-exact Poseidon on-chain |
+| `pool.deposit` | `CBIYQAC…DK2MHTWJ` | success (moved real USDC in, bound to the commitment) |
+| `pool.withdraw` | `CBIYQAC…DK2MHTWJ` | success (released USDC, amount bound to negative `public_amount`) |
+| `pool.register_root_verified` | `CBIYQAC…DK2MHTWJ` | success (trustless root advance, merkleUpdate proof) |
+| `pool.poseidon_hash(1,2)` | `CBIYQAC…DK2MHTWJ` | `0x115cc0f5…4417189a` (circomlib-exact Poseidon on-chain) |
 | `merkleUpdate.verify` | `CCA3T54…S3X6H` | `true` |
 
-Negative — all correctly rejected:
+Negative cases (all correctly rejected):
 
 | Scenario | Expected error | Result |
 |---|---|---|
@@ -156,18 +156,18 @@ Negative — all correctly rejected:
 
 The **double-spend-bypass** row is the important one: because the pool builds the
 verifier's public inputs from the typed nullifiers/commitments/root itself, a
-caller cannot present a valid proof while spending different nullifiers — the
+caller cannot present a valid proof while spending different nullifiers. The
 verification fails. This closes the binding gap found in QA.
 
 State checks after the test transfer: `pool.current_root` = registered root,
 `commitment_count` = 2, `is_root_known(root)` = true, `is_nullifier_used(spent)` = true.
 
-## 5. Trusted setup — independently verifiable ✅
+## 5. Trusted setup is independently verifiable ✅
 
 All seven **deployed** proving keys (`frontend/circuit/*_final.zkey`) derive from the
 real **Hermez** perpetual Powers-of-Tau ceremony (`powersOfTau28_hez_final_14.ptau`),
 so phase-1 has **no locally-known toxic waste**. This is not a claim to take on
-faith — anyone can check it:
+faith. Anyone can check it:
 
 ```bash
 # for each circuit c in {disclosure, compliance, merkleUpdate, transfer,
@@ -192,54 +192,54 @@ guarantee needs genuinely independent contributors.
 `npm run serve`) with genuine clicks/typing/selects (not `evaluate`-injection) over
 system Chrome. Eleven cases: prover-load, Send-gating pre-connect, payment-request
 round-trip, connect, invalid-amount fuzzing (no crash), **junk typed into Load/Import
-handled gracefully** (no crash — covers a real user mistyping into those boxes), all 10
+handled gracefully** (no crash, which covers a real user mistyping into those boxes), all 10
 corridors (4 on-chain Reflector incl. Thailand / 6 FX-API), the full happy path (deposit → reveal →
 withdraw → disclose → tamper), on-chain ASP forge-rejection (and that the forge toggle
 **auto-clears** after the rejection, so a real send isn't trapped re-forging),
 bearer-note P2P + **cross-wallet double-spend**, and disconnect re-gating.
 
-Verified 2026-07-03: **11/11**, zero uncaught page errors — including both heavy
+Verified 2026-07-03: **11/11**, zero uncaught page errors, including both heavy
 on-chain flows (happy path + ASP forge-rejection) and the double-spend case. Two
 fixes closed the last gap:
 
 - **Product:** the shared submit path (`stellar.js` `sendTx`) now rebuilds-and-retries
-  on *transient* testnet faults — sequence races on the shared demo key, plus the
+  on *transient* testnet faults: sequence races on the shared demo key, plus the
   load-shedding the public testnet throws (`TRY_AGAIN_LATER`, timeouts, 429/5xx). A
   contract revert (`Error(Contract,#N)`) is deterministic and is **never** retried, so
   a genuine double-spend `#2` or slippage block `#12` still surfaces at once. Real users
-  on a flaky testnet benefit from this too, not just the harness.
-- **Test:** the double-spend case now models the *real* threat — a **second holder** of
+  on a flaky testnet get the same benefit as the harness.
+- **Test:** the double-spend case now models the *real* threat, a **second holder** of
   the same bearer string on a different device. Re-importing into the wallet that
   already holds the note is (correctly) refused as a duplicate, so the case resets the
-  session first (simulating the other device), re-imports, and attempts the withdraw —
-  the on-chain `NullifierUsed` (`#2`) rejects it. This exercises the on-chain
+  session first (simulating the other device), re-imports, and attempts the withdraw.
+  The on-chain `NullifierUsed` (`#2`) rejects it. This exercises the on-chain
   double-spend protection through the UI, matching the unit test
   `transfer_double_spend_rejected` and the on-chain result in §4.
 
 ## 7. QR codes actually scan ✅ 2/2 live
 
 `npm run test:qr` proves the bearer-note and payment-request QR codes the demo
-renders decode back to the **exact** string a phone camera would read — important
+renders decode back to the **exact** string a phone camera would read. That matters
 because Tukar styles them with custom colors (dark `#0a0705` on `#f3ad79`), not
 plain black-on-white. The test loads the live demo, generates each QR, then decodes
 the rendered PNG with **jsQR** over its raw pixels (the same algorithm a scanner
 uses) and asserts `decoded === the visible string`.
 
-Verified 2026-06-30 against the live deploy: **2/2** — `tukreq1:…` (payment request)
+Verified 2026-06-30 against the live deploy: **2/2**. `tukreq1:…` (payment request)
 and `tukar1:…` (bearer note, after a real on-chain deposit) both decode exactly,
-zero uncaught page errors. So the custom-styled QR remains camera-scannable.
+with zero uncaught page errors. So the custom-styled QR remains camera-scannable.
 
 ## 8. Bearer note is real spendable money ✅ 4/4 live
 
-`npm run test:bearer` proves the `tukar1:…` string a QR encodes isn't just display —
-it's withdrawable value on a device that has nothing but the string. Steps, on the
-live deploy: (1) deposit a note on-chain, (2) export the bearer string, (3) **wipe
+`npm run test:bearer` proves the `tukar1:…` string a QR encodes is withdrawable value
+on a device that has nothing but the string. Steps, on the live deploy:
+(1) deposit a note on-chain, (2) export the bearer string, (3) **wipe
 the local session** and import the bare string as a fresh holder (the pool
-reconstructs the tree from chain), (4) withdraw it — real tokens released on-chain.
+reconstructs the tree from chain), (4) withdraw it. Real tokens are released on-chain.
 
 Verified 2026-06-30: **4/4**, zero uncaught page errors. This isolates the genuine
 P2P-handoff feature from the e2e's *cross-wallet double-spend* step (§6 case 9); both
-now pass — the transient-retry fix in `sendTx` removed the shared-key contention that
+now pass, because the transient-retry fix in `sendTx` removed the shared-key contention that
 used to make the back-to-back on-chain step flake.
 
 ## 9. Landing page QA (Playwright real-click) ✅ 5/5 live
@@ -255,43 +255,44 @@ Verified 2026-06-30 on the live deploy: **5/5**, zero uncaught page errors. (Fix
 this round: the footer links previously all pointed at the repo root, so "Architecture"
 didn't open ARCHITECTURE.md; now they deep-link.)
 
-## 10. Per-page routing (Playwright) ✅ 8/8 live
+## 10. Per-page routing (Playwright)
 
-The demo console is one corridor step per URL — `/demo/send`, `/demo/corridor`,
-`/demo/receive`, `/demo/audit`. `npm run test:pages` asserts: loading `/demo` shows
-only the Sender panel; the flow-strip and Back/Next pager navigate (pushState, URL
-updates, only the active panel visible); the browser Back button works (popstate);
-and a **direct load** of a deep route (e.g. `/demo/audit`) renders the right panel —
-which requires the SPA rewrite (`vercel.json` / `serve.mjs` map `/demo/<slug>` → the
-console) **and** `<base href="/">` so relative assets resolve from root on a deep
-path (a 404 the routing test caught before ship). Verified 8/8 on the live deploy;
-client state (notes, demo-key connection) persists across steps via localStorage, so
-a refresh or shared step link rehydrates.
+`e2e/routes.spec.ts` walks every route the app actually serves: `/`, `/sender`, `/receiver`,
+`/operator`, `/regulator`, `/verify`, `/deck`, `/docs` and one `/docs/<slug>` page. Each must
+return a real 200, render its key content after hydration and its live Soroban reads, and finish
+with no page errors and no non-benign network failures. It runs on chromium, firefox and webkit.
+
+This replaced an older `scripts/test-pages.mjs` that drove a separate `/demo/<step>` console with
+its own SPA rewrite. That console no longer exists: the Next.js unification moved every actor onto
+its own route, and `/demo` now redirects to the landing page. The script was left behind pointing at
+markup that had been deleted, so it failed on a 45s timeout while this document still claimed it
+passed. Both the script and its `npm run test:pages` entry are gone, and the routing coverage it
+once provided is what `routes.spec.ts` does now.
 
 ## 11. Anchor SEP integration (real, live) ✅
 
 The fiat-edge anchor protocols are integrated against SDF's public **reference**
 anchor (`testanchor.stellar.org`), no mocks:
 
-- `npm run sep:anchor` (`scripts/sep-anchor.mjs`) — **5/5 live**: SEP-1 discovery →
+- `npm run sep:anchor` (`scripts/sep-anchor.mjs`) is **5/5 live**: SEP-1 discovery →
   SEP-10 (sign the challenge → real JWT) → SEP-6 `/info` → SEP-24 interactive deposit
   (a real hosted USDC on-ramp URL) → SEP-31 `/info`.
-- `npm run test:anchor` (`scripts/test-anchor.mjs`) — **5/5 live**, a real Playwright
+- `npm run test:anchor` (`scripts/test-anchor.mjs`) is **5/5 live**, a real Playwright
   click of the demo's **"Try a real anchor USDC on-ramp"** button: it authenticates
   (SEP-10, signed by the demo key or Freighter) and opens a genuine SEP-24 deposit
   session at the anchor's hosted UI, from the browser.
 
 Honest scope: SDF's testanchor is a *reference* anchor (no real KYC on testnet) and
 it issues **Circle testnet USDC** (issuer `GBBD47IF…`), whereas the corridor demo is
-pre-funded with a project USDC SAC (issuer `GC7SWGHR…`) — so the on-ramp demonstrates
-the live SEP flow, it is **not** the corridor's deposit source. A production deploy
+pre-funded with a project USDC SAC (issuer `GC7SWGHR…`). So the on-ramp demonstrates
+the live SEP flow; it is **not** the corridor's deposit source. A production deploy
 would align the corridor's settlement asset to a *licensed* anchor's USDC (a partner +
 KYC step, not code). Tukar also **publishes** its own SEP-1 `stellar.toml`
 (`/.well-known/stellar.toml`, served with the SEP-1 CORS header).
 
 ## Known limitations (by design, stated honestly)
 - Merkle witness (path) computed off-chain; on-chain integrity enforced by the
-  `merkleUpdate` proof — there is **no admin root backdoor**.
+  `merkleUpdate` proof. There is **no admin root backdoor**.
 - Fiat anchor on/off-ramps mocked. The ASP allow-list is now a real configurable
   policy (`scripts/build-asp.mjs` from approved accounts + admin `set_asp_root`),
   soundness-tested by `npm run test:asp` (4/4); 10 corridors.
@@ -299,4 +300,4 @@ KYC step, not code). Tukar also **publishes** its own SEP-1 `stellar.toml`
   a public beacon; phase-1 is the real Hermez ceremony), and those ceremony keys are
   the deployed keys. Honest caveat: the demo ran all rounds on one machine to prove
   the process, so the one-honest-party guarantee needs genuinely independent parties.
-- Contracts are **not audited** — testnet only, no real assets.
+- Contracts are **not audited**. Testnet only, no real assets.

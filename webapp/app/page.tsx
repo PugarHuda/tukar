@@ -93,6 +93,7 @@ export default function Home() {
           </nav>
           <div className="header-spacer" />
           <div className="header-right">
+            <Link className="link" href="/docs">Docs</Link>
             <a className="link" href={REPO} target="_blank" rel="noopener">GitHub</a>
             <a className="link" href={POOL_URL} target="_blank" rel="noopener">Pool contract</a>
             <LaunchButton className="btn-cta">Launch app</LaunchButton>
@@ -338,6 +339,7 @@ export default function Home() {
           <div className="foot-col">
             <div className="h">Project</div>
             <div className="links">
+              <Link href="/docs">Documentation</Link>
               <a href={`${REPO}/blob/main/docs/ARCHITECTURE.md`} target="_blank" rel="noopener">Architecture</a>
               <a href={`${REPO}/blob/main/docs/ONCHAIN.md`} target="_blank" rel="noopener">On-chain</a>
               <a href={`${REPO}/blob/main/docs/TESTING.md`} target="_blank" rel="noopener">Testing</a>

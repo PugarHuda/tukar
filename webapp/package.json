@@ -29,6 +29,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "circomlibjs": "^0.1.7",
     "js-sha3": "^0.9.3",
+    "marked": "^16.4.2",
     "next": "^15.1.6",
     "passkey-kit": "^0.16.5",
     "react": "^19.0.0",

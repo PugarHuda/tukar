@@ -13,7 +13,7 @@ import { goto200, watchNoise, isBenign } from "./_helpers";
 // legitimately depends on deployment config, the spec reads /api/health once and branches on it.
 
 const BASE = process.env.QA_BASE || "https://tukar-six.vercel.app";
-const PAGES = ["/", "/sender", "/receiver", "/operator", "/regulator", "/verify", "/deck"];
+const PAGES = ["/", "/sender", "/receiver", "/operator", "/regulator", "/verify", "/deck", "/docs", "/docs/architecture"];
 const POST_ONLY = [
   "/api/verify",
   "/api/note-status",

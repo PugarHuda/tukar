@@ -5,7 +5,7 @@ import { goto200 } from "./_helpers";
 // Lightweight automated a11y on each main page: fail only on serious/critical violations.
 // Lesser (minor/moderate) findings are logged, not asserted, so the run reports honestly
 // without forcing green.
-const PAGES = ["/", "/sender", "/receiver", "/operator", "/regulator", "/verify"];
+const PAGES = ["/", "/sender", "/receiver", "/operator", "/regulator", "/verify", "/docs", "/docs/architecture", "/docs/threat-model"];
 
 for (const path of PAGES) {
   test(`a11y ${path} has no serious/critical violations`, async ({ page }, testInfo) => {

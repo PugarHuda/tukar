@@ -73,8 +73,8 @@ private-payment or encryption-infra work:
    The privacy layer is bound to real-world FX, so funds never move on a stale or
    manipulated rate. No pure-privacy project ties settlement to an on-chain oracle.
 
-Put together: a **privacy-pool remittance corridor with ASP compliance and selective
-disclosure**, a combination with no catalog equivalent. The one-line wedge:
+Put together, that is a **privacy-pool remittance corridor with ASP compliance and
+selective disclosure**, a combination with no catalog equivalent. The wedge in one line is
 **private for users AND provable to regulators, on the chain built for cross-border
 money.** So "this already exists (LumenShade / Moonlight / Fairblock)" misses the
 combination: those are privacy *primitives* or infra on other models, not a compliant
@@ -111,7 +111,7 @@ for the average cost of sending $200.
 
 ### What shipped this session, and what's still ahead
 
-The core (8 circuits, 15 Soroban contracts, 60+ passing tests, the live corridor, in-circuit
+The core (8 circuits, 15 Soroban contracts, 314 Cargo and 231 webapp tests, the live corridor, in-circuit
 compliance, four selective-disclosure types, and the oracle gate) runs on testnet today. The
 compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along five
 lines, and this session moved most of them from reference demos into working, testnet-live
@@ -421,25 +421,25 @@ layer that turns "private payments" into *compliant* private payments. See
 Selective disclosure comes in **four types**, all compiled, soundness-tested, and
 live on-chain with each proof **bound through the pool to a real deposit**:
 
-1. **Exact** ([`disclosure.circom`](circuits/disclosure.circom)) — a commitment opens
+1. **Exact** ([`disclosure.circom`](circuits/disclosure.circom)). A commitment opens
    to a disclosed amount.
-2. **Threshold** ([`thresholdDisclosure.circom`](circuits/thresholdDisclosure.circom))
-   — the amount is **≤ a reporting figure without revealing the exact amount**, the
+2. **Threshold** ([`thresholdDisclosure.circom`](circuits/thresholdDisclosure.circom)).
+   The amount is **≤ a reporting figure without revealing the exact amount**, the
    predicate real reporting rules actually want. `npm run test:threshold` → **4/4**
    (under/at-threshold proves with the amount kept private; over-threshold and a
    mismatched commitment are unprovable). Wired into the demo's Regulator step
    (*"≤ Threshold · amount hidden"*) and verified live on the deployed verifier:
    `≤ $1000` proves with the amount hidden; `≤ $100` on a $500 payment is honestly
    shown unprovable.
-3. **Aggregate** ([`aggregateDisclosure.circom`](circuits/aggregateDisclosure.circom))
-   — the **sum of 1..5 confidential payments is ≤ a cap** without revealing any amount
+3. **Aggregate** ([`aggregateDisclosure.circom`](circuits/aggregateDisclosure.circom)).
+   The **sum of 1..5 confidential payments is ≤ a cap** without revealing any amount
    (a periodic CTR-style report in ZK). Completeness is enforced on-chain: the proof is
    bound to an `auditContextHash` an **auditor registers on-chain** for the full
    required set (`register_audit_request`), and `disclose_aggregate` rejects any
    unregistered hash, so a holder can't report a cherry-picked subset.
    `npm run test:aggregate` → **6/6**.
-4. **Two-sided range** ([`rangeDisclosure.circom`](circuits/rangeDisclosure.circom)) —
-   the amount is in a reportable band `lower ≤ amount ≤ upper`, amount hidden.
+4. **Two-sided range** ([`rangeDisclosure.circom`](circuits/rangeDisclosure.circom)).
+   The amount is in a reportable band `lower ≤ amount ≤ upper`, amount hidden.
    `npm run test:range` → **5/5** (in-band proves, boundaries inclusive, below/above and
    a wrong opening unprovable).
 
@@ -648,12 +648,12 @@ reference (Apache-2.0 / GPLv3).
 ## Repository layout
 
 ```
-circuits/        Circom — transfer, compliance, disclosure, merkleUpdate,
-                 thresholdDisclosure, aggregateDisclosure, rangeDisclosure (7, all ✅ on-chain)
-contracts/pool/  Stateful corridor pool (Rust/Soroban) — orchestrates verifiers,
+circuits/        Circom. transfer, compliance, disclosure, merkleUpdate, reserves,
+                 thresholdDisclosure, aggregateDisclosure, rangeDisclosure (8, all ✅ on-chain)
+contracts/pool/  Stateful corridor pool (Rust/Soroban). Orchestrates verifiers,
                  token custody, native poseidon.rs ✅
-deployments/     testnet.json — live contract ids + findings
-webapp/          Unified Next.js app — landing + four role apps (sender, receiver,
+deployments/     testnet.json holds the live contract ids + findings
+webapp/          Unified Next.js app. Landing + four role apps (sender, receiver,
                  regulator, operator) + /deck; in-browser ZK proving (the live site)
 frontend/        Committed ZK artifacts for CI: circuit/ (no-circom prove/verify
                  fallback) + tree.js (client Poseidon Merkle tree)
@@ -686,12 +686,12 @@ cd webapp && npm install && npm run dev   # -> http://localhost:3000
 > The Next.js app bundles `snarkjs` and `circomlibjs` and serves the circuit
 > artifacts locally, so proving runs entirely in the browser.
 
-**On-chain** (the contracts are already deployed — IDs above):
+**On-chain** (the contracts are already deployed, IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
 - Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 52/52)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
-> Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`
+> Soroban contract builds run in **WSL/Linux**. Windows lacks the MSVC `link.exe`
 > the host build scripts need. WSL Ubuntu (cargo + gcc) builds cleanly.
 
 ---

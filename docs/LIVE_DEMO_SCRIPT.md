@@ -53,7 +53,7 @@ video.
 
 ## FULL LIVE RUN (~90s)
 
-### Step 1 — Sender: deposit real USDC with a ZK compliance proof (~35s)
+### Step 1. Sender: deposit real USDC with a ZK compliance proof (~35s)
 
 **DO:** On the `/sender` tab, connect the **testnet key** (top right). Type **500**
 in the amount field. Leave the destination on **Mexico · MXN**. Click through to
@@ -79,7 +79,7 @@ this claim note goes to the family back home."
 
 ---
 
-### Step 2 — Receiver: claim, reveal the fiat figure, prove one fact, export (~30s)
+### Step 2. Receiver: claim, reveal the fiat figure, prove one fact, export (~30s)
 
 **DO:** Switch to the `/receiver` tab. Connect the **testnet key**. Open the **Claim**
 tab, paste the note, click **Claim payment**. It jumps you to **Payments**.
@@ -115,7 +115,7 @@ Checked in the browser, and checked again on the live Stellar verifier."
 
 ---
 
-### Step 3 — Regulator: verify VALID + bound, then tamper to INVALID (~20s)
+### Step 3. Regulator: verify VALID + bound, then tamper to INVALID (~20s)
 
 **DO:** Switch to the `/regulator` tab. Open **Verify disclosure**. Paste the exported
 receipt JSON. Click **Re-verify in browser and on-chain**.
@@ -145,7 +145,7 @@ whole point. Private for the user, provable to the regulator."
 
 ---
 
-### Step 4 — Operator: quick glance, "the corridor is real" (~5s)
+### Step 4. Operator: quick glance, "the corridor is real" (~5s)
 
 **DO:** Switch to the `/operator` tab. Just show it, don't click anything.
 

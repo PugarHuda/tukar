@@ -16,7 +16,7 @@ challenge requires exactly wallet address, email, name, and a product rating plu
 
 - **Name** (short answer, required)
 - **Email** (short answer, required)
-- **Stellar wallet address** (short answer, required) — "Paste your address. In the app it's
+- **Stellar wallet address** (short answer, required): "Paste your address. In the app it's
   shown at the top after you connect (starts with G...)."
 - **Rate the product** (linear scale 1 to 5, required)
 - **What worked / what was confusing?** (paragraph, required)

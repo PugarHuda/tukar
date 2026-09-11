@@ -1,4 +1,4 @@
-# Tukar — Architecture
+# Tukar Architecture
 
 > **Confidential cross-border payment corridors on Stellar.**
 > Fiat in → shielded USDC transfer → fiat out, private in the middle, accountable at the edges.
@@ -6,7 +6,7 @@
 Tukar is a **private cross-border remittance corridor**. Money enters in one
 country, moves across the corridor with its **amount and counterparties hidden
 on-chain in the shielded transfer leg**, and exits as local fiat in another country.
-(Deposits and withdrawals are public at the edges — the Privacy-Pools model;
+(Deposits and withdrawals are public at the edges, as in the Privacy-Pools model;
 link-privacy depends on the anonymity set, see [SECURITY.md](SECURITY.md).) At each
 **edge** of the corridor, zero-knowledge **compliance proofs** keep the system
 auditable without ever revealing the private payment graph.
@@ -26,9 +26,9 @@ US↔Philippines). Tukar takes that exact rail and makes it confidential while
 keeping it compliant. The ZK is *load-bearing*: without it there is no privacy,
 and without the compliance proofs there is no real-world deployability.
 
-The **winning wedge** is depth on the compliance edge — not just a shielded
-transfer (the reference Nethermind PoC already does that), but a full
-**selective-disclosure** layer a regulator can actually use.
+The **winning wedge** is depth on the compliance edge. The reference Nethermind
+PoC already does a shielded transfer; Tukar adds a full **selective-disclosure**
+layer a regulator can actually use.
 
 ---
 
@@ -79,7 +79,7 @@ transfer (the reference Nethermind PoC already does that), but a full
 2. **Shielded deposit + membership proof.** Sender deposits USDC into the
    Tukar pool, creating a confidential commitment (UTXO note). They attach an
    **ASP membership proof**: a ZK proof that the deposit source is in the
-   approved set — *without revealing which member they are*.
+   approved set, *without revealing which member they are*.
 
 3. **Shielded transfer (the private middle).** Inside the pool, value moves via a
    **JoinSplit** transfer: input notes are spent (nullifiers published), output
@@ -97,8 +97,8 @@ transfer (the reference Nethermind PoC already does that), but a full
 
 6. **Selective disclosure (on demand).** At any time, a party can hand a
    **regulator** a ZK proof that selectively discloses a specific fact about a
-   confidential payment — e.g. "this commitment's amount is exactly X" or "my
-   total volume this period is ≤ threshold" — bound to an **audit context** so it
+   confidential payment (e.g. "this commitment's amount is exactly X" or "my
+   total volume this period is ≤ threshold"), bound to an **audit context** so it
    cannot be replayed. The regulator learns *only* the disclosed fact, nothing
    else about the graph.
 
@@ -113,7 +113,7 @@ Protocol 28 "Adapter" since 2026-08-27). Secrets never leave the device.
 
 | Circuit | Proves | Public inputs | Used at |
 |---|---|---|---|
-| **`transfer`** | Ownership of input notes, correct nullifiers (no double-spend), valid Merkle inclusion, balance conservation (in = out + public) | merkle root, public amount, **ext-data hash (the pool recomputes it from the recipient, so a withdraw proof can't be replayed to another recipient)** | Steps 2–4 |
+| **`transfer`** | Ownership of input notes, correct nullifiers (no double-spend), valid Merkle inclusion, balance conservation (in = out + public) | merkle root, public amount, **ext-data hash (the pool recomputes it from the recipient, so a withdraw proof can't be replayed to another recipient)** | Steps 2 to 4 |
 | **`compliance`** | The **authenticated depositor** (`sourceKey = field(from)`, a public input the pool pins) ∈ ASP allow-list **and** ∉ deny-list, bound to the commitment | asp root, deny list, **sourceKey**, bind hash | Steps 2 & 4 |
 | **`disclosure`** | A confidential commitment opens to a disclosed amount, bound to an audit context | commitment, disclosed value, audit-context hash | Step 6 |
 | **`merkleUpdate`** | Inserting `newLeaf` into a known `oldRoot` yields exactly `newRoot` (trustless root registration) | old root, new leaf, new root | root advance |
@@ -121,7 +121,7 @@ Protocol 28 "Adapter" since 2026-08-27). Secrets never leave the device.
 | **`aggregateDisclosure`** | The sum of 1..5 confidential payments is ≤ a cap, without revealing any amount, bound to a registered audit request | commitments[5], active[5], cap, audit-context hash, ctxNonce | Step 6 |
 | **`rangeDisclosure`** | A commitment's amount is in a two-sided band `lower ≤ amount ≤ upper`, without revealing it | commitment, lower, upper, audit-context hash | Step 6 |
 
-The **selective-disclosure family** is Tukar's differentiator — the layer that
+The **selective-disclosure family** is Tukar's differentiator, the layer that
 turns "private payments" into "compliant private payments." It comes in **four
 types**: **exact** (`disclosure`), **threshold** (`≤` a figure, amount hidden),
 **aggregate** (Σ of a portfolio `≤` a cap, bound to an on-chain audit request), and
@@ -140,7 +140,7 @@ nullifier   = Poseidon(commitment, leafIndex, privKey)    // published on spend
 Poseidon (a ZK-friendly hash) keeps commitments and Merkle paths cheap in-circuit.
 Soroban has **no native Poseidon host function**, but its BN254 scalar-field host
 ops (`fr_add`/`fr_mul`/`fr_pow`) are enough to compute the *same* circomlib
-Poseidon on-chain — the pool exposes `poseidon_hash(a,b)` to prove it (live,
+Poseidon on-chain. The pool exposes `poseidon_hash(a,b)` to prove it (live,
 `poseidon_hash(1,2)` returns the exact circomlibjs value). One hash is affordable
 (~13.6M CPU), but a full depth-10 insert (~135M) exceeds the per-tx budget, so
 tree updates are verified with the `merkleUpdate` SNARK rather than hashed
@@ -162,7 +162,7 @@ As deployed on testnet (see `deployments/testnet.json`):
 | **`thresholdDisclosure` verifier** | …for the threshold circuit; routed via `pool.disclose_threshold` (amount ≤ a figure, amount hidden). |
 | **`aggregateDisclosure` verifier** | …for the aggregate circuit; routed via `pool.disclose_aggregate` (Σ portfolio ≤ cap, bound to a registered audit request). |
 | **`rangeDisclosure` verifier** | …for the two-sided range circuit; routed via `pool.disclose_range` (`lower ≤ amount ≤ upper`). |
-| **token (SAC)** | The asset the pool custodies — a **real testnet USDC** asset (SAC `CAT6F6HX…FVA2`). `deposit` moves the actual typed amount in; `withdraw` releases it. |
+| **token (SAC)** | The asset the pool custodies, a **real testnet USDC** asset (SAC `CAT6F6HX…FVA2`). `deposit` moves the actual typed amount in; `withdraw` releases it. |
 
 As deployed: **15 contracts** live on testnet. The **core 8** are the pool plus the 7
 verifiers in the table above; the three disclosure-variant verifiers were deployed
@@ -187,12 +187,12 @@ pinned in the pool rather than living in separate Merkle-tree contracts.
 
 Two front ends drive the **same** live pool and the same in-browser proving:
 
-- **`webapp/`** — a unified **Next.js** app that combines the landing page, the full
+- **`webapp/`** is a unified **Next.js** app that combines the landing page, the full
   **`/demo`** corridor console, and **four role-specific apps**: **Sender** and
   **Receiver** (mobile-first consumer apps for funding/sending and receiving/off-ramping)
-  and **Regulator** and **Operator** (dashboards — the Regulator requests and verifies the
+  and **Regulator** and **Operator** (dashboards: the Regulator requests and verifies the
   four disclosure proofs on-chain; the Operator views pool activity and state).
-- **`frontend/`** — the original vanilla site (landing + demo), still live and pointed at
+- **`frontend/`** is the original vanilla site (landing + demo), still live and pointed at
   the same contracts.
 
 They are alternate front ends over the same contracts, not forks.
@@ -203,7 +203,7 @@ The client reconstructs the spendable tree from **durable on-chain state**
 (`leaves()` / `leaf_range`), and reads a recent-activity feed from RPC `getEvents`.
 Public-testnet RPC ages events out, so a production deploy would point the read path
 at an existing Soroban indexer (**Mercury** or **SubQuery**) rather than scanning RPC
-directly. This is a known production step, not a current gap — the tree's source of
+directly. This is a known production step, not a current gap. The tree's source of
 truth is durable state, which has no retention dependency.
 
 ---
@@ -229,7 +229,7 @@ truth is durable state, which has no retention dependency.
   proven on-chain), and 10 corridors. **Phase-2** of the trusted setup is now a
   multi-party ceremony (3 contributions + a public beacon) whose keys are deployed,
   run on one machine in the demo (see CEREMONY.md for the independent-party flow).
-  These are integration surfaces, not the ZK core — the load-bearing cryptography is
+  These are integration surfaces, not the ZK core. The load-bearing cryptography is
   real.
 
 ---
@@ -238,9 +238,9 @@ truth is durable state, which has no retention dependency.
 
 Tukar is structured to graduate into an SCF Build Award:
 
-1. **M1 — ZK core** (this hackathon): shielded transfer + compliance + disclosure
-   on testnet, demo corridor.
-2. **M2 — Real anchors:** integrate a regulated anchor on each side of one live
+1. **M1** builds the ZK core (this hackathon): shielded transfer + compliance +
+   disclosure on testnet, demo corridor.
+2. **M2** brings real anchors: integrate a regulated anchor on each side of one live
    corridor (e.g. US→MX).
-3. **M3 — ASP productization:** real allow/deny curation + regulator console.
-4. **M4 — Audit & mainnet:** security hardening, audit, mainnet pilot.
+3. **M3** productizes the ASP: real allow/deny curation + regulator console.
+4. **M4** covers audit and mainnet: security hardening, audit, mainnet pilot.

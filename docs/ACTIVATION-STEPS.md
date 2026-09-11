@@ -6,7 +6,7 @@ part inside this session, it is marked "I can do this part".
 
 ---
 
-## 1. Sentry error tracking — DONE (live)
+## 1. Sentry error tracking: DONE (live)
 
 Installed via the Vercel Marketplace Sentry integration (Developer plan, forever free: 5k
 errors/month, 1 user). Connected to the `tukar` project, which injected all seven env vars
@@ -16,17 +16,17 @@ redeployed. The production build handshake to Sentry succeeded ("Uploaded files 
 release `40c0db8d...`, full source-map upload), so the runtime SDK is live and the next unhandled
 error appears in Sentry Issues with a de-minified stack trace.
 
-Note: do NOT run `npx @sentry/wizard` (Sentry's onboarding keeps suggesting it) — the app is already
+Note: do NOT run `npx @sentry/wizard` (Sentry's onboarding keeps suggesting it). The app is already
 fully instrumented (`withSentryConfig`, `sentry.*.config.ts`, `instrumentation*.ts`,
 `app/global-error.tsx`); the wizard would overwrite that setup.
 
 The CLI accept-terms flow (`vercel integration add sentry`) errors with "Missing billingPlanId for
-installation-only plan integration" — a Vercel CLI bug. Installing from the web Marketplace
+installation-only plan integration", a Vercel CLI bug. Installing from the web Marketplace
 (https://vercel.com/marketplace/sentry) sidesteps it.
 
 ---
 
-## 2. Vercel Web Analytics + Speed Insights — DONE (live)
+## 2. Vercel Web Analytics + Speed Insights: DONE (live)
 
 Both enabled on the `tukar` project and verified serving:
 - Speed Insights: collecting (22+ real events, RES 96). `/_vercel/speed-insights/script.js` -> 200.

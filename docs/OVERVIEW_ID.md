@@ -35,13 +35,13 @@ Kategori lomba: **Payments & Consumer Applications**.
 
 ## 3. Cara kerja garis besar (4 tahap)
 
-1. **Deposit (PUBLIK)** — USDC asli masuk ke pool, dibarengi **compliance proof** (bukti
+1. **Deposit (PUBLIK).** USDC asli masuk ke pool, dibarengi **compliance proof** (bukti
    pengirim boleh, bukan akun tersanksi).
-2. **Crossing (PRIVAT)** — transfer di dalam korridor **menyembunyikan jumlah dan kedua pihak**.
+2. **Crossing (PRIVAT).** Transfer di dalam korridor **menyembunyikan jumlah dan kedua pihak**.
    Yang kelihatan cuma *commitment* dan *nullifier*.
-3. **Off-ramp (PUBLIK)** — penerima cairin ke mata uang lokal, kursnya dibaca on-chain dari
+3. **Off-ramp (PUBLIK).** Penerima cairin ke mata uang lokal, kursnya dibaca on-chain dari
    oracle.
-4. **Disclosure (SESUAI PERMINTAAN)** — pemegang pembayaran bisa buktiin **satu fakta** ke
+4. **Disclosure (SESUAI PERMINTAAN).** Pemegang pembayaran bisa buktiin **satu fakta** ke
    regulator (misalnya jumlahnya), tanpa buka yang lain.
 
 Deposit dan withdraw sengaja publik (model **Privacy Pools**); yang privat cuma *penyeberangan*
@@ -51,7 +51,7 @@ di tengah, persis di titik yang gak boleh bocor.
 
 ## 4. Fitur dan cara kerjanya
 
-### a. Shielded transfer (transfer terlindung) — jantung privasi
+### a. Shielded transfer (transfer terlindung), jantung privasi
 - Tiap "uang" jadi **note** yang masuk ke **Merkle tree** sebagai **commitment** (hash rahasia,
   kayak titipan tersegel). Jumlah dan pemilik gak kelihatan.
 - Waktu dibelanjakan, note ngeluarin **nullifier** (penanda anti double-spend). Kontrak nolak
@@ -59,23 +59,23 @@ di tengah, persis di titik yang gak boleh bocor.
 - Sirkuit `transfer` (JoinSplit) buktiin: note-nya beneran ada di tree, nilainya seimbang
   (input = output), dan nullifier-nya benar, **tanpa** bukain jumlah atau siapa pihaknya.
 
-### b. Compliance ASP (allow-list + deny-list) — kepatuhan di dalam bukti
+### b. Compliance ASP (allow-list + deny-list) menaruh kepatuhan di dalam bukti
 - Tiap deposit buktiin di dalam sirkuit bahwa **pengirim ada di allow-list** dan **tidak ada di
   deny-list** (daftar akun tersanksi).
 - Kuncinya di-**pin ke akun `from`**, jadi kamu **gak bisa deposit atas nama orang lain**.
 - Ini yang bikin Tukar beda dari mixer: kepatuhan itu **di dalam proof, bukan janji**.
 
-### c. Selective disclosure (buka satu fakta saja) — 4 jenis
+### c. 4 jenis selective disclosure (buka satu fakta saja)
 Pemegang pembayaran bisa buktiin satu hal ke auditor, sisanya tetap rahasia:
-1. **Exact** — buktiin jumlah persisnya.
-2. **Threshold** — buktiin jumlah **di bawah/sama dengan** suatu batas, tanpa sebut angka pasti.
-3. **Range** — buktiin jumlah **di antara dua batas**.
-4. **Aggregate** — buktiin **total beberapa pembayaran ≤ suatu cap**. Ini dijaga **registry
+1. **Exact** buktiin jumlah persisnya.
+2. **Threshold** buktiin jumlah **di bawah/sama dengan** suatu batas, tanpa sebut angka pasti.
+3. **Range** buktiin jumlah **di antara dua batas**.
+4. **Aggregate** buktiin **total beberapa pembayaran ≤ suatu cap**. Ini dijaga **registry
    on-chain**: regulator daftarin permintaan audit, dan kontrak (`disclose_aggregate`) **nolak**
    audit yang gak terdaftar, jadi pemegang **gak bisa cherry-pick** (milih-milih pembayaran).
 - Tiap disclosure hasilkan **receipt** yang bisa diekspor dan dikasih ke auditor.
 
-### d. Verifikasi on-chain (bukan sekadar klaim)
+### d. Verifikasi on-chain
 - Proof dibuat **di browser** (snarkjs/WASM), lalu diverifikasi oleh **kontrak Soroban** di
   Stellar testnet (cek pairing BN254).
 - Kalau asli → **valid**. Kalau dipalsukan/diubah → kontrak balikin **InvalidProof**. Ini yang
@@ -92,7 +92,7 @@ Pemegang pembayaran bisa buktiin satu hal ke auditor, sisanya tetap rahasia:
   hasilnya di bawah ~99% quote. Kalau feed basi/hilang, **fail-closed** (gagal aman).
 - Jadi dana **gak pernah pindah di harga jelek**.
 
-### g. Fiat edges (ujung fiat) — jujur: masih disimulasi
+### g. Fiat edges (ujung fiat), jujur aja masih disimulasi
 - On-ramp/off-ramp lewat **SEP-24 anchor**. Di testnet ini pakai reference anchor SDF (belum
   KYC/fiat asli). Produksi butuh **anchor berlisensi** yang urus KYC. Ini langkah bisnis, bukan
   masalah kode.
@@ -150,7 +150,7 @@ Pemegang pembayaran bisa buktiin satu hal ke auditor, sisanya tetap rahasia:
 ---
 
 ## 7. Angka penting (hafal ini)
-**8 circuit · 15 kontrak on-chain · 314 test Cargo + 230 test webapp lolos.** USDC testnet
+**8 circuit · 15 kontrak on-chain · 314 test Cargo + 231 test webapp lolos.** USDC testnet
 asli. Fiat edges memakai panggilan SEP asli ke reference anchor testnet milik SDF, jadi anchor
 berlisensi masih langkah production. Belum diaudit profesional. Semua yang di tengah (proof,
 deposit, verifikasi, Travel Rule, CCTP, reserves) nyata dan bisa dicek on-chain sekarang.

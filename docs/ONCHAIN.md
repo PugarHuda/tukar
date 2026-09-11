@@ -7,7 +7,7 @@ vote is scheduled for 2026-09-16, and the host functions are unchanged by it.
 
 The verifier contract pattern is adapted from Nethermind's
 `circom-groth16-verifier` (verifies over **BN254** via `env.crypto().bn254()`,
-matching snarkjs/circom's default curve — no curve re-targeting needed).
+matching snarkjs/circom's default curve, so no curve re-targeting is needed).
 
 ## Pipeline
 
@@ -85,13 +85,13 @@ tools/bin/stellar.exe contract invoke --id CONTRACT_ID \
   verify --proof <hex-256B> --public_inputs '[<fr0>,<fr1>,<fr2>]'
 ```
 
-Expected result: `true` — the regulator's disclosure proof is verified on-chain
+Expected result: `true`. The regulator's disclosure proof is verified on-chain
 without revealing any private salary/amount detail.
 
-## Status — ✅ VERIFIED ON TESTNET
+## Status: ✅ VERIFIED ON TESTNET
 
 - [x] Verifier WASM build with Tukar VK (4685 bytes, exports `verify`)
-- [x] Deployed to testnet — contract `CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V`
+- [x] Deployed to testnet, contract `CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V`
 - [x] Proof → Soroban arg converter (`scripts/gen-invoke-args.mjs`, G2 c1‖c0 swap)
 - [x] Invoke `verify` with valid proof → **`true`** ([tx](https://stellar.expert/explorer/testnet/tx/6524b07b69a275771867b3c17540056f8ea0e02744abdccf81e2ab074fcebca1))
 - [x] Negative test: tampered public input → **rejected** on-chain (`InvalidProof`)

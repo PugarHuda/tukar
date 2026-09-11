@@ -23,7 +23,13 @@ const PASSPHRASE = "Test SDF Network ; September 2015";
 
 // Reused LIVE infrastructure (identical wiring to the pool-enforced / pool-accumulator previews).
 const CORREDOR = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS";
-const CORREDOR_SECRET = "SB75LZWW3JGQQYE6ZU75MEVD5AXKF2YAIWV4C4C4Y4FYUJ4X3FKD334I";
+// The corridor admin secret is read from the environment and is never stored in this repo.
+// Export it in your shell before running, from the `corredor` CLI alias.
+const CORREDOR_SECRET = process.env.CORREDOR_SECRET;
+if (!CORREDOR_SECRET) {
+  console.error("CORREDOR_SECRET is not set. Export the corridor admin secret before running this script.");
+  process.exit(1);
+}
 const TOKEN = "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2";
 const TRANSFER_V = "CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE";
 const COMPLIANCE_V = "CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2";

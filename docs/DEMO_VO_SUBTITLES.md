@@ -232,9 +232,9 @@ on-screen captions, in order, and they double as the voiceover, word for word.
 
 Renders (all 1366x768, scratch neural VO baked in with en-US-AndrewNeural, plus a silent
 twin; replace the VO with your own):
-- `tukar-shortcut-90s.mp4` / `-silent.mp4` — the ~1:35 live-pitch cut (drops the standalone
+- `tukar-shortcut-90s.mp4` / `-silent.mp4` is the ~1:35 live-pitch cut (drops the standalone
   amount beat; the amount line is merged into the send line).
-- `tukar-shortcut.mp4` / `-silent.mp4` — the ~1:50 full cut (keeps every line below).
+- `tukar-shortcut.mp4` / `-silent.mp4` is the ~1:50 full cut (keeps every line below).
 
 The mobile-first consumer apps (Sender, Receiver) are shown inside a phone frame; the
 desktop consoles (Regulator, Operator) stay full-screen. Loading/proving waits are shown

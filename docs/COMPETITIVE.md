@@ -1,9 +1,16 @@
-# Where Tukar sits — and how it differs
+# Where Tukar sits, and how it differs
 
-Stellar's privacy tier is real and getting crowded (that's a good sign — it's where
+Stellar's privacy tier is real and getting crowded (a good sign, because that's where
 Stellar is investing). This is an honest map of the neighbours and where Tukar is
 genuinely different, plus where it deliberately *isn't* (so it stays relevant and
 composable, not a reinvention).
+
+## What Tukar concedes before it claims anything
+
+The compliant shielded pool is no longer a differentiator on Stellar. SDF published its
+own reference implementation of one on 2026-08-28, and the closest SCF Build award (Arcane,
+SCF #42) is building the same thing with a compliance layer on top. Tukar sits on that same
+primitive tier on purpose. Everything Tukar claims below is above the pool, not inside it.
 
 ## Category: Payments & Consumer Applications
 
@@ -11,9 +18,31 @@ Tukar is entered in the **Payments & Consumer Applications** category of the Ste
 APAC Grand Finale. It fits there directly: it is a **consumer remittance app** (send
 money home to family) with mobile-first Sender and Receiver experiences and real fiat
 in and out. The privacy and compliance layer is the moat, not the category. So the
-map below has two kinds of neighbour: the **privacy-tier projects** (Confidential
-Tokens, LumenShade, Moonlight, Fairblock) that share Tukar's tech, and the
-**in-category rivals** (other payments and consumer apps) it is judged against.
+map below has several kinds of neighbour: the **SDF reference implementations**
+(Stellar Private Payments, Confidential Tokens), the **SCF-funded privacy projects**
+(Arcane, Remi, Fairblock, Moonlight, LumenShade), and the **in-category rivals** (other
+payments and consumer apps) Tukar is judged against.
+
+## Stellar Private Payments, the one that resets the baseline
+
+[Stellar Private Payments](https://github.com/NethermindEth/stellar-private-payments)
+(SPP) is Nethermind's shielded pool, published as an
+[SDF developer preview on 2026-08-28](https://stellar.org/blog/developers/developer-preview-stellar-private-payments),
+Apache-2.0, testnet only. It is not an SCF project. It is Circom, Groth16 and BN254, with
+UTXO commitments and nullifiers, Association Set Provider membership **and**
+non-membership Merkle trees, `none` / `allowlist` / `blocklist` / `allowlist-blocklist`
+policy modes proven inside the circuit, global view keys for administrator visibility,
+selective disclosure via user view keys, a public key registry mapping Stellar addresses
+to pool keys, and both TypeScript and Rust SDKs.
+
+Tukar has to say plainly what that means. Tukar's in-circuit allow-list plus deny-list is
+**not** a differentiator against SPP, because SPP proves the same thing in the same place
+with the same curve and the same proof system. Tukar already credits this team, since the
+verifier contract pattern in this repository is adapted from Nethermind's reference and
+the README says so. Tukar sits on the same primitive tier as SDF's own reference
+implementation, deliberately, because a corridor built on a divergent primitive would be
+a corridor nobody else can compose with. The net-new work is above the pool, and the
+sections below are about that work only.
 
 ## The neighbours
 
@@ -21,9 +50,75 @@ Tokens, LumenShade, Moonlight, Fairblock) that share Tukar's tech, and the
 |---|---|---|---|
 | **Confidential Tokens** (official Stellar/OZ) | Hides **balances & amounts** of an SEP-41 token; sender/recipient stay visible | Auditor keys / selective disclosure | Stellar · Noir + UltraHonk |
 | **LumenShade** | A **privacy-pool** primitive (Tornado / 0xbow / Railgun lineage): deposit → shielded → withdraw, breaks deposit↔withdraw linkability | "Potential for" compliance (roadmap) | Stellar/Soroban · ZK |
-| **Moonlight** | A **general privacy layer**: accounts become constellations of unlinkable UTXOs; hides sender/recipient/amount | Trusted **"Privacy Providers"** (banks/custodians) relay txns and add optional compliance hooks + selective disclosure | Stellar · UTXO + ZK |
-| **Fairblock** | **Programmable privacy / anti-MEV** via MPC + identity-based encryption; encrypt-then-execute, confidential stablecoin transfers & sealed trading | Condition-based decryption | Cosmos / Arbitrum · MPC/IBE (not ZK privacy pools) |
+| **Stellar Private Payments** (Nethermind, SDF developer preview) | A **shielded pool**: UTXO commitments and nullifiers, deposit to shielded transfer to withdraw | ASP membership **and** non-membership trees, four policy modes proven in-circuit, global and user view keys, selective disclosure | Stellar/Soroban · Circom/Groth16/BN254 |
+| **Moonlight** (Aha Labs, SCF #37 Build) | A **general privacy layer**: accounts become constellations of unlinkable UTXOs; hides sender/recipient/amount. **Live on Stellar mainnet**, announced at the Stellar Developers Meeting of 2026-08-27 | Trusted **"Privacy Providers"** (banks/custodians) relay txns and add optional compliance hooks + selective disclosure | Stellar · UTXO + ZK |
+| **Fairblock** (SCF #40 Build, Developer Tooling, $150,000) | **Confidential stablecoins** on Stellar: hides amounts and balances, addresses stay visible | Policy-gated auditor decryption of specific transactions | Stellar · additively homomorphic ElGamal + threshold IBE (not ZK privacy pools) |
 | **Tukar** | A **remittance corridor** on the privacy-pool tier: fiat-in → shielded crossing → fiat-out to **local currency** | **In-protocol, trustless**: per-deposit ASP allow/deny proof (key pinned to `from`) + **four** on-chain-verified selective-disclosure types with on-chain-enforced aggregate completeness | Stellar/Soroban · Circom/Groth16/BN254 |
+
+## The closest SCF Build awards
+
+These three are the most recent and most similar funded work on Stellar. Leaving them out
+would read as evasion, so they are named with their round, category and what the funded
+scope actually covers.
+
+**Arcane** (Arcane Finance), SCF #42 Build, End-User Application, $150,000.
+[Project page](https://communityfund.stellar.org/project/arcane-private-compliant-layer-for-stellar-3fq).
+This is the closest overall positioning. Arcane is a shared ZK shielded pool giving one
+anonymity set across Stellar, plus a compliance portal for auditors with investigation
+workflows, role-based selective disclosure scoped by role, application and time window, an
+application gatekeeper policy framework, a developer SDK, and a reference app, funded
+through to mainnet. It addresses the same problem Tukar addresses and it should be treated
+as a genuine rival, not waved away.
+
+The real difference is shape, and it is checkable in Arcane's own funded scope. Arcane is
+**horizontal infrastructure for institutions to build on**, and its compliance is served by
+an off-chain **Compliance Services Layer** (SEP-10 auth, SEP-1 role resolution, encrypted
+audit event indexing, a scoped disclosure API with an access log). Tukar is **one vertical
+corridor**, with SEP-24 fiat edges, local-currency payout, an on-chain Reflector FX read
+that gates settlement, and disclosures verified on-chain by Soroban contracts rather than
+served by a backend. Neither shape is better in the abstract. They are different products
+for different buyers, and Arcane's is funded and further along.
+
+**Remi**, SCF #44 Build, Financial Protocols
+([submission](https://communityfund.stellar.org/submissions/recCJsvZpqeNpRztT)). This is
+the closest business-model collision, because Remi's stated buyer is almost word for word
+Tukar's, namely banks, exchange houses, MTOs, fintechs and PSPs that want confidential
+settlement they can still audit. Remi keeps amounts and balances confidential on-chain with
+auditor viewing keys and selective disclosure, and adds sponsored transactions so users pay
+no fee. Sources conflict on the award amount. The SCF submission page lists $133.7K, press
+coverage reports about $135,000, and a directory record gives a materially lower figure, so
+this document does not rest anything on the number.
+
+Two honest points. First, Remi integrates Stellar's **confidential-token** capability, so
+addresses stay visible and amounts are hidden, where Tukar's shielded pool hides the
+counterparties as well. That is a real architectural difference, not a marketing one.
+Second, Remi was funded one round before this one and has distribution Tukar does not, with
+its application citing a live UAE exchange-house partner and monthly volume already
+confirmed. **Tukar has no edge on traction against Remi, and none on regulatory footprint.**
+Tukar's only defensible claims against Remi are architectural and verification-related,
+which is why this document does not argue the business axis.
+
+**Fairblock**, SCF #40 Build, Developer Tooling, $150,000, submission titled "Private &
+compliant payments on Stellar"
+([submission](https://communityfund.stellar.org/submissions/recJbAw5nnUU1ZUmb)). Fairblock
+is building confidential stablecoins on Stellar using additively homomorphic ElGamal for
+amounts and balances plus threshold identity-based encryption, with range, conservation and
+non-negativity proofs, and policy-gated auditor decryption of specific transactions. Amounts
+and balances are hidden, addresses stay visible. An earlier version of this document
+described Fairblock as a Cosmos and Arbitrum project outside the Stellar funded set. That
+was wrong and is corrected here.
+
+## Confidential Tokens, the other design point
+
+[Confidential Tokens](https://stellar.org/blog/developers/developer-preview-confidential-tokens-on-stellar)
+(OpenZeppelin contracts with a Nethermind UltraHonk verifier, SDF developer preview) is a
+privacy wrapper for any SEP-41 token. It hides balances and transfer amounts and leaves
+sender and recipient visible, with an auditor view key, selective disclosure, account
+freezing inherited from the Stellar Asset Contract, and a configurable policy engine whose
+policy contracts act as allow-list or block-list identity registries. SDF's own post frames
+it as the opposite design point to a privacy pool, which shields both the parties and the
+amounts, so it is a useful contrast rather than a rival. It does overlap Tukar's
+policy-registry surface, which is worth naming rather than ignoring.
 
 ## In-category rivals (Payments & Consumer Applications)
 
@@ -61,7 +156,8 @@ public one-liners only and do not claim to know their internals.
 | **Zebra / ZeroWage** | Compliant ZK payroll. |
 
 **Honest takeaway.** The core "privacy pool plus compliance" idea is **not unique**, and
-we should stop positioning on it as if it were. Tukar's real differentiation is the parts
+we should stop positioning on it as if it were. SPP, Arcane and several of the projects
+above all ship it. Tukar's real differentiation is the parts
 these siblings do not build: the full **remittance corridor** (real fiat edges via SEP
 anchors, an oracle-gated off-ramp to local currency, four contract-verified disclosure
 types, and an on-chain audit registry), plus the **anchor-layer positioning** (Tukar as
@@ -77,7 +173,7 @@ sterner comparison than a weekend build.
 
 | Project | What it is (public) | Where Tukar differs |
 |---|---|---|
-| **Moonlight** | Non-custodial privacy on Stellar using ZK proofs while preserving compliance. **The closest mature rival.** | Moonlight is a **generic confidential-transactions layer**. Tukar is a **remittance corridor with fiat edges and disclosure depth**, positioned as the layer anchors plug into, not a general privacy primitive. Same tier, different product (see also the neighbours table above). |
+| **Moonlight** | Non-custodial privacy on Stellar using ZK proofs while preserving compliance. **Live on Stellar mainnet** since the Stellar Developers Meeting of 2026-08-27, which makes it the most mature privacy deployment on the network. | Moonlight is a **generic confidential-transactions layer**. Tukar is a **remittance corridor with fiat edges and disclosure depth**, positioned as the layer anchors plug into, not a general privacy primitive. Same tier, different product (see also the neighbours table above). |
 | **Zarf** | Non-custodial privacy-preserving token distribution (email payments, vesting). | Zarf's job is private distribution/payouts. Tukar's job is **cross-border remittance** with fiat-in/fiat-out to local currency and a regulator-verifiable disclosure layer. Different edges, different user. |
 
 ## The remittance market Tukar enters (Stellar players without privacy)
@@ -97,8 +193,8 @@ single fact regulator-verifiable on chain.
 The anchor-layer positioning only works if a **licensed** anchor sits at the fiat edge.
 These are candidates Tukar's roadmap plugs into rather than competes with.
 
-- **Yellow Card** — licensed stablecoin on/off-ramp across roughly 20 African countries.
-- **Cash Abroad** — LATAM cross-border anchor.
+Yellow Card is a licensed stablecoin on/off-ramp across roughly 20 African countries.
+Cash Abroad is a LATAM cross-border anchor.
 
 Framing for judges: Tukar is the privacy + compliance layer; a licensed anchor is the
 regulated fiat edge. The two compose.
@@ -136,21 +232,25 @@ types, which is itself part of the differentiator (see line 3 below).
 ## Four lines that separate Tukar
 
 **1. Vertical product, not a horizontal primitive.**
-LumenShade and Moonlight are *layers* — you shield an asset, or you get unlinkable
+LumenShade and Moonlight are *layers*. You shield an asset, or you get unlinkable
 UTXOs, and then someone builds a product on top. Tukar **is** that product for one job:
 a cross-border corridor with fiat edges (anchor SEPs), an off-ramp to **local
-currency**, bearer notes and payment requests — end to end, 10 corridors. Tukar could
+currency**, bearer notes and payment requests, end to end across 10 corridors. Tukar could
 even *sit on top of* a privacy-pool primitive; it's not competing to be the primitive.
 
-**2. Trustless, in-protocol compliance — not a trusted relay, not "roadmap".**
-This is the sharpest difference. Moonlight routes compliance through **Privacy
-Providers** (banks/custodians you trust to relay and disclose); LumenShade lists
-compliance as a future goal. Tukar's compliance is **proven on-chain, per deposit, with
-no trusted intermediary**: the ASP proof pins `sourceKey = field(from)` and the deposit
-`require_auth`s that account, so it authenticates *this* depositor is allow-listed (and
-not deny-listed) — and a holder discloses **one fact** to a regulator via a proof the
-Stellar contract verifies. It's live and soundness-tested today (`npm run test:asp`,
-`test:negative`), not delegated and not deferred.
+**2. In-protocol compliance, which holds against some neighbours and not against others.**
+State the limit first. Against **SPP** and **Arcane** this is **not** a differentiator.
+SPP proves allow-list membership and deny-list non-membership in-circuit exactly as Tukar
+does, and Arcane's funded scope covers the same ground with an off-chain services layer.
+Where the distinction does still hold is against **Moonlight**, which routes compliance
+through trusted **Privacy Providers** (banks and custodians you trust to relay and
+disclose), and against **LumenShade**, which lists compliance as a future goal. Tukar's
+compliance is **proven on-chain, per deposit, with no trusted intermediary**: the ASP proof
+pins `sourceKey = field(from)` and the deposit `require_auth`s that account, so it
+authenticates that *this* depositor is allow-listed and not deny-listed. It is live and
+soundness-tested today (`npm run test:asp`, `test:negative`). The one detail here that is
+not standard on the tier is the binding of the proof to the authenticated depositor
+account, which is a small hardening choice, not a moat.
 
 **3. Four on-chain-verified disclosure types, with completeness enforced on-chain.**
 A general privacy pool lets a holder hide a fact; it does not let a regulator *verify one*.
@@ -165,34 +265,61 @@ chain, and `disclose_aggregate` rejects any context hash that was not registered
 cherry-picked subset. So a regulator gets a specific, complete, contract-verified fact tied
 to a genuine deposit, which a plain shielded-transfer primitive has no mechanism to offer.
 
-**4. Oracle-gated settlement — privacy bound to real-world FX.**
+**4. Oracle-gated settlement binds privacy to real-world FX.**
 None of the neighbours tie fund movement to an on-chain FX oracle. Tukar's off-ramp
 rate is read **on-chain from Reflector** and *gates the release* (min-receive on the
 median of 5 records, fail-closed on a stale/thin feed). Remittance is fundamentally an
-FX product, so making the oracle **load-bearing for settlement** — including the first
-**SEA corridor (Thailand/THB)** priced on-chain — is a differentiator the pure-privacy
-projects have no reason to build.
+FX product, so making the oracle **load-bearing for settlement** is a differentiator the
+pure-privacy projects have no reason to build, and that includes the first
+**SEA corridor (Thailand/THB)** priced on-chain.
 
-## Answering "this already exists (LumenShade / Moonlight / Fairblock)"
+## Answering "this already exists (SPP / Arcane / Remi / Fairblock / Moonlight)"
 
 It is a fair prompt, and the honest answer is a wedge, not a claim that the neighbours are
-bad. LumenShade and Moonlight are privacy *primitives* (a shielded pool, an unlinkable-UTXO
-layer); Fairblock is encrypt-then-execute MPC/IBE infra on other chains. None of them, on
-public material, is a **remittance corridor** with fiat edges via real anchor SEPs, with
-**compliance proven in-circuit and bound to the authenticated depositor** (allow-list
-membership AND deny-list non-membership, so it is private *and* sanctions-screenable), with
-**four contract-verified disclosure types plus on-chain completeness enforcement**, with a
-**load-bearing** settlement oracle. We position on those four verifiable Tukar features, not
-on any guess about a competitor's internals. The combination is what has no catalog
-equivalent.
+bad, and not a claim that the pool is ours.
+
+The Open Track criteria say the track is not for teams replicating existing ecosystem
+solutions, and that a team whose work overlaps an existing solution must clearly explain
+how it meaningfully improves on that solution. Arcane and Stellar Private Payments both
+ship a shielded pool with compliance proven inside the circuit, so Tukar states the
+overlap rather than denying it. The shielded pool is a shared ecosystem primitive and
+Tukar does not claim to have invented it. Tukar's verifier pattern is adapted from the
+same Nethermind reference that SPP comes from, and SDF's own privacy documentation now
+treats privacy pools with Association Set Providers and view keys as canonical
+architecture rather than as novel work
+(https://developers.stellar.org/docs/build/apps/privacy). What Tukar builds is the
+remittance vertical above that primitive: fiat edges through the anchor SEP stack, an
+off-ramp to local currency, an on-chain Reflector FX read that gates settlement, four
+disclosure types verified by their own Soroban contracts with a registry that rejects
+unregistered context hashes, a full-pool liability accumulator for proof of reserves, and
+a working OpenVASP TRP Travel Rule leg. The improvement claimed is the composition and
+the vertical, not the pool.
+
+Where that leaves the individual neighbours. **SPP** is the primitive and Tukar concedes
+the primitive to it. **Arcane** is the same problem in a horizontal shape with off-chain
+compliance services, and is further along. **Remi** is the same buyer with a
+confidential-token architecture and real distribution, and Tukar has no traction argument
+against it. **Fairblock** hides amounts and balances while leaving addresses visible, a
+different privacy model for a different threat. **Moonlight** is live on mainnet with
+compliance through trusted providers. **LumenShade** is a pool with compliance on its
+roadmap. What none of them ships, on public material, is the four-part composition above
+wired to real anchor SEPs. That composition is the claim, and each of its four parts is
+checkable in this repository.
+
+**What we did not find.** In the sources searched for this document, we found no
+SCF-funded project doing FATF Travel Rule messaging on Stellar, and none doing
+cryptographic proof of reserves for a shielded pool on Stellar. That is stated as "not
+found in these sources", not as "does not exist". A reviewer with better sources may know
+of one.
 
 ## Positioning in one line
 
 > **Private for users AND provable to regulators, on the chain built for cross-border
 > money.** Concretely: the **compliant remittance vertical** of Stellar's privacy-pool
-> tier, with trustless in-protocol compliance, four on-chain-verified disclosure types, and
-> oracle-gated settlement, composable with the privacy primitives around it rather than a
-> copy of them.
+> tier. The pool is a shared ecosystem primitive and Tukar concedes it to SPP and Arcane.
+> What Tukar adds above it is four on-chain-verified disclosure types with a registry that
+> rejects unregistered requests, oracle-gated settlement, a full-pool liability accumulator,
+> and a working Travel Rule leg, all wired to real anchor SEPs.
 
 ## Staying relevant, on purpose
 
@@ -200,12 +327,23 @@ equivalent.
   reference; phase-1 setup is the real Hermez ceremony; FX from Reflector; fiat edges
   via the anchor SEP stack. Tukar is the *composition* that doesn't exist yet, not new
   crypto for its own sake.
-- **We fit Stellar's stated strategy.** Stellar's own privacy writing names the
-  privacy-pool tier ("shield both parties and amounts") and *compliant* privacy as the
-  goal. Tukar is a working instance of exactly that, aimed at Stellar's flagship
-  use case — cross-border payments.
+- **We fit Stellar's stated strategy.** SDF's builder documentation at
+  https://developers.stellar.org/docs/build/apps/privacy now documents privacy pools with
+  Association Set Providers and view keys as canonical Stellar architecture, alongside
+  confidential tokens as the other design point. Building on that architecture is
+  alignment, not novelty, and this document says so rather than dressing it up. Tukar is
+  a working instance of it aimed at Stellar's flagship use case, cross-border payments.
 
-_Sources: Stellar privacy strategy & Confidential Tokens preview (stellar.org),
-Moonlight (moonlightprotocol.io), LumenShade (communityfund.stellar.org),
-Fairblock (docs.fairblock.network). Neighbour descriptions are our honest reading of
-public material and may lag their latest releases._
+**Sources, all fetched while writing this document.**
+
+- SDF privacy architecture: https://developers.stellar.org/docs/build/apps/privacy
+- Stellar Private Payments preview: https://stellar.org/blog/developers/developer-preview-stellar-private-payments
+- Stellar Private Payments source: https://github.com/NethermindEth/stellar-private-payments
+- Confidential Tokens preview: https://stellar.org/blog/developers/developer-preview-confidential-tokens-on-stellar
+- Arcane: https://communityfund.stellar.org/project/arcane-private-compliant-layer-for-stellar-3fq
+- Remi (SCF #44): https://communityfund.stellar.org/submissions/recCJsvZpqeNpRztT
+- Fairblock (SCF #40): https://communityfund.stellar.org/submissions/recJbAw5nnUU1ZUmb
+- Moonlight mainnet launch: Stellar Developers Meeting broadcast of 2026-08-27
+
+Neighbour descriptions are our honest reading of public material and may lag their latest
+releases.

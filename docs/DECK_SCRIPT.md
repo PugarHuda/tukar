@@ -7,41 +7,41 @@ land the first line at the judges. Push slides 3 and 4, land the ask on slide 7.
 
 ---
 
-**SLIDE 1 — Hook** (~12s)
+**SLIDE 1: Hook** (~12s)
 "People working abroad send money home every month, and they still pay about six percent.
 Tukar makes that private, on Stellar. Dollars in, local cash out, and the middle stays
 private."
 
-**SLIDE 2 — Problem to solution** (~12s)
+**SLIDE 2: Problem to solution** (~12s)
 "Stellar is a public ledger, so every payment shows the amount and both people. We fix that.
 Public deposit, a private crossing that hides the amount and both parties, then a public
 off-ramp into local cash."
 
-**SLIDE 3 — The moat** (~10s)
+**SLIDE 3: The moat** (~10s)
 "A mixer can't answer a regulator. A normal wallet is public. We're the only one that's
 private for the user and provable to a regulator, on a real corridor."
 
-**SLIDE 4 — The market** (~10s)
+**SLIDE 4: The market** (~10s)
 "Six hundred sixty-nine billion dollars a year goes into lower-income countries, still
 costing over six percent. We take a thin fee on settlement volume, paid by the anchors."
 
-**SLIDE 5 — The tech** (~8s)
+**SLIDE 5: The tech** (~8s)
 "Eight zero-knowledge circuits, fifteen contracts live on testnet. Every proof is built in the
 browser and verified on-chain."
 
-**SLIDE 6 — Real and verified** (~8s)
+**SLIDE 6: Real and verified** (~8s)
 "Real testnet money, an oracle-gated off-ramp, and it's checked, not claimed. A genuine proof
 passes, a tampered one is rejected."
 
-**SLIDE 7 — Depth and the ask** (~14s)
+**SLIDE 7: Depth and the ask** (~14s)
 "Every piece here does real work on-chain, it's load-bearing. This cycle we went deeper, with
 a real Travel Rule exchange, on-chain per-corridor policy, and cryptographic proof-of-reserves.
 What we need is one licensed-anchor pilot and a Stellar Community Fund award."
 
-**SLIDE 8 — Live demo** (~90s)
+**SLIDE 8: Live demo** (~90s)
 "Let me show you." → play the 90 second video, or run it live.
 
-**SLIDE 9 — Close** (~15s)
+**SLIDE 9: Close** (~15s)
 "That's Tukar. Private in the middle, compliant at the edges, on Stellar. We placed fifth in
 the Real-World ZK hackathon and we're an APAC grand finalist. It's testnet and not audited yet,
 but everything in the middle is real, verify it on-chain now. Thanks."

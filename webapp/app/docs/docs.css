@@ -1,0 +1,212 @@
+/* Documentation body: the repository's markdown set on label paper.
+   Every step here is one of the documented ramp steps (headline / title / body / row / small /
+   typed / label) and every colour is a palette token. Wide things (tables, code, images) scroll
+   inside their own frame so the page itself never widens. */
+
+.doc-body {
+  color: theme(colors.ink.2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ---- headings: stencil caps, the same three steps the consoles use ---- */
+.doc-body h1,
+.doc-body h2,
+.doc-body h3 {
+  font-family: theme(fontFamily.stencil);
+  font-weight: 400;
+  color: theme(colors.ink.DEFAULT);
+  text-transform: uppercase;
+  overflow-wrap: break-word;
+}
+.doc-body h1 {
+  font-size: clamp(30px, 4.2vw, 52px);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  margin: 0 0 18px;
+}
+.doc-body h2 {
+  font-size: 24px;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  margin: 40px 0 14px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(22, 19, 17, 0.25);
+}
+/* Several documents put a --- rule before each section; that plus the heading's own rule draws
+   two lines. The heading keeps the rule, the horizontal rule before it steps aside. */
+.doc-body hr + h2 {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.doc-body h3 {
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  margin: 26px 0 10px;
+}
+
+/* ---- sentences ---- */
+.doc-body p {
+  margin: 0 0 14px;
+  max-width: 72ch;
+  overflow-wrap: anywhere;
+}
+/* Tailwind's preflight strips list markers; a document's numbering is part of its meaning. */
+.doc-body ul,
+.doc-body ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+  max-width: 72ch;
+}
+.doc-body ul {
+  list-style: disc;
+}
+.doc-body ol {
+  list-style: decimal;
+}
+.doc-body ul ul {
+  list-style: circle;
+}
+.doc-body li {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+.doc-body li::marker {
+  color: theme(colors.ink.DEFAULT);
+}
+.doc-body li > ul,
+.doc-body li > ol {
+  margin-top: 6px;
+}
+.doc-body strong {
+  color: theme(colors.ink.DEFAULT);
+  font-weight: 600;
+}
+.doc-body a {
+  color: theme(colors.stamp.deep);
+  text-decoration: underline;
+}
+.doc-body a:hover {
+  color: theme(colors.stamp.DEFAULT);
+}
+.doc-body hr {
+  border: 0;
+  border-top: 1px solid theme(colors.line);
+  margin: 28px 0;
+}
+
+/* ---- a note, separated by an ink rule rather than a second box ---- */
+.doc-body blockquote {
+  margin: 0 0 16px;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid theme(colors.ink.DEFAULT);
+  max-width: 72ch;
+  font-size: 13.5px;
+}
+.doc-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- typed data: Courier for hashes, ids, and commands ---- */
+.doc-body code {
+  font-family: theme(fontFamily.mono);
+  font-size: 12.5px;
+  color: theme(colors.ink.DEFAULT);
+  background: theme(colors.label.2);
+  border: 1px solid theme(colors.hair);
+  border-radius: 2px;
+  padding: 1px 4px;
+}
+.doc-body .doc-pre {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: theme(colors.input.DEFAULT);
+  border: 1px solid rgba(22, 19, 17, 0.25);
+  border-radius: theme(borderRadius.tile);
+  box-shadow: theme(boxShadow.inset);
+}
+.doc-body .doc-pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre;
+  color: theme(colors.ink.DEFAULT);
+}
+
+/* ---- the ledger: an ink header row, hairline rules, its own scroll frame ---- */
+.doc-body .doc-scroll {
+  margin: 0 0 16px;
+  overflow-x: auto;
+  border: 1px solid theme(colors.line-input);
+  border-radius: theme(borderRadius.tile);
+  background: theme(colors.label.DEFAULT);
+}
+.doc-body table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.doc-body th {
+  background: theme(colors.ink.DEFAULT);
+  color: theme(colors.label.DEFAULT);
+  font-family: theme(fontFamily.mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.doc-body td {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(22, 19, 17, 0.25);
+  vertical-align: top;
+}
+.doc-body tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ---- a diagram held as source, and captured screens ---- */
+.doc-body .doc-figure {
+  margin: 0 0 16px;
+}
+.doc-body .doc-figure figcaption {
+  font-family: theme(fontFamily.mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: theme(colors.ink.2);
+  margin-bottom: 6px;
+}
+.doc-body .doc-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 0 16px;
+  padding: 8px;
+  background: theme(colors.label.DEFAULT);
+  border: 1px solid theme(colors.ink.DEFAULT);
+  border-radius: theme(borderRadius.stub);
+}
+
+/* ---- a task list, drawn in one stroke like every other mark in the app ---- */
+.doc-body .doc-task {
+  color: theme(colors.ink.DEFAULT);
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+/* A scrolling frame has to be reachable without a mouse. */
+.doc-body .doc-scroll:focus-visible,
+.doc-body .doc-pre:focus-visible {
+  outline: 2px solid theme(colors.stamp.DEFAULT);
+  outline-offset: 2px;
+}

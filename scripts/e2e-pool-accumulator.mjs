@@ -24,7 +24,13 @@ const FIELD_R = 2188824287183927522224640574525727508854836440041603434369820418
 
 // Reused LIVE infrastructure (identical to the pool-enforced preview wiring).
 const CORREDOR = "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS";
-const CORREDOR_SECRET = "SB75LZWW3JGQQYE6ZU75MEVD5AXKF2YAIWV4C4C4Y4FYUJ4X3FKD334I";
+// The corridor admin secret is read from the environment and is never stored in this repo.
+// Export it in your shell before running, from the `corredor` CLI alias.
+const CORREDOR_SECRET = process.env.CORREDOR_SECRET;
+if (!CORREDOR_SECRET) {
+  console.error("CORREDOR_SECRET is not set. Export the corridor admin secret before running this script.");
+  process.exit(1);
+}
 const DEP_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ"; // tukar-dep = demo key = ASP member 0
 const TOKEN = "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2";       // real testnet USDC SAC
 const TRANSFER_V = "CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE";

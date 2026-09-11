@@ -1,4 +1,4 @@
-# Tukar — Pitch Prep (3 min present + 2 min Q&A)
+# Tukar Pitch Prep (3 min present + 2 min Q&A)
 
 Format: **3 minutes to present** (pitch AND demo), then **2 minutes of Q&A**. Judges penalize overruns, so rehearse the present to land at ~2:50 with a visible timer. 3 minutes is tight: the demo has to be fast (a ~60s slice or a short pre-recorded clip narrated live) and the story has to be lean. Lead with the human problem, not the tech. Competitors and deep detail go in Q&A, not the present.
 
@@ -8,12 +8,12 @@ Format: **3 minutes to present** (pitch AND demo), then **2 minutes of Q&A**. Ju
 
 | Time | Section | What to say (energy up, not flat) |
 |---|---|---|
-| 0:00–0:15 | **Hook** | One line that lands the pain. "A worker sends money home. Today that payment is either expensive, or on-chain and fully public. We fixed both." |
-| 0:15–0:40 | **Problem** | Remittances to lower-income countries ran ~$669B in 2023 at ~6% average cost to send $200. On-chain rails are cheaper but leak everything: amounts and counterparties are public. That is a privacy problem for users and a compliance non-starter for institutions. Privacy OR compliance on a public chain, not both. |
-| 0:40–1:00 | **Solution / the wedge** | Tukar is a confidential settlement corridor on Stellar. USDC in, a shielded ZK crossing in the middle where amounts and counterparties are hidden, local fiat out. Compliance proven with zero-knowledge and disclosed selectively to regulators. "Private in the middle, accountable at the edges." |
-| 1:00–2:15 | **DEMO (~75s)** | The money shot (script below). Narrate as it runs: "this proof is generated in the browser and verified on-chain right now, real testnet USDC." |
-| 2:15–2:40 | **Differentiators** | ZK is load-bearing, not decorative. 8 circuits, 15 live contracts. Four selective-disclosure types (the wedge). Real edges: anchors + an on-chain FX oracle, a real TRP 3.2.1 Travel Rule exchange, and cryptographic proof-of-reserves. |
-| 2:40–3:00 | **Close + ask** | One line on the first user, one line on the ask (SCF, a licensed anchor partner, pilot users). End strong. |
+| 0:00-0:15 | **Hook** | One line that lands the pain. "A worker sends money home. Today that payment is either expensive, or on-chain and fully public. We fixed both." |
+| 0:15-0:40 | **Problem** | Remittances to lower-income countries ran ~$669B in 2023 at ~6% average cost to send $200. On-chain rails are cheaper but leak everything: amounts and counterparties are public. That is a privacy problem for users and a compliance non-starter for institutions. Privacy OR compliance on a public chain, not both. |
+| 0:40-1:00 | **Solution / the wedge** | Tukar is a confidential settlement corridor on Stellar. USDC in, a shielded ZK crossing in the middle where amounts and counterparties are hidden, local fiat out. Compliance proven with zero-knowledge and disclosed selectively to regulators. "Private in the middle, accountable at the edges." |
+| 1:00-2:15 | **DEMO (~75s)** | The money shot (script below). Narrate as it runs: "this proof is generated in the browser and verified on-chain right now, real testnet USDC." |
+| 2:15-2:40 | **Differentiators** | ZK is load-bearing, not decorative. 8 circuits, 15 live contracts. Four selective-disclosure types (the wedge). Real edges: anchors + an on-chain FX oracle, a real TRP 3.2.1 Travel Rule exchange, and cryptographic proof-of-reserves. |
+| 2:40-3:00 | **Close + ask** | One line on the first user, one line on the ask (SCF, a licensed anchor partner, pilot users). End strong. |
 
 Cut plan if you are running long: drop the differentiators list to a single sentence and go straight to the close. Protect the demo and the close. Have a backup recording queued so a demo hiccup never eats the clock.
 
@@ -81,7 +81,7 @@ There is no room for a competitor slide in a 3-minute present. Keep this for Q&A
 | ZK payment L2s | Aztec and similar | Different chain/ecosystem. Tukar is native to Stellar's cross-border rail and Stellar's own BN254 host functions (added in Protocol 25/26, running on Protocol 28 testnet today). |
 | Stellar privacy-pool primitive | LumenShade | A shielded-pool primitive; compliance is roadmap. Tukar is the remittance product on that tier, with compliance proven in-circuit today, and could sit on top of such a primitive rather than competing with it. |
 | General Stellar privacy layer | Moonlight | Unlinkable UTXOs with compliance relayed through trusted Privacy Providers. Tukar's compliance is trustless and in-protocol (no trusted relay), and it is a corridor, not a horizontal layer. |
-| Programmable-privacy infra | Fairblock | Encrypt-then-execute MPC/IBE on Cosmos/Arbitrum, not a Stellar ZK privacy pool and not a remittance product. Different chain, different primitive. |
+| Programmable-privacy infra | Fairblock | SCF #40 Build (Developer Tooling, $150,000) building confidential stablecoins ON Stellar with additively homomorphic ElGamal plus threshold IBE: amounts and balances hidden, addresses visible. Same chain, different primitive, and not a remittance corridor. |
 | In-category: ZK privacy pool | Veil | Private-by-default mixer, but no compliance layer (public read). Tukar is the compliant version: ASP allow/deny in-circuit plus four contract-verified disclosure types, and a real corridor with fiat edges. |
 | In-category: private payment links | OLIO | Private USDC links for freelancers. Different job. Tukar is cross-border remittance with fiat-in/out to local currency, an FX-oracle settlement gate, and a regulator-verifiable disclosure layer. |
 | In-category: consumer wallets/plays | Palengke-pay, Pundar, Pacta, Family Haven, StarTip, Human FX, Payoes | Consumer money apps without an on-chain privacy + compliance layer (public read). Tukar adds privacy AND provable compliance to cross-border money. |
@@ -134,7 +134,7 @@ Keep adding to this sheet as a shared spreadsheet. Assign one teammate to own Q&
 
 ## 9. Pre-flight checklist (day of)
 
-- [ ] Key funded (XLM for fees + testnet USDC) — verified.
+- [ ] Key funded (XLM for fees + testnet USDC), verified.
 - [ ] Live demo rehearsed on the actual presentation machine and network.
 - [ ] Backup recording downloaded and ready to cut to.
 - [ ] Deck (9 slides) exportable offline (the deck prints one slide per page via Ctrl+P if the network fails).
