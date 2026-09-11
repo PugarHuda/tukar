@@ -26,15 +26,27 @@ Tukar is a private cross-border remittance corridor on Stellar. Fifteen contract
 testnet, eight Circom circuits prove in the browser, and real deposits settle on Protocol 28. The
 blocker is not the cryptography. It is two specific things.
 
-**First, the Travel Rule cannot currently be satisfied for a shielded transfer, by anyone.** Every
-Travel Rule system in production, TRISA, TRP, Notabene and the rest, assumes the receiving
-institution can look at the on-chain transfer that the IVMS101 message refers to. On a shielded
-transfer it cannot see one. So a Travel Rule message about a private payment is today an
-unverifiable assertion: the receiving side has to take the sender's word that the message describes
-a real transfer of the stated amount. Tukar already sends and answers TRP 3.2.1 messages with real
-Ed25519 signatures, and they have exactly this weakness. A survey of the privacy ecosystem run on
-2026-09-11 across Ethereum, Zcash, Solana, Aztec, Namada, Penumbra and the Stellar funded set found
-nobody binding a Travel Rule payload to a shielded transfer cryptographically.
+**First, the Travel Rule cannot currently be satisfied for a shielded transfer.** Every Travel Rule
+system in production, TRISA, TRP, Notabene and the rest, assumes the receiving institution can look
+at the on-chain transfer that the IVMS101 message refers to. On a shielded transfer it cannot see
+one. So a Travel Rule message about a private payment is today an unverifiable assertion: the
+receiving side has to take the sender's word that the message describes a real transfer of the
+stated amount. Tukar already sends and answers TRP 3.2.1 messages with real Ed25519 signatures, and
+they have exactly this weakness: `validateIvms101` checks the transaction fields for non-emptiness
+and nothing resolves the reference against the ledger, and the `txid` a counterparty posts to the
+callback is stored verbatim and never fetched.
+
+The binding idea is not unprecedented on transparent transfers, and this proposal does not claim to
+originate it. Veritas, a hackathon build at Stellar Hacks: Real-World ZK in July 2026, anchors a
+Groth16 Travel Rule attestation to a public Stellar settlement inside a Soroban contract, live on
+testnet, and D1 builds on that design. What is not found in the sources searched on 2026-09-11
+(Stellar's developer documentation, the SEP and CAP corpora, the SCF-funded set, the Stellar
+hackathon build index, SDF blog posts and developer-meeting recordings, and the privacy ecosystems
+of Ethereum, Zcash, Solana, Aztec, Namada and Penumbra) is anyone doing the same binding where the
+transfer itself is shielded. That is the case where the receiving institution has nothing to check
+the message against, and therefore the only case where the binding is load-bearing. Stellar's own
+documentation does not cover the Travel Rule at all: a full-text search of developers.stellar.org
+for "travel rule" returns one hit, and it is a false positive.
 
 **Second, the project has never been used by anyone except its author.** Every design decision about
 the hardest part of the product, the twenty to sixty seconds of in-browser proving with no progress
@@ -53,7 +65,7 @@ end to end by real people who are not the author, with what broke published.
 
 | Deliverable | What will be built | Why it matters |
 |---|---|---|
-| **D1. Travel Rule payload bound to a shielded deposit** | The canonical hash of a TRP 3.2.1 transfer inquiry is committed on-chain at deposit time and tied to that specific note. A public verification path lets anyone holding the payload check that it corresponds to a real deposit of the stated amount, and that the same payload cannot be reused for a second transfer or swapped for a different one. Lands on the upgradeable preview pool, because the live pool has no upgrade hook and its address must not change. | Turns a Travel Rule message about a private payment from an assertion into something the receiving side can check. Not found anywhere in the ecosystem survey. |
+| **D1. Travel Rule payload bound to a shielded deposit** | The canonical hash of a TRP 3.2.1 transfer inquiry is committed on-chain at deposit time and tied to that specific note. A public verification path lets anyone holding the payload check that it corresponds to a real deposit of the stated amount, and that the same payload cannot be reused for a second transfer or swapped for a different one. Lands on the upgradeable preview pool, because the live pool has no upgrade hook and its address must not change. | Turns a Travel Rule message about a private payment from an assertion into something the receiving side can check. The transparent-transfer version exists as a July 2026 hackathon prototype (Veritas); the shielded-transfer version is not found in the sources searched. |
 | **D2. Scoped testnet pilot with a published report** | Three people who are not the author run the corridor end to end, with roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. Where they hesitate, what they misread and what they cannot finish is recorded in their own words. A report is published naming the sample size, how people were found, the selection bias, what broke, and what was changed because of it. The report separates first-contact findings from repeat-session findings, because a person who has already seen the app is no longer fresh evidence. | The product has never been touched by a stranger. Three is small and the report will say so, but three sessions that happen beat ten that are scheduled and cancelled. |
 | **D3 (optional, dropped first if the sprint runs short). The binding published as reusable tooling** | The payload-commitment scheme written up as a short spec with a runnable example against the deployed testnet contract, so another Stellar team can implement it without reading Tukar's source. | Travel Rule over shielded transfers is an ecosystem-wide gap, not a Tukar one. |
 
@@ -69,8 +81,9 @@ end to end by real people who are not the author, with what broke published.
   already published stays valid.
 - **No counterparty VASP network.** D1 makes the binding verifiable. It does not make a second
   institution exist to verify it.
-- **Nothing that needs the recurring scheduler, a TRISA node, or Notabene**, all of which are
-  currently unprovisioned and would degrade to their not-configured state anyway.
+- **Nothing that depends on the recurring scheduler, a TRISA node, or the Notabene sandbox.** All
+  three are unprovisioned on this deployment. The Notabene path exists in the code and is gated on an
+  API key that is not set, so it degrades to the self-hosted TRP path rather than being absent.
 
 ### 4.2 Budget request
 
