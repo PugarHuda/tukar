@@ -1,8 +1,7 @@
 # Instawards Statement of Work: Tukar
 
-> Fill the Ambassador Chapter fields before this goes anywhere. They are marked [ISI SENDIRI]
-> because only the builder knows which chapter he is active in and who its lead is, and inventing
-> either would be worse than leaving them blank.
+> Filled in and checked against the project on 2026-09-11. A copy-friendly version with a copy
+> button per section, for pasting into the Airtable form, is published as a Claude artifact.
 
 ## 1. Project and team information
 
@@ -11,10 +10,10 @@
 | Project name | Tukar |
 | Builder / team name | Pugar Huda Mantoro (solo builder) |
 | Primary contact | Pugar Huda Mantoro, hudapugar@gmail.com |
-| Ambassador Chapter | **[ISI SENDIRI]** |
-| Ambassador Chapter Lead | **[ISI SENDIRI]** |
-| Date submitted | **[ISI SENDIRI: the day it actually goes in]** |
-| Suggested sprint start date | 2026-09-22, which lands the 30 day finish on 2026-10-22, seventeen days before the SCF round 46 deadline |
+| Ambassador Chapter | Ambassador Chapter Indonesia |
+| Ambassador Chapter Lead | Kenny Rivaldi |
+| Date submitted | 2026-09-11 |
+| Suggested sprint start date | 2026-09-22, finishing 2026-10-22, seventeen days before the SCF round 46 deadline |
 
 Links a reviewer can open today: the live app at https://tukar-six.vercel.app, the documentation at
 https://tukar-six.vercel.app/docs, the source at https://github.com/PugarHuda/tukar.
@@ -55,8 +54,8 @@ end to end by real people who are not the author, with what broke published.
 | Deliverable | What will be built | Why it matters |
 |---|---|---|
 | **D1. Travel Rule payload bound to a shielded deposit** | The canonical hash of a TRP 3.2.1 transfer inquiry is committed on-chain at deposit time and tied to that specific note. A public verification path lets anyone holding the payload check that it corresponds to a real deposit of the stated amount, and that the same payload cannot be reused for a second transfer or swapped for a different one. Lands on the upgradeable preview pool, because the live pool has no upgrade hook and its address must not change. | Turns a Travel Rule message about a private payment from an assertion into something the receiving side can check. Not found anywhere in the ecosystem survey. |
-| **D2. Scoped testnet pilot with a published report** | Six to ten people who are not the author run the corridor end to end in paired sessions, one sender and one receiver, following `docs/ONBOARDING.md`. Where they hesitate, what they misread and what they cannot finish is recorded in their own words. A report is published naming the sample size, how people were found, the selection bias, what broke, and what was changed because of it. | The product has never been touched by a stranger. Findings that contradict the design are the point, not a risk. |
-| **D3 (optional). The binding published as reusable tooling** | The payload-commitment scheme written up as a short spec with a runnable example against the deployed testnet contract, so another Stellar team can implement it without reading Tukar's source. | Travel Rule over shielded transfers is an ecosystem-wide gap, not a Tukar one. |
+| **D2. Scoped testnet pilot with a published report** | Three people who are not the author run the corridor end to end, with roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. Where they hesitate, what they misread and what they cannot finish is recorded in their own words. A report is published naming the sample size, how people were found, the selection bias, what broke, and what was changed because of it. The report separates first-contact findings from repeat-session findings, because a person who has already seen the app is no longer fresh evidence. | The product has never been touched by a stranger. Three is small and the report will say so, but three sessions that happen beat ten that are scheduled and cancelled. |
+| **D3 (optional, dropped first if the sprint runs short). The binding published as reusable tooling** | The payload-commitment scheme written up as a short spec with a runnable example against the deployed testnet contract, so another Stellar team can implement it without reading Tukar's source. | Travel Rule over shielded transfers is an ecosystem-wide gap, not a Tukar one. |
 
 ### Out of scope, explicitly
 
@@ -75,27 +74,47 @@ end to end by real people who are not the author, with what broke published.
 
 ### 4.2 Budget request
 
-**Requested amount: $5,000.**
+**$5,000. One hundred hours at $50 per hour.**
 
-Rationale. Thirty days of a solo builder, of which roughly two thirds is D1. D1 is contract and
-proof work on a system where a mistake is not a bug but a soundness failure, so it carries its own
-negative tests: a payload that does not match must fail, a reused payload must fail, and a payload
-bound to a different deposit must fail. D2 is scheduling and observation rather than code, but it is
-twelve to twenty hours of paired sessions that have to be run one at a time, because the built-in
-testnet key is a single shared account and two concurrent senders collide. The remainder covers the
-testnet infrastructure the sprint runs on.
+| Deliverable | Breakdown | Hours |
+|---|---|---|
+| D1. Travel Rule binding | Design the scheme and write the negative tests first 16. Implement the commitment in the contract and circuit 28. Deploy to testnet and verify on-chain 12. Build and exercise the public verification path 16. | 72 |
+| D2. Pilot, three people | Recruit and schedule 3. Three sessions at about 2.5 hours each including setup, the session itself and writing up notes, 8. Write the report 7. | 18 |
+| D3. Spec, optional | Write the scheme up with a runnable example against the deployed contract. | 10 |
+| **Total** | 100 hours over 30 calendar days, about 23 hours per week | **100** |
 
-This is the top of the Instawards range. If the chapter would rather see a smaller first award, the
-honest reduction is to drop D3 and run the pilot at six people rather than ten, which is
-approximately $3,500 and still delivers both core outcomes.
+**Why these hours.** D1 is roughly two thirds of the sprint because it is contract and proof work
+where a mistake is not a bug but a soundness failure. That is why the negative tests are written in
+week 1 rather than at the end: a payload that does not match must fail, a reused payload must fail,
+and a payload bound to a different deposit must fail. Making those three pass for the right reason
+is the deliverable. D2 looks small for its value because it is scheduling and observation rather
+than code. The sessions cannot overlap: the built-in testnet key is a single shared account, so two
+concurrent senders collide and the Merkle tree moves underneath the second one.
+
+**Why $50 per hour.** This is not general application development. D1 is Circom circuit design and
+Soroban contract work with the soundness burden described above. Independent contracting rates for
+zero-knowledge and smart contract work run well above this internationally, commonly two to three
+times it, so $50 sits below the specialty market rather than above it. Said plainly, because the
+chapter lead will know the local market: $50 per hour is above a standard senior software rate in
+Indonesia, and the justification is the specialisation and the consequence of getting it wrong, not
+the cost of living. If the chapter reads the rate rather than the work, the honest response is to
+lower the rate and keep the hours, because the hours are derived from the work and do not move.
+
+**No infrastructure line, because there is nothing to bill.** Hosting is on Vercel's free tier,
+which is why the project hits the free daily deploy limit, the Stellar testnet is free through
+friendbot, and Upstash is on its free tier. The whole request is labour.
+
+Two honest reductions if the chapter wants a smaller first award. Dropping D3 takes it to 90 hours
+and $4,500. Holding the scope and setting the rate at $35 takes it to $3,500. Both still deliver the
+two core outcomes.
 
 ## 5. Thirty day execution plan
 
 | Week | Planned work | Expected output |
 |---|---|---|
-| **Week 1** | Design the payload commitment and decide where it binds. Write the negative tests first: wrong payload, reused payload, payload bound to another deposit. Recruit pilot testers in parallel, since scheduling is the long pole. | The scheme written down, failing tests committed, at least four testers booked. |
+| **Week 1** | Rotate the corridor admin key before any contract work, since the current one was committed to a public repository and every upgrade in this sprint is signed by it. Apply the preview-pool upgrade that is already queued, so D1 does not stack on an unapplied change. Design the payload commitment and decide where it binds. Write the negative tests first: wrong payload, reused payload, payload bound to another deposit. Recruit the three testers in parallel, since scheduling is the long pole. | Admin key rotated, preview pool current, the scheme written down, failing tests committed, three testers booked. |
 | **Week 2** | Implement the binding on the preview pool. Deploy to testnet. Make the negative tests pass for the right reason rather than by accident. | Contract deployed, tests green, first real bound deposit on-chain. |
-| **Week 3** | Build and exercise the public verification path end to end. Run the first two or three paired pilot sessions. | Anyone with a payload can verify it against the chain. First session notes captured. |
+| **Week 3** | Build and exercise the public verification path end to end. Run the first pilot sessions. | Anyone with a payload can verify it against the chain. First session notes captured. |
 | **Week 4** | Remaining pilot sessions. Write the pilot report. If time allows, D3. Fix whatever the pilot exposed that can be fixed inside the sprint, and record what cannot. | Report published, verification path documented, evidence links assembled. |
 
 The pilot is deliberately spread across weeks 3 and 4 rather than saved for the end, because
@@ -116,11 +135,11 @@ document that names its own limitations.
 
 ## 7. Next step after completion
 
-**Apply to the SCF Build Award.** The submission is already written at
-`docs/SCF_BUILD_PROPOSAL.md` and the deadline for round 46 is 2026-11-08, which this sprint finishes
-ahead of. The two deliverables map directly onto its two weakest points: D1 is the differentiation
-against a funded portfolio that already ships shielded pools, and D2 is the first evidence that
-anyone other than the author has used the thing.
+- [x] **Apply to the SCF Build Award.** The submission is already written at
+  `docs/SCF_BUILD_PROPOSAL.md` and the deadline for round 46 is 2026-11-08, which this sprint
+  finishes ahead of. The two deliverables map directly onto its two weakest points: D1 is the
+  differentiation against a funded portfolio that already ships shielded pools, and D2 is the first
+  evidence that anyone other than the author has used the thing.
 
 ## 8. Constraints acknowledgement
 
@@ -130,9 +149,14 @@ anyone other than the author has used the thing.
 - [x] Each Instaward is capped at $5,000.
 - [x] Total Instawards funding may not exceed $15,000.
 
-## What the builder still has to supply
+## Before it goes in
 
-The chapter name and its lead, the submission date, and confirmation that he is actively engaged in
-that chapter, since Instawards require it and a lead will not put their name to a builder they have
-not seen participate. If that engagement does not exist yet, that is the first task and this SOW
-waits behind it.
+Everything on this page is filled in. What is left is not a field: Instawards require active
+engagement in the chapter, and the lead is the one who submits this through the Airtable form and
+puts their name to it. That conversation is the last step, not this document.
+
+Two dependencies inside the sprint are worth naming to the lead up front rather than discovering in
+week 2. The admin key that signs every contract upgrade here was committed to a public repository
+and has to be rotated first, per `docs/KEY-ROTATION.md`. And the preview pool already has an upgrade
+queued and unapplied in `docs/CONTRACT-UPGRADE-STEPS.md`, so that lands before D1 rather than
+underneath it. Both are in week 1.
