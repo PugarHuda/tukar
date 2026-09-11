@@ -231,8 +231,24 @@ export type TrpLifecycle = {
 };
 
 const TRP_TTL_SECONDS = 7 * 24 * 3600;
-// ponytail: unbounded per-instance Map; fine for a preview without KV (entries die with the instance).
+// ponytail: the Upstash path is the real store; the Map is the no-KV fallback. Its ceiling is not
+// memory, it is scope: this store IS the replay guard. The inquiry route refuses a request-identifier
+// it has already answered, and the callback route refuses to re-close a confirmed or canceled
+// transfer, and both of those checks are only as wide as the store behind them. Per instance, a
+// replayed signed inquiry that lands on a second warm instance is answered a second time. Neither
+// route moves money or signs anything, so that is duplicate bookkeeping rather than a double spend,
+// but any deploy that must actually hold TRP idempotency has to set the Upstash env. Entries expire
+// here the way the Redis TTL does, so the fallback does not grow without bound either.
 const memStore = new Map<string, TrpLifecycle>();
+
+// Mirror the Redis TTL on the fallback. `set ... ex` refreshes on every write, so an entry lives
+// TRP_TTL_SECONDS from its last write (updatedAt). An unparseable timestamp counts as expired.
+function memLive(rec: TrpLifecycle | undefined): TrpLifecycle | null {
+  if (!rec) return null;
+  if (Date.now() - Date.parse(rec.updatedAt) < TRP_TTL_SECONDS * 1000) return rec;
+  memStore.delete(rec.requestIdentifier);
+  return null;
+}
 let warnedMem = false;
 let _redis: Promise<import("@upstash/redis").Redis> | null = null;
 
@@ -252,7 +268,7 @@ function redis() {
 
 export async function getTrpLifecycle(requestIdentifier: string): Promise<TrpLifecycle | null> {
   const r = await redis();
-  if (!r) return memStore.get(requestIdentifier) ?? null;
+  if (!r) return memLive(memStore.get(requestIdentifier));
   return (await r.get<TrpLifecycle>(`trp:${requestIdentifier}`)) ?? null;
 }
 
@@ -260,6 +276,9 @@ export async function putTrpLifecycle(rec: TrpLifecycle): Promise<void> {
   const r = await redis();
   if (!r) {
     memStore.set(rec.requestIdentifier, rec);
+    // Opportunistic sweep, same shape as lib/ratelimit.ts: drop expired records so a long-lived
+    // instance does not hold a week of identifiers it can never answer with again.
+    if (memStore.size > 1000) for (const v of [...memStore.values()]) memLive(v);
     return;
   }
   await r.set(`trp:${rec.requestIdentifier}`, rec, { ex: TRP_TTL_SECONDS });

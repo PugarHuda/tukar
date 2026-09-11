@@ -1,0 +1,57 @@
+{
+  "network": "mainnet",
+  "deployed": false,
+  "status": "NOTHING IS DEPLOYED. Tukar has never been deployed to Stellar mainnet, no mainnet transaction has ever been signed by this project, and no mainnet key has ever been generated or handled. This file is the empty sibling of testnet.json: it exists so the shape of a mainnet record is written down and so webapp/lib/constants.ts has something honest to point at. Every contract id below is null because there is no contract. Do not fill any of them in with a placeholder, an example address, or an id copied from another network. An id in this file is a claim that a reviewer can open in an explorer.",
+  "description": "Tukar: confidential cross-border corridor. ZK verifiers (BN254 Groth16) + stateful pool with token custody. Mainnet record, unpopulated.",
+  "preconditions": "docs/MAINNET-CHECKLIST.md lists what has to be true before anything here gets an id. The short version: a production phase-2 ceremony with independent contributors (docs/CEREMONY.md), SEP-0055 build attestation actually run rather than only wired (docs/BUILD-ATTESTATION.md), and a pool that ships with upgrade and set_admin so the permanent-admin mistake described in docs/KEY-ROTATION.md is not repeated.",
+  "identity": {
+    "alias": null,
+    "address": null,
+    "note": "The mainnet deployer and admin keys do not exist. They are generated on the deploy machine at deploy time and never enter this repository."
+  },
+  "token": {
+    "address": null,
+    "issuer": null,
+    "note": "Settlement asset would be mainnet USDC through its SAC. The issuer is a published Circle address and is deliberately not transcribed here from memory."
+  },
+  "verifiers": {
+    "disclosure": { "contractId": null, "circuit": "circuits/disclosure.circom", "publicInputs": 3 },
+    "transfer": { "contractId": null, "circuit": "circuits/transfer.circom", "publicInputs": 7 },
+    "compliance": { "contractId": null, "circuit": "circuits/compliance.circom", "publicInputs": 11 },
+    "merkleUpdate": { "contractId": null, "circuit": "circuits/merkleUpdate.circom", "publicInputs": 4 },
+    "thresholdDisclosure": { "contractId": null, "circuit": "circuits/thresholdDisclosure.circom", "publicInputs": ["commitment", "threshold", "auditContextHash"] },
+    "aggregateDisclosure": { "contractId": null, "circuit": "circuits/aggregateDisclosure.circom", "publicInputs": ["commitments[5]", "active[5]", "cap", "auditContextHash", "ctxNonce"] },
+    "rangeDisclosure": { "contractId": null, "circuit": "circuits/rangeDisclosure.circom", "publicInputs": ["commitment", "lower", "upper", "auditContextHash"] },
+    "reserves": { "contractId": null, "circuit": "circuits/reserves.circom", "publicInputs": ["commitments[32]", "declaredLiabilities"] }
+  },
+  "pool": {
+    "contractId": null,
+    "wasm": "contracts/pool/",
+    "wasmHash": null,
+    "admin": null,
+    "constructor": ["admin", "token", "transferVerifier", "complianceVerifier", "disclosureVerifier", "updateVerifier", "initialRoot", "aspRoot", "denyList[8]", "fxOracle"],
+    "adminRotation": "REQUIRED before any mainnet deploy and not yet satisfied by contracts/pool/. The live testnet pool has neither upgrade nor set_admin, so its admin is permanent (docs/KEY-ROTATION.md). That mistake must not be repeated on mainnet. The mainnet pool must ship with a rotation path, and contracts/pool-timelock/ is the one crate in this repository that already has one."
+  },
+  "fxOracle": {
+    "contractId": null,
+    "note": "Reflector publishes SEP-40 feeds on mainnet under different contract ids than the testnet feed. The id is read from Reflector at deploy time, never assumed."
+  },
+  "policyRegistry": { "contractId": null, "wasm": "contracts/policy-registry/", "wasmHash": null, "admin": null },
+  "reserves": { "contractId": null, "wasm": "contracts/reserves/", "verifier": null, "pool": null, "admin": null },
+  "reservesAggregate": { "contractId": null, "wasm": "contracts/reserves-aggregate/", "verifier": null, "pool": null, "admin": null },
+  "anchor": {
+    "home": null,
+    "note": "The fiat edge needs a licensed anchor, which is SCF Tranche #3 deliverable D3.2 and depends on a counterparty rather than on this repository."
+  },
+  "buildAttestation": {
+    "sep": "SEP-0055",
+    "status": "not run on any network. docs/BUILD-ATTESTATION.md documents the workflow and why the existing testnet deployments cannot flip to Build Verified without a redeploy. A mainnet deploy is the chance to get this right the first time: attest from the tag that is deployed."
+  },
+  "trustedSetup": {
+    "phase1": "Hermez perpetual powers-of-tau (powersOfTau28_hez_final_14, and _15 for the reserves circuit).",
+    "phase2": "NOT DONE for mainnet. The testnet keys came from a 3-contribution ceremony plus a public beacon that was run entirely on one machine, which demonstrates the process rather than the guarantee (docs/CEREMONY.md). Mainnet keys need genuinely independent contributors.",
+    "note": "Deploying mainnet verifiers built from the testnet ceremony keys would carry the single-machine caveat onto real money. Do not do it."
+  },
+  "curve": "BN254",
+  "proofSystem": "Groth16"
+}

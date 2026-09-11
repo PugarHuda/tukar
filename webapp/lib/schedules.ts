@@ -177,12 +177,19 @@ export function spendsFromPlans(plans: StoredSchedule[]): Spend[] {
 /** All owner addresses that have a schedule file. Used by the cron to sweep due plans. */
 export async function listAllOwners(): Promise<string[]> {
   assertConfigured();
-  // ponytail: single list page (default 1000). Add cursor paging if owners ever exceed that.
-  const { blobs } = await list({ prefix: PREFIX });
+  // Follows the cursor to the end. `list` returns at most 1000 blobs per page, and a single page
+  // would silently drop every owner past the cut: their due plans would never be swept and their
+  // scheduled sends would simply stop, with no error anywhere. Paging is the difference between
+  // "slow at scale" and "quietly skips people's money", so it is not optional.
   const owners: string[] = [];
-  for (const b of blobs) {
-    const m = b.pathname.match(/^schedules\/(G[A-Z2-7]{55})\.json$/);
-    if (m) owners.push(m[1]);
-  }
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix: PREFIX, cursor });
+    for (const b of page.blobs) {
+      const m = b.pathname.match(/^schedules\/(G[A-Z2-7]{55})\.json$/);
+      if (m) owners.push(m[1]);
+    }
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
   return owners;
 }

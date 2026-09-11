@@ -26,8 +26,35 @@ export const APP_NAME = "Tukar";
 type Kit = import("passkey-kit").PasskeyKit;
 let _kit: Kit | null = null;
 
+/**
+ * Why every entry point below refuses today (measured 2026-09-11, see docs/PASSKEY.md 3.1).
+ *
+ * passkey-kit reads XDR with the js-xdr v4 shapes (`credentials.switch().name`, per-arm accessors).
+ * @stellar/stellar-sdk 17, which this app needs for Protocol 28, ships js-xdr v5, where those are
+ * `.type` and `.value`. Installed 0.16.5 on 17.0.1 throws in all three places the app uses:
+ * connectWallet's code-hash read, signAuthEntry, and PasskeyServer.send. No published passkey-kit
+ * speaks v5 (0.18.x pins the SDK to ^16.3.0, which would take the app back off Protocol 28), and an
+ * npm override is not available either: lib/passkey.ts hands the kit two live SDK objects (a
+ * SorobanAuthorizationEntry and an AssembledTransaction), so a second SDK copy fails at the same
+ * boundary and breaks instanceof across it.
+ *
+ * Turn this back on when passkey-kit publishes a release whose peerDependencies admit
+ * @stellar/stellar-sdk 17 (equivalently: whose dist no longer calls `.switch()`). Delete this
+ * constant and the guard below; nothing else here changed. The wallets already deployed are fine,
+ * the WASM pinned above is still live on testnet, and relayed pool writes stay blocked separately
+ * until the Channels service decodes CAP-0071-02 credentials.
+ */
+export const PASSKEY_UNAVAILABLE =
+  "Passkey wallets are off in this build: passkey-kit cannot read Protocol 28 XDR on @stellar/stellar-sdk 17. Connect Freighter, xBull, Lobstr or Hana, or use the testnet key.";
+
+/** Annotated `boolean`, not the literal, so the code it guards stays type-checked instead of unreachable. */
+export const PASSKEY_SUPPORTED: boolean = false;
+
 /** Lazy singleton kit; the keyId -> wallet record persists in localStorage ("passkey-kit:credentials"). */
 export async function passkeyKit(): Promise<Kit> {
+  // Single choke point: createPasskeyWallet, connectPasskeyWallet and the reload path all route
+  // through here, so one guard covers every way into the library instead of three.
+  if (!PASSKEY_SUPPORTED) throw new Error(PASSKEY_UNAVAILABLE);
   if (_kit) return _kit;
   const [{ PasskeyKit }, { LocalStorageAdapter }] = await Promise.all([import("passkey-kit"), import("passkey-kit/storage")]);
   _kit = new PasskeyKit({ rpcUrl: RPC, networkPassphrase: PASSPHRASE, walletWasmHash: WALLET_WASM_HASH, storage: new LocalStorageAdapter() });

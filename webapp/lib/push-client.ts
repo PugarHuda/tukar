@@ -65,6 +65,53 @@ export async function subscribeWatch(w: WatchInput): Promise<SubscribeResult> {
   }
 }
 
+const OP_ID_KEY = "tukar:push:operator"; // the alert subscription id, so the console can show "on"
+
+export const operatorAlertId = (): string | null => {
+  try {
+    return localStorage.getItem(OP_ID_KEY);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Subscribe this browser to operator alerts (lib/op-alerts.ts). Same service worker, same VAPID
+ * key, same permission prompt as a note watch; only the endpoint and the store differ, because an
+ * operator alert is not scoped to a commitment.
+ */
+export async function subscribeOperatorAlerts(): Promise<SubscribeResult> {
+  const pub = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
+  if (!pub) return { ok: false, state: "unsupported", error: "Push is not configured on this deployment." };
+  const sup = pushSupport();
+  if (sup !== "ok") return { ok: false, state: "unsupported", error: supportMessage(sup) };
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await navigator.serviceWorker.ready;
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return { ok: false, state: "denied", error: "Notifications are blocked for this site. Allow them in the browser's site settings, then try again." };
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(pub) as BufferSource }));
+    const r = await fetch("/api/operator/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON() }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || typeof j.id !== "string") return { ok: false, state: "error", error: j.error || `Could not subscribe (HTTP ${r.status}).` };
+    try {
+      localStorage.setItem(OP_ID_KEY, j.id);
+    } catch {}
+    return { ok: true, id: j.id };
+  } catch (e: any) {
+    return { ok: false, state: "error", error: (e && e.message) || String(e) };
+  }
+}
+
+export async function unsubscribeOperatorAlerts(): Promise<void> {
+  const id = operatorAlertId();
+  try {
+    localStorage.removeItem(OP_ID_KEY);
+  } catch {}
+  if (!id) return;
+  await fetch("/api/operator/alerts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+}
+
 export async function unsubscribeWatch(commitment: string, kind: WatchKind): Promise<void> {
   const id = watchId(commitment, kind);
   setWatchId(commitment, kind, null);

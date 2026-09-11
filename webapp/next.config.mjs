@@ -22,7 +22,14 @@ const nextConfig = {
     //   script/style 'unsafe-inline'    -> Next.js hydration inline scripts + Tailwind/Next inline styles (nonces out of scope)
     //   worker-src blob:                -> snarkjs proof workers spawn from blob: URLs
     //   connect-src soroban-testnet     -> live Soroban RPC reads + Reflector FX oracle (lib/constants.ts RPC)
+    //                                      This host list is fixed, so it does NOT follow the network switch in
+    //                                      lib/constants.ts: a different network's RPC host has to be added here
+    //                                      too, which is why it is an item in docs/MAINNET-CHECKLIST.md.
     //   connect-src rpc.ankr.com        -> one-retry Soroban RPC failover when the primary is down (lib/soroban/rpc.ts RPC_FALLBACK)
+    //   connect-src horizon-testnet     -> transaction-level monitoring (lib/txmon.ts): Soroban RPC has no way to list
+    //                                      transactions by account, so the reverted-invocation read goes to Horizon.
+    //                                      Same fixed-host caveat as the RPC above: a mainnet Horizon has to be added
+    //                                      here too (docs/MAINNET-CHECKLIST.md).
     //   connect-src api.gleif.org       -> live LEI lookup for the Travel Rule originating VASP (lib/gleif.ts)
     //   connect-src tukar-six.vercel.app -> SEP-7 signature check fetches origin_domain's stellar.toml (lib/sep7.ts; same-origin on prod)
     //   connect-src open.er-api.com     -> FX-rate fallback fetch (sender/receiver/demo)
@@ -48,7 +55,7 @@ const nextConfig = {
       "font-src 'self' data: https://fonts.gstatic.com",
       "media-src 'self'",
       "worker-src 'self' blob:",
-      "connect-src 'self' https://soroban-testnet.stellar.org https://rpc.ankr.com https://api.gleif.org https://tukar-six.vercel.app https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://testanchor.stellar.org https://api.reclaimprotocol.org https://iris-api-sandbox.circle.com https://nodes.playground.idos.network https://enclave.playground.idos.network https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
+      "connect-src 'self' https://soroban-testnet.stellar.org https://horizon-testnet.stellar.org https://rpc.ankr.com https://api.gleif.org https://tukar-six.vercel.app https://open.er-api.com https://friendbot.stellar.org https://sepolia.base.org https://api.onramper.com https://testanchor.stellar.org https://api.reclaimprotocol.org https://iris-api-sandbox.circle.com https://nodes.playground.idos.network https://enclave.playground.idos.network https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
       "frame-src 'self' https://enclave.playground.idos.network",
       "frame-ancestors 'self'",
       "object-src 'none'",

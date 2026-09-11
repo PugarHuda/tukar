@@ -297,16 +297,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (saved === "demo") {
       connectDemoKey();
     } else if (saved && saved.startsWith("passkey:")) {
-      const keyId = saved.slice(8);
-      (async () => {
-        try {
-          const pk = await withTimeout(import("@/lib/passkey"), 8000, "load");
-          const { contractId } = await pk.connectPasskeyWallet(keyId); // silent: no WebAuthn prompt
-          installPasskey(pk, await pk.passkeyKit(), contractId, keyId);
-        } catch {
-          // stale record or the wallet no longer resolves: leave disconnected
-        }
-      })();
+      // lib/passkey.ts refuses on @stellar/stellar-sdk 17, so this can only fail. Drop the record
+      // instead of retrying it on every load; the wallet itself is untouched on chain and the user
+      // signs back in when passkey-kit supports SDK 17.
+      try {
+        localStorage.removeItem("tukar:conn");
+      } catch {}
     } else if (saved && saved.startsWith("kit:")) {
       const id = saved.slice(4);
       (async () => {

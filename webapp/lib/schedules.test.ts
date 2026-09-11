@@ -10,7 +10,7 @@ vi.mock("@vercel/blob", () => {
 });
 
 import { BlobNotFoundError } from "@vercel/blob";
-import { parseOwnerFile, readSchedules, readOwnerFile, deleteSchedule, spendsFromPlans, computeNextDate, CorruptScheduleFile } from "./schedules";
+import { parseOwnerFile, readSchedules, readOwnerFile, deleteSchedule, spendsFromPlans, computeNextDate, listAllOwners, CorruptScheduleFile } from "./schedules";
 
 const OWNER = "G" + "A".repeat(55);
 const plan = { id: "p1", amount: "12.5", code: "MX", recipient: "María", frequency: "weekly", nextDate: "2026-09-03", history: [] };
@@ -21,6 +21,7 @@ beforeEach(() => {
   blob.head.mockReset();
   blob.get.mockReset();
   blob.put.mockReset();
+  blob.list.mockReset();
 });
 
 describe("parseOwnerFile (blob JSON shape)", () => {
@@ -141,5 +142,41 @@ describe("spendsFromPlans", () => {
       { at: "2026-08-29T09:00:00Z", usdc: 10 },
       { at: "2026-08-29T09:01:00Z", usdc: 5 },
     ]);
+  });
+});
+
+// The daily cron sweeps owners through listAllOwners, so an owner this function omits gets no
+// scheduled send at all, silently. `list` caps a page at 1000 blobs, which makes "the first page"
+// and "every owner" two different sets as soon as the store outgrows one page.
+describe("listAllOwners (blob paging)", () => {
+  // Strkey body is base32: [A-Z2-7], so vary a letter rather than a digit.
+  const addr = (n: number) => "G" + String.fromCharCode(65 + n) + "A".repeat(54);
+  const page = (owners: string[], hasMore: boolean, cursor?: string) => ({
+    blobs: owners.map((o) => ({ pathname: `schedules/${o}.json` })),
+    hasMore,
+    ...(cursor ? { cursor } : {}),
+  });
+
+  it("follows the cursor across pages and returns every owner", async () => {
+    blob.list
+      .mockResolvedValueOnce(page([addr(1), addr(2)], true, "c1"))
+      .mockResolvedValueOnce(page([addr(3)], true, "c2"))
+      .mockResolvedValueOnce(page([addr(4)], false));
+    expect(await listAllOwners()).toEqual([addr(1), addr(2), addr(3), addr(4)]);
+    expect(blob.list).toHaveBeenCalledTimes(3);
+    expect(blob.list.mock.calls[1][0]).toMatchObject({ cursor: "c1" });
+    expect(blob.list.mock.calls[2][0]).toMatchObject({ cursor: "c2" });
+  });
+
+  it("stops after one page when there is no more", async () => {
+    blob.list.mockResolvedValueOnce(page([addr(1)], false));
+    expect(await listAllOwners()).toEqual([addr(1)]);
+    expect(blob.list).toHaveBeenCalledTimes(1);
+    expect(blob.list.mock.calls[0][0].cursor).toBeUndefined();
+  });
+
+  it("ignores blobs that are not owner schedule files", async () => {
+    blob.list.mockResolvedValueOnce({ blobs: [{ pathname: "schedules/README.md" }, { pathname: `schedules/${addr(9)}.json` }], hasMore: false });
+    expect(await listAllOwners()).toEqual([addr(9)]);
   });
 });

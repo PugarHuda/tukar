@@ -120,6 +120,11 @@ function vapid() {
   };
 }
 
+/** One VAPID-signed Web Push send. Shared with lib/op-alerts.ts so operator alerts use this
+ *  transport rather than adding a second channel. */
+export const sendPush = (sub: PushSub, payload: string): Promise<unknown> =>
+  webpush.sendNotification(sub, payload, { vapidDetails: vapid(), TTL: 86400 });
+
 export type Outcome = "sent" | "kept" | "dropped" | "failed";
 
 // Send if the state fulfils the watch. Fulfilled + delivered -> the watch is deleted (one-shot).
@@ -129,8 +134,7 @@ export async function fireWatch(
   id: string,
   w: Watch,
   st: ChainState,
-  send: (sub: PushSub, payload: string) => Promise<unknown> = (sub, payload) =>
-    webpush.sendNotification(sub, payload, { vapidDetails: vapid(), TTL: 86400 }),
+  send: (sub: PushSub, payload: string) => Promise<unknown> = sendPush,
 ): Promise<Outcome> {
   const n = evaluate(w.kind, st);
   if (!n) return "kept";

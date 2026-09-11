@@ -4,8 +4,11 @@
 // the tiny, battle-tested `qrcode-generator` UMD at runtime and build a themed SVG from its
 // module grid. The copyable claim string + /receiver link remain the source of truth, so if
 // this fails to load the UI degrades to "copy the string" — nothing money-critical rides on it.
-// ponytail: runtime CDN script (not an npm dep — package.json is out of scope, and Next can't
-// build-time import a URL). Upgrade path: vendor qrcode-generator into public/ if offline QR matters.
+// ponytail: runtime CDN script rather than an npm dependency. The CSP in next.config.mjs already
+// allows exactly this origin for exactly this reason (script-src https://cdn.jsdelivr.net), and a
+// failed load costs the user nothing, so bundling it would buy no correctness and add weight to
+// every sender page. Upgrade path: vendor qrcode-generator into public/ if the QR ever has to
+// render offline, or if the CSP should stop naming a third-party origin at all.
 
 const CDN = "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";
 

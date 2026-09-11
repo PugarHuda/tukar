@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Address, TransactionBuilder, xdr } from "@stellar/stellar-sdk";
 import { PASSPHRASE, POOL } from "@/lib/constants";
-import { WALLET_WASM_HASH, CHANNELS_TESTNET_URL, USDC_SAC } from "@/lib/passkey";
+import { WALLET_WASM_HASH, CHANNELS_TESTNET_URL, USDC_SAC, PASSKEY_SUPPORTED, PASSKEY_UNAVAILABLE } from "@/lib/passkey";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { log, requestId, errMsg } from "@/lib/log";
 
@@ -45,6 +45,11 @@ function allowed(built: ReturnType<typeof TransactionBuilder.fromXDR>): string |
 export async function POST(req: Request) {
   const rl = await rateLimit(req, { key: "passkey-send", limit: 20, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
+
+  // PasskeyServer.send reads the submitted auth entries with passkey-kit's js-xdr v4 accessors and
+  // throws on anything @stellar/stellar-sdk 17 built, so there is nothing this route can relay today
+  // (docs/PASSKEY.md 3.1). Say so instead of burning a relayer round trip and returning a bare 500.
+  if (!PASSKEY_SUPPORTED) return NextResponse.json({ configured: true, error: PASSKEY_UNAVAILABLE }, { status: 503 });
 
   const apiKey = process.env.OZ_CHANNELS_API_KEY;
   if (!apiKey) return NextResponse.json({ configured: false });

@@ -2,7 +2,7 @@
 // degraded dependency (e.g. the Soroban RPC) is reported in the body, never as a 500. Config checks
 // report only WHICH optional integrations are wired (booleans), never any secret value.
 import { NextResponse } from "next/server";
-import { RPC } from "@/lib/constants";
+import { RPC, NETWORK } from "@/lib/constants";
 import { fetchWithTimeout } from "@/lib/net";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { idosConfigured } from "@/lib/idos/consumer.server";
@@ -52,6 +52,10 @@ export async function GET(req: Request) {
   return NextResponse.json({
     status: "ok",
     time: new Date().toISOString(),
+    // Which Stellar network this deployment is pointed at. Always "testnet" today; the app refuses
+    // to start on any other target (lib/constants.ts resolveNetwork), so this can never read
+    // "mainnet" while the mainnet deployment record is empty.
+    network: NETWORK,
     checks: {
       rpc,
       // Presence-only booleans for the optional integrations. Never the values.

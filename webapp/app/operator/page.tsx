@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, StatusPill, Skeleton, Seal, useToast } from "@/components/ui";
+import { Badge, Button, StatusPill, Skeleton, Seal, useToast } from "@/components/ui";
 import { selectChevron } from "@/components/ui/Select";
 import { DashboardShell, type NavItem } from "@/components/dashboard/DashboardShell";
 import { CORRIDORS as RECEIVER_CORRIDORS } from "@/components/receiver/corridors";
@@ -32,6 +32,8 @@ import {
   RESERVES_AGGREGATE,
 } from "@/lib/stellar";
 import { readMonitoringWindow, deposits, velocity, nearCap, repeatedActors, adminEvents, stroopsToUsdc, POOL_TIMELOCK, type MonWindow, type Bucket } from "@/lib/anomaly";
+import { readTxMonitoring, evaluate, severityForError, THRESHOLDS, HORIZON, WATCHED as WATCHED_LABELS, type TxMonWindow, type Severity } from "@/lib/txmon";
+import { subscribeOperatorAlerts, unsubscribeOperatorAlerts, operatorAlertId, pushSupport } from "@/lib/push-client";
 import { fmtUsdc } from "@/lib/zk";
 import { POOL_ENFORCED } from "@/lib/constants";
 
@@ -69,7 +71,7 @@ function Sheet({ children }: { children: React.ReactNode }) {
 function SheetHead({ title, caption, status }: { title: string; caption?: React.ReactNode; status?: React.ReactNode }) {
   return (
     <div className="mb-5 flex flex-wrap items-end gap-x-4 gap-y-2 border-b-[1.5px] border-ink pb-3">
-      <h2 className="font-stencil text-[24px] uppercase leading-none tracking-[0.01em] sm:text-[28px]">{title}</h2>
+      <h2 className="font-stencil text-[24px] uppercase leading-none tracking-[0.01em] sm:text-[30px]">{title}</h2>
       {caption && <span className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2">{caption}</span>}
       {status && <span className="ml-auto">{status}</span>}
     </div>
@@ -95,7 +97,7 @@ function Figure({ label, value, sub, accent, children }: { label: string; value:
   return (
     <div data-figure={label} className="min-w-0 bg-label p-4">
       <div className="font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-2">{label}</div>
-      <div className={`mt-2 break-words font-stencil text-[26px] leading-none tabular-nums ${accent ? "text-stamp-deep" : "text-ink"}`}>{value}</div>
+      <div className={`mt-2 break-words font-stencil text-[24px] leading-none tabular-nums ${accent ? "text-stamp-deep" : "text-ink"}`}>{value}</div>
       {sub && <div className="mt-2 font-mono text-[11px] leading-snug text-ink-3">{sub}</div>}
       {children}
     </div>
@@ -157,7 +159,7 @@ function TableWrap({ children }: { children: React.ReactNode }) {
     <div className="border border-ink/30 bg-label">
       {/* The cue lives in its own strip above the table, never over a header cell. */}
       {more && (
-        <div aria-hidden className="flex items-center justify-end gap-2 border-b border-ink/30 bg-label-2 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink-2">
+        <div aria-hidden className="flex items-center justify-end gap-2 border-b border-ink/30 bg-label-2 px-2 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-2">
           {scrolled ? "wider than the sheet" : "wider than the sheet, scroll"}
           <svg width="14" height="10" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M1 5h11M8 1l4 4-4 4" />
@@ -1146,6 +1148,56 @@ function CorridorAnchorSection() {
 const fmtUtc = (sec: number) => new Date(sec * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 const fmtN = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
+const SEV_TONE: Record<Severity, "red" | "amber" | "muted"> = { critical: "red", warning: "amber", info: "muted" };
+
+/**
+ * The alert transport. Web Push is already implemented here end to end, so operator alerts reuse
+ * it rather than adding a channel; the button is the same permission prompt and the same service
+ * worker as a note watch. The caption states the ceiling honestly: the sweep rides the existing
+ * daily cron, so this is a digest, not a pager.
+ */
+function AlertSubscription() {
+  const { toast } = useToast();
+  const [id, setId] = useState<string | null>(null);
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setId(operatorAlertId());
+    fetch("/api/operator/alerts").then((r) => r.json()).then((j) => setConfigured(!!j.configured)).catch(() => setConfigured(false));
+  }, []);
+
+  const on = async () => {
+    setBusy(true);
+    const r = await subscribeOperatorAlerts();
+    setBusy(false);
+    if (r.ok) { setId(r.id); toast("Operator alerts on for this browser"); } else toast(r.error);
+  };
+  const off = async () => {
+    setBusy(true);
+    await unsubscribeOperatorAlerts();
+    setBusy(false);
+    setId(null);
+    toast("Operator alerts off for this browser");
+  };
+
+  return (
+    <div className="flex flex-wrap items-start gap-x-5 gap-y-3 border border-ink/30 bg-label p-4">
+      <div className="flex shrink-0 items-center gap-2">
+        {id ? <Button variant="ghost" onClick={off} busy={busy}>Stop alerts</Button> : <Button variant="reveal" onClick={on} busy={busy} disabled={configured === false}>Alert this browser</Button>}
+        {id && <StatusPill tone="green" label="subscribed" />}
+      </div>
+      <p className="min-w-0 flex-1 basis-[30ch] text-[13px] leading-relaxed text-ink-2">
+        {configured === false ? (
+          <>This deployment has no push store or VAPID key, so no alert can leave the browser here. Everything below is still read live from the chain.</>
+        ) : (
+          <>Critical and Warning findings are delivered by Web Push (RFC 8030, VAPID), so they arrive with this tab closed. <b className="text-ink">Cadence is the honest limit:</b> the sweep rides the existing daily cron, because the plan this runs on allows two daily crons and both are taken. That makes it a daily digest, not a pager. A minute-scale page for the Critical rows needs a schedule change, not a code change. {pushSupport() !== "ok" && <span className="text-tape-deep">This browser cannot receive Web Push.</span>}</>
+        )}
+      </p>
+    </div>
+  );
+}
+
 function BarList({ buckets, label }: { buckets: Bucket[]; label: (b: Bucket) => string }) {
   const max = Math.max(1, ...buckets.map((b) => b.count));
   return (
@@ -1168,9 +1220,16 @@ function MonitoringSection() {
   const [caps, setCaps] = useState<Record<string, { capUsdc: number; disclosure: number }> | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
   const [minN, setMinN] = useState(5);
+  const [tx, setTx] = useState<TxMonWindow | null>(null);
+  const [txStatus, setTxStatus] = useState<"loading" | "ok" | "err">("loading");
 
   useEffect(() => {
     let live = true;
+    // Transaction-level read: the failures getEvents cannot see. Independent of the event read,
+    // so one failing does not blank the other.
+    readTxMonitoring()
+      .then((t) => { if (live) { setTx(t); setTxStatus("ok"); } })
+      .catch(() => { if (live) setTxStatus("err"); });
     readMonitoringWindow()
       .then((w) => { if (live) { setWin(w); setStatus("ok"); } })
       .catch(() => { if (live) setStatus("err"); });
@@ -1189,6 +1248,8 @@ function MonitoringSection() {
   const depositedUsdc = deps.reduce((n, d) => n + stroopsToUsdc(d.amount), 0);
   const days = win ? (win.toSec - win.fromSec) / 86400 : null;
   const corridorsForCap = (cap: number) => (caps ? Object.entries(caps).filter(([, c]) => c.capUsdc === cap).map(([code]) => code).join(", ") : "");
+  const failedTx = tx ? tx.records.filter((r) => !r.successful) : [];
+  const findings = tx ? evaluate({ records: tx.records, adminAccount: ADMIN, adminEvents: admin, windowTruncated: win?.truncated ?? false }) : [];
   const hourLabel = (b: Bucket) => new Date(b.startSec * 1000).toISOString().slice(11, 16) + " UTC";
   const dayLabel = (b: Bucket) => new Date(b.startSec * 1000).toISOString().slice(5, 10);
 
@@ -1217,10 +1278,10 @@ function MonitoringSection() {
         <Figure label="Deposits in window" value={win ? deps.length : NA} sub={win ? `${fmtN(depositedUsdc)} USDC moved in` : "pending"} accent />
         <Figure label="Withdrawals in window" value={win ? withdrawals.length : NA} sub={win ? `${fmtN(withdrawals.reduce((n, w) => n + (w.amount != null ? stroopsToUsdc(w.amount) : 0), 0))} USDC released` : "pending"} />
         <Figure label="Admin events in window" value={win ? admin.length : NA} sub="registry set_policy + timelock" />
-        <Figure label="Failed invocations" value={<span className="font-sans text-[15px] font-medium text-ink-3">not observable</span>} sub="see note below" />
+        <Figure label="Reverted invocations" value={txStatus === "err" ? NA : tx ? failedTx.length : NA} sub={tx ? `of ${tx.records.length} watched invocations` : "reading transactions…"} />
       </Figures>
       <p className="mt-2 font-mono text-[11px] leading-relaxed text-ink-3">
-        Failed pool calls are not measured: this RPC serves getEvents only for successful contract calls (the diagnostic event type is rejected), and getTransactions cannot filter by contract, so reverted deposits and rejected proofs would need an indexer with diagnostic events enabled.
+        A reverted transaction publishes no contract events, so the first three figures come from getEvents and the fourth cannot. It comes from transaction history instead: Horizon indexes transactions by ACCOUNT, so the accounts this corridor transacts with are covered completely and for all time, and the exact contract error code is then read from the Soroban RPC&rsquo;s diagnostic events. Neither API indexes transactions by CONTRACT, so a reverted call submitted by an unrelated third party is not in this count. That is the indexer the funded work builds.
       </p>
 
       <SubHead title="Deposit velocity" sub="count · USDC per bucket" />
@@ -1324,6 +1385,110 @@ function MonitoringSection() {
           ))}
         </tbody>
       </TableWrap>
+      <SubHead title="Reverted invocations" sub="transaction-level · the failures getEvents cannot show" />
+      <div className="mb-3 max-w-[78ch] text-[13px] leading-relaxed text-ink-2">
+        {txStatus === "err" ? (
+          <>Could not read the transaction history. Refresh to retry; the event sections above read independently.</>
+        ) : tx ? (
+          <>
+            Watched accounts: {tx.accounts.map((a) => <span key={a.address} className="mr-3 whitespace-nowrap font-mono text-[11.5px] text-ink" title={a.address}>{short(a.address)} <span className="text-ink-3">({a.role})</span></span>)}
+            <br />
+            Read from <span className="font-mono text-ink">{HORIZON.replace(/^https:\/\//, "")}</span>, newest first. The exact contract error code is only recoverable while the transaction is inside the RPC retention window (from ledger <span className="font-mono text-ink">{tx.retentionFromLedger.toLocaleString("en-US")}</span>); older rows keep the coarse host result forever and say so.
+            {tx.unread.length > 0 && <> <b className="text-tape-deep">{tx.unread.length} account read failed, so this view is incomplete.</b></>}
+          </>
+        ) : (
+          <Skeleton className="h-4 w-2/3" />
+        )}
+      </div>
+      <TableWrap>
+        <thead>
+          <tr>
+            <th className={TH}>Time</th>
+            <th className={TH}>Call</th>
+            <th className={TH}>Contract error</th>
+            <th className={TH}>Host result</th>
+            <th className={TH}>Transaction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {txStatus === "loading" && <SkeletonRows cols={5} rows={2} />}
+          {tx && failedTx.length === 0 && (
+            <tr><td className={`${TD} text-[12px] text-ink-2`} colSpan={5}>No reverted invocation of a watched contract by a watched account in the history read.</td></tr>
+          )}
+          {failedTx.map((r) => {
+            const inv = r.invocations.find((i) => i.contract in WATCHED_LABELS) ?? r.invocations[0];
+            return (
+              <tr key={r.hash}>
+                <td className={`${TD} whitespace-nowrap font-mono text-[12px] tabular-nums text-ink-2`}>{fmtUtc(r.at)}</td>
+                <td className={`${TD} font-mono text-[12px] text-ink`}>{inv ? <>{inv.fn} <span className="text-ink-3">on {WATCHED_LABELS[inv.contract] ?? short(inv.contract)}</span></> : NA}</td>
+                <td className={TD}>
+                  {r.error ? (
+                    <Badge tone={SEV_TONE[severityForError(r.error.contract, r.error.code)]}>{r.error.name ?? "error"} #{r.error.code}</Badge>
+                  ) : r.errorRecoverable ? (
+                    <span className="font-mono text-[11.5px] text-ink-3">no contract error</span>
+                  ) : (
+                    <span className="font-mono text-[11.5px] text-ink-3">aged out of RPC retention</span>
+                  )}
+                </td>
+                <td className={`${TD} font-mono text-[11.5px] text-ink-2`}>{r.failure ?? NA}</td>
+                <td className={`${TD} whitespace-nowrap font-mono text-[12px]`}><a href={txExplorer(r.hash)} target="_blank" rel="noreferrer" className={LINK}>{shortHash(r.hash)}<Ext /></a></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableWrap>
+
+      <SubHead title="Findings" sub="what the rules below actually fired on" />
+      <TableWrap>
+        <thead>
+          <tr>
+            <th className={TH}>Severity</th>
+            <th className={TH}>Rule</th>
+            <th className={TH}>Finding</th>
+            <th className={TH}>Transaction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {txStatus === "loading" && <SkeletonRows cols={4} rows={2} />}
+          {tx && findings.length === 0 && (
+            <tr><td className={`${TD} text-[12px] text-ink-2`} colSpan={4}>Nothing fired. Every rule below is structural, so an empty table means none of those things happened, not that a threshold was missing.</td></tr>
+          )}
+          {findings.map((f) => (
+            <tr key={f.id}>
+              <td className={TD}><Badge tone={SEV_TONE[f.severity]}>{f.severity}</Badge></td>
+              <td className={`${TD} whitespace-nowrap font-mono text-[11.5px] text-ink-2`}>{f.rule}</td>
+              <td className={`${TD} text-[12.5px] text-ink`}><b>{f.title}</b><br /><span className="text-[11.5px] text-ink-2">{f.detail}</span></td>
+              <td className={`${TD} whitespace-nowrap font-mono text-[12px]`}>{f.txHash ? <a href={txExplorer(f.txHash)} target="_blank" rel="noreferrer" className={LINK}>{shortHash(f.txHash)}<Ext /></a> : NA}</td>
+            </tr>
+          ))}
+        </tbody>
+      </TableWrap>
+
+      <SubHead title="Alerts" sub="the path out of the browser" />
+      <AlertSubscription />
+
+      <SubHead title="Thresholds" sub="what is set, and what is deliberately not" />
+      <TableWrap>
+        <thead>
+          <tr>
+            <th className={TH}>Rule</th>
+            <th className={TH}>Basis</th>
+            <th className={TH}>Threshold</th>
+            <th className={TH}>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {THRESHOLDS.map((t) => (
+            <tr key={t.rule}>
+              <td className={`${TD} whitespace-nowrap font-mono text-[11.5px] text-ink`}>{t.rule}</td>
+              <td className={`${TD} text-[12px] text-ink-2`}>{t.basis}</td>
+              <td className={TD}>{t.value ? <Badge tone="orange">{t.value}</Badge> : <Badge tone="muted">unset · no baseline</Badge>}</td>
+              <td className={`${TD} text-[11.5px] leading-relaxed text-ink-2`}>{t.note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </TableWrap>
+
       <p className="mt-2 font-mono text-[11px] leading-relaxed text-ink-3">
         Observable: <span className="text-ink">policy</span> from the registry {short(POLICY_REGISTRY)} (set_policy, caps) and <span className="text-ink">tl_prop / tl_exec / tl_cancel</span> from the preview timelock pool {short(POOL_TIMELOCK)}. Not observable: the live pool {short(POOL)} emits no event from set_asp_root, set_deny_list, set_auditor or set_fx_oracle, so those writes only show as the current values on the Compliance policy sheet, not as a history.
       </p>

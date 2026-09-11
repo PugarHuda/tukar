@@ -119,6 +119,74 @@ test.describe("web push watches", () => {
     }
   });
 
+  // The operator alert path (lib/op-alerts.ts) over the same transport: /operator subscribes this
+  // browser, the daily cron sweep runs the transaction-level rules over the live chain, and the
+  // service worker receives the finding. Dedup is per subscription, so a fresh Chrome profile is a
+  // fresh endpoint and the standing findings are announced to it once.
+  test("operator Alert this browser -> cron sweep pushes a real monitoring finding", async ({ request, baseURL }) => {
+    test.slow();
+    test.skip(!SECRET, "operator alert delivery needs CRON_SECRET for the target");
+    const profile = fs.mkdtempSync(path.join(os.tmpdir(), "tukar-opalert-"));
+    let ctx: BrowserContext;
+    try {
+      ctx = await chromium.launchPersistentContext(profile, { channel: "chrome", baseURL, permissions: ["notifications"], viewport: { width: 1440, height: 1000 } });
+    } catch (e: any) {
+      fs.rmSync(profile, { recursive: true, force: true });
+      test.skip(true, `Google Chrome is not installed here, and Playwright's bundled Chromium has no push service: ${(e && e.message) || e}`);
+      return;
+    }
+    try {
+      await ctx.addInitScript(() => {
+        (window as any).__tukarPush = [];
+        navigator.serviceWorker?.addEventListener("message", (e: MessageEvent) => {
+          if (e.data?.type === "tukar-push") (window as any).__tukarPush.push(e.data.data);
+        });
+      });
+      const page = await ctx.newPage();
+      await goto200(page, "/operator");
+      // The dashboard nav re-renders as its reads land, so click until the section is current.
+      const nav = page.locator("aside nav button", { hasText: /Monitoring/ }).first();
+      await expect(async () => {
+        await nav.click();
+        await expect(nav).toHaveAttribute("aria-current", "page", { timeout: 1500 });
+      }).toPass({ timeout: 30_000 });
+      const button = page.getByRole("button", { name: "Alert this browser" });
+      await expect(button).toBeVisible({ timeout: 60_000 });
+      const resp = page.waitForResponse((r) => r.url().endsWith("/api/operator/alerts") && r.request().method() === "POST", { timeout: 60_000 });
+      await button.click();
+      const r = await resp;
+      expect(r.status()).toBe(200);
+      const { id } = await r.json();
+      expect(id).toMatch(/^opalert:sub:[0-9a-f]{16}$/);
+      await expect(page.getByRole("button", { name: "Stop alerts" })).toBeVisible();
+
+      // The sweep reads Horizon, the RPC event window and the per-hash diagnostics before it sends,
+      // which is well past the suite's 15s default when the workers are busy.
+      const cron = await request.get("/api/cron/push", { headers: AUTH, timeout: 180_000 });
+      expect(cron.status()).toBe(200);
+      const alerts = (await cron.json()).alerts;
+      expect(alerts.configured).toBe(true);
+      expect(alerts.subscribers).toBeGreaterThanOrEqual(1);
+      // Every rule is structural, so a run with nothing wrong legitimately sends nothing.
+      if (alerts.newFindings === 0) {
+        console.log("operator alerts: no finding stood on this run, so nothing was sent");
+      } else {
+        expect(alerts.sent).toBeGreaterThanOrEqual(1);
+        await expect
+          .poll(() => page.evaluate(() => (window as any).__tukarPush), { timeout: 30_000 })
+          .toEqual(expect.arrayContaining([expect.objectContaining({ kind: "operator-alert", url: "/operator", title: expect.stringMatching(/^(Critical|Warning): /) })]));
+        // Announced once: a second sweep re-reads the same chain and sends nothing new.
+        const again = (await (await request.get("/api/cron/push", { headers: AUTH, timeout: 180_000 })).json()).alerts;
+        expect(again.sent).toBe(0);
+      }
+      await page.getByRole("button", { name: "Stop alerts" }).click();
+      await expect(page.getByRole("button", { name: "Alert this browser" })).toBeVisible();
+    } finally {
+      await ctx.close();
+      fs.rmSync(profile, { recursive: true, force: true });
+    }
+  });
+
   test("cron is bearer-gated and subscribe validates its body", async ({ request }) => {
     expect((await request.get("/api/cron/push")).status()).toBe(401);
     expect((await request.get("/api/cron/push", { headers: { authorization: "Bearer nope" } })).status()).toBe(401);
@@ -126,5 +194,13 @@ test.describe("web push watches", () => {
     expect([400, 503]).toContain(bad.status()); // 503 only when the target has no push store / VAPID key
     const del = await request.delete("/api/push/subscribe", { data: { id: "lock:x" } });
     expect([400, 503]).toContain(del.status());
+    // Same shape on the operator alert route: it holds a subscription, never a finding.
+    const badSub = await request.post("/api/operator/alerts", { data: { subscription: { endpoint: "http://x", keys: {} } } });
+    expect([400, 503]).toContain(badSub.status());
+    const badId = await request.delete("/api/operator/alerts", { data: { id: "push:1:spendable:0000000000000000" } });
+    expect([400, 503]).toContain(badId.status());
+    const status = await request.get("/api/operator/alerts");
+    expect(status.status()).toBe(200);
+    expect(typeof (await status.json()).configured).toBe("boolean");
   });
 });

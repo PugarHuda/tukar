@@ -707,7 +707,7 @@ test.describe("sender: sent notes panel", () => {
 
 // ================================================================ (g) operator monitoring
 test.describe("operator: monitoring section", () => {
-  test("window stated with real UTC timestamps, failed invocations 'not observable', heuristics honest at zero", async ({ page }) => {
+  test("window stated with real UTC timestamps, reverted invocations read at the transaction level, thresholds honest about their baseline", async ({ page }) => {
     test.slow();
     const w = await watchCrashes(page);
     await goto200(page, "/operator");
@@ -716,9 +716,9 @@ test.describe("operator: monitoring section", () => {
     await expect(page.getByText("reading events…")).toHaveCount(0, { timeout: 120_000 });
     const pill = page.getByText(/RPC getEvents · pool \+ token \+ registry \+ timelock|event read failed/);
     await expect(pill).toBeVisible();
-    // always-honest copy regardless of the read (operator/page.tsx:1218-1222, 1322)
-    await expect(page.getByText("not observable", { exact: true })).toBeVisible();
-    await expect(page.getByText(/Failed pool calls are not measured: this RPC serves getEvents only for successful contract calls/)).toBeVisible();
+    // always-honest copy regardless of the read: what the transaction-level read does and does not cover
+    await expect(page.getByText(/A reverted transaction publishes no contract events, so the first three figures come from getEvents and the fourth cannot\./)).toBeVisible();
+    await expect(page.getByText(/Neither API indexes transactions by CONTRACT, so a reverted call submitted by an unrelated third party is not in this count\./)).toBeVisible();
     await expect(page.getByText(/Not observable: the live pool .* emits no event from set_asp_root, set_deny_list, set_auditor or set_fx_oracle/)).toBeVisible();
     if (/failed/.test(await pill.innerText())) {
       await expect(page.getByText("Could not read the event window from the RPC. Refresh to retry; the other sections read independently.")).toBeVisible();
@@ -743,7 +743,7 @@ test.describe("operator: monitoring section", () => {
     // figures render numbers (zeros allowed), not "pending"
     // Addressed by data-figure, not by text: "Deposits in window" is legitimately both a figure
     // caption up here and the per-depositor column header in the repeated-actor table below.
-    for (const f of ["Deposits in window", "Withdrawals in window", "Admin events in window", "Failed invocations"]) await expect(page.locator(`[data-figure="${f}"]`)).toBeVisible();
+    for (const f of ["Deposits in window", "Withdrawals in window", "Admin events in window", "Reverted invocations"]) await expect(page.locator(`[data-figure="${f}"]`)).toBeVisible();
     await expect(page.getByText("pending", { exact: true })).toHaveCount(0);
     await expect(page.getByText(/^[\d,.]+ USDC moved in$/)).toBeVisible();
     await expect(page.getByText(/^[\d,.]+ USDC released$/)).toBeVisible();
@@ -763,6 +763,43 @@ test.describe("operator: monitoring section", () => {
     await page.locator("#mon-min-n").fill("0"); // clamped to 1 (page.tsx:1268)
     await expect(page.locator("#mon-min-n")).toHaveValue("1");
     await expect(page.getByText(/No policy-registry or timelock events in the window\.|set_policy|tl_prop|tl_exec|tl_cancel|policy/).first()).toBeVisible();
+
+    // --- transaction-level read (lib/txmon.ts): reverted invocations the event read cannot see
+    await expect(page.getByText("Reverted invocations").first()).toBeVisible();
+    await expect(
+      page.getByText(/Watched accounts:/).or(page.getByText("Could not read the transaction history. Refresh to retry; the event sections above read independently.")),
+    ).toBeVisible({ timeout: 120_000 });
+    // Either a reverted row with a decoded contract error / an aged-out note, or the honest zero copy.
+    await expect(
+      page
+        .getByText("No reverted invocation of a watched contract by a watched account in the history read.")
+        .or(page.getByText(/aged out of RPC retention|InvalidAmount #5|NullifierUsed #2|ProofRejected #7|no contract error/).first()),
+    ).toBeVisible({ timeout: 120_000 });
+
+    // --- findings: the rules that actually fired
+    await expect(page.getByText("what the rules below actually fired on")).toBeVisible();
+    // The findings table is the one with a Severity column; the thresholds table below reuses the
+    // same rule names, so scope by the table rather than by the rule text.
+    const findingsTable = page.locator("table", { has: page.locator("th", { hasText: "Severity" }) });
+    await expect(
+      findingsTable
+        .getByText("Nothing fired. Every rule below is structural, so an empty table means none of those things happened, not that a threshold was missing.")
+        .or(findingsTable.locator("tbody tr").first()),
+    ).toBeVisible({ timeout: 120_000 });
+
+    // --- alert transport out of the browser
+    await expect(page.getByText("the path out of the browser")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Alert this browser|Stop alerts/ }).or(page.getByText(/This deployment has no push store or VAPID key/)),
+    ).toBeVisible();
+
+    // --- thresholds: three set, four explicitly unset rather than invented
+    await expect(page.getByText("what is set, and what is deliberately not")).toBeVisible();
+    for (const r of ["failed-invocation", "admin-setter", "admin-event", "deposit-velocity", "near-cap-structuring", "repeated-actor", "revert-rate"]) {
+      await expect(page.locator("td", { hasText: new RegExp(`^${r}$`) }).first()).toBeVisible();
+    }
+    await expect(page.getByText("unset · no baseline")).toHaveCount(4);
+    await expect(page.getByText(/No baseline\. There is no corridor traffic to tune against/)).toBeVisible();
     expect(w.crashes()).toEqual([]);
   });
 });

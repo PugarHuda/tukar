@@ -7,6 +7,12 @@ OpenZeppelin Stellar Relayer Channels service.
 Everything below was verified on **2026-08-31** against **testnet (protocol 28, RPC 28.0.1)**. Where
 something was not verified, it says so and why.
 
+> **Status 2026-09-11: the feature is switched off.** passkey-kit cannot read Protocol 28 XDR on
+> `@stellar/stellar-sdk` 17, which this app now runs, so sign-in, wallet creation and the relay route
+> all fail inside the library. Sections 1 and 2 record what worked on SDK 16 and are kept as the
+> evidence to restore against, not as a description of today's build. What changed, what was tried,
+> and the one upstream release that turns it back on are in **3.1**.
+
 ---
 
 ## 1. What is implemented
@@ -180,6 +186,118 @@ Consequences and handling:
 - Alternative if it needs to work before then: submit the passkey-signed transaction directly to RPC
   with an app-held source account paying the fee (exactly what section 2.5 did). That is a design
   decision, not a bug fix, so it was not made here.
+
+#### Re-checked 2026-09-11: still blocked upstream, and the feature is now off
+
+Upstream state on 2026-09-11:
+
+| Package | Latest published | What it says |
+|---|---|---|
+| `passkey-kit` | 0.18.3 (2026-09-09) | `dist/kit/tx-ops.js` still carries "there is deliberately NO V1 signing path". Verified by unpacking 0.16.5, 0.17.3 and 0.18.3. 0.17.x keeps the loose `>=16.0.0` peer range; 0.18.x pins `^16.3.0`. |
+| `@openzeppelin/relayer-plugin-channels` | 0.21.0 (2026-09-11 10:12 UTC) | Bumps `@stellar/stellar-sdk` from `^14.6.0` (0.19.0 and 0.20.0) to `^17.0.1`. |
+| `@blend-capital/blend-sdk` | 3.3.0 (2026-06-19) | Unrelated to this gap, listed because it is checked in the same sweep: still pins `@stellar/stellar-sdk` 16.0.0. |
+
+**The package moved and the service did not.** 0.21.0 looks like the fix, so the endpoint was tested
+rather than the changelog. The 2026-08-31 experiment was re-run live against
+`https://channels.openzeppelin.com/testnet` on 2026-09-11: one auth entry over a 1 stroop USDC SAC
+self transfer, signed once each way.
+
+```
+[V1 sorobanCredentialsAddress]    HTTP 200
+   {"success":true,"data":{"hash":"a869eed49eb763749c01e6ecca7939e332afd291fe6de1a6f000dfed16f419a4",
+    "status":"confirmed","transactionId":"2c41698c-e960-46d9-a8c0-4428ce6ca182"},"error":null}
+
+[V2 sorobanCredentialsAddressV2]  HTTP 500
+   {"success":false,"data":{"code":"TYPE_ERROR"},
+    "error":"XDR Read Error: unknown SorobanCredentialsType member for value 2"}
+```
+
+The same decoder limit, now reported as 500 `TYPE_ERROR` instead of 400 `INVALID_PARAMS`. **Check the
+service, not the release notes**: publishing the plugin is not deploying the hosted endpoint.
+
+#### The bigger finding: the relayer's decode ceiling is no longer a passkey problem
+
+Protocol 28 testnet simulation returns `sorobanCredentialsAddressV2` by default. In the run above,
+`simulateTransaction` for a plain ed25519 `transfer` came back V2, and SDK 17's `authorizeEntry` keeps
+that arm. The V1 control had to be manufactured by downgrading the credentials before signing. So the
+Channels endpoint now rejects **any** address-authorized call built the ordinary way, not only the
+CAP-0071-02 entries a passkey signs.
+
+What that costs this app today: nothing beyond the passkey feature. `channels.openzeppelin.com` has
+exactly one caller in the tree, `app/api/passkey/send/route.ts`, whose only client was
+`lib/passkey.ts`. Every other write path (keypair wallets, the testnet demo key, the recurring-send
+cron, CCTP, Blend) submits straight to Soroban RPC with its own fee-paying source account and never
+touches the relayer. Anyone adding a second Channels caller should read this paragraph first: a
+sponsored call with address auth will not decode there until OpenZeppelin redeploys.
+
+#### Why the feature is off, and what turns it back on
+
+The move to `@stellar/stellar-sdk` 17 (commit 8ed9d19, 2026-09-11) is right about js-xdr v5 replacing
+`.switch()` and the per-arm accessors with `.type` and `.value`. passkey-kit still uses the v4 shapes,
+in 0.16.5, 0.17.3 and 0.18.3 alike. The loose `>=16.0.0` peer range lets it install on 17; it does not
+let it run. Measured against the installed 0.16.5 on 17.0.1:
+
+```
+connectWallet code-hash read   instance.val.contractData is not a function   (kit.js:251)
+signAuthEntry                  credentials.switch is not a function          (auth-payload.js:29)
+PasskeyServer.send             entry.credentials is not a function           (server.js:47)
+```
+
+The deployed wallets are fine: the instance still reports wasm hash `502ea4e7...d58b58`, read with the
+v5 accessors in the same run. This is purely the client library.
+
+**An npm override scoping passkey-kit to SDK 16 was tried first and rejected.** It installs cleanly
+(root 17.0.1, `passkey-kit/node_modules/@stellar/stellar-sdk` 16.3.0), but the boundary here is not
+the string boundary that makes the existing nested copies safe. `lib/passkey.ts` hands the kit two
+live SDK objects: a `SorobanAuthorizationEntry` in `makePasskeySigner.signAuthEntry`, and the
+`AssembledTransaction` that `lib/stellar.ts` builds with the root SDK in `makePasskeySigner.submit`.
+Measured in a scratch install with the override in place:
+
+```
+signAuthEntry crossing                   entry.credentials is not a function
+  (coerced to the v5 property form)      credentials.switch is not a function
+entry instanceof sdk16.xdr.SorobanAuthorizationEntry   false      (must be true to be safe)
+contract.AssembledTransaction identical across copies  false
+```
+
+So the override relocates the same failure and breaks `instanceof` across the two copies. It would
+also ship the second copy to the **browser**, unlike the server-only nested copies in blend-sdk and
+the relayer plugin: 488 KB minified (`dist/stellar-sdk.min.js`), 34 MB on disk. The v17 commit already
+refused exactly this trade when it bumped stellar-wallets-kit 2.5.0 to 2.6.0.
+
+Reverting to SDK 16 was not on the table: it is what makes the app Protocol 28 correct, and passkey is
+a sign-in convenience rather than a money path.
+
+**So the feature is disabled and the copy says why.** What changed:
+
+| File | Change |
+|---|---|
+| `webapp/lib/passkey.ts` | `PASSKEY_SUPPORTED = false` plus `PASSKEY_UNAVAILABLE`; `passkeyKit()` throws it. That is the single choke point all three entry points route through, so nothing reaches the library. |
+| `webapp/components/WalletBar.tsx` | The "Sign in with passkey" and "New passkey wallet" buttons are gone, and both the pre-connect blurb and the connected-strip paragraph say what is actually true. |
+| `webapp/components/WalletProvider.tsx` | The `passkey:` reload branch drops the stored record instead of retrying a connect that cannot succeed. |
+| `webapp/app/api/passkey/send/route.ts` | Returns 503 with the same reason rather than burning a relayer round trip for a bare 500. |
+| `webapp/lib/passkey.test.ts` | New. Asserts the entry points refuse in plain language, and carries the canary below. |
+
+Nothing was deleted: `lib/passkey.ts`, the signer, the route and the `kind === "passkey"` branches are
+intact, and the WASM hash pinned above is still live on testnet.
+
+As served from a production build on `:3313`:
+
+```
+/sender, /receiver     "Sign in with passkey" / "New passkey wallet"   0 occurrences
+POST /api/passkey/send HTTP 503
+   {"configured":true,"error":"Passkey wallets are off in this build: passkey-kit cannot read
+    Protocol 28 XDR on @stellar/stellar-sdk 17. Connect Freighter, xBull, Lobstr or Hana, or use
+    the testnet key."}
+```
+
+**To turn it back on**, wait for a passkey-kit release whose `peerDependencies` admit
+`@stellar/stellar-sdk` 17 (equivalently, whose dist no longer calls `.switch()`). The canary in
+`webapp/lib/passkey.test.ts` fails the day that lands: it drives the real `PasskeyServer.send` that
+the route calls, with the installed package and the installed SDK, and expects it to throw. Then drop
+`PASSKEY_SUPPORTED`, restore the two buttons and the reload branch, and re-run section 2.4's CDP
+virtual-authenticator flow. Relayed pool writes stay blocked separately until the Channels service
+decodes CAP-0071-02 credentials, so the rest of 3.1 still applies after that.
 
 ### 3.2 SEP-53 message signing is impossible for a contract account
 

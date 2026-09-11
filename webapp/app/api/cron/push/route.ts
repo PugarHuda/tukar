@@ -1,11 +1,14 @@
 // GET /api/cron/push — sweeps every stored Web Push watch against the live pool and sends the
-// notification for the ones whose state flipped (lib/push.ts). Vercel Cron hits this daily
+// notification for the ones whose state flipped (lib/push.ts), then sweeps the operator monitoring
+// alerts (lib/op-alerts.ts). The two ride one schedule because Vercel Hobby allows two daily crons
+// and both are already taken; that makes the operator path a daily digest, not a pager. Vercel Cron hits this daily
 // (vercel.json; Hobby plans allow daily crons only) with Authorization: Bearer $CRON_SECRET.
 // Between runs, /api/note-status checks the watches on the commitment it was asked about.
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { sweepWatches, pushConfigured } from "@/lib/push";
+import { sweepOperatorAlerts } from "@/lib/op-alerts";
 import { log, requestId, errMsg } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +38,16 @@ async function run(req: Request) {
   try {
     const t = await sweepWatches();
     log.info("push sweep", { route: "cron/push", reqId: requestId(req), ...t });
-    return NextResponse.json({ configured: true, ...t });
+    // Operator monitoring alerts ride the same run. A failure here must not lose the watch sweep.
+    let alerts;
+    try {
+      alerts = await sweepOperatorAlerts();
+      log.info("operator alert sweep", { route: "cron/push", reqId: requestId(req), ...alerts });
+    } catch (e) {
+      log.error("operator alert sweep failed", { route: "cron/push", reqId: requestId(req), err: errMsg(e) });
+      alerts = { error: "sweep failed" };
+    }
+    return NextResponse.json({ configured: true, ...t, alerts });
   } catch (e) {
     log.error("push sweep failed", { route: "cron/push", reqId: requestId(req), err: errMsg(e) });
     return NextResponse.json({ configured: true, error: "sweep failed" }, { status: 500 });

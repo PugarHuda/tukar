@@ -500,9 +500,27 @@ the additive contracts the policy registry emits `(policy, corridor)` with
 
 A reverted transaction publishes no contract events. Every error-rate signal below
 (`ProofRejected`, `NullifierUsed`, `NonCanonicalField`, `SlippageExceeded`, `FxUnavailable`)
-therefore has to come from transaction results, not from `getEvents`. That is a real
-constraint on the design and is why the transaction-level indexer is a Tranche #2
-deliverable rather than something the current console can do.
+therefore has to come from transaction results, not from `getEvents`. `webapp/lib/txmon.ts`
+now reads them there. What the two public APIs give, measured against testnet on 2026-09-11:
+
+- **Soroban RPC `getTransactions`** returns every transaction in a ledger range with no contract
+  or account filter. A page of 200 covers about 16 ledgers and takes about 2 s, so the ~7-day
+  retention window is roughly 7,500 pages. Unusable as a scan.
+- **Soroban RPC `getTransaction(hash)`** returns `diagnosticEventsXdr`, which carries the exact
+  contract error code and the contract that raised it (`topics [symbol "error", error {contract: N}]`),
+  including a sub-invoked verifier. `getTransactions` does **not** return it. Only inside the RPC
+  retention window; an older hash answers `NOT_FOUND`.
+- **Horizon `/accounts/{id}/transactions?include_failed=true`** indexes by **account**, not by
+  contract, for all history. It returns the envelope and the transaction result, but no meta, so
+  the coarse failure (`trapped`, `resource_limit_exceeded`) survives forever and the error code
+  does not.
+
+So the recoverable design is: discover by account on Horizon, then ask the RPC for the code while
+the transaction is still in retention. That covers every account this corridor transacts with
+completely. It does **not** cover a reverted invocation submitted by an arbitrary third party,
+because no public API indexes transactions by contract, and it does not keep error codes past the
+RPC window. Those two are what the Tranche #2 indexer is for, and they are now a narrow gap rather
+than the whole signal.
 
 ### 5.2 Live now
 
@@ -525,6 +543,24 @@ deliverable rather than something the current console can do.
 - **Admin-event view.** `adminEvents()` surfaces policy-registry writes and timelock
   propose / execute / cancel, newest first. Note the limitation above: this covers the
   additive contracts, not the live pool's own setters.
+- **Transaction-level read.** `readTxMonitoring()` in `webapp/lib/txmon.ts` reads the watched
+  accounts (the operator key, the relayer / demo key, and the pool's `auditor()` read live so the
+  watch follows a `set_auditor` change) from Horizon with `include_failed=true`, keeps the
+  transactions whose top-level invocation hits a watched contract, and fills in the exact contract
+  error for the failures still inside RPC retention. Verified live on 2026-09-11 against a
+  deliberately reverted `withdraw` (`amount = 0`, which panics `InvalidAmount` before touching
+  state): tx `3809e755…b17593` decodes to `InvalidAmount (#5)` on `CBIYQACY…`, and the older
+  `046163a9…48f104` shows the coarse `Trapped` with `error code aged out of RPC retention`.
+- **Admin setter detection without events.** 3.12 says the live pool emits nothing from
+  `set_asp_root`, `set_deny_list`, `set_auditor` or `set_fx_oracle`. The function name is still in
+  the transaction envelope, so the transaction-level read recovers it. The console currently shows
+  a real `set_auditor` on the live pool found this way.
+- **Alert transport.** `webapp/lib/op-alerts.ts` pushes Critical and Warning findings out of the
+  browser over the Web Push already implemented here (VAPID, `public/sw.js`, no new channel). An
+  operator subscribes from the Monitoring sheet; the sweep runs inside `/api/cron/push`. Verified
+  end to end on 2026-09-11: three real findings delivered to a real Chrome push subscription, and
+  the next sweep sent nothing (dedup is per subscription, so a new operator gets the standing
+  findings once).
 - **Sentry cron monitors.** `Sentry.withMonitor("recurring-deposit", ...)` and
   `Sentry.withMonitor("push-watches", ...)` wrap the two cron routes, and `lib/log.ts`
   supplies shared sampling, PII and secret-scrubbing options. These are wired but inert:
@@ -539,19 +575,25 @@ deliverable rather than something the current console can do.
 
 Severities follow SDF's published examples (Info, Warning, Critical). Thresholds marked
 "baseline pending" have no number yet on purpose: there is no real traffic to tune against,
-and inventing one would be worse than saying so. They are set during the Tranche #2 pilot.
+and inventing one would be worse than saying so. They are set during the Tranche #2 pilot, and
+`THRESHOLDS` in `webapp/lib/txmon.ts` carries `value: null` for each of them so the console
+renders "unset, no baseline" rather than a plausible-looking number. The rules that ARE set are
+set because they hold at any volume: a reverted invocation means an on-chain guard fired, and a
+compliance-critical setter by the operator key is rare and high-privilege by definition. Neither
+needs a denominator.
 
 | Signal | Detects (STRIDE id) | Source | Severity | Response |
 |---|---|---|---|---|
 | Pool USDC balance falls without a matching `withdraw` event | Tampering.1, Tampering.2 | `balance()` reconciled against summed `withdraw` events | Critical | Page. Halt the operator flow, reconcile every withdraw in the window |
-| `NullifierUsed` (#2) or `NonCanonicalField` (#14) revert rate rises | Tampering.2 | Transaction results (Tranche #2 indexer) | Critical | Page. A replay attempt against the double-spend guard |
-| `ProofRejected` (#7) or `InvalidProof` revert spike | Tampering.1 | Transaction results (Tranche #2 indexer) | Critical | Page. Tampering, or a key or artifact mismatch |
-| Any transaction on the admin account `GB2CVRVN...` | ElevationOfPriv.1, Repudiation.2 | Admin account operation history | Critical | Page on every occurrence and reconcile against an expected change. Rare and high-privilege by definition |
+| `NullifierUsed` (#2) or `NonCanonicalField` (#14) on any watched account | Tampering.2 | `txmon.evaluate` on transaction diagnostics (live) | Critical | Alert on the first occurrence, no rate needed. A replay attempt against the double-spend guard |
+| `ProofRejected` (#7) or `UnknownRoot` (#1) on any watched account | Tampering.1 | `txmon.evaluate` on transaction diagnostics (live) | Critical | Alert on the first occurrence. Tampering, or a key or artifact mismatch |
+| A compliance-critical setter succeeding from the admin key | ElevationOfPriv.1, Repudiation.2, 3.12 | Transaction envelope function name (live) | Critical | Alert on every occurrence and reconcile against an expected change. This is the only on-chain record, since the live pool emits no event for these calls |
 | `tl_prop` / `tl_exec` / `tl_cancel` on the timelock pool | ElevationOfPriv.1 | Timelock pool events (live) | Warning | Reconcile the proposed setter and eta against an expected change. An unexpected proposal is the compromise signal, and the delay is the response window |
 | `(policy, corridor)` write on the policy registry | ElevationOfPriv.1 | Policy-registry events (live) | Warning | Reconcile the cap and disclosure change against an expected operator change |
-| `register_audit_request` by the auditor | ElevationOfPriv.2 | Auditor account operation history (the call emits no event) | Info | Log and reconcile against a real regulator request |
-| `FxUnavailable` (#11) rate on gated withdraws | DoS.1 | Transaction results (Tranche #2 indexer), cross-checked against Reflector freshness directly | Warning | Off-ramp settlement is failing closed. Check the Reflector feed. No funds are at risk |
-| `SlippageExceeded` (#12) rate | DoS.1 | Transaction results (Tranche #2 indexer) | Info | Expected under FX movement. Warning only if sustained |
+| `register_audit_request` by the auditor | ElevationOfPriv.2 | Auditor account transaction history (live; the call emits no event) | Info | Log and reconcile against a real regulator request |
+| `FxUnavailable` (#11) on a gated withdraw | DoS.1 | `txmon.evaluate` on transaction diagnostics (live), cross-checked against Reflector freshness directly | Warning | Off-ramp settlement is failing closed. Check the Reflector feed. No funds are at risk |
+| `SlippageExceeded` (#12) | DoS.1 | `txmon.evaluate` on transaction diagnostics (live) | Info | Expected under FX movement. Console-only, never alerted |
+| A reverted invocation whose error code has aged out of RPC retention | coverage gap | Horizon transaction result (live) | Warning | The coarse host result is all that survives past the RPC window. Reported as "aged out", never as "no error" |
 | Deposit velocity outside the rolling baseline | Spoofing.1, InfoDisclosure.1 | `velocity()` (live) | Warning | Baseline pending. Investigate the contributing actors |
 | Deposits clustered just under a corridor cap | Spoofing.1 | `nearCap()` (live) | Warning | Structuring heuristic. Review with the anchor's KYC signal, not in isolation |
 | One depositor with many deposits in 24h | Spoofing.1 | `repeatedActors()` (live) | Info | Expected during testing. Meaningful once real corridor traffic exists |
@@ -565,28 +607,41 @@ and inventing one would be worse than saying so. They are set during the Tranche
 
 ### 5.4 Coverage gaps, stated plainly
 
-- No alert transport exists yet. The console is pull-based: a human opens `/operator`. Every
-  "page" and "alert" above is a design target for the Tranche #2 work, not a live pager.
-- Reverted transactions are invisible to `getEvents`, so every error-rate row depends on the
-  transaction-level indexer that Tranche #2 builds.
-- The live pool's own policy setters emit no events (3.12), so policy changes are watched at
-  the account level until events are added to those setters.
-- RPC retention is about 7 days on public testnet. Anything longer needs an archive or an
-  indexer with its own store.
-- Every threshold is unset. There is no real traffic and no users, so there is no baseline.
-  This is stated rather than filled in with a plausible-looking number.
+- **Alert cadence, not existence.** Alerts now leave the browser over Web Push, verified end to
+  end. What is missing is frequency: the sweep rides `/api/cron/push` because the current hosting
+  plan allows two daily crons and both are taken, so a Critical finding arrives in a daily digest,
+  not within minutes. A row that says "page" still means a minute-scale schedule, which is a plan
+  change rather than a code change. The console says this in the same words.
+- **Reverted invocations by accounts we do not know.** Discovery is by account, because neither
+  Horizon nor Soroban RPC indexes transactions by contract. Every account this corridor transacts
+  with is covered; a reverted call against the pool from an unrelated third party is not seen.
+  That is the indexer.
+- **Error codes past the RPC window.** `diagnosticEventsXdr` only exists inside the ~7-day RPC
+  retention. Older failures keep the coarse `trapped` from Horizon forever, and the console labels
+  them "aged out of RPC retention" rather than "no error". Keeping codes longer needs the
+  indexer's own store.
+- **No revert RATE.** A rate needs a denominator over all callers, which is the same missing
+  contract index. `revert-rate` is listed in `THRESHOLDS` as unset for exactly this reason.
+- The live pool's own policy setters still emit no events (3.12). The function name in the
+  transaction envelope now recovers the change, which is a real detection, but it is account
+  scoped: a setter call from a key we do not watch would be missed. Adding events to those setters
+  in the Tranche #1 migration is still the right fix.
+- **Every rate threshold is unset.** There is no real traffic and no users, so there is no
+  baseline. This is stated in code (`value: null`) and rendered in the console rather than filled
+  in with a plausible-looking number.
 
 ### 5.5 Tranche #2 monitoring work
 
 1. Set `NEXT_PUBLIC_SENTRY_DSN` so the two cron monitors and the error pipeline actually
    transport, and add alert rules for missed runs.
-2. Build the transaction-level indexer over the pool's transaction history so the contract
-   error codes in 5.3 become countable, and store beyond the RPC retention window.
-3. Add an alert transport (paging for Critical, a channel for Warning) in front of both the
-   indexer and the existing console heuristics.
-4. Watch the admin and auditor accounts' operation history, and add events to the live pool's
-   policy setters as part of the Tranche #1 migration so the account-level watch can be
-   replaced with an event-level one.
+2. Build the transaction-level indexer. Two things only it can do, both now narrow and named:
+   index invocations by **contract** rather than by account, so a reverted call from any caller is
+   counted, and keep contract error codes past the RPC retention window so a rate has a history.
+   The decoding is done and tested (`webapp/lib/txmon.ts`); the indexer supplies the feed.
+3. Move Critical findings onto a minute-scale schedule. The transport is built and delivering; the
+   cadence needs a cron plan that allows more than two daily runs, or an external scheduler.
+4. Add events to the live pool's policy setters in the Tranche #1 migration, so the setter watch
+   stops depending on knowing the submitting account.
 5. Tune every "baseline pending" threshold against the pilot traffic in Tranche #2, and
    re-tune against the real baseline after the Tranche #3 mainnet launch.
 
@@ -607,7 +662,9 @@ The retrospective SDF's template asks for, answered honestly.
   tested (double-spend, canonical encoding, proof binding, oracle fail-closed). For admin
   compromise on the live pool they are not yet: the timelock is on the preview track and
   applying it is Tranche #1 work, and this document says so rather than implying otherwise.
-  Detection is the weakest area, because there is no alert transport.
+  Detection improved: reverted invocations are read and decoded, the setter gap in 3.12 is
+  partly closed from transaction envelopes, and alerts leave the browser. What is left is cadence
+  and coverage of callers we do not know, both stated in 5.4.
 - **What would improve the next pass?** A professional audit, which is planned separately
   through the Audit Bank and is not funded by this proposal. A real traffic baseline, which
   the Tranche #2 pilot produces. And re-running this exercise after the Tranche #1 migration,
