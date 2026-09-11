@@ -169,8 +169,10 @@ Deposits and withdrawals are visible at the edges by Privacy-Pools design.
   strings the user holds. Compromise of a note secret means that note can be spent.
 - The corridor admin key (`corredor`, public key `GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS`,
   referenced as `SOURCE` in `webapp/lib/constants.ts`). This is the pool `Admin` (and the
-  default `Auditor`). Its secret is never in the repository and never enters the browser.
-  It gates every policy setter (Section 3).
+  default `Auditor`). It gates every policy setter (Section 3). Its secret never enters the
+  browser, but it was committed to this repository and pushed to a public remote, and it must
+  therefore be treated as compromised. Section 3.5 discloses what leaked, when it was found,
+  what a holder can and cannot do with it, and what the remedy is.
 - The relayer / `DEMO_SECRET` testnet key. A funded, deliberately public throwaway key
   used so the no-install demo and the recurring relayer can sign real testnet writes. It
   is not the admin key and holds only free testnet value. Its exposure is by design and
@@ -269,8 +271,57 @@ the display quote for corridors without an oracle falls back to a public FX API,
 weaker source and is display-only.
 
 ### 3.5 Admin-key compromise
-Mitigation (live). The admin is the corridor `corredor` public key, never the demo key and
-never in the repository. Every policy setter is admin-gated with `require_auth`:
+
+Known compromise, disclosed. This threat is not hypothetical here. The `corredor` admin SECRET
+was hardcoded in four tracked scripts and pushed to a public GitHub remote on both `main` and
+`dev`. It entered the repository in commit `a6b44a0` (2026-08-14, the migration tooling) and
+spread to `409ad22`, `adb4ef6` and `46ee560` (the accumulator, reserves-aggregate and timelock
+end-to-end scripts). It was found on 2026-09-11 and removed from the working tree in `a647609`;
+those four scripts now read `process.env.CORREDOR_SECRET` and exit without it. Removing it from
+the tree does not remove it from history, and a public repository can already have been cloned,
+forked or cached, so the key is compromised and stays compromised until the corridor moves off
+it. The public key `GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS` is unchanged and
+is still the admin of the live pool. `docs/KEY-ROTATION.md` in the repository carries the full
+analysis and the operator runbook. That runbook is deliberately not published on the
+documentation site, because live admin rotation commands do not belong on a public page; the
+fact of the leak does, which is why it is stated here.
+
+Blast radius, bounded. Verified by reading `contracts/pool/src/lib.rs` rather than assumed. On
+the live pool `CBIYQACYOKDBPYDGU7DMSHPGJEWP2ZRETXDVOTC5HTU5RJBGDK2MHTWJ` a holder of the key can
+call exactly eight functions: `set_asp_root` and `set_deny_list` (who may deposit),
+`set_auditor`, `set_fx_oracle`, the three disclosure verifier setters `set_threshold_verifier`,
+`set_aggregate_verifier` and `set_range_verifier`, and `register_audit_request`. What the holder
+cannot do is what bounds the damage. The four core verifiers (transfer, compliance, disclosure,
+merkleUpdate) are written once at `__constructor` and have no setter, so the proofs that move
+money cannot be repointed at a permissive contract. There is no admin withdraw, no mint and no
+pause, and the trustless tree removed the admin root-override, so there is no path to forge a
+root or mint a leaf. This is a testnet deployment holding testnet USDC, so no real money can be
+stolen with this key. The realistic worst case is compliance settings or a disclosure verifier
+changed underneath a reviewer who is checking the contracts on an explorer. That is a
+credibility problem, not a fund-safety one.
+
+Why it cannot simply be rotated in place. The live pool has neither `upgrade` nor `set_admin`.
+Its admin was fixed at deployment and no code path changes it. Across the rest of the
+deployment: `pool-enforced` and `pool-accumulator` have `upgrade` but no `set_admin`, so
+rotation means upgrading to a wasm that has a setter, or redeploying; `pool-timelock` has a
+timelocked `set_admin` (`propose_set_admin`, wait out the delay, `execute_set_admin`) and is the
+one contract that handles this properly, which is that design decision doing exactly the job it
+was written for; `policy-registry`, `reserves` and `reserves-aggregate` have neither hook and can
+only be redeployed under a new key, which produces new contract ids.
+
+Remedy. The complete fix is migrating the live corridor onto the upgradeable pool under a fresh
+key. That is deliverable D1.3 of the SCF build proposal, and this leak is the evidence that the
+deliverable matters. The tooling exists and is proven against a test double (`import_state`,
+`scripts/migrate-pool.mjs`, Section 3.9); executing it on the live corridor changes the
+corridor's contract address and every explorer link that points at it, which is why it is a
+tranche of funded work rather than a patch. The partial remedies available without it are
+rotating `pool-timelock` through its own timelock and redeploying the three no-hook contracts
+under a new key. Until the migration runs, the live corridor runs on a compromised admin key,
+and this section exists so a reviewer learns that from the project rather than from the commit
+log.
+
+Mitigation (live). The admin is the corridor `corredor` public key and never the demo key. Every
+policy setter is admin-gated with `require_auth`:
 `set_asp_root`, `set_deny_list`, `set_fx_oracle`, `set_auditor`, and the additive verifier
 setters. The trustless tree removed the admin root-override, so the root advances only via
 `register_root_verified` with a valid merkleUpdate proof; there is no admin backdoor to mint
@@ -284,12 +335,14 @@ cancel and pending views. The instant setter is removed on that track, so a stol
 no longer flip the allow/deny controls in one transaction; a change is visible as a pending
 proposal for the whole delay before it can apply. This is e2e-proven on-chain (propose, an
 over-early execute rejected with `TimelockNotReady` (#20), an after-eta execute applied, and
-cancel) and in cargo (78/78, timestamp-controlled before/after-eta tests).
-Residual risk. A compromised admin key on the live pool could still re-point the ASP root or
-deny-list (change who may deposit) or the FX oracle address instantly, because the timelock is on
-the preview track, not the live pool. It cannot forge a root, mint a leaf, or move custodied funds
-directly. What remains is applying the timelock to the live pool via the state migration (Section
-3.9), and pairing the admin with a Stellar multisig account (an account-config step, not code).
+cancel) and in cargo (`pool-timelock` 89/89, timestamp-controlled before/after-eta tests).
+Residual risk. The live pool's admin key is known to be compromised, per the disclosure at the
+top of this section, and its setters are still instant because the timelock is on the preview
+track. So a holder could re-point the ASP root or deny-list (change who may deposit) or the FX
+oracle address in one transaction today. It cannot forge a root, mint a leaf, or move custodied
+funds directly. What remains is applying the timelock to the live pool via the state migration
+(Section 3.9) under a fresh admin key, and pairing that admin with a Stellar multisig account (an
+account-config step, not code).
 
 ### 3.6 Relayer abuse in recurring sends
 Mitigation (live). The cron endpoint (`/api/cron/recurring`) authorizes with a constant-time

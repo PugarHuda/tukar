@@ -45,7 +45,7 @@ To activate in prod: accept the Sentry marketplace terms; set the idOS consumer 
 
 Driven by three audits (code gap-hunt, integration depth, Playwright exhaustive QA) and two research
 sweeps (ecosystem adoption, product features). Everything below is real and tested: tsc 0, lint clean,
-vitest 231, qa6 66/0 on the local build, cargo 314 across the eight contract crates.
+vitest 282, qa6 66/0 on the local build, cargo 317 across the eight contract crates.
 
 Security and correctness fixes:
 - SEP-10: the anchor challenge is verified with `WebAuth.readChallengeTx` against the toml `SIGNING_KEY`
@@ -136,7 +136,7 @@ consoles (clipboard sidebar, inspection cards, tariff tables, carbon-form travel
 verify (customs desk with a landing stamp), deck, icon.svg, manifest, og-image.png (rendered from
 `scripts/og-source.html`; provenance embedded in every shipping raster).
 
-Verification at the end of the pass: tsc 0, lint 0, vitest 231, qa6 66/0, Playwright across
+Verification at the end of the pass: tsc 0, lint 0, vitest 282, qa6 66/0, Playwright across
 chromium/firefox/webkit/mobile (see the commit message for the final counts), detector clean except
 the kraft flute gradient on the deck (committed material), no horizontal overflow at 320/390/1440/4K.
 
@@ -260,7 +260,7 @@ Running the same suite on Firefox and WebKit then found more:
 
 Final state, all green: chromium 160 passed / 3 skipped (including a real deposit,
 tx `e4059a0a1eb1ac5db17feafbe87fbe30139af9783a9bea369cbe8de313192df8`), webkit 153 passed /
-10 skipped, firefox and mobile clean, qa6 66/0, vitest 231, tsc 0, lint 0.
+10 skipped, firefox and mobile clean, qa6 66/0, vitest 282, tsc 0, lint 0.
 
 ## 3. New testnet contracts deployed this session (additive, the 8 live core addresses untouched)
 

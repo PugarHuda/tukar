@@ -5,7 +5,7 @@ built and running on Stellar testnet. This version records what shipped, where t
 and what genuinely remains outstanding. Nothing below is a mock or a preview UI unless it says so.
 
 Baseline for the whole document: 8 Circom circuits, 15 Soroban contracts deployed on testnet
-(`deployments/testnet.json`), 230 webapp tests (`cd webapp && npm run test`), 314 Cargo tests
+(`deployments/testnet.json`), 282 webapp tests (`cd webapp && npm run test`), 317 Cargo tests
 across the 8 contract crates (52 on the live pool, the rest on the additive and preview crates).
 Everything is testnet. Nothing is professionally audited.
 

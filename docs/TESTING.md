@@ -7,8 +7,8 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 
 | Type | Suite | Command | Result |
 |---|---|---|---|
-| **Unit** (contract) | pool (Rust) | `cargo test` in `contracts/pool` | **52/52** |
-| **Unit** (contract) | all eight contract crates | `cargo test` per crate | **314** (pool 52, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6, reserves 6, reserves-aggregate 12) |
+| **Unit** (contract) | pool (Rust) | `cargo test` in `contracts/pool` | **55/55** |
+| **Unit** (contract) | all eight contract crates | `cargo test` per crate | **317** (pool 55, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6, reserves 6, reserves-aggregate 12) |
 | **Unit** (frontend) | client Merkle tree | `npm run test:unit` | **15/15** |
 | **Unit** (circuit soundness) | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
 | **Soundness** (widened ASP) | multi-member allow-list, real proofs | `npm run test:asp` | **4/4** |
@@ -45,7 +45,7 @@ npm run test:proving     # in-browser proving flow: valid / tampered / false-wit
 npm run test:negative    # circuit soundness: transfer + compliance violations rejected
 npm run test:e2e         # Playwright real-click e2e (drives the live site, real clicks)
 # contract unit tests (in WSL/Linux):
-cd contracts/pool && cargo test          # 52/52
+cd contracts/pool && cargo test          # 55/55
 ```
 
 > `npm run circuit:all` fetches the **real Hermez** phase-1 ptau
@@ -95,7 +95,32 @@ passing happy-path can't reveal):
 Result: no under-constrained signal or missing range check found.
 
 ## 3. Contract unit tests ✅
-In `contracts/pool`, **52/52 passed** (`cargo test`): deposit pulls USDC + records
+
+Read this caveat before reading the numbers. Every verifier in the Rust suites except one is
+a stub: `MockVerifier` returns `true` for a proof of 256 zero bytes. That is the right tool
+for testing the pool's own logic (binding, nullifier set, custody, admin gating) and it
+proves nothing about Groth16. Cryptographic soundness is covered in three other places: the
+one real-verifier test named below, the circuit negative suite
+(`scripts/test-negative.mjs`, which asserts witness generation throws for broken value
+conservation, a forged nullifier, a deny-listed source and a non-member source), and
+`scripts/test-fullprove.mjs`, which mutates a public signal and asserts snarkjs rejects it.
+The last two run in CI.
+
+Three tests carry more weight than the rest:
+
+- `real_verifier_wasm_accepts_real_proof_and_rejects_tampered` loads the deployed disclosure
+  verifier WASM (byte-identical to the on-chain contract, hash in `docs/ONCHAIN.md`) and runs
+  a real pairing check against a real proof, then flips one public signal and asserts the
+  same proof no longer passes. It also pins the refusal shape: the real verifier **traps**
+  rather than returning `false`, which is why `Pool::verify` asserts the returned boolean
+  instead of treating a successful call as success.
+- `transfer_public_inputs_are_bound_in_order` and
+  `withdraw_public_inputs_bind_recipient_and_negative_amount` read back the exact public
+  input vector the pool hands the verifier on the paths that move money, asserting the
+  recipient binding is recomputed on-chain and that the withdraw amount is bound to its
+  field-negative. Before these, only the deposit-side compliance vector was asserted.
+
+In `contracts/pool`, **55/55 passed** (`cargo test`): deposit pulls USDC + records
 commitment; withdraw releases the bound amount; mismatched-amount withdraw
 rejected (`AmountNotBound`); transfer spends nullifiers + records outputs;
 **double-spend replay rejected** (`NullifierUsed`); **unknown root rejected**

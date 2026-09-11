@@ -23,11 +23,13 @@ consumer sends money privately, and a regulator can still check a fact on-chain 
 selective disclosure. That is the part a plain wallet or a plain mixer does not have.
 
 Stellar's whole reason for existing is moving real money across borders. Tukar
-takes that exact rail and makes it confidential *and* compliant, a direct
-implementation of Stellar's privacy strategy and the
-[Privacy Pools whitepaper](https://privacypools.com/whitepaper.pdf)
+takes that exact rail and makes it confidential *and* compliant, following
+Stellar's privacy strategy and the shape the
+[Privacy Pools whitepaper](https://privacypools.com/whitepaper.pdf) argues for
 (visible deposits/withdrawals, private transfers, ASP + selective disclosure for
-compliance).
+compliance). One difference is worth knowing up front: the whitepaper proves
+association at withdrawal, Tukar proves it at deposit. See
+[ARCHITECTURE.md](docs/ARCHITECTURE.md) for why, and for what that costs.
 
 ### Where Tukar sits in Stellar's privacy stack
 
@@ -111,7 +113,7 @@ for the average cost of sending $200.
 
 ### What shipped this session, and what's still ahead
 
-The core (8 circuits, 15 Soroban contracts, 314 Cargo and 231 webapp tests, the live corridor, in-circuit
+The core (8 circuits, 15 Soroban contracts, 317 Cargo and 282 webapp tests, the live corridor, in-circuit
 compliance, four selective-disclosure types, and the oracle gate) runs on testnet today. The
 compliant-privacy-pool idea is crowded on Stellar, so the differentiation deepens along five
 lines, and this session moved most of them from reference demos into working, testnet-live
@@ -295,8 +297,8 @@ Tukar is deployed and running, not a prototype in a branch.
   (`@vercel/analytics` and `@vercel/speed-insights` in `webapp/app/layout.tsx`) for page traffic
   and Core Web Vitals.
 - **Smart contracts on testnet.** 8 Soroban contracts (pool plus 7 verifiers); addresses in the
-  contract table above and in `deployments/testnet.json`. 314 passing Cargo tests across the
-  eight crates (pool 52, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6,
+  contract table above and in `deployments/testnet.json`. 317 passing Cargo tests across the
+  eight crates (pool 55, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6,
   reserves 6, reserves-aggregate 12).
 - **Architecture and docs.** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
   [`docs/ONCHAIN.md`](docs/ONCHAIN.md), [`docs/TESTING.md`](docs/TESTING.md).
@@ -411,7 +413,7 @@ other three are selective-disclosure variants (see the disclosure family below).
 | Circuit | Proves | Where |
 |---|---|---|
 | **transfer** | Note ownership, correct nullifiers (no double-spend), Merkle inclusion, value conservation | the private transfer |
-| **compliance** | Source ∈ ASP allow-list and ∉ deny-list, bound to the transfer | corridor edges |
+| **compliance** | Source ∈ ASP allow-list and ∉ deny-list, bound to the authenticated depositor | deposit only, not withdraw |
 | **disclosure** | A confidential commitment opens to a disclosed amount, bound to an audit request | regulator view |
 | **merkleUpdate** | Inserting a leaf into a *known* `old_root` yields exactly `new_root` | trustless tree advance |
 | **thresholdDisclosure** | A commitment's amount is ≤ a threshold, without revealing the amount | regulator view |
@@ -537,7 +539,7 @@ professionally audited, see the caveats below). What that means concretely:
   remaining caveat is that the *shared demo key's* secret is public, so the public
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
-**52/52 pool unit tests** + **6/6 circuit-soundness** (plus disclosure-variant
+**55/55 pool unit tests** + **6/6 circuit-soundness** (plus disclosure-variant
 soundness suites: threshold **4/4**, two-sided range **5/5**, aggregate **6/6**) + a
 19-point [threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser
 proving flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
@@ -640,7 +642,7 @@ reference (Apache-2.0 / GPLv3).
 - **Smart contracts:** Rust on Soroban (Stellar). The core corridor is 8 contracts (a pool plus 7
   BN254 verifiers); 7 additive contracts (policy registry, reserves, reserves verifier, reserves
   aggregate, enforcement pool, exact accumulator, timelock pool) bring the deployed total to 15.
-  314 passing Cargo tests.
+  317 passing Cargo tests.
 - **Stellar standards:** SEP-1 (stellar.toml discovery), SEP-24 (interactive deposit and
   withdraw), SEP-41 / SAC (USDC), with SEP-31 as the cross-border positioning. Native
   fee-bump (CAP-15) as a proven gasless primitive.
@@ -692,7 +694,7 @@ cd webapp && npm install && npm run dev   # -> http://localhost:3000
 
 **On-chain** (the contracts are already deployed, IDs above):
 - Build a verifier WASM with a circuit's VK: `scripts/wsl-build-verifier.sh`
-- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 52/52)
+- Build the pool contract: `scripts/wsl-build-pool.sh` (`cargo test` in `contracts/pool` → 55/55)
 - Deploy + invoke reproduction: [`docs/ONCHAIN.md`](docs/ONCHAIN.md)
 
 > Soroban contract builds run in **WSL/Linux**. Windows lacks the MSVC `link.exe`

@@ -1421,12 +1421,18 @@ fn accumulator_equals_sum_and_attest_solvent() {
     assert_eq!(c.pool.latest_attestation(), Some(att));
 }
 
-// A forged/understated/inflated contribution is REJECTED: if the amount-binding (disclosure)
-// proof does not verify, deposit reverts (ProofRejected #7) and folds NOTHING — so a depositor
-// cannot fold an amount different from the one bound to their note commitment.
+// What this test actually proves, stated precisely because the old name overclaimed it: the
+// pool HONOURS a false verdict from the amount-binding (disclosure) verifier. It constructs no
+// forgery. With a RejectingVerifier in the disclosure slot, deposit reverts (ProofRejected #7)
+// and folds NOTHING into the accumulator, so there is no path where a contribution lands
+// without its binding proof having verified. Whether a forged proof can produce a TRUE verdict
+// is a property of Groth16 and of the real verifier contract, which no Rust test here reaches:
+// every verifier in this suite is a stub. The soundness side is covered off-chain, by
+// scripts/test-fullprove.mjs (mutates a public signal, asserts snarkjs verify returns false)
+// and scripts/test-negative.mjs, both of which run in CI.
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")] // ProofRejected (binding proof rejected)
-fn deposit_forged_binding_amount_rejected() {
+fn deposit_folds_nothing_when_binding_proof_rejected() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);

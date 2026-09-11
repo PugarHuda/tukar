@@ -98,7 +98,23 @@ without revealing any private salary/amount detail.
 
 All artifacts and tx hashes recorded in [`deployments/testnet.json`](../deployments/testnet.json).
 
-### Reproduce
+### Reproduce, without any toolchain
+
+The cheapest check needs only Rust. It loads the deployed verifier WASM and runs the real
+pairing check against the real proof, both committed, so it works on a fresh clone with no
+circom, no snarkjs and no ptau download:
+
+```bash
+cd contracts/pool && cargo test real_verifier_wasm_accepts_real_proof_and_rejects_tampered
+```
+
+The fixture is the deployed artifact rather than a local rebuild of it:
+`sha256(contracts/pool/testdata/disclosure_verifier.wasm)` is
+`9559dc89a7b6d0f9a7313f521f7d189b5fe0ffb498fb9562194dd8e731caa24b`, which is the wasm hash
+in the on-chain contract instance of `CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V`.
+Read it back from the instance ledger entry and compare.
+
+### Reproduce against the live contract
 
 ```bash
 npm run circuit:disclosure                       # compile + prove (off-chain)
@@ -110,3 +126,12 @@ tools/bin/stellar.exe contract invoke \
   --public_inputs-file-path circuits/build/soroban_public.json
 # -> true
 ```
+
+Note on the committed fixtures, because this block silently broke once. Groth16 setup is not
+bit-reproducible, so `circuits/build/verification_key.json` and the two `soroban_*.json`
+files must be regenerated whenever the proving key changes. They were not regenerated after
+the July phase-2 ceremony, so from then until 2026-09-11 the committed proof was built
+against the pre-ceremony key and this exact command returned `Error(Contract, #0)` against
+the live verifier. The verifier was fine, the fixtures were stale. They now match
+`ceremony/disclosure/disclosure_vk.json`, and the cargo test above is the guard, since it
+fails if they drift again.

@@ -843,6 +843,194 @@ fn compliance_public_inputs_are_bound_in_order() {
     assert_eq!(pi.get(10).unwrap(), commitment); // bindHash == commitment
 }
 
+// ---- the one test in this suite that runs REAL cryptography ----
+// Every other verifier in this file is a stub: MockVerifier returns true for 256 zero bytes,
+// which is exactly right for testing the pool's own logic and proves nothing about Groth16.
+// That left the suite with no cryptographic coverage at all, so this test loads the REAL
+// disclosure verifier WASM and feeds it the real proof from circuits/build/, the one
+// docs/ONCHAIN.md tells a reviewer to reproduce.
+//
+// The fixture is the deployed artifact, not a local rebuild of it. Checked, not assumed:
+//   sha256(contracts/pool/testdata/disclosure_verifier.wasm)
+//     = 9559dc89a7b6d0f9a7313f521f7d189b5fe0ffb498fb9562194dd8e731caa24b
+// and that is the wasm hash in the on-chain contract instance of
+// CAYGURQQK3LCQSQLD4FMPXVYGDXHL3K4GAM6URLCEXCXL2JCORLJ4W4V on testnet. A reviewer can read
+// the same hash back from the instance ledger entry and compare.
+//
+// The fixtures are inlined as hex rather than read from circuits/build/ so the test is
+// hermetic: it passes on a fresh clone with no circom, no snarkjs and no ptau download.
+// Regenerate them with `npm run circuit:disclosure && node scripts/gen-invoke-args.mjs`.
+mod real_verifier_fixture {
+    // Public signals: [commitment, disclosedAmount = 50000000, auditContextHash = 42].
+    pub const PUB: [&str; 3] = [
+        "268bcbe8937006b3d745c99bafa33fcc459d9168ab7c573812adb34194dda7fa",
+        "0000000000000000000000000000000000000000000000000000000002faf080",
+        "000000000000000000000000000000000000000000000000000000000000002a",
+    ];
+    pub const A: &str = "04e3ba9618862072b822414f62be9730ac584f8c6d290e915abb5a9ed2879321027425577043cd7b049177b45ffe73476adaad35472354fbe71c47161b0937c1";
+    pub const B: &str = "1528a454b198838a7e040660997a8160a2b1dc84ed05be4c3959e4d5c39f93c10997fe17387c7bdba784135edbffb621b7fe8a595a0f66488cd349bd2c1902321cbe369a1b2e9dd14110d4dafc8a9ef65e97686e86bf9cf4c5200750223f44471078ec53250f8b48bb41333a11ceaa9fb2753e1e187e082f8557d004239aefd4";
+    pub const C: &str = "2438653da47241d172ab9984463ca3320ccdbce54c3a6686d551aa7bf1bd13ce1e469ab5ed8ba31f44a0bf15a66e1cc4a35a3c60b7e8815613e5f8b5da113fa5";
+}
+
+const REAL_DISCLOSURE_VERIFIER: &[u8] = include_bytes!("../testdata/disclosure_verifier.wasm");
+
+fn unhex<const N: usize>(h: &str) -> [u8; N] {
+    let b = h.as_bytes();
+    assert_eq!(b.len(), N * 2, "hex length");
+    let mut out = [0u8; N];
+    let nib = |c: u8| match c {
+        b'0'..=b'9' => c - b'0',
+        b'a'..=b'f' => c - b'a' + 10,
+        _ => panic!("bad hex"),
+    };
+    for i in 0..N {
+        out[i] = (nib(b[2 * i]) << 4) | nib(b[2 * i + 1]);
+    }
+    out
+}
+
+#[test]
+fn real_verifier_wasm_accepts_real_proof_and_rejects_tampered() {
+    use real_verifier_fixture as f;
+    use soroban_sdk::{IntoVal, Symbol, Val};
+    let env = Env::default();
+    env.cost_estimate().budget().reset_unlimited(); // a real pairing check is not cheap
+    let vid = env.register(REAL_DISCLOSURE_VERIFIER, ());
+
+    let proof = Groth16Proof {
+        a: Bn254G1Affine::from_bytes(BytesN::from_array(&env, &unhex::<64>(f::A))),
+        b: Bn254G2Affine::from_bytes(BytesN::from_array(&env, &unhex::<128>(f::B))),
+        c: Bn254G1Affine::from_bytes(BytesN::from_array(&env, &unhex::<64>(f::C))),
+    };
+    let signals = |third: &str| -> Vec<Bn254Fr> {
+        vec![
+            &env,
+            Bn254Fr::from_bytes(BytesN::from_array(&env, &unhex::<32>(f::PUB[0]))),
+            Bn254Fr::from_bytes(BytesN::from_array(&env, &unhex::<32>(f::PUB[1]))),
+            Bn254Fr::from_bytes(BytesN::from_array(&env, &unhex::<32>(third))),
+        ]
+    };
+    let call = |pi: Vec<Bn254Fr>| {
+        let args: Vec<Val> = vec![&env, proof.clone().into_val(&env), pi.into_val(&env)];
+        env.try_invoke_contract::<bool, soroban_sdk::Error>(&vid, &Symbol::new(&env, "verify"), args)
+    };
+
+    // The honest proof verifies against the real pairing check.
+    assert_eq!(call(signals(f::PUB[2])), Ok(Ok(true)));
+
+    // Flip the audit-context signal from 42 to 43 and the SAME proof must no longer pass.
+    // This is the property MockVerifier can never test: nothing about the pool changed, only
+    // a public input, and the cryptography is what rejects it.
+    //
+    // Note HOW it rejects. The real verifier TRAPS (Error(Contract, #0)); it does not return
+    // false. That is why `Pool::verify` asserts the returned boolean instead of treating a
+    // successful call as success: both refusal shapes have to stop the transaction, and only
+    // a real verifier exercises the trap path. The same call reverts identically against the
+    // deployed contract on testnet.
+    let tampered = "000000000000000000000000000000000000000000000000000000000000002b";
+    assert!(call(signals(tampered)).is_err());
+}
+
+// ---- binding-order for the paths that MOVE MONEY ----
+// `compliance_public_inputs_are_bound_in_order` above covers the deposit gate. Transfer
+// and withdraw were the gap: they route through `transfer_inputs`, and that vector is the
+// one an unpinned split or a redirected recipient would attack. Both cases below register
+// CapturingVerifier as the TRANSFER verifier and read back exactly what the pool handed
+// the pairing check. Deposit uses the compliance and disclosure verifiers, so funding the
+// pool first does not clobber the capture.
+fn capture_pool(env: &Env) -> (Address, Address, Address, PoolClient<'_>) {
+    env.mock_all_auths();
+    let admin = Address::generate(env);
+    let user = Address::generate(env);
+    let cap = env.register(CapturingVerifier, ());
+    let mock = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
+    let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_addr = sac.address();
+    StellarAssetClient::new(env, &token_addr).mint(&user, &1_000);
+    let deny: Vec<BytesN<32>> = vec![
+        env, b32(env, 91), b32(env, 92), b32(env, 93), b32(env, 94),
+        b32(env, 95), b32(env, 96), b32(env, 97), b32(env, 98),
+    ];
+    let id = env.register(
+        Pool,
+        (
+            admin, token_addr,
+            cap.clone(),  // transfer = capturing verifier
+            mock.clone(), // compliance
+            mock.clone(), // disclosure
+            mock,         // update
+            b32(env, 0), b32(env, 100), deny, oracle,
+        ),
+    );
+    (cap, user, id.clone(), PoolClient::new(env, &id))
+}
+
+#[test]
+fn transfer_public_inputs_are_bound_in_order() {
+    let env = Env::default();
+    let (cap, _user, _id, pool) = capture_pool(&env);
+    let root = b32(&env, 0); // initial_root, the only known root before any insert
+    let zero = b32_dec(&env, 0);
+    let ext = b32(&env, 7);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 11), b32(&env, 12)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 21), b32(&env, 22)];
+    pool.transfer(&dummy_proof(&env), &root, &zero, &ext, &nulls, &outs);
+
+    let pi = CapturingVerifierClient::new(&env, &cap).captured();
+    // [root, publicAmount, extDataHash, n0, n1, o0, o1] — the io counts are pinned, so
+    // this length is itself the double-spend guard the BadIoCount check enforces.
+    assert_eq!(pi.len(), 7);
+    assert_eq!(pi.get(0).unwrap(), root);
+    assert_eq!(pi.get(1).unwrap(), zero); // a pure shielded transfer moves no external value
+    assert_eq!(pi.get(2).unwrap(), ext);
+    assert_eq!(pi.get(3).unwrap(), nulls.get(0).unwrap());
+    assert_eq!(pi.get(4).unwrap(), nulls.get(1).unwrap());
+    assert_eq!(pi.get(5).unwrap(), outs.get(0).unwrap());
+    assert_eq!(pi.get(6).unwrap(), outs.get(1).unwrap());
+}
+
+// The withdraw vector is where the recipient binding lives: the pool must IGNORE any
+// caller-supplied ext-data and recompute keccak256(recipient XDR || public_amount)
+// itself, and it must bind publicAmount to the FIELD-NEGATIVE of the released amount.
+// Asserting both here is what makes "a pending withdraw cannot be redirected" testable.
+#[test]
+fn withdraw_public_inputs_bind_recipient_and_negative_amount() {
+    let env = Env::default();
+    let (cap, user, _id, pool) = capture_pool(&env);
+    let recipient = Address::generate(&env);
+    let commitment = b32(&env, 1);
+    pool.deposit(&user, &300, &commitment, &dummy_proof(&env), &dummy_proof(&env));
+
+    let root = b32(&env, 0);
+    let amount = 300i128;
+    let neg = Pool::neg_amount_bytes(&env, amount);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 31), b32(&env, 32)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 41), b32(&env, 42)];
+    pool.withdraw(&dummy_proof(&env), &root, &neg, &nulls, &outs, &recipient, &amount, &None, &None);
+
+    let pi = CapturingVerifierClient::new(&env, &cap).captured();
+    assert_eq!(pi.len(), 7);
+    assert_eq!(pi.get(0).unwrap(), root);
+    // NOT the positive encoding: value leaving the shielded set is negative in-field.
+    assert_eq!(pi.get(1).unwrap(), neg);
+    assert_ne!(pi.get(1).unwrap(), Pool::amount_bytes(&env, amount));
+    // Recomputed on-chain from the recipient the tokens actually went to. Note the
+    // REDUCTION: ext_data_hash is a keccak256, so it is usually >= r, and the pool feeds
+    // it through `fr` (Bn254Fr::from_bytes, which reduces mod r) like every other signal.
+    // The raw digest is therefore NOT what the pairing check sees, and the browser builds
+    // the withdraw proof against the reduced value too. Asserting the raw bytes here would
+    // fail, which is how this test found the distinction in the first place.
+    let bind = |to: &Address| Pool::fr(&env, &Pool::ext_data_hash(&env, to, &neg)).to_bytes();
+    assert_eq!(pi.get(2).unwrap(), bind(&recipient));
+    // A different recipient yields a different binding, so the proof cannot be replayed.
+    assert_ne!(pi.get(2).unwrap(), bind(&Address::generate(&env)));
+    assert_eq!(pi.get(3).unwrap(), nulls.get(0).unwrap());
+    assert_eq!(pi.get(4).unwrap(), nulls.get(1).unwrap());
+    assert_eq!(pi.get(5).unwrap(), outs.get(0).unwrap());
+    assert_eq!(pi.get(6).unwrap(), outs.get(1).unwrap());
+}
+
 // Admin-gated setters must actually require the admin's auth (not just be documented so).
 #[test]
 #[should_panic]

@@ -14,8 +14,16 @@ pragma circom 2.1.6;
 // two other places: the pool pins sourceKey == field(from) with require_auth(from), and
 // a separate disclosure/binding proof ties commitment <-> amount.
 //
-// This is the direct on-chain realization of the Privacy Pools whitepaper's
-// "association set" model (Buterin, Soleimani, et al.).
+// HOW THIS DIFFERS FROM THE PRIVACY POOLS WHITEPAPER. Read it before citing that
+// paper for this circuit. Privacy Pools (Buterin, Soleimani, et al.) proves association
+// at WITHDRAWAL, over a set the withdrawer chooses at exit, so the guarantee follows the
+// money out of the pool. This circuit runs at DEPOSIT only: the pool calls
+// ComplianceVerifier from `deposit` and from nowhere else, so `withdraw` and `transfer`
+// verify no compliance proof. What this is, stated plainly, is a KYC gate on entry to the
+// shielded set, with a fixed allow-list root and eight deny-list elements rather than a
+// set chosen per withdrawal. That is a deliberate design choice for a corridor whose
+// edges are already licensed anchors, and it is a WEAKER property than the whitepaper's.
+// Exit-side association is proposed work, not shipped work.
 //
 // Public  : aspRoot, denyList[nDeny], sourceKey, bindHash
 // Private : pathElements[levels], leafIndex

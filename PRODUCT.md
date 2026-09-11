@@ -34,12 +34,21 @@ regulator without seeing everyone's transactions.
 ## Positioning
 
 The only remittance flow on Stellar where privacy is on-chain (Groth16 BN254 proofs verified by
-Soroban contracts) and compliance is also on-chain and provable (policy registry, enforcement pool,
-proof-of-reserves accumulator, timelocked admin), not a promise in a PDF. Reusable KYC instead of
+Soroban contracts) and compliance is on-chain and provable too, not a promise in a PDF. On the live
+corridor that means an in-circuit allow-list and deny-list checked on every deposit, a per-corridor
+policy registry, and four disclosure types each verified by its own Soroban contract. Three further
+compliance contracts are deployed and exercised on a preview track that does not touch the live
+corridor: the enforcement pool, the proof-of-reserves liability accumulator, and the timelocked
+admin. Applying them to the live pool is the first tranche of the SCF build proposal, not something
+that has already happened. Proof of reserves is the weakest of the four today: the reserves
+contracts point at the live pool but have never been attested against it, so `latest_attestation()`
+returns null and the aggregate contract's `covered_count()` is 0. The wiring is proven end to end
+against test-double pools; on the live corridor it is wiring, not evidence. Reusable KYC instead of
 re-verifying every time: Reclaim's zkTLS proof is bound to the wallet address server-side and does
 populate the on-chain allow-list, while an idOS credential is verified but cannot be tied to a Stellar
 address with a consumer's permissions, so it adds no allow-list entry and the app says so. Everything
-is live on Stellar testnet and verifiable from the explorer; nothing in the product is mocked.
+described here is deployed on Stellar testnet and verifiable from the explorer, on the live corridor
+or on the preview track as labelled above; nothing in the product is mocked.
 
 ## Operating Context
 
@@ -95,7 +104,7 @@ is live on Stellar testnet and verifiable from the explorer; nothing in the prod
 - 5th place, Stellar Privacy / Real-World ZK hackathon (DoraHacks); APAC hackathon grand finalist.
 - 15 contracts live on Stellar testnet with explorer links (README contract table,
   `deployments/testnet.json`); real deposit transactions on Protocol 28.
-- Test evidence: 314 contract tests across eight crates, 231 unit tests across 32 files, Playwright
+- Test evidence: 317 contract tests across eight crates, 282 unit tests across 32 files, Playwright
   multi-browser e2e (chromium, firefox, webkit, 390px mobile), qa6 sweep 66/0.
 - No real user testimonials, no volume numbers, no partner logos. Do not fabricate any.
 

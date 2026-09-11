@@ -221,7 +221,7 @@ These are checkable in this repo, not claims: **8** Circom/Groth16/BN254 circuit
 (`deployments/testnet.json`: an 8-contract core of pool plus 7 verifiers each with a
 tamper-rejection proof, plus the reserves verifier, the policy registry, two reserves
 contracts, and the pool-enforced, pool-accumulator and pool-timelock preview crates),
-**52/52** pool contract tests and **314** across all 8 contract crates
+**55/55** pool contract tests and **317** across all 8 contract crates
 (`cargo test` per crate), **230** webapp tests (`cd webapp && npm run test`), an on-chain
 Reflector SEP-40 FX read that **gates settlement** (`SlippageExceeded`, fail-closed on a
 stale or thin feed), and a native fee-bump gasless flow. This is the substance underneath the

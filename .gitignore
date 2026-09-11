@@ -14,6 +14,11 @@ contracts/build/
 *.zkey
 *.wtns
 !circuits/**/*.circom
+# One exception to the *.wasm rule: the REAL disclosure verifier, 4.7 KB, committed as a
+# test fixture. Without it every Rust test runs against a stub verifier that returns true
+# for a proof of zeros, so the suite contains no cryptography at all. See
+# contracts/pool/src/test.rs::real_verifier_wasm_accepts_real_proof_and_rejects_tampered.
+!contracts/pool/testdata/*.wasm
 # Commit the canonical verification keys (the deployed verifiers match these).
 # Proving keys (.zkey) are large + regenerable, so they stay ignored.
 !circuits/build/verification_key.json

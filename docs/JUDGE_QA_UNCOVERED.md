@@ -20,8 +20,8 @@ one licensed-anchor pilot is exactly what we're raising for. Do not imply tracti
 don't have.
 
 **3. What have you shipped before that shows you can pull this off?**
-Your answer. Point to the fact that this is already 8 circuits, 15 contracts, 230 webapp
-tests and 314 Cargo tests live on testnet, which is the strongest evidence in the room.
+Your answer. Point to the fact that this is already 8 circuits, 15 contracts, 282 webapp
+tests and 317 Cargo tests live on testnet, which is the strongest evidence in the room.
 
 ## Regulatory operations
 
@@ -84,7 +84,7 @@ machine, so genuinely independent contributors are a first funded step.
 
 **10. It's not audited. What is the contract attack surface?**
 Correct, not professionally audited yet. It is hardened through many adversarial self-review
-rounds against a documented threat model, with 314 passing Cargo tests across the contract
+rounds against a documented threat model, with 317 passing Cargo tests across the contract
 crates (52 of them on the live pool) and 230 passing webapp tests. A professional
 audit is the first use of prize or grant money.
 

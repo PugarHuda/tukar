@@ -136,7 +136,7 @@ Pemegang pembayaran bisa buktiin satu hal ke auditor, sisanya tetap rahasia:
   verifier reserves, policy-registry, reserves, reserves-aggregate, plus pool-enforced,
   pool-accumulator, dan pool-timelock di jalur preview), host function BN254 bawaan Stellar
   (masuk di Protocol 25 "X-Ray" / 26 "Yardstick"; testnet sekarang jalan di Protocol 28 "Adapter").
-  **314 test Cargo lolos** (52 di pool yang live) dan **231 test webapp lolos.**
+  **317 test Cargo lolos** (55 di pool yang live) dan **282 test webapp lolos.**
 - **Standar Stellar:** SEP-1 (stellar.toml), SEP-10, SEP-12 (status KYC), SEP-24
   (deposit/withdraw interaktif), SEP-38 (firm quote), SEP-41/SAC (USDC), SEP-7 (URI
   pembayaran), Reflector SEP-40 (oracle), fee-bump CAP-15.
@@ -150,7 +150,7 @@ Pemegang pembayaran bisa buktiin satu hal ke auditor, sisanya tetap rahasia:
 ---
 
 ## 7. Angka penting (hafal ini)
-**8 circuit · 15 kontrak on-chain · 314 test Cargo + 231 test webapp lolos.** USDC testnet
+**8 circuit · 15 kontrak on-chain · 317 test Cargo + 282 test webapp lolos.** USDC testnet
 asli. Fiat edges memakai panggilan SEP asli ke reference anchor testnet milik SDF, jadi anchor
 berlisensi masih langkah production. Belum diaudit profesional. Semua yang di tengah (proof,
 deposit, verifikasi, Travel Rule, CCTP, reserves) nyata dan bisa dicek on-chain sekarang.

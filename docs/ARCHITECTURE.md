@@ -11,10 +11,19 @@ link-privacy depends on the anonymity set, see [SECURITY.md](SECURITY.md).) At e
 **edge** of the corridor, zero-knowledge **compliance proofs** keep the system
 auditable without ever revealing the private payment graph.
 
-This directly implements the thesis of the Privacy Pools whitepaper (Buterin,
-Soleimani, et al.) and Stellar's stated privacy strategy: **deposits/withdrawals
-are visible, in-corridor transfers are private, and an Association Set Provider
-(ASP) plus selective disclosure provide compliance**.
+This follows the shape the Privacy Pools whitepaper (Buterin, Soleimani, et al.)
+argues for, and Stellar's stated privacy strategy: **deposits/withdrawals are
+visible, in-corridor transfers are private, and an Association Set Provider (ASP)
+plus selective disclosure provide compliance**.
+
+One difference matters enough to state here rather than in a footnote. The
+whitepaper proves association at *withdrawal*, over a set the withdrawer picks at
+exit. Tukar proves it at *deposit*: the pool calls the compliance verifier from
+`deposit` and nowhere else, so `withdraw` verifies no compliance proof. Entry to
+the shielded set is gated; the exit is not. That is a weaker property than the
+whitepaper's, it is a deliberate choice for a corridor whose edges are licensed
+anchors doing their own KYC, and exit-side association is proposed work rather
+than shipped work.
 
 ---
 

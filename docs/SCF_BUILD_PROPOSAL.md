@@ -8,7 +8,9 @@
 > Section 5, and 6a shows the three components it is made of so a reviewer can argue with
 > each input rather than with the total.
 > The team is one person and Section 8 says so plainly, including what the record does not
-> evidence. The only field still left for the owner to supply is the team video in Section 8.
+> evidence. Exactly one item in this document still needs the owner: the recorded team video
+> link in Section 8. Nothing else is left open, including the documentation-site question, which
+> Section 11 now answers.
 
 ---
 
@@ -22,6 +24,18 @@ out to local fiat. Every deposit proves in-circuit that the sender is compliant
 about a payment that a Stellar contract verifies on-chain. The payment is private for
 the user and provable to a regulator at the same time. It is private in the middle
 and accountable at the edges.
+
+**The single idea worth reading this document for.** Selective disclosure everywhere else has
+the same weakness: the holder chooses what to disclose, so a regulator asking for a total can be
+answered with a flattering subset. Tukar closes that on-chain. An auditor registers a request
+with `register_audit_request`, which pins the exact set of commitments the answer must cover into
+a context hash. `disclose_aggregate` recomputes that hash from the proof's public inputs and
+panics with `UnknownAuditRequest` (error 15) against anything the auditor never registered, so
+the request and the answer are both on-chain and bound to each other. A holder cannot answer "sum
+of everything" with a subset they picked. That is a completeness guarantee, not a disclosure
+feature, and no other project named in Section 4 has one. Counting contracts and tests is not
+traction and a panel that has opened the Nethermind repository will not be moved by fifteen
+contracts; this is the part that is genuinely ours.
 
 **The problem.** Remittances into low- and middle-income countries reached about $669B
 in 2023 (World Bank, Migration and Development Brief 39), and sending $200 still costs
@@ -205,9 +219,11 @@ That is 15 Soroban contracts across the core corridor and the additive productio
 track. The identity/admin key is `corredor`
 (`GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS`).
 
-**Tests.** 314 passing Cargo tests across the eight contract crates (pool 52,
-pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6, reserves 6,
-reserves-aggregate 12), 231 frontend unit tests across 32 files, circuit-soundness suites
+**Tests.** 317 passing Cargo tests across the contract crates, counted from `#[test]` in the
+repository on 2026-09-11: pool 55, pool-enforced 71, pool-accumulator 78, pool-timelock 89,
+policy-registry 6, reserves 6, reserves-aggregate 12. The eighth crate, `reserves-testpool`,
+is a test double for the cross-contract read and carries no tests of its own. Plus
+282 frontend unit tests across 36 files (run 2026-09-11), circuit-soundness suites
 (threshold 4/4, range 5/5, aggregate 6/6), and Playwright real-click end-to-end suites run
 across multiple browsers against the live testnet deployment, including a Protocol 28
 write-path check that performs a real on-chain deposit and registration
@@ -244,9 +260,11 @@ the ASP allow-list; Circle CCTP V2 bidirectional USDC bridging.
 
 ### Registered on-chain footprint (per the SCF Official Rules, section 3A)
 
-Everything SDF or the review panel would measure is attributable to these identifiers. All activity on
-them is real user or team testing; we have never generated synthetic, wash, or sybil traffic and will
-not, and we will update this list if it materially changes.
+Everything SDF or the review panel would measure is attributable to these identifiers. Stated once
+and consistently: there are no users and no volume. Every transaction on these identifiers was
+submitted by the team or by testers the team invited. None of it is synthetic, wash, or sybil
+traffic, none has ever been generated to move a metric, and none of it is traction. We will update
+this list if it materially changes.
 
 | Kind | Identifier |
 |---|---|
@@ -371,9 +389,16 @@ in this repository:
    3.2.1 Travel Rule leg with IVMS101 payloads and Ed25519 signatures verified on receipt.
    Both are stated with their limits: the accumulator is on the preview track and reaching
    the live pool is Tranche #1 work, and the Travel Rule leg lacks mTLS and a live directory,
-   so today both ends can be the same operator. No SCF-funded project doing either of these
-   on Stellar was found in the sources searched, which is written as "not found in these
-   sources" rather than as "does not exist".
+   so today both ends can be the same operator. A third belongs with them: the regulator console
+   exports jurisdiction-shaped reports rather than a generic CSV. `webapp/lib/compliance-export.ts`
+   ships three presets, PPATK LTKL for Indonesia (the cross-border funds transfer report), BSP
+   Circular 1108 for the Philippines with its PHP 50,000 originator-and-beneficiary threshold, and
+   EU TFR. Tukar holds no personal data, so every identity field exports as the literal
+   `anchor-held` and the header says so, and where the shielded amount makes a threshold
+   untestable the export says `not testable from chain (amount shielded)` rather than guessing.
+   No SCF-funded project doing any of these three on Stellar, or doing region-specific reporting
+   for these jurisdictions, was found in the sources searched, which is written as "not found in
+   these sources" rather than as "does not exist".
 
 Against consumer wallets and remittance incumbents on Stellar (which move money but ship no
 on-chain privacy plus compliance layer), Tukar's edge is exactly that layer. Against
@@ -422,17 +447,26 @@ upgradeable pool, so mainnet is a deployment step rather than a rebuild.
   proof-of-reserves already runs EXACT on testnet via the liability accumulator (`pool-accumulator`,
   `CBZOGXYS...`), which folds `+amount` on each deposit AND subtracts the public off-ramp `released`
   amount on each withdraw, so the on-chain total equals the exact live outstanding liabilities
-  (a contract-only change, no circuit or ceremony change; cargo 71/71, deposit-then-withdraw
-  e2e-proven on-chain). It ships on the preview track, so what remains is carrying the exact
+  (a contract-only change, no circuit or ceremony change; `pool-accumulator` cargo 78/78 counted
+  2026-09-11, deposit-then-withdraw e2e-proven on-chain). It ships on the preview track, so what remains is carrying the exact
   accumulator onto the live pool as part of the migration above, alongside the per-corridor cap
   enforcement and the admin timelock. Verifiable: on the migrated pool a deposit-then-withdraw
   sequence leaves `total_liabilities` equal to the true remaining sum on-chain, and
   `attest_reserves` succeeds at the exact post-withdraw total.
-- **D1.3 Admin-key hardening applied to the live pool.** The admin timelock is already built and
+- **D1.3 Admin-key hardening applied to the live pool.** Why this deliverable is not theoretical:
+  the corridor admin secret was committed to this repository in plaintext and pushed to a public
+  remote (introduced in `a6b44a0`, found and removed from the working tree on 2026-09-11 in
+  `a647609`), so it is history and the key is compromised. It is a testnet key, no funds can be
+  taken with it, and the blast radius is bounded to compliance settings and three disclosure
+  verifiers because the four core verifiers have no setter and there is no admin withdraw, mint
+  or pause. But the live pool has neither `upgrade` nor `set_admin`, so its admin cannot be
+  rotated in place; the only complete fix is the migration in D1.1 executed under a fresh key,
+  which is this deliverable. `docs/THREAT_MODEL.md` section 3.5 discloses it in full.
+  The admin timelock is already built and
   deployed on the preview track (`pool-timelock`, `CDTE5CHI...`): the five compliance-critical
   setters (`set_asp_root`, `set_deny_list`, `set_fx_oracle`, `set_auditor`, `set_policy_registry`)
   are behind propose then a mandatory delay then execute, with cancel and pending views, e2e-proven
-  on-chain (cargo 78/78). What remains is applying the timelock to the live pool via the migration
+  on-chain (`pool-timelock` cargo 89/89 counted 2026-09-11). What remains is applying the timelock to the live pool via the migration
   above, and configuring a Stellar multisig admin account (an account-config step, not code).
   Verifiable: the migrated live pool routes those setters through the timelock (a setter observes
   the delay on testnet), the admin is a multisig account, and the pool contract tests plus the live
@@ -462,11 +496,53 @@ anchor and the monitoring stack, and complete the required threat-model and moni
 deliverable.
 
 - **D2.1 Integrate a licensed or candidate anchor flow on testnet.** Wire the SEP-10 / SEP-24
-  on and off ramp against a candidate licensed anchor's sandbox (for example Yellow Card
-  or Cash Abroad, the licensed candidates named in `docs/COMPETITIVE.md`), replacing the
-  SDF reference anchor in one corridor. Verifiable: an end-to-end testnet run recorded of
-  fiat-in through the candidate anchor sandbox, shielded crossing, and off-ramp, with the
-  ASP allow-list populated from the anchor's KYC signal.
+  on and off ramp against a candidate licensed anchor's sandbox, replacing the SDF reference
+  anchor in one corridor. Verifiable: an end-to-end testnet run recorded of fiat-in through the
+  candidate anchor sandbox, shielded crossing, and off-ramp, with the ASP allow-list populated
+  from the anchor's KYC signal.
+
+  **The three candidates, and how they were chosen.** The screen was run on 2026-09-11 and every
+  claim below traces to a page fetched that day; the full working, including nine candidates ruled
+  out with reasons, is in `docs/ANCHOR_OUTREACH.md`. No candidate has been approached, none has
+  agreed to anything, and there is no partnership or sandbox credential with any of them.
+
+  1. **MoneyGram.** The only counterparty found that is a live Stellar anchor speaking the exact
+     protocol Tukar already implements and that reaches both target corridors.
+     `stellar.moneygram.com/.well-known/stellar.toml` is live on the public network and publishes
+     the `WEB_AUTH_ENDPOINT` and `TRANSFER_SERVER_SEP0024` pair `webapp/lib/stellar.ts` already
+     drives, plus a `SIGNING_KEY` and mainnet USDC. Coverage, from the published country list
+     shipped by LOBSTR: the United States supports cash-in (excluding AK, HI, LA) and both the
+     Philippines and Indonesia support **cash-out only, not cash-in**. Access is the MoneyGram
+     Partner Portal, whose older self-serve page now carries a deprecation notice, so a human
+     route may be needed.
+  2. **Coins.ph**, for the Philippine leg. BSP-supervised since 2014, 26 licenses including a
+     bank-tier EPFS license, Virtual Accounts over InstaPay and PESONet, and a Disbursement API
+     with fiat or stablecoin settlement. The honest gap: its business page names no blockchain
+     network for its USDC support and `coins.ph/.well-known/stellar.toml` returns 404, so
+     **Coins.ph is not a Stellar SEP anchor today** and is not described as one.
+  3. **MoonPay**, for the Indonesian leg. The only ramp screened with a documented IDR off-ramp,
+     and the provider that already returns Tukar's live IDR sell quotes through Onramper. The
+     honest gap: whether USDC on the Stellar network specifically can be sold, as opposed to XLM
+     or USDC elsewhere, was not confirmed on any MoonPay page fetched, and PHP does not appear on
+     its supported-currency list at all, which matches the live Onramper call where PHP returned
+     no provider.
+
+  Two earlier drafts named Yellow Card and Cash Abroad. Both are withdrawn: Yellow Card is an
+  Africa ramp and Cash Abroad is Latin America, and neither serves these corridors.
+
+  **The finding behind all of this, stated as a finding rather than an apology.** No
+  Stellar-native licensed anchor pays out Indonesian rupiah. Nobody screened pays out IDR or PHP
+  over a published SEP-24 endpoint except MoneyGram. That is the real constraint on the fiat edge
+  and it is why this deliverable is priced with a contracted anchor integration engineer running
+  on the anchor's schedule rather than the founder's.
+
+  **The first lane, named.** **United States to Philippines**, because both legs are verified on
+  that published country list: US cash-in, Philippines cash-out, and Coins.ph gives the Philippine
+  side a second licensed route if the MoneyGram path stalls. **Saudi Arabia to Indonesia** is the
+  second lane, and it is second precisely because Indonesia has no verified Stellar-native
+  licensed anchor; Saudi Arabia is the one cash-in-only market on that list. If a candidate
+  replies offering a different corridor, the lane follows the reply and the change is reported in
+  the tranche completion form.
 - **D2.2 Deploy the TRISA companion node for a live Travel Rule leg.** The OpenVASP TRP 3.2.1
   path already runs; the TRISA node is real code that needs a registered test VASP and a
   hosted node to activate. Tranche #2 stands it up. Verifiable: two VASP endpoints exchange
@@ -475,9 +551,11 @@ deliverable.
 - **D2.3 Ship the threat model and the monitoring / alerting stack.** Both halves of the
   #46 Tranche #2 requirement. The threat model is already drafted at `docs/THREAT_MODEL.md`
   on SDF's four-question and STRIDE structure, with a data flow diagram, at least one issue
-  per STRIDE category, and a monitoring plan derived from that index. Tranche #2 re-runs the
-  exercise against the migrated pool (the migration changes the contract most of it
-  describes) and implements the plan's Section 5.5 work items: configure the Sentry DSN so
+  per STRIDE category, and a monitoring plan derived from that index; the STRIDE index and the
+  monitoring signal table are reproduced in full in `docs/SCF_SUBMISSION.md` so a reviewer needs
+  no second document. Tranche #2 re-runs the exercise against the migrated pool (the migration
+  changes the contract most of it describes) and implements the five work items the plan already
+  names: configure the Sentry DSN so
   the two existing cron monitors actually transport; build the transaction-level indexer,
   which is what makes the contract error codes countable at all since a reverted transaction
   publishes no events; add an alert transport in front of both the indexer and the existing
@@ -649,7 +727,7 @@ money and it gets its own line, with the eligibility question raised above rathe
 | Indexer datastore and worker | $250/month for 6 months. Managed Postgres plus an always-on ingestion worker, sized for retention well past RPC's roughly 7 days. | **$1,500** |
 | TRISA node hosting, endpoint and certificates | $300/month for 6 months. VM, static public endpoint, directory registration, mTLS certificate issuance and renewal. | **$1,800** |
 | CI and proving machines | $250/month for 6 months. Groth16 proving and circuit compilation need more memory than standard runners, plus a host for the D3.1 ceremony coordination. | **$1,500** |
-| Mainnet on-chain costs | Contract instance reserves for the corridor pool and its seven verifiers, ledger entry rent, and transaction fees across the Tranche #3 window. | **$1,040** |
+| Mainnet on-chain costs | Contract instance reserves for the corridor pool and its seven core verifiers, ledger entry rent, and transaction fees across the Tranche #3 window. | **$1,040** |
 | App hosting and preview environments | $120/month for 6 months. | **$720** |
 | Sentry, team plan with cron monitors | $90/month for 6 months. Wired today but inert with no DSN; D2.3 turns it on. | **$540** |
 | **Infrastructure total** | | **$9,500** |
@@ -880,7 +958,7 @@ And on Stellar specifically, which is Tukar itself:
 - Fifth place in the Stellar Privacy / Real-World ZK hackathon, hosted on DoraHacks.
 - Payments and Consumer Applications Grand Finalist in the Stellar APAC hackathon.
 - 15 Soroban contracts deployed and exercised on testnet with public explorer links, 8 Circom
-  circuits with a multi-party phase-2 ceremony, 314 Cargo tests, 231 frontend unit tests, and
+  circuits with a multi-party phase-2 ceremony, 317 Cargo tests, 282 frontend unit tests, and
   Playwright end-to-end suites that drive the live deployment.
 
 **On scaling: no. There is no such record, and this proposal is not going to imply one.** Not
@@ -936,9 +1014,20 @@ optimism:
    specification and ramp happen while the founder still has slack and while Tranche #1 is
    founder-only work. Section 7 stages it there.
 2. Every engagement has one named deliverable with an acceptance test that is already written
-   down, in `docs/THREAT_MODEL.md` section 5.5 or in Section 5 of this document. Review is
-   therefore a check against a written condition rather than an open design conversation, which
-   is the difference between supervision costing hours and costing days.
+   down. Review is therefore a check against a written condition rather than an open design
+   conversation, which is the difference between supervision costing hours and costing days.
+   The three that land in Months 3 and 4 are stated here in full rather than by cross-reference:
+
+   | Engagement | Acceptance test it is paid against |
+   |---|---|
+   | Backend and data engineer (indexer, D2.3) | Invocations of the pool are indexed **by contract**, not by account, so a reverted call from any caller is counted, and contract error codes are retained past the roughly 7-day Soroban RPC window. Accepted when a deliberately reverted call submitted from a wallet the operator has never seen appears in the index with its exact error code, and when a code older than the RPC retention window is still readable from the index's own store. The decoding is already done and tested (`webapp/lib/txmon.ts`); the engagement supplies the feed and the store. |
+   | Infrastructure and SRE engineer (TRISA node, D2.2) | Two VASP endpoints exchange the required originator and beneficiary IVMS101 data over a live TRISA leg for a testnet corridor transfer, with mutual TLS, a registered test VASP, and the shielded payment graph not leaked. Accepted when the exchange completes against a counterparty endpoint that is not the same operator, and a certificate rotation is performed without taking the leg down. |
+   | Anchor integration engineer (D2.1, D3.2) | One recorded end-to-end testnet run: SEP-10 challenge signed against the candidate anchor's own auth endpoint, SEP-24 interactive session opened, transaction status polled to a definitive state, and the ASP allow-list populated from that anchor's KYC signal. Accepted on the recording plus the SEP-12 field mapping. A documented refusal from every candidate is a smaller but real outcome, and in that case the deliverable is the refusal log and the scope moves per the list below. |
+
+   The remaining two engagements are accepted the same way: product design against a shipped
+   anchor flow and integration docs an outside developer can follow (D2.1, D3.3), and the
+   trusted-setup ceremony against published transcripts that verify plus verifier contracts
+   regenerated against the new keys (D3.1).
 3. The design engagement is deliberately split, 3 weeks in Month 3 and 3 weeks in Month 6, so
    it does not stack on top of the other three.
 
@@ -963,8 +1052,9 @@ the plan does not compress back into one person by working longer hours. The cor
 in that case is to cut scope and say so in the tranche completion form, not to slip quietly
 past the 90-day window.
 
-**Video presentation. [ISI SENDIRI]** The Open Track expects a video presentation of the team.
-Record and link it; a demo video alone does not satisfy the team half of it.
+**Video presentation.** The Open Track expects a video presentation of the team in addition to a
+demo video. The link is supplied with the submission form and is the one item in this document
+that the owner still has to record.
 
 ---
 
@@ -974,8 +1064,13 @@ Record and link it; a demo video alone does not satisfy the team half of it.
   self-audit rounds, not an external audit. Do not use with real assets before a
   professional audit, which is planned separately via the Audit Bank and is a prerequisite
   for the Tranche #3 mainnet go-live.
-- **Licensed-anchor and jurisdiction dependency.** The mainnet corridor needs a licensed
-  KYC anchor at the fiat edge, which is a business and regulatory step, not a code step.
+- **Licensed-anchor and jurisdiction dependency, with the research behind it.** The mainnet
+  corridor needs a licensed KYC anchor at the fiat edge, which is a business and regulatory
+  step, not a code step. The screen run on 2026-09-11 (Section 5, D2.1) found that **no
+  Stellar-native licensed anchor pays out Indonesian rupiah**, and that nobody screened pays out
+  IDR or PHP over a published SEP-24 endpoint except MoneyGram, whose network reaches both
+  corridors as cash-out only. No anchor has been approached and none has agreed to anything.
+  That is the largest execution risk in this plan and it is named rather than assumed away.
   If the target jurisdiction is not ready in the award window, the handbook's option to
   keep the final tranche on testnet applies: Tukar can deliver the full mainnet-ready
   system and the anchor integration on testnet, and defer the fiat mainnet go-live until a
@@ -1014,11 +1109,14 @@ a licensed anchor. Each step is a verifiable outcome on top of a system that alr
 The Open Track requires full disclosure of AI-generated and AI-assisted artifacts. This
 project was built with heavy AI assistance and this section says so without hedging.
 
-**Scale of it, measured rather than estimated.** 232 of the 282 commits in this repository
-carry a `Co-Authored-By: Claude ... <noreply@anthropic.com>` trailer (198 Claude Opus 4.8,
-25 Opus 4.8 in the long-context configuration, 5 Fable 5, 4 Opus 5). That trailer is written
-by the tooling on every commit an assistant worked on, so the count is a lower bound on
-AI involvement and not a self-assessment. Anyone can reproduce it with
+**Scale of it, measured rather than estimated.** Counted on **2026-09-11**: 242 of the 292
+commits in this repository carry a `Co-Authored-By: Claude ... <noreply@anthropic.com>` trailer
+(198 Claude Opus 4.8, 25 Opus 4.8 in the long-context configuration, 10 Opus 5, 5 Fable 5, 4
+Opus 5 in the long-context configuration). The figure is dated because it moves with every
+commit, and a dated count that a reviewer can re-run is worth more than a round number that
+silently goes stale. That trailer is written by the tooling on every commit an assistant worked
+on, so the count is a lower bound on AI involvement and not a self-assessment. Anyone can
+reproduce it with
 `git log --format="%(trailers:key=Co-Authored-By,valueonly)" | sort | uniq -c`.
 
 **What was AI-assisted.** Effectively all of it. The Soroban contracts in `contracts/`, the
@@ -1050,7 +1148,7 @@ was found by adversarial self-review of AI-written contract code, and the monito
 section 5 had to be rewritten after the threat-model pass established that the live pool's
 policy setters emit no events at all, contradicting an earlier AI-drafted plan that assumed
 they did. The controls are: everything is verified against the running system rather than
-against the model's description of it (314 Cargo tests, 231 unit tests, Playwright suites
+against the model's description of it (317 Cargo tests, 282 unit tests, Playwright suites
 driving the live deployment, real on-chain transactions), the repository is public so the
 code can be read, and the system is explicitly not audited and carries a
 do-not-use-with-real-assets warning until the Audit Bank audit that precedes mainnet.
@@ -1067,16 +1165,39 @@ the threat model rather than being left for a reviewer to discover.
 **Unified documentation source.** Everything lives in one public repository,
 https://github.com/PugarHuda/tukar, with `README.md` as the entry point and `docs/` as the
 structured set: architecture, on-chain reproduction steps, security, threat model and
-monitoring plan, testing, onboarding, user guide, and the competitive map. The live app at
-https://tukar-six.vercel.app carries the deck and a public receipt verifier. If the review
-prefers a single hosted documentation site (Gitbook or equivalent), publishing `docs/` to one
-is a small task and is **[ISI SENDIRI: decide whether to stand one up before submitting]**.
+monitoring plan, testing, onboarding, user guide, the competitive map, and the anchor research.
+That same set is served as a hosted documentation site at **https://tukar-six.vercel.app/docs**,
+which is the unified documentation source for this submission; the repository is the same
+content under version control. There is no second documentation site and no Gitbook to
+reconcile. The live app at https://tukar-six.vercel.app carries the deck and a public receipt
+verifier.
 
 **Open-source plan for the smart contracts.** The handbook requires projects with smart
-contracts to have a clear plan to open-source them. All contract source is already public in
-`contracts/` in the repository above under Apache License 2.0 (`LICENSE`), and
-`deployments/testnet.json` maps every deployed address to its source. The remaining step is
-build verification, not disclosure: `docs/BUILD-ATTESTATION.md` documents the SEP-0055 path
+contracts to have a clear plan to open-source them. The eight Soroban crates written for this
+project are already public in `contracts/` in the repository above under Apache License 2.0
+(`LICENSE`): `pool`, `pool-enforced`, `pool-accumulator`, `pool-timelock`, `policy-registry`,
+`reserves`, `reserves-aggregate` and the `reserves-testpool` test double.
+`deployments/testnet.json` maps every deployed address to its source.
+
+The eight BN254 Groth16 verifier contracts are the exception, and it is stated rather than
+glossed. They are not written here. They are built from Nethermind's `circom-groth16-verifier`
+crate in `NethermindEth/stellar-private-payments` (Apache-2.0, commit `98a2d770`) with this
+project's verification key injected at compile time through `VERIFIER_VK_JSON`. That reference
+is not vendored into this repository (`_reference/` is gitignored) and the built wasm is
+gitignored too, so a reviewer cannot rebuild a deployed verifier from a clone of this repository
+alone and confirm that it embeds the verification key committed here. The eight verification
+keys themselves are committed (`ceremony/*/*_vk.json`). Reproducing a verifier means cloning the
+reference at that commit and running the recipe in `docs/BUILD-ATTESTATION.md`, which names the
+toolchain (rustc 1.92.0 via that repo's `rust-toolchain.toml`, soroban-sdk 26.0.0) and the
+expected sha256 per verifier. There is no one-command reproducible build for the verifiers in
+this repository; `scripts/wsl-build-verifier.sh` is an author-local helper with a hardcoded
+absolute path, not a portable one. Making that check runnable from a clone, by vendoring the
+crate or scripting the fetch, is worth doing and is not done. It matters more than usual because
+`deployments/testnet.json` records a cargo build-cache bug that embedded stale verification keys
+in rebuilt verifiers, and an independent rebuild is exactly how that class of bug is caught.
+
+The remaining step for the non-verifier crates is build verification, not disclosure:
+`docs/BUILD-ATTESTATION.md` documents the SEP-0055 path
 that ties a deployed wasm hash to a git commit, and notes honestly that the 15 existing
 deployments still read `unverified` on stellar.expert because flipping them requires a
 redeploy. The Tranche #1 migration and the Tranche #3 mainnet deployment are the natural

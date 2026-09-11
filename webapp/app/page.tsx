@@ -71,7 +71,7 @@ const JOURNEY = [
 
 const PROVES = [
   { k: "TRANSFER", q: "A spent note can never be spent twice. Its nullifier is bound to the proof.", name: "No double-spend", sub: "pool, double-spend rejected" },
-  { k: "COMPLIANCE", q: "The source is on the ASP allow-list and not on the deny-list, bound to the transfer.", name: "Compliant source", sub: "compliance verifier, verify returns true" },
+  { k: "COMPLIANCE", q: "The source is on the ASP allow-list and not on the deny-list, bound to the depositor the pool authenticated.", name: "Compliant source", sub: "compliance verifier, checked at deposit" },
   { k: "DISCLOSURE", q: "This commitment opens to exactly this amount, for this auditor and no one else.", name: "Selective disclosure", sub: "disclosure verifier, tampered input rejected" },
   { k: "PRIVACY", q: "The payment graph stays hidden. The in-corridor transfer reveals no amount or counterparty.", name: "No graph leak", sub: "shielded, private by construction" },
 ];
@@ -123,8 +123,8 @@ export default function Home() {
               </dl>
               <p className="label-copy">
                 Deposits and withdrawals are public at the edges, by design. The crossing in between is private: no amount,
-                no counterparties, no payment graph. Every transfer carries a zero-knowledge compliance proof that a live Stellar
-                contract verifies before the money moves.
+                no counterparties, no payment graph. Money enters the pool only behind a zero-knowledge compliance proof that a
+                live Stellar contract verifies at deposit, bound to the depositor it authenticated.
               </p>
               <div className="stamps">
                 <span className="tk-stamp stamp-big">Compliance cleared<small>proof on-chain</small></span>
