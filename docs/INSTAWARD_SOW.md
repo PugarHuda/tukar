@@ -74,24 +74,40 @@ end to end by real people who are not the author, with what broke published.
 
 ### 4.2 Budget request
 
-**$5,000. One hundred hours at $50 per hour.**
+**$5,000, which is 100 hours at $50 per hour.**
 
-| Deliverable | What it produces | Hours breakdown | Hours |
-|---|---|---|---|
-| **D1. Travel Rule binding** | The canonical hash of a TRP 3.2.1 transfer inquiry committed on-chain at deposit time and tied to that specific note, plus a public verification path that tells anyone holding the payload whether it corresponds to a real deposit of the stated amount, and refuses a payload that has already been used or belongs to a different deposit. Lands on the upgradeable preview pool, since the live pool has no upgrade hook. | Design the scheme and write the negative tests first 16. Implement the commitment in the contract and circuit 28. Deploy to testnet and verify on-chain 12. Build and exercise the public verification path 16. | 72 |
-| **D2. Pilot, three people** | Three people who are not the author run the corridor end to end, roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. A published report names the sample size, how people were found, the selection bias, what broke, and what changed as a result, separating first-contact findings from repeat-session ones. | Recruit and schedule 3. Three sessions at about 2.5 hours each including setup, the session itself and writing up notes, 8. Write the report 7. | 18 |
-| **D3. Spec, optional** | The payload-commitment scheme written up as a short spec with a runnable example against the deployed testnet contract, so another Stellar team can implement it without reading Tukar's source. Dropped first if the sprint runs short. | Write the scheme up with a runnable example against the deployed contract. | 10 |
-| **Total** | Both core outcomes land inside the sprint; D3 is the release valve. | 100 hours over 30 calendar days, about 23 hours per week | **100** |
+**D1, the Travel Rule binding, is 72 of those hours.** It produces the canonical hash of a TRP 3.2.1
+transfer inquiry committed on-chain at deposit time and tied to that specific note, plus a public
+verification path that tells anyone holding the payload whether it corresponds to a real deposit of
+the stated amount, and refuses a payload that has already been used or belongs to a different
+deposit. It lands on the upgradeable preview pool, since the live pool has no upgrade hook. The
+hours split as 16 to design the scheme and write the negative tests first, 28 to implement the
+commitment in the contract and circuit, 12 to deploy to testnet and verify on-chain, and 16 to build
+and exercise the public verification path. It is roughly two thirds of the sprint because this is
+contract and proof work where a mistake is not a bug but a soundness failure, which is why the three
+negative tests come first rather than last: a payload that does not match must fail, a reused
+payload must fail, and a payload bound to a different deposit must fail. Making those three pass for
+the right reason is the deliverable.
 
-**Why these hours.** D1 is roughly two thirds of the sprint because it is contract and proof work
-where a mistake is not a bug but a soundness failure. That is why the negative tests are written in
-week 1 rather than at the end: a payload that does not match must fail, a reused payload must fail,
-and a payload bound to a different deposit must fail. Making those three pass for the right reason
-is the deliverable. D2 looks small for its value because it is scheduling and observation rather
-than code. The sessions cannot overlap: the built-in testnet key is a single shared account, so two
-concurrent senders collide and the Merkle tree moves underneath the second one.
+**D2, the pilot, is 18 hours.** Three people who are not the author run the corridor end to end,
+roles rotating so each is a first-time sender once and a first-time receiver once, giving three
+complete loops, and a published report names the sample size, how people were found, the selection
+bias, what broke, and what changed as a result, separating first-contact findings from
+repeat-session ones. That is 3 hours recruiting and scheduling, 8 across three sessions of about two
+and a half hours each including setup and writing up notes, and 7 writing the report. It looks small
+for its value because it is scheduling and observation rather than code. The sessions cannot
+overlap: the built-in testnet key is a single shared account, so two concurrent senders collide and
+the Merkle tree moves underneath the second one.
 
-**Why $50 per hour.** This is not general application development. D1 is Circom circuit design and
+**D3, the spec, is 10 hours and optional.** The payload-commitment scheme written up with a runnable
+example against the deployed testnet contract, so another Stellar team can implement it without
+reading Tukar's source. It is the release valve: if the sprint runs short, this is what goes, and
+both core outcomes still land.
+
+That totals 100 hours across 30 calendar days, about 23 hours a week, which is what fits honestly
+beside a full-time job.
+
+**On the rate.** This is not general application development. D1 is Circom circuit design and
 Soroban contract work, with the consequence described above. Independent contracting rates for
 zero-knowledge and smart contract work run well above this internationally, commonly two to three
 times it, so $50 sits below the specialty market rather than above it. Said plainly, because the
@@ -100,9 +116,9 @@ Indonesia, and the justification is the specialisation and the consequence of ge
 the cost of living. If the chapter reads the rate rather than the work, the honest response is to
 lower the rate and keep the hours, because the hours are derived from the work and do not move.
 
-**No infrastructure line, because there is nothing to bill.** Hosting is on Vercel's free tier,
-which is why the project hits the free daily deploy limit, the Stellar testnet is free through
-friendbot, and Upstash is on its free tier. The whole request is labour.
+**There is no infrastructure line, because there is nothing to bill.** Hosting is on Vercel's free
+tier, which is exactly why this project keeps hitting the free daily deploy limit, the Stellar
+testnet is free through friendbot, and Upstash is on its free tier. The whole request is labour.
 
 Two honest reductions if the chapter wants a smaller first award. Dropping D3 takes it to 90 hours
 and $4,500. Holding the scope and setting the rate at $35 takes it to $3,500. Both still deliver the
