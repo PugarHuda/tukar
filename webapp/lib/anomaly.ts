@@ -107,7 +107,16 @@ export function decodeEvent(ev: Sdk.rpc.Api.EventResponse): MonEvent | null {
  * One paginated getEvents call with four filters; pages are capped so a busy pool cannot
  * hang the console (truncated=true says the tail was cut).
  */
-export async function readMonitoringWindow(pageLimit = 1000, maxPages = 10): Promise<MonWindow> {
+/** The ledger a getEvents cursor sits at. Its first field is a TOID; the ledger is its high 32 bits. */
+export const cursorLedger = (c: string | undefined): number => {
+  try {
+    return c ? Number(BigInt(String(c).split("-")[0]) >> 32n) : 0;
+  } catch {
+    return 0;
+  }
+};
+
+export async function readMonitoringWindow(pageLimit = 1000, maxPages = 25): Promise<MonWindow> {
   const health = await server.getHealth();
   const sym = (s: string) => Sdk.xdr.ScVal.scvSymbol(s).toXDR("base64");
   const pool = Sdk.nativeToScVal(POOL, { type: "address" }).toXDR("base64");
@@ -124,12 +133,22 @@ export async function readMonitoringWindow(pageLimit = 1000, maxPages = 10): Pro
   const fromSec = Number(res.oldestLedgerCloseTime);
   const events: MonEvent[] = [];
   let pages = 1;
+  let scanned = 0;
   for (;;) {
     for (const ev of res.events) {
       const m = decodeEvent(ev);
       if (m) events.push(m);
     }
-    if (res.events.length < pageLimit || pages >= maxPages) break;
+    // Neither a short page nor a missing cursor marks the end of the window. Soroban RPC scans a
+    // bounded span of ledgers per request (about 10,000 on testnet) and returns whatever matched
+    // inside that span, so the early pages of a week-long retention window come back empty while
+    // the events sit near its end, and the server keeps handing back a cursor even once it has
+    // caught up. Measured against the live pool: page 1 returns 0 events with a live cursor and
+    // the real deposits only appear on page 12. Stopping on a short page is what made this console
+    // report zero deposits seconds after a real one landed. The cursor's first field is a TOID
+    // whose high 32 bits are its ledger, so walk until that reaches the chain head.
+    scanned = cursorLedger(res.cursor);
+    if (!res.cursor || scanned >= res.latestLedger || pages >= maxPages) break;
     res = await server.getEvents({ cursor: res.cursor, filters, limit: pageLimit });
     pages++;
   }
@@ -139,7 +158,9 @@ export async function readMonitoringWindow(pageLimit = 1000, maxPages = 10): Pro
     fromSec,
     toSec: Number(res.latestLedgerCloseTime),
     retentionLedgers: health.ledgerRetentionWindow,
-    truncated: res.events.length >= pageLimit && pages >= maxPages,
+    // Truncated means the page cap stopped the scan before it reached the chain head, so the
+    // window on screen is not fully covered.
+    truncated: pages >= maxPages && scanned < res.latestLedger,
     events,
   };
 }

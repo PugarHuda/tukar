@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deposits, velocity, nearCap, repeatedActors, adminEvents, type MonEvent } from "./anomaly";
+import { deposits, velocity, nearCap, repeatedActors, adminEvents, cursorLedger, type MonEvent } from "./anomaly";
 
 // Synthetic events only: the RPC reader is out of scope here. T0 is an arbitrary UTC midnight.
 const T0 = 1_787_000_000 - (1_787_000_000 % 86400);
@@ -70,5 +70,33 @@ describe("adminEvents", () => {
     const mk = (kind: string, closedAt: number): MonEvent => ({ kind, contract: "x", ledger: closedAt, closedAt, txHash: kind + closedAt });
     const r = adminEvents([mk("deposit", 3), mk("policy", 1), mk("tl_exec", 5), mk("tl_prop", 2), mk("root", 9), mk("tl_cancel", 4)]);
     expect(r.map((e) => e.kind)).toEqual(["tl_exec", "tl_cancel", "tl_prop", "policy"]);
+  });
+});
+
+// The monitoring window used to stop on the first short page, which on a week-long retention
+// window is almost always an empty one, so the console reported zero deposits seconds after a real
+// deposit landed. The loop now walks until the cursor's ledger reaches the chain head, and these
+// pin the arithmetic that decides when that is.
+describe("cursorLedger", () => {
+  it("reads the ledger out of a getEvents cursor TOID", () => {
+    // Real cursors observed against testnet, whose scan advances about 10k ledgers per page.
+    expect(cursorLedger("0019360303821094911-4294967295")).toBe(4507671);
+    expect(cursorLedger("0019403249199087615-4294967295")).toBe(4517670);
+    expect(cursorLedger("0019446194577080319-4294967295")).toBe(4527669);
+  });
+
+  it("treats a missing or unparseable cursor as ledger zero, so the walk continues rather than stopping early", () => {
+    expect(cursorLedger(undefined)).toBe(0);
+    expect(cursorLedger("")).toBe(0);
+    expect(cursorLedger("not-a-toid")).toBe(0);
+  });
+
+  it("keeps walking while the scan is behind the head, and stops once it reaches it", () => {
+    const head = 4618621;
+    const behind = cursorLedger("0019360303821094911-4294967295");
+    expect(behind).toBeLessThan(head);
+    // A cursor at or past the head is the real end of the window.
+    const atHead = String(BigInt(head) << 32n) + "-4294967295";
+    expect(cursorLedger(atHead)).toBeGreaterThanOrEqual(head);
   });
 });

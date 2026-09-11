@@ -754,8 +754,12 @@ test.describe("operator: monitoring section", () => {
     // repeated actor: rows or the zero copy; N=1 must not crash and re-evaluates
     const zero = page.getByText(/No depositor reached \d+ deposits in a 24h span/);
     await expect(zero.or(page.locator("tbody td.font-bold"))).toBeVisible();
+    // operator/page.tsx:49 short() keeps the first 6 characters and the last 4, so a depositor cell
+    // reads GBJSZA…MHAQ. The old pattern expected four characters before the ellipsis and could
+    // never match anything; this assertion passed only while the zero-state branch was showing,
+    // and that branch was itself the symptom of the paging bug in readMonitoringWindow.
     await page.locator("#mon-min-n").fill("1");
-    await expect(page.getByText(/No depositor reached 1 deposits in a 24h span/).or(page.locator("tbody td", { hasText: /^G[A-Z2-7]{4}…/ }).first())).toBeVisible();
+    await expect(page.getByText(/No depositor reached 1 deposits in a 24h span/).or(page.locator("tbody td", { hasText: /^G[A-Z2-7]{5}…[A-Z2-7]{4}$/ }).first())).toBeVisible();
     await page.locator("#mon-min-n").fill("0"); // clamped to 1 (page.tsx:1268)
     await expect(page.locator("#mon-min-n")).toHaveValue("1");
     await expect(page.getByText(/No policy-registry or timelock events in the window\.|set_policy|tl_prop|tl_exec|tl_cancel|policy/).first()).toBeVisible();
