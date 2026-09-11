@@ -42,11 +42,29 @@ const ANCHOR = "https://ramps.moneygram.com"; // was https://testanchor.stellar.
 
 ### Recommendation
 
-**MoneyGram Ramps** is the production off-ramp for Tukar. Rationale: it's the only
+Read this as a ranking, not as a decision that has been acted on. **No anchor has been
+contacted, nothing has been agreed, and Tukar has no anchor relationship of any kind.**
+`docs/ANCHOR_OUTREACH.md` holds the drafts and says the same thing. Never write or say
+"partnered with", "working with", or "integrated with" about any name on this page.
+
+**MoneyGram Ramps** is the strongest candidate on paper. Rationale: it's the only
 option that (1) reuses Tukar's existing SEP-10/24 integration almost verbatim, (2) has a
 real callable testnet (testnet USDC issuer + public Postman collection), (3) holds the
 money-transmitter licenses and runs KYC inside its own webview, so Tukar never becomes a
 transmitter, and (4) covers nearly every corridor via cash pickup.
+
+Two things qualify it, both verified rather than assumed. MoneyGram is **cash-out only** in
+both the Philippines and Indonesia per its own published country list, so it cannot serve the
+send side. And the SEP-10 `SIGNING_KEY` allowlisting described below is an assumption drawn
+from the shape of the protocol, not something any MoneyGram document states. The outreach
+draft asks the question rather than asserting the answer.
+
+The harder fact, which the first corridor runs straight into: **no screened provider pays out
+PHP.** Not MoonPay, not Alchemy Pay, not TransFi. The aggregator returns no supported payment
+method for PHP from every one of them. IDR does work today through the hosted widget under
+MoonPay's own licence, which covers the second corridor and not the first. So the corridor the
+project leads with is the corridor with no fiat exit. `docs/ANCHOR_OUTREACH.md` carries the
+verification for each of these.
 
 - Docs: https://developer.moneygram.com/moneygram-developer/docs/integrate-moneygram-ramps
 - Postman: https://www.postman.com/sdf-eng/sdf-public-workspace/collection/ossy3ql/moneygram-stellar-api
@@ -120,7 +138,11 @@ Implemented today (the "Off-ramp via Onramper" button on the Receiver step). No 
   and swap that one constant.
 
 This is the fully self-serve path (real live quotes + a real hosted payout flow) with nothing
-to wait on. MoneyGram (Path A) remains the recommended production off-ramp for cash-out reach.
+to wait on, and it is worth being exact about what it is. The widget completes under the
+provider's licence with the provider's KYC and no relationship with Tukar, so it is not an
+anchor integration and must not be described as one. It works for IDR and returns nothing for
+PHP. MoneyGram (Path A) remains the strongest candidate on paper for cash-out reach, and
+remains uncontacted.
 
 ### What stays the same regardless of anchor
 

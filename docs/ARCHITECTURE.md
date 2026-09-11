@@ -25,6 +25,44 @@ whitepaper's, it is a deliberate choice for a corridor whose edges are licensed
 anchors doing their own KYC, and exit-side association is proposed work rather
 than shipped work.
 
+### The exit compliance gate (preview track: `contracts/pool-enforced/`)
+
+The live pool cannot change, because it has no `upgrade` hook, so the withdraw-side answer
+to that gap is built in the preview-track pool, `contracts/pool-enforced/`. When its
+admin arms the gate (`set_exit_compliance(true)`, default **off**), every `withdraw`
+must carry a second Groth16 proof, verified against the **already-deployed**
+`ComplianceVerifier`: no new circuit, no new ceremony, no new verifier contract.
+
+**What it proves.** The pool derives `sourceKey = field(recipient)` on-chain from the
+address it is about to pay, reads `aspRoot` and the eight deny-list entries from live
+storage, and pins `bindHash` to the withdraw's own `ext_data_hash` (itself recomputed
+on-chain from the recipient and the negative public amount). A withdraw therefore only
+settles if **the payee is in the allow-list tree and is not any deny-listed key, at the
+moment value leaves the shielded set**, with that proof bound to the exact payee and
+amount, so it cannot be lifted from one withdraw and replayed to a different recipient.
+The gate runs after the transfer proof and before any nullifier is spent or any token
+moves, so a rejected withdraw costs the user nothing but the fee.
+
+**What it does not prove.** This is **recipient compliance, not fund provenance**. It
+says nothing about where the withdrawn note came from, and it is **not** the Privacy
+Pools construction: the whitepaper has the withdrawer prove that their note descends
+from a deposit inside an association set *they choose at exit*, which requires the note
+to carry a provenance label through every shielded hop. Tukar's note is
+`Poseidon(amount, pubKey, blinding)` and carries no such label, so that property is
+unreachable without a new note scheme, a new transfer circuit, a fresh phase-2 ceremony
+and a new transfer verifier, at which point every note already in the pool becomes
+unspendable. That is a migration, not a patch, and it stays on the roadmap.
+
+So the honest summary: **both edges of the corridor are now gated by a compliance proof
+over the same allow-list and deny-list**. Entry authenticates the depositor and exit
+authenticates the payee, while *association of funds* remains deposit-side only. Also
+note what arming the gate means politically: the corridor admin gains the ability to
+stop a specific address receiving from the pool by rotating the allow-list root or
+adding a key to the deny-list. No value is seized and nothing inside the shielded set
+is frozen (`transfer` is untouched, so funds can be re-routed to a compliant payee),
+but this is a censorship lever and it is a deliberate one. An anchor that cannot
+refuse to pay a sanctioned party cannot be licensed.
+
 ---
 
 ## 1. Why this design wins
@@ -180,7 +218,8 @@ additively without touching those 8 addresses: the **reserves verifier** (the 8t
 verifier, for `reserves.circom`), the **policy registry** (per-corridor cap and required
 disclosure, admin-repointable), **reserves** and **reserves-aggregate** (full-pool and
 voluntary proof-of-reserves), and three **preview-track** contracts, **pool-enforced**
-(per-corridor cap gate at withdraw), **pool-accumulator** (exact liability accumulator)
+(per-corridor cap gate **and the exit compliance gate** at withdraw), **pool-accumulator**
+(exact liability accumulator)
 and **pool-timelock** (propose, delay, execute on the five compliance-critical setters).
 The preview track exists because the live pool has no upgrade hook, so adopting those
 three needs an `import_state` migration that changes the live address. See

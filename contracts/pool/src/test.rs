@@ -335,7 +335,7 @@ fn set_deny_list_updates_view() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Contract, #4)")] // BadDenyList
 fn set_deny_list_rejects_wrong_len() {
     let env = Env::default();
     let c = setup(&env);
@@ -1033,7 +1033,7 @@ fn withdraw_public_inputs_bind_recipient_and_negative_amount() {
 
 // Admin-gated setters must actually require the admin's auth (not just be documented so).
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_asp_root_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1160,7 +1160,7 @@ fn disclose_aggregate_rejects_unregistered_request() {
 
 // The auditor role is admin-gated.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_auditor_requires_admin() {
     let env = Env::default();
     let c = setup(&env);

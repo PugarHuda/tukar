@@ -353,7 +353,7 @@ fn set_deny_list_updates_view() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Contract, #4)")] // BadDenyList
 fn set_deny_list_rejects_wrong_len() {
     let env = Env::default();
     let c = setup(&env);
@@ -863,7 +863,7 @@ fn compliance_public_inputs_are_bound_in_order() {
 
 // Admin-gated setters must actually require the admin's auth (not just be documented so).
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_asp_root_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -915,7 +915,7 @@ fn disclose_aggregate_binds_known_commitments() {
     c.pool.deposit(&c.user, &100, &c2, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
-    c.pool.register_audit_request(&b32(&env, 7));
+    c.pool.register_audit_request(&b32(&env, 7), &b32(&env, 50));
     // 3 active + 2 inactive padding slots (padding commitments need not be known).
     let commits: Vec<BytesN<32>> = vec![&env, c0, c1, c2, b32(&env, 90), b32(&env, 91)];
     let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
@@ -931,7 +931,7 @@ fn disclose_aggregate_variable_count_one_active() {
     c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
-    c.pool.register_audit_request(&b32(&env, 7));
+    c.pool.register_audit_request(&b32(&env, 7), &b32(&env, 50));
     let commits: Vec<BytesN<32>> = vec![&env, c0, b32(&env, 90), b32(&env, 91), b32(&env, 92), b32(&env, 93)];
     let active: Vec<u32> = vec![&env, 1, 0, 0, 0, 0];
     assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8)));
@@ -947,7 +947,7 @@ fn disclose_aggregate_rejects_unknown_commitment() {
     c.pool.deposit(&c.user, &100, &c1, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
-    c.pool.register_audit_request(&b32(&env, 7));
+    c.pool.register_audit_request(&b32(&env, 7), &b32(&env, 50));
     // slot 2 is ACTIVE but b32(9) was never deposited
     let commits: Vec<BytesN<32>> = vec![&env, c0, c1, b32(&env, 9), b32(&env, 90), b32(&env, 91)];
     let active: Vec<u32> = vec![&env, 1, 1, 1, 0, 0];
@@ -963,7 +963,7 @@ fn disclose_aggregate_rejects_wrong_count() {
     c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
     let v = env.register(MockVerifier, ());
     c.pool.set_aggregate_verifier(&v);
-    c.pool.register_audit_request(&b32(&env, 7));
+    c.pool.register_audit_request(&b32(&env, 7), &b32(&env, 50));
     let commits: Vec<BytesN<32>> = vec![&env, c0]; // 1 != AGG_N (5)
     let active: Vec<u32> = vec![&env, 1];
     c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
@@ -988,9 +988,55 @@ fn disclose_aggregate_rejects_unregistered_request() {
     c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8));
 }
 
+// ---- the cap is part of the request, not the answer ----
+// Found by generating a real proof rather than by reading the circuit. `auditContextHash` is
+// bound in-circuit to Poseidon(ctxNonce, commitments, active) and to nothing else, so `cap` is a
+// free public input the prover chooses. Against the deployed pool the SAME registered request
+// accepts a cap of 2^72 - 1: the proof is valid, the set is exactly the one the auditor asked
+// for, and the answer ("the total is at most 4.7 sextillion") is worthless. Completeness over
+// the set is real; it just was not the whole property being claimed. These two tests pin the
+// contract-side half of it.
+#[test]
+#[should_panic(expected = "Error(Contract, #24)")] // AuditCapMismatch
+fn disclose_aggregate_rejects_holder_chosen_cap() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    c.pool.register_audit_request(&b32(&env, 7), &b32(&env, 50)); // the auditor asked "<= 50"
+    let commits: Vec<BytesN<32>> = vec![&env, c0, b32(&env, 90), b32(&env, 91), b32(&env, 92), b32(&env, 93)];
+    let active: Vec<u32> = vec![&env, 1, 0, 0, 0, 0];
+    // Same request, same set, a cap the holder preferred. The proof would verify; the pool does not.
+    c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 99), &b32(&env, 7), &b32(&env, 8));
+}
+
+// The registered cap is readable, so a regulator can confirm off-chain that the bound on record
+// is the bound they asked for, without trusting whoever relayed the answer.
+#[test]
+fn audit_request_cap_is_readable_and_pins_the_answer() {
+    let env = Env::default();
+    let c = setup(&env);
+    let c0 = b32(&env, 1);
+    c.pool.deposit(&c.user, &100, &c0, &dummy_proof(&env), &dummy_proof(&env));
+    let v = env.register(MockVerifier, ());
+    c.pool.set_aggregate_verifier(&v);
+    assert_eq!(c.pool.audit_request_cap(&b32(&env, 7)), None);
+    c.pool.register_audit_request(&b32(&env, 7), &b32(&env, 50));
+    assert_eq!(c.pool.audit_request_cap(&b32(&env, 7)), Some(b32(&env, 50)));
+    assert!(c.pool.is_audit_request(&b32(&env, 7)));
+
+    let commits: Vec<BytesN<32>> = vec![&env, c0, b32(&env, 90), b32(&env, 91), b32(&env, 92), b32(&env, 93)];
+    let active: Vec<u32> = vec![&env, 1, 0, 0, 0, 0];
+    // The registered cap is accepted, which is the other half: the fix must not break the
+    // legitimate answer it exists to protect.
+    assert!(c.pool.disclose_aggregate(&dummy_proof(&env), &commits, &active, &b32(&env, 50), &b32(&env, 7), &b32(&env, 8)));
+}
+
 // The auditor role is admin-gated.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_auditor_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1131,7 +1177,7 @@ fn set_policy_registry_updates_view() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_policy_registry_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1199,7 +1245,7 @@ fn state_change_bumps_instance_ttl() {
 
 // The in-place upgrade entrypoint is admin-gated: a non-admin call fails auth.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn upgrade_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1326,7 +1372,7 @@ fn import_state_rejects_nonvirgin_pool() {
 
 // import_state is admin-gated: a non-admin call fails auth.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn import_state_requires_admin() {
     let env = Env::default();
     let c = setup(&env);

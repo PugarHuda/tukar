@@ -84,6 +84,11 @@ const POOL_ERRORS: Record<number, string> = {
   20: "TimelockNotReady",
   21: "TimelockEmpty",
   22: "PolicyRequired",
+  // 23 and 24 exist only on the preview pools. 23 is pool-enforced's exit compliance gate,
+  // 24 is pool-accumulator's registered-cap check; the numbers do not overlap so one table
+  // still covers the whole family, which is why they were assigned that way.
+  23: "ExitComplianceRequired",
+  24: "AuditCapMismatch",
 };
 const RESERVES_ERRORS: Record<number, string> = { 1: "ProofRejected", 2: "Insolvent", 3: "TooManyLeaves", 4: "InvalidAmount" };
 const RESERVES_AGG_ERRORS: Record<number, string> = {
@@ -120,7 +125,14 @@ const POOL_ERROR_SEVERITY: Record<number, Severity> = {
   10: "critical", // DuplicateCommitment
   13: "critical", // BadIoCount        an attempt to shift the nullifier/commitment boundary
   14: "critical", // NonCanonicalField non-canonical encoding, the nullifier-aliasing guard
+  // A holder answering a registered audit request with a cap other than the one the auditor
+  // put on record. Nothing else produces this: the legitimate client reads the cap off the
+  // request. Treat it as an attempt to answer the right question with a useless bound.
+  24: "critical", // AuditCapMismatch
   11: "warning", // FxUnavailable      fails closed, no funds at risk; check the Reflector feed
+  // Exit gate armed, withdraw carried no compliance proof. Usually a client that predates the
+  // gate rather than an evasion, since an ineligible recipient fails as ProofRejected instead.
+  23: "warning", // ExitComplianceRequired
   12: "info", // SlippageExceeded      expected under FX movement
 };
 export const severityForError = (contract: string | null, code: number): Severity =>

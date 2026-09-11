@@ -13,7 +13,7 @@
     "test:unit": "node scripts/test-unit.mjs",
     "test:proving": "node scripts/test-fullprove.mjs",
     "test:negative": "node scripts/test-negative.mjs",
-    "test:e2e": "node scripts/e2e-playwright.mjs",
+    "test:e2e": "playwright test",
     "qa:watch": "node scripts/qa-watch.mjs",
     "test:features": "node scripts/e2e-features.mjs",
     "demo:feebump": "node scripts/feebump-paymaster.mjs",

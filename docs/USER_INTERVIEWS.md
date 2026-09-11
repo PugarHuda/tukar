@@ -12,6 +12,14 @@ identified person has voiced. Aggregate statistics cannot be the evidence for pr
 fit, and a reviewer who reads them as such is being asked to take a leap the document has not
 earned.
 
+Status on 2026-09-12: **still zero interviews.** What changed on that date is that the kit stopped
+being a script and became something one person with no budget can start on tomorrow morning.
+Section 12 lists recruiting channels that were checked by fetching them, and says which ones could
+not be checked. Section 16 has the messages to send. Section 17 covers the part between a yes and a
+transcript. Section 18 fixes the disconfirming thresholds and their consequences while the number of
+interviews is still zero. Section 19 is the results file, and it is empty. None of that is evidence.
+Evidence starts when the first row of section 19.1 is filled in.
+
 ---
 
 ## 1. What this document is for
@@ -28,7 +36,7 @@ described, with verbatim quotes, a stated sample size, a stated recruiting chann
 stated selection bias. A reviewer trusts five interviews described that way far more than a
 claim of extensive user research with nothing behind it.
 
-The kit is sized for one person in Yogyakarta with a full-time job and about eight weeks.
+The kit is sized for one person in Yogyakarta with a full-time job and the seven weeks left before the deadline.
 
 ---
 
@@ -554,14 +562,14 @@ INTERVIEWER ERRORS (leading questions asked, product named early, silences fille
 ```
 
 The last two fields matter more than they look. The surprise field is where new failure modes get
-caught, and the errors field is the only mechanism that improves the interviewing across eight weeks.
+caught, and the errors field is the only mechanism that improves the interviewing across the seven weeks.
 
 ---
 
 ## 10. Tally across interviews
 
 One row per interview, appended as they happen. This is the table that becomes the evidence summary,
-so it must be maintained during the eight weeks and not reconstructed at the end.
+so it must be maintained during the seven weeks and not reconstructed at the end.
 
 | Label | Date | Group | Recruited via | C1 | C2 | C3 | Switched | Already spent | Ranked position | Reached wall |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -591,90 +599,358 @@ Two discipline rules for the tally.
 
 ---
 
-## 11. How many interviews, and the eight weeks
+## 11. How many interviews, and the weeks that are left
 
-Today is 2026-09-11 and the deadline is 2026-11-08, which is about eight weeks. The founder is one
-person with a full-time job. Anything that assumes full-time research is a plan that will not be
-executed, and a plan that is not executed produces the same evidence as no plan.
+Today is 2026-09-12 and the deadline is 2026-11-08, which is seven weeks and four days. The founder
+is one person with a full-time job who also has to finish the rest of the submission. Anything that
+assumes full-time research is a plan that will not be executed, and a plan that is not executed
+produces the same evidence as no plan.
 
-**Recommended target: 22 interviews, as 12 senders, 6 receivers, 4 compliance.**
+**What one interview actually costs.** Not forty minutes. Counted end to end on the channels in
+section 12: finding and chasing the introduction, 60 minutes. Agreeing a slot and surviving one
+reschedule, 20 minutes. The call itself, 40 minutes. The write-up inside the hour, 45 minutes. The
+quote confirmation the next day, 15 minutes. That is three hours per completed interview, and it
+does not count the approaches that never answer at all.
 
-That is about three a week including the ones that cancel, which is achievable in evenings and
-weekends, and it is enough that a reviewer sees a pattern rather than three anecdotes.
+**Target: 12 completed interviews, as 6 senders, 4 receivers, 2 compliance.**
 
-**Credible floor: 14, as 8 senders, 4 receivers, 2 compliance.** Below eight senders it is difficult
-to claim any pattern at all and the write-up has to be phrased as early signals. Below two compliance
-interviews, Claim 3 stays unevidenced and the submission must say that plainly rather than stretching
-the sender interviews to cover it.
+**Credible floor: 8, as 4 senders, 3 receivers, 1 compliance.**
 
-**Ceiling: about 30.** Past that the marginal interview in a saturated group adds nothing to a
-submission and costs time the rest of the application needs. If senders saturate early, spend the
-remaining slots on compliance, which will not saturate.
+**Ceiling: 16.** Past that, the marginal interview in a saturated group costs time the rest of the
+application needs.
 
-**Why these numbers.** Group A is the easiest to reach, which is why it carries the most weight and
-also why it is the least impressive on its own: reaching Indonesians who send money home is not a
-credential. Group C is slow, needs lead time, and has a low reply rate, so four completed interviews
-is an honest target for eight weeks and is worth more to a reviewer than the other eighteen combined,
-because it is the group the proposal has nothing on. Group B sits in the middle and is mostly reached
-through group A, which is a bias that section 13 has to state.
+**Why 12 and not more.** Twelve interviews at three hours each is 36 hours across seven and a half
+weeks, which is 4.8 hours a week: two weekday evenings and part of a Saturday. Twenty-two would be
+66 hours, or 8.8 hours a week, on top of a full-time job and the rest of the application. An earlier
+draft of this section proposed 22 with no arithmetic behind it. That number is withdrawn, because a
+target that cannot be hit produces a shortfall to explain instead of evidence to show.
 
-**Eight week shape.**
+**Why 12 is still worth having.** Six senders is enough for a pattern to repeat or to visibly fail to
+repeat, and small enough that every claim has to be written as a count ("4 of 6") rather than a
+percentage, which is the correct way to report a sample this size anyway. The thresholds in section
+18 were chosen to be reachable at six. Four receivers is enough to see whether the gap between what
+was sent and what arrived is real, which is the one thing only a receiver can tell you. Two
+compliance interviews do not validate Claim 3 and are not claimed to: two is what cold outreach to
+that group honestly returns in seven weeks, and section 13 has to say in plain words that Claim 3
+rests on two conversations.
 
-| Week | Work |
-|---|---|
-| 1 | Section 15 decisions made. Outreach for group C sent, all of it, because it has the longest lead time. First 2 sender interviews, treated as pilots for the script. |
-| 2 | Revise script A from what the pilots exposed. 3 sender interviews. Chase group C. |
-| 3 | 3 senders, first receiver introductions requested at the end of each. |
-| 4 | 2 senders, 2 receivers. First compliance interview if one has landed. Mid-point review of the tally: are there any minus signs, and is the wall holding. |
-| 5 | 2 senders, 2 receivers, 1 compliance. |
-| 6 | 2 receivers, 1 to 2 compliance. Senders likely saturated, stop adding them. |
-| 7 | Remaining compliance. Write up section 13 from the tally, with the numbers as they actually are. |
-| 8 | Quote confirmations sent and returned. Findings folded into the proposal and the submission. Buffer, because something in this list will have slipped. |
+**Why not fewer.** Below the floor of 8 no group has enough respondents to show anything repeating,
+and the write-up becomes a list of anecdotes. Even so, 8 honestly described beats 0, and 0 is the
+current position.
 
-Two notes on the shape. Group C outreach goes out in week 1 and not week 4, because a compliance
-officer replying in three weeks is normal and a compliance officer replying in three days is not.
-And the mid-point review in week 4 exists because the most common failure of a solo interview
-programme is not too few interviews, it is fifteen interviews that all lead the witness the same way.
+**What "defensible" means here.** Not statistically significant. Nothing at this size is, and any
+document that implies otherwise is lying. Defensible means a reviewer can check it, which needs four
+things, and the count is the least important of them:
+
+1. the recruiting log in section 19.1 shows how many approaches produced how few interviews, so the
+   denominator is visible and the difficulty is not hidden,
+2. the quotes are verbatim, in the language spoken, and confirmed with the respondent afterwards,
+3. the disconfirming thresholds in section 18 were fixed before any data existed, and this file's git
+   history shows they were fixed before and not after,
+4. the selection bias is stated by the founder before the reviewer finds it.
+
+Twelve interviews with those four properties are worth more to a reviewer than fifty without them.
+That is the whole argument for the number, and it is the argument to make in the submission.
+
+**The schedule, with real dates.**
+
+| Week | Dates | Work |
+|---|---|---|
+| 1 | Sat 12 Sep to Sun 20 Sep | The six decisions in section 15 written down, and the thresholds in section 18 accepted or amended. Notes directory created outside the repository tree. Every compliance approach sent, all of them, in one sitting, because that group has the longest lead time. Every organisational email in section 12 sent in the same sitting. Two receiver interviews from within one introduction of the founder, treated as pilots for the script. |
+| 2 | Mon 21 Sep to Sun 27 Sep | Scripts revised from what the pilots exposed. 2 receivers. First and only chase of every organisation that has not replied. Ask each receiver, at the end, for their sender. |
+| 3 | Mon 28 Sep to Sun 4 Oct | 2 senders, reached through the receivers interviewed in weeks 1 and 2. |
+| 4 | Mon 5 Oct to Sun 11 Oct | 2 senders. Mid-point review on Sunday 11 October against rule K10 in section 18, and against the tally: are there any minus signs yet, and is the wall holding. |
+| 5 | Mon 12 Oct to Sun 18 Oct | 1 sender, 1 compliance if one has landed. |
+| 6 | Mon 19 Oct to Sun 25 Oct | 1 sender, 1 compliance. If three consecutive sender interviews added no new failure mode, senders are saturated: stop adding them and spend the slots on compliance, which will not saturate. |
+| 7 | Mon 26 Oct to Sun 1 Nov | Interviewing stops on Sunday 1 November with no exceptions, including for the interview that finally said yes. Section 13 written from the tally, with the numbers as they actually are. |
+| 8 | Mon 2 Nov to Sun 8 Nov | Quote confirmations sent and returned. Findings folded into the proposal and the submission. Buffer, because something above will have slipped. |
+
+That is 4 receivers, 6 senders and 2 compliance, which is the target. Every slot that slips comes out
+of the sender count first, because senders are the group that saturates earliest and the group the
+proposal is least short of argument about.
+
+Two notes on the shape. Compliance outreach goes out in week 1 and not week 4, because a compliance
+officer replying in three weeks is normal and one replying in three days is not. And the mid-point
+review exists because the most common failure of a solo interview programme is not too few
+interviews, it is twelve interviews that all lead the witness the same way.
 
 ---
 
-## 12. Recruiting, and the bias each channel creates
+## 12. Recruiting, which is the bottleneck
 
-Every channel produces a skewed sample. That is unavoidable for one person in eight weeks and it is
-not a problem, as long as the skew is stated in the write-up instead of being hidden. Write down the
-exact channel per interview in the note template, not the category.
+Writing the script was the easy half. The reason this kit has produced no transcripts is that nobody
+has been asked yet. This section lists places that were checked on 2026-09-12 by fetching them, what
+a stranger can realistically do with each, and what each is honestly likely to return.
 
-**Senders.** Indonesian worker communities abroad, which the founder can reach in Indonesian: diaspora
-and migrant worker groups on Facebook and Telegram for Taiwan, Hong Kong, Singapore, Malaysia, South
-Korea and Japan, student associations, hometown and religious community groups, and then referrals
-from each completed interview, which is where the best ones come from. Filipino senders will be harder
-without a Tagalog-speaking introducer, so either find one introducer or state honestly that the
-Filipino side is thin. Do not pad the count with Filipino respondents recruited in English, because
-that selects for office workers and not for the primary user.
+**How each entry was verified.** Every organisation below was fetched over HTTPS on 2026-09-12, and
+the details quoted here (address, telephone, email, stated purpose) were read off the page that came
+back. Where a site needed a real browser to pass a bot check, that is noted. Anything that could not
+be fetched is in section 12.4 and is deliberately not recommended. Contact details on public pages
+change: re-check before writing, and never write to an individual person's name found in a directory.
 
-*Bias this creates:* online community groups select for people who are comfortable online, connected,
-and often already using apps rather than cash agents. The sample will under-represent the least
-digital senders, which is precisely the group whose experience is worst. Say this.
+**Corridor priority against reachable population.** The stated corridor priority is United States to
+Philippines first and Saudi Arabia to Indonesia second. The founder's reachable population is the
+other way round: he lives in Yogyakarta, speaks Bahasa Indonesia, is within one or two introductions
+of families who receive money from the Gulf, and is within none of a Filipino worker in California.
+The honest resolution is to run the Indonesia corridor as the evidence base, run the United States to
+Philippines corridor as a gatekeeper experiment with a low expected yield, and state in the write-up
+which corridor the evidence actually came from. Presenting Indonesian evidence as evidence about the
+United States to Philippines corridor would be the same error as presenting World Bank aggregates as
+a validated need, committed one level further down.
 
-**Receivers.** Ask at the end of every sender interview, question A39, and interview the receiver
-separately. Also reachable directly through family and neighbourhood networks in Yogyakarta and
-Central Java.
+### 12.1 Saudi Arabia to Indonesia, verified channels
 
-*Bias this creates:* receivers recruited through their own sender are selected for a good relationship
-with that sender and will not speak freely about disagreements over money. Receivers in Java are not
-receivers in NTT or Sulawesi, where the trip to a counter is longer and the collection problem is
-worse. Both facts go in the write-up.
+**BP3MI D.I. Yogyakarta**, the regional office of the Indonesian migrant worker ministry.
 
-**Compliance.** LinkedIn approaches to named compliance and AML officers at Indonesian and Philippine
-money transfer operators and remittance firms, Stellar anchors and their operations leads, compliance
-consultants, the Stellar ecosystem contacts the founder already has including the SCF referrer, and
-AML and fintech professional groups. Offer a 30 minute call, no recording, no attribution, and send
-the questions in advance.
+- *Verified:* listed in the official office directory at `https://aim.bp2mi.go.id/profil/bp3mi`,
+  fetched 2026-09-12, HTTP 200. The directory gives the address as Jalan Candi Sambisari No. 311A,
+  Purwomartani, Kalasan, Sleman, Yogyakarta, telephone 085161337403, open Monday to Friday 08.00 to
+  16.00 WIB.
+- *Access path:* telephone first, then walk in, and ask for whoever handles pemberdayaan or community
+  outreach. Ask for permission to talk to returning workers and their families. Never ask for a list
+  of names, and expect to be refused if you do.
+- *Their own rules:* this is a public office, not a forum, so there is nothing to post. A public
+  office may decline without giving a reason and is under no obligation to help a private founder.
+- *Honest yield:* 0 to 3 introductions, most likely 1, and a first visit may produce only a second
+  appointment. Worth doing anyway because it is the only channel on this page in the founder's own
+  city.
 
-*Bias this creates:* people who accept a cold call from a founder building a privacy product are
-predisposed to find privacy interesting. That is the worst possible bias for Claim 3 and it must be
-stated in the write-up, and it is the reason question C13 is worded to ask what has already happened
-rather than what they think.
+**KP2MI**, the national ministry (Kementerian Pelindungan Pekerja Migran Indonesia / BP2MI).
+
+- *Verified:* `https://kp2mi.go.id` fetched 2026-09-12, HTTP 200, page title "KP2MI | KEMENTERIAN
+  PELINDUNGAN PEKERJA MIGRAN INDONESIA/BADAN PELINDUNGAN PEKERJA MIGRAN INDONESIA", TLS certificate
+  subject "KEMENTERIAN PELINDUNGAN PEKERJA MIGRAN INDONESIA / BP2MI". Published on the page: call
+  centre 08001000 from inside Indonesia and +6221-29244800 from abroad, complaints WhatsApp
+  0811-8080-141, the BP3MI office directory, and a "G to G Saudi Arabia" placement programme section,
+  which is the corridor in question.
+- *Practical note:* the certificate chain it serves is incomplete, so some clients refuse the site. A
+  browser opens it.
+- *Access path:* the call centre and the complaints WhatsApp exist for migrant workers in trouble.
+  Do not use them for research. The usable path here is the BP3MI office above.
+- *Honest yield:* 0 as a recruiting channel. Listed because the office directory and the corridor
+  programme are context the interviewer needs before asking anyone anything.
+
+**KJRI Jeddah**, the Indonesian Consulate General in Jeddah.
+
+- *Verified:* `https://kemlu.go.id/id/jeddah` fetched 2026-09-12 in a browser, because the site
+  renders client side and a plain fetch returns an empty shell. The page identifies itself as
+  KONSULAT JENDERAL REPUBLIK INDONESIA DI JEDDAH, KERAJAAN ARAB SAUDI, gives the address as 4653
+  Al-Muallifin Street, Al Rehab District/5, PO Box 10 Jeddah 23344, telephone +966 50 360 9667 and
+  +966 12 671 1271, email jeddah.kjri@kemlu.go.id, and carries a Pelindungan WNI section. Its news
+  feed shows recurring mobile service days and public awareness sessions for Indonesian citizens in
+  Saudi cities.
+- *Access path:* one email to the published address, addressed to the Pelindungan WNI function,
+  asking whether they would forward a request to community groups they already work with. It must say
+  explicitly that no personal data is being asked for.
+- *Their own rules:* there is no public posting mechanism and no published rule permitting or
+  forbidding research requests. It is a request a mission is entirely free to ignore.
+- *Honest yield:* 0 to 1, most likely 0. A diplomatic mission has no reason to connect an
+  unaffiliated founder to citizens in a precarious position. Send once, do not chase.
+
+**KBRI Riyadh**, the Indonesian Embassy in Riyadh.
+
+- *Verified:* `https://kemlu.go.id/id/riyadh` fetched 2026-09-12 in a browser. Identifies itself as
+  KEDUTAAN BESAR REPUBLIK INDONESIA DI RIYADH, KERAJAAN ARAB SAUDI. Address: Diplomatic Quarter,
+  P.O. Box 94343, Riyadh 11693. Telephone (+966) 11 4882800 and +966 569173990. Email
+  riyadh.kbri@kemlu.go.id.
+- *Access path, rules and yield:* identical to Jeddah, and the same expectation of silence.
+
+**SBMI, Serikat Buruh Migran Indonesia**, the migrant workers union.
+
+- *Verified:* `https://sbmi.or.id` fetched 2026-09-12 in a browser (client-side rendering; a plain
+  fetch returns an empty document). The site describes an organisation of Indonesian migrant workers
+  and their families working through advocacy, critical education and organising, founded in 2003 and
+  present in 15 provinces. Published contact: sekretariat@sbmi.or.id, +62 811-8626-776, Jl. Komp.
+  Garuda No.20, RT.13/RW.4, Kalibata, Kec. Pancoran, Jakarta Selatan.
+- *Access path:* one email or WhatsApp to the secretariat in Bahasa Indonesia, using message 1 in
+  section 16, offering the question list up front so it can be judged before anyone is introduced.
+- *Their own rules:* no public forum and no published policy on outside research. Treat the absence of
+  a rule as a no until a person says yes, and never post into their channels uninvited.
+- *Honest yield:* 0 to 4, most likely 1 to 2 if anyone replies. This is the strongest organisational
+  channel in this section, because a union's members are exactly the population and a union has a
+  reason to care what is done with what they say. Expect to be questioned about that, and answer
+  properly: a union that does not ask is the one to worry about.
+
+**Migrant CARE.**
+
+- *Verified:* `https://migrantcare.net` fetched 2026-09-12, HTTP 200. Describes itself as a civil
+  society organisation established in 2004 advocating for Indonesian migrant workers and their
+  families, running the DESBUMI village programme since 2013, with a reference to a Middle East
+  emergency post. Published contact: +62 21-27808211, Jl. Karang Pola V No.1, RT.4/RW.3, Jati Padang,
+  Ps. Minggu, Jakarta Selatan 12540.
+- *Access path:* as SBMI. The specific thing to ask about is DESBUMI, because a DESBUMI village is a
+  place where receiving families are concentrated and already organised, which is the population in
+  script B.
+- *Their own rules:* no public forum, no published policy. Same treatment as SBMI.
+- *Honest yield:* 0 to 3, most likely 1.
+
+### 12.2 United States to Philippines, verified channels
+
+Every entry here is a gatekeeper, not a gathering place. None can be posted in by a stranger, all can
+be written to, and all are free to ignore an unaffiliated founder on the other side of the world.
+Read the yields before spending a week of the seven on this corridor.
+
+**NaFFAA, the National Federation of Filipino American Associations.**
+
+- *Verified:* `https://naffaa.org` fetched 2026-09-12. Describes itself as the largest national
+  affiliation of Filipino American institutions, umbrella organisations and individuals, founded 1997,
+  organised into fifteen member regions covering the continental United States, Alaska, Hawaii and the
+  Pacific. Published contact: 1025 Connecticut Avenue NW, Washington DC 20036, +1 301 337 7352,
+  info@naffaa.org.
+- *Access path:* one English email to the published address, message 3 in section 16, asking the
+  national office to point at one region rather than writing to fifteen regions at once.
+- *Their own rules:* no open posting mechanism and no published rule about research requests.
+- *Honest yield:* 0 to 1. A national umbrella body gets a lot of mail from people who want something.
+
+**Migrante USA.**
+
+- *Verified:* `https://www.migrante-usa.org` fetched 2026-09-12. Describes itself as an alliance of
+  Filipino migrant workers in the United States and lists regional chapters for Washington, Oregon,
+  Northern California, Southern California, the Midwest, the Northeast, and DC, Maryland and Virginia.
+  Published contact: migranteusa@pm.me.
+- **Check the spelling before writing to anyone.** The similar domain migranteusa.org, without the
+  hyphen, was also fetched on 2026-09-12 and does not belong to the organisation: it currently serves
+  an online gambling site. Use the hyphenated migrante-usa.org and nothing else, and do not trust a
+  contact address found on the other one.
+- *Access path:* one English email to the published address, naming the region you are asking about.
+- *Their own rules:* no open posting mechanism, no published rule.
+- *Honest yield:* 0 to 2, most likely 0 to 1. Better than NaFFAA in principle, because the membership
+  is workers rather than institutions. Worse in practice, because a single volunteer inbox may not be
+  read at all.
+
+**Migrante International.**
+
+- *Verified:* `https://migranteinternational.org/contact-us/` fetched 2026-09-12 in a real browser;
+  the site sits behind a Cloudflare challenge and returns HTTP 403 to a plain fetch. Describes itself
+  as a global alliance of grassroots migrants organisations of overseas Filipinos and their families
+  in 24 countries, with chapter groupings for Asia and the Pacific, the Middle East, the USA, Canada
+  and Europe. Published contact: Episcopal Mission Center compound, 275 E. Rodriguez Sr. Avenue, Brgy.
+  Kalusugan, Quezon City, Metro Manila 1112, telephone +632 7092-4519,
+  homeoffice@migranteinternational.org.
+- *Access path:* the home office, asking to be pointed at one chapter. Its Middle East grouping is
+  relevant to the second corridor as well, which is the one reason to prefer it over Migrante USA.
+- *Their own rules:* no open posting mechanism, no published rule.
+- *Honest yield:* 0 to 1.
+
+**Philippine Consulate General, New York: the Fil-Am Community Directory.**
+
+- *Verified:* `https://newyorkpcg.org/pcgny/culture-community/fil-am-community-directory/` fetched
+  2026-09-12. It publishes a downloadable directory of Filipino community organisations ("Filipino
+  Community Organization 2025") and a form through which organisations register themselves. The
+  consulate's stated jurisdiction is Connecticut, Delaware, Maine, Massachusetts, New Hampshire, New
+  Jersey, New York, Pennsylvania, Rhode Island and Vermont. Published telephone +1 212 764 1330.
+- *Access path:* read the directory, pick three or four organisations whose stated purpose is
+  community welfare rather than business or culture, and write to the organisation. Write to
+  organisations, never to a person named in the directory.
+- *Their own stated purpose, and the honest limit:* the directory exists so community groups and
+  civic volunteers can find each other and so the consulate can reach them. Using it as a cold contact
+  list for outside research is outside what it was published for. That does not make it forbidden, it
+  makes it a request that has to be phrased as one, and it makes a low reply rate the expected and
+  reasonable outcome rather than a surprise.
+- *Honest yield:* 0 to 2 across the whole directory.
+
+**Philippine Consulate General, Los Angeles.**
+
+- *Verified:* `https://losangelespcg.org` fetched 2026-09-12; the older philippineconsulatela.org
+  domain returns a 301 redirect to it. Stated jurisdiction: California, Hawaii and the western United
+  States, with honorary consulates in Nevada and Arizona. The site publishes an outreach schedule of
+  consular missions and offers registration and a list of Fil-Am organisations. Published contact:
+  3435 Wilshire Blvd Ste 550, Los Angeles CA 90010, +1 (213) 639-0980, losangeles.pcg@dfa.gov.ph.
+- *Access path:* as New York.
+- *One honest observation:* the consular outreach missions are the only place on this entire page
+  where senders on this corridor physically gather in numbers, and they are useless to a founder in
+  Yogyakarta who cannot attend one. Listed so the option is visible if that ever changes.
+- *Honest yield:* 0 to 2.
+
+### 12.3 Routes that depend on no community at all
+
+A solo founder with no network needs routes that need nobody's permission. These will produce most of
+the twelve, and the first three are the plan.
+
+**1. Receivers first, in the founder's own province.** The receiving end of the Saudi Arabia to
+Indonesia corridor is in Java, and so is the founder. Start with people already within one
+introduction: neighbours, family, colleagues, and the people they name. This needs no gatekeeper, no
+email, and no reply from anyone. *Expected yield: 4 to 8 receivers over seven weeks*, which is more
+than the plan needs, and it is why the schedule front-loads receivers instead of senders.
+
+**2. Receiver to sender.** Every receiver has the sender's WhatsApp number and can pass on a request
+in a way no stranger can. An introduction from the person who receives the money converts better than
+any other approach available here. Ask at the end of the receiver interview, ask for one specific
+person, and let the receiver send the first message. *Expected yield: 3 to 6 senders*, which is most
+of the sender quota. *Bias:* these senders are on good enough terms with their receiver that the
+receiver was willing to ask. Section 13 must state that.
+
+**3. The referral chain, run as a rule and not as a hope.** Question A39 and question B29 exist for
+this. The rule: ask every completed respondent for exactly one name, at the end, and ask for a name
+rather than for "anyone who might be willing", because a request for one person gets one person and a
+request for anyone gets nobody. *Expected yield:* this is the multiplier on routes 1 and 2 rather
+than a channel of its own, and it is the difference between six interviews and twelve.
+
+**4. Physical places in Yogyakarta and Central Java where receivers already are.** Bank and post
+office counters, money changers and pawnshops, on the days transfers land. Ask the branch or the shop
+for permission before approaching anyone. Never approach someone in the queue, never approach someone
+who is holding cash, and wait until they are away from the counter: their safety matters more than
+the interview, and a stranger asking a person carrying money about that money is exactly the thing
+they should walk away from. *Expected yield: 0 to 4, unpredictable, and it costs a Saturday.* Use it
+only if route 1 stalls.
+
+**5. Compliance, which is a different activity entirely.** The approach message lives in
+[`docs/ANCHOR_OUTREACH.md`](ANCHOR_OUTREACH.md) and the questions in section 8. The route is
+approaches to named compliance and AML staff at licensed money transfer operators, remittance firms
+and Stellar anchors, plus the Stellar ecosystem contacts the founder already has, including the SCF
+referrer. Offer 30 minutes, no recording, no attribution, questions in advance. Send all of them in
+week 1. *Expected yield: 1 to 3 completed calls from 15 to 25 approaches, most likely 2.*
+
+**6. Deliberately not on this list: paid research panels.** Recruitment platforms will find screened
+respondents on either corridor within days, and charge per completed interview plus an incentive paid
+to the respondent. The constraint here is no budget, so they are out. They are named only so that
+"nobody could be found" is never offered as the reason, when the accurate reason is that the fast
+route costs money the founder does not have.
+
+### 12.4 What could not be verified, and is therefore not listed
+
+- **Reddit.** The obvious candidates are the subreddits for overseas Filipino workers, the
+  Philippines, Indonesia, Saudi Arabia, and survey recruitment. None of them could be verified from
+  this machine on 2026-09-12: reddit.com now requires a logged-in session for its JSON endpoints, the
+  plain HTML is an empty application shell, a real headless browser was served a "Prove your humanity"
+  challenge, and three public mirror instances returned 429 or 410. So neither their existence, nor
+  their size, nor, more importantly, their own posted rules about surveys and research recruitment
+  could be read. Those rules vary a great deal and several large communities ban this outright.
+  Nothing about Reddit is recommended above and nothing should be assumed. The check takes two minutes
+  in a logged-in browser: open the subreddit, read the sidebar rules, look for a rule about surveys,
+  self-promotion or research, and message the moderators before posting. Do not post before reading.
+- **Facebook and Telegram groups.** Diaspora and migrant worker groups on both platforms are the most
+  obvious place these populations actually gather, and their membership rules and pinned rules are not
+  visible without a logged-in account. None could be verified, so none are named. Same instruction as
+  Reddit: the owner can read any specific group's rules in a minute while logged in, and a group that
+  forbids outside requests forbids them for a reason that applies here too.
+- **bp2mi.go.id, the old main domain.** It did not complete a TLS connection on 2026-09-12. Only the
+  sub-applications aim.bp2mi.go.id and jdih.bp2mi.go.id responded. Use kp2mi.go.id.
+- **A directory of Migrant Workers Offices in the United States.** dmw.gov.ph is live, but the
+  expected directory path returned 404 on 2026-09-12, so no United States office is listed here.
+
+### 12.5 The bias each channel creates
+
+Every channel produces a skewed sample. That is unavoidable for one person in seven weeks and it is
+not a problem, as long as the skew is stated in the write-up instead of hidden. Write the exact
+channel per interview in the note template, not the category.
+
+- **Receiver-first recruiting** selects for receivers in Java who are within two introductions of the
+  founder. It under-represents receivers in NTT, NTB and Sulawesi, where the trip to a counter is
+  longer and the collection problem is worse, which is exactly where the product's claim would be
+  strongest. Say so.
+- **Senders recruited through their own receiver** are selected for a relationship good enough that
+  the receiver agreed to ask, and they will not speak freely about disagreements over money. Say so.
+- **Organisational channels** (SBMI, Migrant CARE, the Fil-Am organisations) select for people already
+  in contact with an advocacy body, which usually means they have had a problem. That skews towards
+  the worst experiences. It is the opposite bias to the one above and it does not cancel it out. State
+  both, and state which interviews came from which.
+- **Compliance respondents** who accept a cold approach from a founder building a privacy product are
+  predisposed to find privacy interesting. That is the worst possible bias for Claim 3, it must be
+  stated, and it is the reason question C13 asks what has already happened rather than what they think.
+- **The corridor itself.** Evidence from the Saudi Arabia to Indonesia corridor is evidence about that
+  corridor. It is not evidence about the United States to Philippines corridor, and the write-up may
+  not quietly generalise from one to the other.
 
 ---
 
@@ -919,14 +1195,455 @@ Six decisions. All of them are cheap now and expensive later, and none of them c
 4. **Where the notes and the label key live on disk.** A path outside the repository tree, decided and
    created before the first interview. See section 5.
 5. **Whether the Filipino sender group is in scope for this round.** Without a Tagalog-speaking
-   introducer it will not happen properly in eight weeks. The honest options are to find one introducer
+   introducer it will not happen properly in seven weeks. The honest options are to find one introducer
    in week 1, or to scope this round to Indonesian senders and say so in the write-up. Do not fill the
    quota with English-speaking Filipino respondents and present them as the primary user.
 6. **What result would change the plan.** Write the answer down now, before any data arrives, so it
    cannot be rationalised afterwards. Specifically: if senders do not care who sees the amount, does
    Tukar reposition around the compliance buyer, keep the consumer framing, or change corridors?
    Deciding this in advance is the difference between research and a search for supporting quotes.
+   This decision is now written out as ten numbered rules with explicit consequences in section 18.
+   Item 6 is done when those thresholds have been read and either accepted or amended, in writing,
+   before the first interview and not after it.
 
 One more thing that is not a decision but a warning. Section 13's honesty requirements only work if
 they are settled before the findings exist. It is much easier to commit to reporting a disconfirming
 result today than it is to do it in week 7 with a deadline coming.
+
+---
+
+## 16. The outreach messages
+
+The script is useless until somebody says yes, and most messages that ask for an interview fail in
+the first two lines. These are written to be sent as they are. Change the names, change nothing else
+without reading section 16.6 first.
+
+**The rule these obey.** The Mom Test applies to the invitation as much as to the interview: ask
+about their life, not about your idea. Nothing below mentions a product, a company, a wallet, crypto,
+a blockchain, privacy, or Tukar. Nothing below promises money, because the founder has none to pay,
+and a promise that cannot be kept poisons the sample and the relationship at the same time. Every
+message offers an easy no, because a no now costs nothing and a reluctant yes costs a wasted evening
+and produces polite answers that rule 3.9 says are worthless anyway.
+
+### 16.1 Which language is the honest one
+
+- **Saudi Arabia to Indonesia corridor: Bahasa Indonesia, informal.** This is the founder's own
+  language and no translation is involved, which is the main reason this corridor is the realistic
+  evidence base. Many workers on this corridor come from Java, Lombok and West Nusa Tenggara. If a
+  respondent switches into Javanese or Sasak, follow them as far as you can, say plainly when you
+  cannot, and record the quote in the language it was spoken in, per rule 3.10. Arabic is not needed
+  at any point: the respondent is Indonesian, and the interview is about their life, not their
+  employer's.
+- **United States to Philippines corridor: English.** Most Filipinos working in the United States
+  work in English daily, and an English message from a stranger is normal there in a way it is not in
+  Java. This is the honest choice, not a shortcut.
+- **The language this kit cannot honestly offer: Tagalog.** For a Filipino domestic or care worker who
+  would rather speak Tagalog or Taglish, English is the second language and a stiff machine-translated
+  Tagalog message from an unknown foreign number reads exactly like a scam, because that is what those
+  messages usually are. Do not machine-translate these messages. If a respondent prefers Tagalog, the
+  honest answer is that this round needs a Tagalog-speaking introducer to run that interview properly,
+  which is decision 5 in section 15 and is still open.
+
+### 16.2 Message 1, to an organisation, Bahasa Indonesia
+
+For SBMI, Migrant CARE, and the BP3MI office. Send once, to the published address, in working hours
+in their timezone.
+
+> Selamat pagi. Perkenalkan, saya [nama], tinggal di Yogyakarta.
+>
+> Saya sedang mengumpulkan cerita tentang bagaimana keluarga di Indonesia menerima kiriman uang dari
+> luar negeri: ngambilnya di mana, berapa lama, dan apa saja yang biasanya bikin repot. Ini riset
+> kecil-kecilan yang saya kerjakan sendiri. Saya bukan sales, bukan orang bank atau agen, dan saya
+> tidak mewakili perusahaan mana pun.
+>
+> Yang saya cari: orang yang bersedia cerita 20 sampai 30 menit lewat telepon atau WhatsApp, tentang
+> pengalaman mereka sendiri. Tidak ada pertanyaan soal dokumen atau izin tinggal, tidak ada permintaan
+> nomor rekening, dan tidak ada imbalan yang saya janjikan, karena saya memang tidak punya dana untuk
+> itu. Saya lebih baik bilang begitu di awal.
+>
+> Kalau menurut [nama organisasi] ini kurang pas, tidak apa-apa sama sekali, dan saya tidak akan
+> mengirim pesan lagi. Kalau mungkin pas, boleh saya kirim dulu daftar pertanyaannya supaya bisa
+> dinilai sendiri?
+>
+> Terima kasih atas waktunya.
+
+### 16.3 Message 2, to a person, through someone who knows them, Bahasa Indonesia
+
+The highest converting message here, because the first line is the only thing that matters in it. Ask
+the introducer to send their own message first, then send this.
+
+> Halo Bu [nama], saya [nama], temannya [nama pengenal]. Kata beliau Ibu yang biasanya ngurus kiriman
+> dari [negara] kalau uangnya sudah masuk.
+>
+> Saya lagi belajar soal gimana sebenarnya proses terima kiriman itu di lapangan, jadi saya ingin
+> dengar ceritanya langsung: ngambilnya di mana, jauh nggak dari rumah, pernah ada masalah nggak.
+>
+> Sekitar 20 sampai 30 menit saja, lewat telepon, kapan pun Ibu longgar, termasuk malam atau akhir
+> pekan. Saya nggak jualan apa-apa, nggak minta nomor rekening atau data apa pun, dan nggak bisa kasih
+> imbalan, jadi kalau nggak berkenan sama sekali nggak masalah.
+>
+> Kalau berkenan, enaknya kapan?
+
+For a sender abroad, introduced by their own receiver, change the second paragraph to: "Saya lagi
+belajar soal gimana sebenarnya proses kirim uang ke rumah itu dari sisi yang di luar negeri: pakai
+apa, biayanya gimana, pernah ada yang bikin kesal nggak."
+
+### 16.4 Message 3, to a Filipino community organisation, English
+
+> Dear [organisation],
+>
+> My name is [name] and I am based in Yogyakarta, Indonesia. I am doing a small piece of independent
+> research on how families actually send and receive money across borders: which service people use,
+> how long it takes, what goes wrong, and what it costs them in time as well as in fees.
+>
+> I am looking for people who send money home to the Philippines and would be willing to talk for
+> about 30 minutes on a voice call about their own experience. I am not selling anything, I do not
+> represent a bank or a remittance company, and I cannot offer payment, so I would rather say that at
+> the start than imply otherwise. I do not ask about anyone's immigration status or documents, and I
+> do not ask for account numbers.
+>
+> If this is not something your organisation would pass on, that is a fair answer and I will not write
+> again. If it might be, I am happy to send the questions in advance so you can judge them first.
+>
+> Thank you for your time.
+
+### 16.5 The follow-up, sent once and then never again
+
+Seven days after the first message, three lines, and then the channel is closed regardless of the
+answer. Chasing twice converts nobody and costs the founder's reputation with an organisation whose
+help he may want later.
+
+> Halo, cuma mengingatkan pesan saya minggu lalu soal riset kecil tentang kiriman uang. Kalau memang
+> tidak bisa membantu, tidak masalah sama sekali dan tidak perlu dibalas. Terima kasih.
+
+> Following up once on my message last week about a short piece of independent research on remittances.
+> If it is not something you can help with, no reply is needed at all. Thank you for your time.
+
+### 16.6 What must never be in any of these
+
+Check each message against this list before sending it.
+
+- No product name, no company name, no wallet, no crypto, no blockchain, no Stellar, no privacy, no
+  zero-knowledge. The solution wall in section 3.2 starts at the invitation, not at the call.
+- No payment, no voucher, no pulsa, no gift, no "small token of appreciation", no hint of one. A
+  thank-you sent afterwards that was never promised is fine and is a different thing.
+- No link, no attachment, no form, no app to install. A link in a first message from an unknown number
+  is what a scam looks like, and the people being asked here are targeted by those constantly.
+- No "quick", no "just five minutes", no "it will only take a moment" when it will take thirty.
+- No request for a number, a document, a screenshot, or a contact, at any point in the invitation.
+- No bulk send. One message, one recipient, written to that recipient, sent at a reasonable hour in
+  their timezone. Twenty identical messages from one account on one evening is spam by any definition
+  including the platform's.
+- No second follow-up after 16.5.
+
+---
+
+## 17. From a yes to a transcript
+
+Everything between an agreed slot and a usable set of notes. This is the part that a script does not
+cover and that decides whether the interview is worth anything.
+
+### 17.1 The first two minutes, when they think you might be a scam
+
+They will be suspicious, and they are right to be. A stranger contacting someone about money is the
+shape of nearly every fraud that targets migrant workers and their families. Do not sound offended,
+do not sound hurt, and do not talk faster. Suspicion is a correct response to the available evidence,
+and the job is to give them better evidence.
+
+Four sentences, in this order, then stop and let them speak.
+
+English:
+
+> 1. "[Introducer] gave me your number, and said they would tell you I was going to call."
+> 2. "I am not from a bank, not an agent, not from any government office, and I am not selling
+>    anything."
+> 3. "I am not going to ask you for an account number, a document, or a photo of anything. If anyone
+>    ever asks you for those on a call like this, hang up on them."
+> 4. "If this feels strange, hang up now and check with [introducer] first. I will not call again
+>    unless you want me to."
+
+Bahasa Indonesia:
+
+> 1. "Nomor Bapak atau Ibu saya dapat dari [nama pengenal], katanya sudah dikabari kalau saya mau
+>    telepon."
+> 2. "Saya bukan orang bank, bukan agen, bukan dari kantor pemerintah, dan saya tidak jualan apa-apa."
+> 3. "Saya tidak akan minta nomor rekening, nomor apa pun, atau foto dokumen. Kalau ada orang yang
+>    minta itu lewat telepon, langsung ditutup saja."
+> 4. "Kalau terasa aneh, ditutup dulu saja, tanya [nama pengenal] soal saya. Saya tidak akan telepon
+>    lagi kalau tidak diminta."
+
+Then offer them a way to check you, before they ask for one. Offering verification unprompted is the
+single thing a fraudster will not do, and it is worth more than any reassurance:
+
+> "Kalau mau, daftar pertanyaannya saya kirim dulu lewat WhatsApp, dibaca dulu, baru nanti kita
+> ngobrol. Terserah Bapak atau Ibu."
+
+Things that will make it worse: sending a link before the call, asking them to install anything,
+opening with "I am building a startup", promising it will be quick when it will not, and any sentence
+that sounds like it was read from a page even though this one was.
+
+If they are still uneasy after two minutes, end it warmly and do not reschedule. A pressured
+respondent gives polite answers, rule 3.9 says polite answers are worth nothing, and the recruiting
+log in section 19.1 records a decline, which is real data about the channel.
+
+### 17.2 Another timezone, a phone, a bad line
+
+**The clocks, checked against the calendar for this round.**
+
+- Saudi Arabia is UTC+3 and does not use daylight saving. Western Indonesia (WIB) is UTC+7. Saudi
+  local time is Java time minus four hours. 21.00 in Yogyakarta is 17.00 in Jeddah or Riyadh, which is
+  a realistic gap in a domestic worker's day, and Friday is the likeliest free day. Do not propose a
+  slot that lands during a normal working afternoon there.
+- The Philippines is UTC+8, one hour ahead of Java, with no daylight saving.
+- The United States is the awkward one. Until 1 November 2026, US Pacific time is UTC-7 and US Eastern
+  is UTC-4, so Java is 14 hours ahead of the Pacific and 11 hours ahead of the East. A Monday 09.00
+  call in Yogyakarta is 19.00 on Sunday in California and 22.00 on Sunday in New York. Sunday evening
+  their time against Monday morning yours is the only slot that suits a working respondent at both
+  ends. On 1 November 2026 the United States puts its clocks back and those gaps become 15 and 12
+  hours, which lands inside week 8, so re-check any slot agreed for that week.
+- Always write the slot out in both local times with the day name, in the message, and invite them to
+  correct it. Timezone errors do not cost a message, they cost the interview.
+- Better still, ask for their window instead of offering yours. "Kapan biasanya longgar?" gets a real
+  answer; a list of three slots gets whichever one is least inconvenient and then a no-show.
+
+**The line will be bad. Plan for it rather than reacting to it.**
+
+- Voice call, not video. Video costs them data, shows them their own face while they are trying to
+  remember a fee, and shows you a room they may not want shown.
+- Agree the drop protocol in one sentence before starting: if we get cut off I will call back twice,
+  and if it still will not hold I will send the rest as voice notes, no problem either way.
+- Ask in order of value, not in printed order. If the line is poor, open with A2 or B2, the last
+  transfer start to finish, and treat A1 and B1 as optional warm-up you can lose. The core section has
+  to survive the call.
+- Read every number back to them out loud: "jadi tadi biayanya 40 ribu, betul?". A number misheard on
+  a bad line becomes a wrong finding in a public document, and a wrong number is worse than a missing
+  one.
+- **Voice notes as a fallback mode.** A domestic worker with ten minutes between tasks can answer four
+  questions as voice notes across a day, which is often the only mode that will ever work for that
+  respondent. It loses the follow-up probe and rule 3.8's silence entirely, so it produces weaker
+  evidence: mark `MODE: voice notes` in the note template, and do not record a number as recalled
+  unless they say they knew it without checking.
+- When a call drops and does not come back, send one message the same day saying the line was bad and
+  asking when suits, then leave it alone. Do not ring back four times. Four missed calls from an
+  unknown number is how a scam behaves.
+
+### 17.3 Capturing what was said, not what you concluded
+
+The failure this prevents: a notebook full of conclusions, from which no quote can be recovered and
+which a reviewer cannot check. Conclusions are cheap and can be written later. Sentences can only be
+captured while they are being said.
+
+- **Write in two columns during the call.** Left column: the question number. Right column: the
+  sentence, in their language, as spoken. Nothing else goes in the right column. No adjectives, no
+  "seems frustrated", no "clearly a pain point". Those are readings, and readings change which
+  question you ask next, which is how a leading interview happens.
+- **Quotation marks mean exactly what was said.** If you are not sure of the wording, write it as a
+  paraphrase with a leading tilde and no quotation marks. A quote mark you cannot defend has to be
+  removed later, and a reviewer who catches one that was cleaned up will not trust anything else in
+  the document.
+- **Fill the number block during the call, with R, C or E marked at the moment.** Whether they knew a
+  fee or guessed it cannot be reconstructed an hour later, and per rule 3.3 that mark is itself the
+  finding.
+- **Leave the claim fields empty during the call.** The CLAIM EVIDENCE lines in section 9 and the
+  reading block in section 19.2 are filled in afterwards, deliberately, as a separate act.
+- **Finish the template within the hour.** After a day the wording is gone and only the gist survives,
+  and the gist is not quotable.
+- **If recording, timestamp each quote as you write it**, so the audio can be checked once before it
+  is deleted per section 4.
+
+Live capture sheet, one per interview, on paper or in a plain text file:
+
+```
+  Q#   What they said, exactly, in the language they said it in
+  ___  "                                                                            "
+  ___  "                                                                            "
+  ___  "                                                                            "
+  ___  ~ not sure of the wording, paraphrase:
+  ___  ~ not sure of the wording, paraphrase:
+
+  Numbers as given, read back and confirmed:   R = recalled   C = checked   E = estimated
+  ___  ______________________  [ R  C  E ]
+  ___  ______________________  [ R  C  E ]
+```
+
+---
+
+## 18. The decision rules, fixed before any data exists
+
+Fixed on 2026-09-12, on which date the number of completed interviews is zero. That date is the whole
+point. A threshold chosen after the answers are in is not a threshold, it is a rationalisation with a
+number attached, and a reviewer can tell the difference by looking at when this section was written.
+
+**How to read the table.** Each rule names the question that produces the evidence, what a
+disconfirming answer sounds like, the count at which the rule fires, and what the owner does when it
+fires. The last column is the one that matters. A disconfirming question with no stated consequence
+is decoration, and the existing kit had ten of them with no consequences attached.
+
+**Three standing rules over all ten.**
+
+- A rule that does not fire because there were not enough interviews is reported as **not tested**,
+  never as "not disconfirmed". Absence of evidence is not confirmation, and the write-up must use the
+  words "not tested" so that a reviewer is not left to infer the difference.
+- A threshold may not be moved after interview 1. If one is moved anyway, the change, its date and its
+  reason go in the log at the end of this section and stay there, and the write-up says that a
+  threshold was moved.
+- If a rule fires, the finding is published, whatever it costs the application. That is section 3.7
+  with a number attached to it.
+
+| # | Claim | Questions | A disconfirming answer sounds like | Fires when | What the owner does, committed in advance |
+|---|---|---|---|---|---|
+| K1 | 2 | A30, A32 | "Everyone at home knows, it is normal, it has never caused any trouble" | 5 or more of 6 senders say it does not matter to them **and** not one can name a past incident | Sender-side privacy stops being the headline need. Section 4a of the proposal is rewritten to say the sender privacy premise was tested against six senders and not supported, and the consumer framing is replaced by the compliance framing in the submission. The claim changes, not the product, and not during this application. |
+| K2 | 2 | B21, B24 | "The neighbours know, the counter staff know my family, it is fine" | 3 or more of 4 receivers say visibility is normal and none names an incident | The receiver-side privacy claim is deleted from the proposal rather than softened into something vaguer. |
+| K3 | 1 | A7, A8, A10 | The fee is marked E, estimated when pushed, and was never compared against anything | 4 or more of 6 senders cannot recall the fee **and** have never compared providers | Cost stops being the wedge. The submission stops leading with cheaper and leads with whatever the interviews did surface instead (speed, reliability, the collection trip), or states plainly that no wedge was found. |
+| K4 | 1 | A15, A16 | "I have always used this one, the agency set it up for me" | Fewer than 2 of 6 senders have ever switched provider | The assumption that senders will move to a new rail is flagged in the submission as unevidenced, and the acquisition plan in the proposal is rewritten around the operator rather than the sender. |
+| K5 | 3 | C13 | "Nobody has ever raised that with us" | Every compliance respondent says it, with at least 2 interviewed | Claim 3 is reported as disconfirmed by the interviews that were run. The B2B2C thesis is presented as a hypothesis with a named next test, not as a validated need. |
+| K6 | 3 | C21 | On-chain transparency placed fifth or sixth of the six cost drivers | Every compliance respondent ranks it fifth or sixth, with at least 2 interviewed | As K5, and the full ranking is printed in the write-up including the four things that beat it, by name. |
+| K7 | 1 and 2 | A37 | Sending money ranked below housing, the agency, the phone, the ticket home | 5 or more of 6 senders place it fourth or lower | Every phrase implying urgency for the sender comes out of the submission, replaced by the sentence that the problem was ranked below three other costs by 5 of 6 respondents. |
+| K8 | all three | A43 | "Maybe later", "send me a link", "I will think about it" | 0 of the senders who reached the wall agreed to a 15 minute testnet session with a date attached | Reported as zero commitments in the Current Traction field of the submission, in those words, with no substitute metric offered in its place. |
+| K9 | 3 | C10, C11 | No budget ever spent on it, no corridor ever refused over it | No compliance respondent names either, with at least 2 interviewed | Claim 3's buyer is recorded as unproven: a problem was described but nobody has been found who pays to solve it. |
+| K10 | the method itself | the recruiting log, 19.1 | Silence from gatekeepers, cancellations, nobody introduced | Fewer than 4 completed interviews by Sunday 11 October | The United States to Philippines corridor is dropped from this round that day, without renegotiation, and the remaining weeks run entirely on routes 1 to 3 in section 12.3. The submission then says the corridor was out of reach for this round, rather than implying it was covered. |
+
+**The combination that is not a repositioning.** If K1, K3 and K7 all fire together, the finding is
+that senders do not notice the cost, do not care who knows, and do not rank the problem highly. That
+is the consumer thesis failing in three different ways at once, and it cannot be fixed by rewording.
+The committed response is to say so in the submission in one plain sentence, and to put the remaining
+effort either into Claim 3 alone or into not submitting this round. Writing that sentence down today
+costs nothing at all. Writing it in week 7, with the deadline four days away, would be impossible,
+which is exactly why it is written today.
+
+**Threshold change log.** Empty, and never to be deleted from once something is written in it.
+
+| Date | Rule | Old threshold | New threshold | Reason |
+|---|---|---|---|---|
+| | | | | |
+
+Fixed by: ______________________   Date fixed: 2026-09-12   Read and accepted on: ______________
+
+---
+
+## 19. The results file, empty
+
+This is where the evidence goes as it is collected. It is empty, and it will stay empty until real
+interviews exist. It is ordered so that a reviewer meets the raw material before the conclusion,
+because the conclusion is the part they cannot check.
+
+Every filled row must correspond to a dated note in the local notes directory and a label from
+section 5. Nothing here may be filled from memory, nothing may be filled in advance as a placeholder,
+and nothing that is not an interview may be counted as one. If a separate findings file is created
+later, it is a copy of this section, not a replacement for it.
+
+### 19.1 The recruiting log, which is the denominator
+
+One row per approach, not per interview. A reviewer learns more from forty approaches producing
+twelve interviews than from the twelve on their own, and this is the only honest way to show how hard
+it was. Log the approaches that were ignored, which will be most of them.
+
+| Date sent | Channel, exactly | What was sent | Reply? | Outcome |
+|---|---|---|---|---|
+| | | | | |
+
+```
+Approaches sent:                     __
+Replies of any kind:                 __
+Agreed to talk:                      __
+Completed interviews:                __
+Cancelled, or agreed then vanished:  __
+Declined, and gave a reason:         __
+```
+
+### 19.2 Per interview, the evidence before the reading
+
+One block per completed interview, copied from the private note of section 9 with everything
+identifying stripped out. The quotes come first on purpose.
+
+```
+LABEL:
+GROUP:                          DATE:                 LANGUAGE:            MODE:
+RECRUITED VIA:                                        REACHED WALL:  Y / N
+CONSENT:   notes __    recording __    quotes confirmed on __
+
+WHAT THEY SAID, VERBATIM (their language, no cleanup; translation underneath, marked as a translation)
+  1. "                                                                              "
+     [translation:                                                                  ]
+  2. "                                                                              "
+     [translation:                                                                  ]
+  3. "                                                                              "
+     [translation:                                                                  ]
+
+NUMBERS AS GIVEN      (R = recalled, C = checked on their phone, E = estimated when pushed)
+  amount sent or received:      ______  [ R  C  E ]
+  fee paid:                     ______  [ R  C  E ]
+  exchange rate:                ______  [ R  C  E ]
+  time from send to in hand:    ______  [ R  C  E ]
+  transfers per month:          ______  [ R  C  E ]
+  door to door collection:      ______  [ R  C  E ]   (receivers)
+  manual hours per month:       ______  [ R  C  E ]   (compliance)
+
+WHAT THEY HAD ALREADY DONE ABOUT IT   (rule 3.4)
+  switched provider:      ______________________________
+  money already spent:    ______________________________
+  standing rule or workaround: _________________________
+  service abandoned:      ______________________________
+  corridor or deal refused: ____________________________   (compliance)
+
+RANKING, AS THEY GAVE IT   (rule 3.5)
+  position ___ of ___     what they placed above it: ____________________
+
+ONLY THEN, THE READING   (written after the call, never during it)
+  Claim 1   supports / contradicts / neutral    because: ______________________
+  Claim 2   supports / contradicts / neutral    because: ______________________
+  Claim 3   supports / contradicts / neutral    because: ______________________
+
+COMMITMENT MADE   (an introduction made in front of you, a date in a diary, a document sent, a test agreed)
+  ______________________________
+
+SURPRISE   (written before it gets rationalised away)
+  ______________________________
+
+INTERVIEWER ERRORS   (leading questions asked, product named early, silences filled)
+  ______________________________
+```
+
+### 19.3 The kill criteria scoreboard
+
+Updated after every interview and not at the end. Status is one of: not tested, fired, did not fire.
+
+| Rule | Fires when | Count so far | Status |
+|---|---|---|---|
+| K1 | 5 of 6 senders say it does not matter and none names an incident | __ of __ | not tested |
+| K2 | 3 of 4 receivers say visibility is normal and none names an incident | __ of __ | not tested |
+| K3 | 4 of 6 senders cannot recall the fee and never compared | __ of __ | not tested |
+| K4 | fewer than 2 of 6 senders ever switched provider | __ of __ | not tested |
+| K5 | every compliance respondent says nobody has raised it, n at least 2 | __ of __ | not tested |
+| K6 | every compliance respondent ranks transparency fifth or sixth, n at least 2 | __ of __ | not tested |
+| K7 | 5 of 6 senders rank the problem fourth or lower | __ of __ | not tested |
+| K8 | 0 senders past the wall agreed to a dated testnet session | __ of __ | not tested |
+| K9 | no compliance respondent names spend or a refused corridor, n at least 2 | __ of __ | not tested |
+| K10 | fewer than 4 completed interviews by Sunday 11 October 2026 | __ | not tested |
+
+### 19.4 The paragraph that goes into the submission
+
+Written last, from 19.1, 19.2 and 19.3, and from nothing else. It is left as blanks here on purpose,
+because there is nothing yet to write.
+
+```
+Between ____-__-__ and ____-__-__ the founder completed __ interviews: __ senders on the
+__________ corridor, __ receivers in __________, and __ compliance staff at __________.
+Approaches sent: __.  Replies: __.  Completed: __ of __.
+Recruited through: ______________________________________.
+Selection bias, stated before a reviewer finds it: ______________________________________.
+Claim 1:  __ of __ ____________________________________.
+Claim 2:  __ of __ ____________________________________.
+Claim 3:  __ of __ ____________________, or: not tested, because only __ compliance
+          interviews were completed.
+Rules that fired: ____________.   Rules not tested: ____________.
+What changed in the product or the plan as a result: ______________________________.
+What remains unevidenced: ______________________________.
+Method, thresholds and raw notes: docs/USER_INTERVIEWS.md, sections 18 and 19.
+```
+
+**This block stays empty until the interviews exist.** Filling any part of it in advance, even as a
+placeholder with plausible-looking numbers, would make it indistinguishable from a result, and
+somebody reading the file later, including the founder in week 7, would not be able to tell. The
+format example in section 13 is labelled as invented for exactly this reason, and must be deleted
+before anything is submitted anywhere.

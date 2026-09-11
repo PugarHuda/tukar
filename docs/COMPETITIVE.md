@@ -267,7 +267,11 @@ to a genuine deposit, which a plain shielded-transfer primitive has no mechanism
 The comparison is between mechanisms, so one caveat belongs with it: on the live testnet pool
 the auditor role is still the published demo key, which means the gate is open there today even
 though the contract logic is real and tested. Repointing the role is a single admin call and a
-mainnet precondition, covered in `THREAT_MODEL.md` 3.12.
+mainnet precondition, covered in `THREAT_MODEL.md` 3.12. And the binding pins the set, not the
+bound: `cap` is a free public input the holder picks, so the claim above is precisely "cannot
+cherry-pick which payments", not "cannot give a useless answer". Registering the cap with the
+request closes it, is implemented in the preview crate, and cannot reach the live pool without
+the Tranche 1 migration.
 
 **4. Oracle-gated settlement binds privacy to real-world FX.**
 None of the neighbours tie fund movement to an on-chain FX oracle. Tukar's off-ramp

@@ -2,8 +2,8 @@
 // Confirms: (1) valid inputs prove, (2) inputs that violate a core constraint
 // CANNOT produce a proof (witness generation fails).
 import * as snarkjs from "snarkjs";
-import { existsSync } from "node:fs";
 import { makePoseidon, buildTree } from "./merkle.mjs";
+import { pick, requireArtifacts, rejectedByCircuit } from "./_soundness.mjs";
 
 const { h1, h2, h3 } = await makePoseidon();
 const LEVELS = 10;
@@ -14,15 +14,19 @@ async function expectProve(name, wasm, zkey, input) {
     await snarkjs.groth16.fullProve(input, wasm, zkey);
     console.log(`  ✅ ${name}: proved (expected)`); pass++;
   } catch (e) {
-    console.log(`  ❌ ${name}: FAILED to prove but should have`); fail++;
+    console.log(`  ❌ ${name}: FAILED to prove but should have — ${String(e.message).split("\n")[0]}`); fail++;
   }
 }
+// A negative case passes ONLY when circom refused the witness. Any other throw — a missing
+// artifact, a typo'd path, a bad import, a wrong-arity input — is reported as a FAILURE,
+// because none of those exercise the property the case is named after.
 async function expectReject(name, wasm, zkey, input) {
   try {
     await snarkjs.groth16.fullProve(input, wasm, zkey);
     console.log(`  ❌ ${name}: proved but should have been REJECTED`); fail++;
   } catch (e) {
-    console.log(`  ✅ ${name}: rejected (expected)`); pass++;
+    if (rejectedByCircuit(e)) { console.log(`  ✅ ${name}: rejected by the circuit (expected)`); pass++; }
+    else { console.log(`  ❌ ${name}: threw, but NOT from a circuit constraint — ${String(e.message).split("\n")[0]}`); fail++; }
   }
 }
 
@@ -72,11 +76,11 @@ function complianceInput() {
 // Prefer freshly-built artifacts when present (local dev), else fall back to the
 // committed frontend/circuit/* — so this soundness suite also runs in CI, which only
 // has the committed artifacts (circuits/build/ is gitignored).
-const pick = (build, committed) => (existsSync(build) ? build : committed);
 const TW = pick("circuits/build/transfer_js/transfer.wasm", "frontend/circuit/transfer.wasm");
 const TZ = pick("circuits/build/transfer_final.zkey", "frontend/circuit/transfer_final.zkey");
 const CW = pick("circuits/build/compliance_js/compliance.wasm", "frontend/circuit/compliance.wasm");
 const CZ = pick("circuits/build/compliance_final.zkey", "frontend/circuit/compliance_final.zkey");
+requireArtifacts(TW, TZ, CW, CZ);
 
 console.log("transfer:");
 await expectProve("valid", TW, TZ, transferInput());

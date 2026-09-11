@@ -91,7 +91,7 @@ fn set_policy_bumps_instance_ttl() {
 
 // set_policy requires the admin signature; an unauthorized call fails.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_policy_requires_auth() {
     let env = Env::default();
     // No mock_all_auths -> admin.require_auth() has no matching authorization.

@@ -114,6 +114,9 @@ pub enum PoolError {
     Insolvent = 18,
     Overflow = 19,
     PolicyRequired = 22, // a policy registry is set but the withdraw named no corridor
+    // 23 is ExitComplianceRequired in pool-enforced. Error numbers mean the same thing across
+    // the pool family, so this takes the next free one rather than reusing 23 for a second meaning.
+    AuditCapMismatch = 24, // the proof's cap is not the cap the auditor registered
 }
 
 // The transfer/withdraw JoinSplit is fixed at 2 inputs and 2 outputs (Transfer(10,2,2)).
@@ -452,19 +455,41 @@ impl Pool {
     /// auditContextHash is registered here — so a holder can't mint their own hash for a
     /// cherry-picked subset: completeness is enforced ON-CHAIN (the auditor pins the set,
     /// the circuit binds the hash to it). TTL-extended so a request stays valid a while.
-    pub fn register_audit_request(env: Env, audit_context_hash: BytesN<32>) {
+    ///
+    /// `cap` IS PART OF THE REQUEST, and this is the fix for a real gap in the deployed pool.
+    /// The circuit binds auditContextHash to Poseidon(ctxNonce, commitments, active) and to
+    /// NOTHING ELSE, so the cap is a free public input the holder chooses when proving. On the
+    /// live pool that means a registered request for the right set of payments is answerable
+    /// with any cap at all: `2^72 - 1` proves and verifies against the same registered hash,
+    /// which I confirmed by generating the proof rather than by reading the circuit. The set
+    /// cannot be cherry-picked, but the ANSWER can be made vacuous by loosening the bound,
+    /// which is the same evasion through a different door. Pinning the cap here closes it
+    /// without a circuit change, a new ceremony or a new verifier: the registry entry already
+    /// existed and merely stored `()`.
+    pub fn register_audit_request(env: Env, audit_context_hash: BytesN<32>, cap: BytesN<32>) {
         let auditor: Address = env.storage().instance().get(&DataKey::Auditor).unwrap();
         auditor.require_auth();
         Self::bump_instance(&env);
         Self::require_canonical(&env, &audit_context_hash);
+        // The cap enters the verifier's public inputs, so it has to satisfy the same canonical
+        // encoding rule as every other field element: otherwise a request could be registered
+        // under `c` and answered with `c + r`, which reduces to the same field value the proof
+        // commits to while comparing unequal as bytes here.
+        Self::require_canonical(&env, &cap);
         let key = DataKey::AuditRequest(audit_context_hash);
-        env.storage().persistent().set(&key, &());
+        env.storage().persistent().set(&key, &cap);
         env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
     }
 
     /// Whether an aggregate audit-request hash has been registered by the auditor.
     pub fn is_audit_request(env: Env, audit_context_hash: BytesN<32>) -> bool {
         env.storage().persistent().has(&DataKey::AuditRequest(audit_context_hash))
+    }
+
+    /// The cap the auditor registered for an audit request, if the request exists. Readable so a
+    /// regulator can check off-chain that the bound they asked for is the bound on record.
+    pub fn audit_request_cap(env: Env, audit_context_hash: BytesN<32>) -> Option<BytesN<32>> {
+        env.storage().persistent().get(&DataKey::AuditRequest(audit_context_hash))
     }
 
     /// Admin-only: set (or replace) the two-sided range (band) disclosure verifier.
@@ -1045,9 +1070,14 @@ impl Pool {
         // COMPLETENESS (on-chain): the auditContextHash MUST be an audit request the auditor
         // registered (for the full required set). A holder can't mint their own hash for a
         // cherry-picked subset — it isn't registered, so the report is rejected here.
-        if !env.storage().persistent().has(&DataKey::AuditRequest(audit_context.clone())) {
-            soroban_sdk::panic_with_error!(&env, PoolError::UnknownAuditRequest);
-        }
+        let registered_cap: BytesN<32> = match env
+            .storage()
+            .persistent()
+            .get(&DataKey::AuditRequest(audit_context.clone()))
+        {
+            Some(c) => c,
+            None => soroban_sdk::panic_with_error!(&env, PoolError::UnknownAuditRequest),
+        };
         // Public-input order = [commitments(N), active(N), cap, auditContextHash, ctxNonce]. All commitments are
         // canonicalised; only ACTIVE slots must be known deposits (inactive slots are padding
         // the circuit ignores). At least one slot must be active — a zero-payment report is
@@ -1077,6 +1107,14 @@ impl Pool {
             soroban_sdk::panic_with_error!(&env, PoolError::BadIoCount);
         }
         Self::require_canonical(&env, &cap);
+        // The cap must be the one the AUDITOR registered, not one the holder picked. Without
+        // this the completeness property is only half of what it claims: the set is pinned by
+        // the circuit, but the bound the set is tested against is not pinned by anything, so a
+        // holder answers the right question with a uselessly generous limit. Checked before
+        // verification, because a mismatched cap should cost nothing to reject.
+        if cap != registered_cap {
+            soroban_sdk::panic_with_error!(&env, PoolError::AuditCapMismatch);
+        }
         pi.push_back(Self::fr(&env, &cap));
         // pi order = [commitments(5), active(5), cap, auditContextHash, ctxNonce] — the circuit
         // enforces auditContextHash == Poseidon(ctxNonce, commitments, active) (completeness).

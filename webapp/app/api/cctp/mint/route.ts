@@ -1,25 +1,28 @@
-// POST /api/cctp/mint — sign mint_and_forward(message, attestation) on the Stellar CctpForwarder,
-// minting native USDC on Stellar and forwarding it to the hookData recipient. Signed by a funded
-// testnet relayer (STELLAR_RELAYER_SECRET, else the public DEMO_SECRET) so it works with no env.
-// Body: { message, attestation } (0x hex, straight from /api/cctp/attest). Returns { txHash }.
+// POST /api/cctp/mint — finish an inbound CCTP V2 transfer (Base Sepolia -> Stellar) for one burn:
+// the server fetches THAT burn's message + attestation from Circle Iris itself and submits
+// mint_and_forward(message, attestation) on the Stellar CctpForwarder, minting native USDC and
+// forwarding it to the hookData recipient. Signed by a funded testnet relayer
+// (STELLAR_RELAYER_SECRET, else the public DEMO_SECRET) so it works with no env.
+// Body: { txHash } — the 0x Base Sepolia burn hash, same one /api/cctp/attest polls.
+// Returns { txHash } (the Stellar tx) or { status: "pending" } while Iris has no attestation yet.
+//
+// The route is unauthenticated by design (relaying a CCTP mint is permissionless, and the funds go
+// to the recipient fixed inside Circle's attested message, not anywhere the caller picks). What it
+// must not do is sign caller-supplied bytes with the relayer key: it used to take { message,
+// attestation } straight from the body, so any POSTer could spend relayer fees on arbitrary
+// payloads. Taking only a burn hash and reading the payload from Iris bounds the worst case to
+// relaying a real, already-paid-for burn — plus the rate limit below.
 import { NextResponse } from "next/server";
-import { mintAndForward } from "@/lib/cctp";
+import { mintAndForward, fetchAttestation, CCTP } from "@/lib/cctp";
 import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { log, requestId, errMsg } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Byte caps: a CCTP V2 message is a 148-byte header + BurnMessageV2 body + hookData (a strkey), well
-// under 4 KiB; an attestation is 65 bytes per attester signature. Anything larger is not a CCTP
-// payload and would only burn relayer fees on a doomed simulation.
-const HEX = /^0x[0-9a-f]+$/i;
-const MAX_MESSAGE_BYTES = 4096;
-const MAX_ATTESTATION_BYTES = 1024;
-const isHexBytes = (s: string, maxBytes: number) => HEX.test(s) && s.length % 2 === 0 && s.length <= 2 + maxBytes * 2;
-
 export async function POST(req: Request) {
-  // Every call signs and submits a real Soroban tx with the relayer key: the tightest limit here.
+  // Every call that gets past Iris signs and submits a real Soroban tx with the relayer key: the
+  // tightest limit here.
   const rl = await rateLimit(req, { key: "cctp-mint", limit: 10, windowMs: 60_000 });
   if (!rl.ok) return tooManyRequests(rl.retryAfter);
 
@@ -27,16 +30,25 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "expected a JSON body { message, attestation }" }, { status: 400 });
+    return NextResponse.json({ error: "expected a JSON body { txHash }" }, { status: 400 });
   }
-  const message = String(body?.message || "").trim();
-  const attestation = String(body?.attestation || "").trim();
-  if (!isHexBytes(message, MAX_MESSAGE_BYTES) || !isHexBytes(attestation, MAX_ATTESTATION_BYTES)) {
-    return NextResponse.json({ error: "message and attestation must be 0x hex byte strings (from /api/cctp/attest)" }, { status: 400 });
+  const txHash = String(body?.txHash || "").trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+    return NextResponse.json({ error: "txHash must be the 0x-prefixed 32-byte EVM hash of the burn" }, { status: 400 });
   }
+
+  let attest;
   try {
-    const txHash = await mintAndForward(message, attestation);
-    return NextResponse.json({ txHash });
+    attest = await fetchAttestation(CCTP.evmDomain, txHash);
+  } catch (e) {
+    log.error("iris attestation fetch failed", { route: "cctp/mint", reqId: requestId(req), err: errMsg(e) });
+    return NextResponse.json({ error: "Could not reach Circle's attestation service. Please retry." }, { status: 502 });
+  }
+  // No attestation yet (or an unknown hash): nothing to relay, and nothing signed.
+  if (attest.status !== "complete") return NextResponse.json({ status: "pending" }, { status: 202 });
+
+  try {
+    return NextResponse.json({ txHash: await mintAndForward(attest.message, attest.attestation) });
   } catch (e) {
     log.error("mint_and_forward failed", { route: "cctp/mint", reqId: requestId(req), err: errMsg(e) });
     return NextResponse.json({ error: "mint_and_forward failed." }, { status: 500 });

@@ -903,10 +903,11 @@ test.describe("wallet kit", () => {
     expect(provider).toMatch(/checkNetwork|assertNetwork/);
   });
 
-  test.skip("wrong-network wallet shows the alert and blocks signing", () => {
-    // Needs a real wallet extension (Freighter/xBull/Lobstr) set to a non-Testnet network; not
-    // reproducible in headless Chromium. Copy + guard call sites are asserted from source above.
-  });
+  // NOTE: driving the wrong-network alert for real needs a wallet extension (Freighter/xBull/
+  // Lobstr) set to a non-Testnet network, which headless Chromium cannot provide. The source
+  // check above is the honest substitute and it DOES run. A permanently-skipped placeholder
+  // named "wrong-network wallet shows the alert and blocks signing" used to sit here; it was
+  // removed because it asserted nothing and only ever reported a green skip.
 });
 
 // ================================================================ (k) reduced motion + keyboard-only sender

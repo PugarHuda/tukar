@@ -19,7 +19,7 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 | **Trusted setup** | zkey ⇐ Hermez ptau | `snarkjs zkey verify` ×7 | **7/7 ZKey Ok** |
 | **Integration** (routing) | every route returns 200 and renders its key content | `npx playwright test e2e/routes.spec.ts` | **9/9 per browser** |
 | **Integration** (receiver UI) | withdrawn-note auto-hide + off-ramp to another corridor | `npm run test:offramp` | **9/9** |
-| **Integration** (full flow) | deposit→reveal→withdraw→disclose→tamper | `npm run test:e2e` | **11/11** |
+| **Integration** (browser) | routes, a11y, edge inputs, failure, mobile, resilience | `npm run test:e2e` | **63 chromium in CI** |
 | **Integration** (bearer P2P) | export→wipe→import→withdraw | `npm run test:bearer` | **4/4** |
 | **Integration** (QR) | decode bearer + request QR | `npm run test:qr` | **2/2** |
 | **Integration** (landing) | links/CTA/no-errors | `npm run test:landing` | **5/5** |
@@ -211,35 +211,31 @@ contributions + a public beacon, transcripts in `ceremony/<circuit>/`); honest c
 the demo ran all rounds on one machine to prove the *process*, so the one-honest-party
 guarantee needs genuinely independent contributors.
 
-## 6. End-to-end UI (Playwright real-click) ✅ 11/11 live
+## 6. End-to-end UI (Playwright real-click)
 
-`npm run test:e2e` drives the site (`tukar-six.vercel.app/demo`, or a local
-`npm run serve`) with genuine clicks/typing/selects (not `evaluate`-injection) over
-system Chrome. Eleven cases: prover-load, Send-gating pre-connect, payment-request
-round-trip, connect, invalid-amount fuzzing (no crash), **junk typed into Load/Import
-handled gracefully** (no crash, which covers a real user mistyping into those boxes), all 10
-corridors (4 on-chain Reflector incl. Thailand / 6 FX-API), the full happy path (deposit → reveal →
-withdraw → disclose → tamper), on-chain ASP forge-rejection (and that the forge toggle
-**auto-clears** after the rejection, so a real send isn't trapped re-forging),
-bearer-note P2P + **cross-wallet double-spend**, and disconnect re-gating.
+`npm run test:e2e` runs the Playwright suite in `e2e/` against the current Next.js app.
+`playwright.config.ts` starts the server itself when the target is localhost, so the suite no
+longer depends on a separately launched process, which was the cause of a round of phantom
+404 failures.
 
-Verified 2026-07-03: **11/11**, zero uncaught page errors, including both heavy
-on-chain flows (happy path + ASP forge-rejection) and the double-spend case. Two
-fixes closed the last gap:
+**A correction that belongs here rather than in a changelog.** This section used to describe
+`scripts/e2e-playwright.mjs` and claim 11/11 verified on 2026-07-03. That script drove the old
+static `frontend/` console over a hardcoded Windows Chrome path, and it had been dead for some
+time without anyone noticing: `frontend/` was reduced to `circuit/` and `tree.js` in commit
+`1177e5e`, and `webapp/next.config.mjs` now redirects `/demo` and `/demo/*` to `/`, so every
+selector it used had ceased to exist. A green number in a document, for a script nobody could
+run, against a page that had been deleted, is worse than no number. The script is gone and
+`npm run test:e2e` is the real suite.
 
-- **Product:** the shared submit path (`stellar.js` `sendTx`) now rebuilds-and-retries
-  on *transient* testnet faults: sequence races on the shared demo key, plus the
-  load-shedding the public testnet throws (`TRY_AGAIN_LATER`, timeouts, 429/5xx). A
-  contract revert (`Error(Contract,#N)`) is deterministic and is **never** retried, so
-  a genuine double-spend `#2` or slippage block `#12` still surfaces at once. Real users
-  on a flaky testnet get the same benefit as the harness.
-- **Test:** the double-spend case now models the *real* threat, a **second holder** of
-  the same bearer string on a different device. Re-importing into the wallet that
-  already holds the note is (correctly) refused as a duplicate, so the case resets the
-  session first (simulating the other device), re-imports, and attempts the withdraw.
-  The on-chain `NullifierUsed` (`#2`) rejects it. This exercises the on-chain
-  double-spend protection through the UI, matching the unit test
-  `transfer_double_spend_rejected` and the on-chain result in §4.
+What runs where:
+
+- **In CI**, a `browser` job runs the chromium specs that need no testnet writes and no
+  secrets: `routes`, `a11y`, `edge-inputs`, `failure`, `mobile`, `resilience`. 63 tests,
+  about 35 seconds against a real `next start`.
+- **Not in CI, and the reason is stated rather than hidden**: `features`, `exhaustive` and
+  `p28-live` sign real deposits with the shared testnet key, so concurrent jobs would collide
+  on sequence numbers and spend its USDC; `push` needs a real Google Chrome binary and
+  `CRON_SECRET`. Run those locally.
 
 ## 7. QR codes actually scan ✅ 2/2 live
 

@@ -110,6 +110,15 @@ export async function issueToken(address: string, nonce: string, signatureB64: s
   return seal("token", { a: address, exp: Date.now() + TOKEN_TTL_MS });
 }
 
+/**
+ * Proof of control without a session: true iff `signatureB64` is `address`'s SEP-53 signature over
+ * a fresh, unspent nonce this server issued FOR that address. Exactly the check issueToken makes,
+ * for callers that need "this account asked for it" but have no use for a bearer token.
+ */
+export async function proveAddressControl(address: string, nonce: string, signatureB64: string): Promise<boolean> {
+  return (await issueToken(address, nonce, signatureB64)) !== null;
+}
+
 /** Verify a session token; returns the owner address or null. */
 export function verifyToken(token: string): string | null {
   const t = open("token", token);

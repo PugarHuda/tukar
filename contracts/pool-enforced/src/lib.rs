@@ -7,6 +7,16 @@
 //! `PolicyExceeded` error, and the cap check in `withdraw`. Deployed to its OWN address;
 //! the 8 live contracts and the live pool are untouched.
 //!
+//! It also carries the EXIT COMPLIANCE GATE: an admin-armed check that makes `withdraw`
+//! verify a compliance proof for the RECIPIENT against the live allow-list root and
+//! deny-list, reusing the already-deployed `ComplianceVerifier` (no new circuit, no new
+//! ceremony). The live pool proves compliance at DEPOSIT and nowhere else; this closes the
+//! exit side of that gap for the preview track. Read the limits honestly: it proves the
+//! PAYEE is allow-listed and unsanctioned at the moment value leaves, NOT that the note's
+//! provenance lies in an association set the withdrawer chooses. That second property is
+//! the Privacy Pools construction and it is not implemented here (see
+//! `set_exit_compliance` and docs/ARCHITECTURE.md).
+//!
 //! The stateful corridor contract that orchestrates the three ZK
 //! verifiers and custodies the corridor's tokens.
 //!
@@ -78,6 +88,7 @@ pub enum PoolError {
     PolicyExceeded = 16,
     AlreadyMigrated = 17,
     PolicyRequired = 22, // a policy registry is set but the withdraw named no corridor
+    ExitComplianceRequired = 23, // the exit gate is armed but the withdraw carried no compliance proof
 }
 
 // The transfer/withdraw JoinSplit is fixed at 2 inputs and 2 outputs (Transfer(10,2,2)).
@@ -134,6 +145,7 @@ enum DataKey {
     AuditRequest(BytesN<32>), // a registered aggregate audit-request hash (regulator-issued)
     PolicyRegistry,    // the per-corridor policy registry this pool enforces caps against
     Migrated,          // one-shot flag: set once import_state has run, so it can never run again
+    ExitCompliance,    // bool: when true, every withdraw must carry a recipient compliance proof
 }
 
 // ---- Reflector SEP-40 oracle interface (the subset the pool calls) ----
@@ -229,6 +241,52 @@ impl Pool {
     /// The per-corridor policy registry this pool enforces, if one has been set.
     pub fn policy_registry(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::PolicyRegistry)
+    }
+
+    /// Admin-only: arm (or disarm) the EXIT compliance gate. When armed, every `withdraw`
+    /// must carry a compliance proof for the RECIPIENT — see `withdraw` for exactly what
+    /// that proves and what it does not.
+    ///
+    /// WHY A POOL-LEVEL FLAG AND NOT A PER-CORRIDOR ONE. A pool is already the corridor:
+    /// one deployment = one operator = one token = one allow-list root. The per-corridor
+    /// `PolicyEntry` this pool reads carries `cap_usdc`/`disclosure` and nothing that could
+    /// express "recipients on this leg must prove allow-list membership", and that registry
+    /// is LIVE on testnet with a fixed struct — adding a field to it would break every
+    /// existing reader. So the corridor-level switch lives here, where the corridor's own
+    /// admin key already governs `asp_root` and the deny-list.
+    ///
+    /// WHY IT DEFAULTS TO OFF RATHER THAN BEING MANDATORY. Notes already inside the
+    /// shielded set were created under deposit-only rules, and `import_state` re-imports a
+    /// tree built under those rules. A hard-mandatory gate would strand every one of them
+    /// behind a witness their owners were never told to obtain. Arming is therefore an
+    /// explicit operator act, taken when the corridor has published allow-list witnesses
+    /// for its receiving side. Once armed there is no per-call opt-out: the flag is the
+    /// single source of truth, so a caller cannot skip the gate by omitting an argument
+    /// (the same fail-closed shape as `PolicyRequired` on the cap gate).
+    ///
+    /// WHAT HAPPENS TO FUNDS IN THE POOL WHEN THE ALLOW-LIST CHANGES. The gate is
+    /// evaluated against the LIVE `asp_root` at exit time, not the root that was current
+    /// when the note was deposited — that is the point of a revocable allow-list, and it
+    /// is also its sharp edge. Rotating the root invalidates in-flight witnesses (the
+    /// prover must re-fetch one against the new root), and removing a party from the list
+    /// stops them RECEIVING from the pool until they are re-listed or the sender withdraws
+    /// to a different allow-listed recipient. No note is destroyed and no note becomes
+    /// unspendable inside the shielded set: `transfer` is untouched, so value can always be
+    /// re-routed to a compliant recipient. Deposited value is never seized, only the exit
+    /// address is constrained. This is a censorship lever, held by the corridor admin, and
+    /// it is one on purpose: an anchor that cannot refuse to pay a sanctioned party is an
+    /// anchor that cannot be licensed.
+    pub fn set_exit_compliance(env: Env, enabled: bool) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        Self::bump_instance(&env);
+        env.storage().instance().set(&DataKey::ExitCompliance, &enabled);
+    }
+
+    /// Whether the exit compliance gate is armed. A client reads this to know whether it
+    /// must build a recipient compliance proof before calling `withdraw`.
+    pub fn exit_compliance(env: Env) -> bool {
+        env.storage().instance().get(&DataKey::ExitCompliance).unwrap_or(false)
     }
 
     /// Admin-only: hot-swap this contract's own WASM in place (same address, same state).
@@ -707,14 +765,7 @@ impl Pool {
         // compliance public input — so the proof shows *this* depositor is approved
         // (it can't be forged with someone else's public membership witness).
         // public inputs: [aspRoot, deny0..7, sourceKey=field(from), bindHash=commitment]
-        let asp_root: BytesN<32> = env.storage().instance().get(&DataKey::AspRoot).unwrap();
-        let deny: Vec<BytesN<32>> = env.storage().instance().get(&DataKey::DenyList).unwrap();
-        let mut pi = vec![&env, Self::fr(&env, &asp_root)];
-        for d in deny.iter() {
-            pi.push_back(Self::fr(&env, &d));
-        }
-        pi.push_back(Self::addr_field(&env, &from));
-        pi.push_back(Self::fr(&env, &commitment));
+        let pi = Self::compliance_inputs(&env, &from, &commitment);
         Self::verify(&env, DataKey::ComplianceVerifier, &proof, &pi);
 
         // 2. Amount binding: the commitment opens to exactly `amount` (disclosure
@@ -804,6 +855,7 @@ impl Pool {
         amount: i128,
         offramp_symbol: Option<Symbol>,
         min_local_out: Option<i128>,
+        compliance_proof: Option<Groth16Proof>,
     ) {
         if amount <= 0 {
             soroban_sdk::panic_with_error!(&env, PoolError::InvalidAmount);
@@ -824,6 +876,44 @@ impl Pool {
         let ext_data_hash = Self::ext_data_hash(&env, &recipient, &public_amount);
         let pi = Self::transfer_inputs(&env, &root, &public_amount, &ext_data_hash, &nullifiers, &out_commitments);
         Self::verify(&env, DataKey::TransferVerifier, &proof, &pi);
+        // ---- EXIT COMPLIANCE GATE (the withdraw-side ComplianceVerifier call) ----
+        // The live pool calls ComplianceVerifier from `deposit` and nowhere else, so an
+        // allow-listed party could deposit, let the note move through the shielded set, and
+        // whoever exits proved nothing. This gate closes the exit side of that: when armed,
+        // the RECIPIENT must present a compliance proof against the LIVE aspRoot and
+        // deny-list, with the same on-chain-derived sourceKey discipline `deposit` uses —
+        // the pool sets sourceKey = field(recipient) itself, so the proof attests that
+        // *this* payee is allow-listed and unsanctioned, not merely that some allow-listed
+        // party exists.
+        //
+        // bindHash is pinned to `ext_data_hash`, which the pool recomputed above from
+        // (recipient, public_amount). So the compliance proof is bound to the exact payee
+        // and the exact released amount: it cannot be lifted from one withdraw and replayed
+        // to a different recipient, because the bind value would change and the pairing
+        // check would fail. (It CAN be re-presented for a later withdraw of the same amount
+        // to the same recipient — which asserts exactly the same true statement, so there is
+        // nothing to gain from that.)
+        //
+        // WHAT THIS DOES NOT PROVE. It is recipient compliance, not fund provenance. It
+        // says nothing about where the note came from, and it is NOT the Privacy Pools
+        // association construction — see docs/ARCHITECTURE.md. Claiming otherwise would be
+        // a lie the circuit cannot back.
+        //
+        // Ordering: after the transfer proof, before the slippage and cap gates, and well
+        // before `spend_nullifiers` / the token transfer — so a withdraw rejected here
+        // burns no nullifier, moves no tokens, and can be retried once the recipient holds
+        // a valid witness.
+        if env.storage().instance().get::<_, bool>(&DataKey::ExitCompliance).unwrap_or(false) {
+            let cproof = match &compliance_proof {
+                Some(p) => p,
+                // Fail closed: armed means armed. A caller cannot silently skip the gate by
+                // omitting the argument, the same way `PolicyRequired` stops a caller
+                // skipping the cap gate by omitting the corridor.
+                None => soroban_sdk::panic_with_error!(&env, PoolError::ExitComplianceRequired),
+            };
+            let cpi = Self::compliance_inputs(&env, &recipient, &ext_data_hash);
+            Self::verify(&env, DataKey::ComplianceVerifier, cproof, &cpi);
+        }
         // Optional min-receive settlement gate. When the caller asks for off-ramp
         // slippage protection, the pool reads Reflector ON-CHAIN for the live local
         // rate and refuses to release if it would deliver less than `min_local_out`.
@@ -1165,6 +1255,29 @@ impl Pool {
         use soroban_sdk::xdr::ToXdr;
         let h = env.crypto().keccak256(&addr.clone().to_xdr(env));
         Bn254Fr::from_bytes(h.to_bytes())
+    }
+
+    /// Build the compliance circuit's public-input vector, in circuit order:
+    ///   [aspRoot, deny0..7, sourceKey = field(party), bindHash]
+    /// The pool never accepts a pre-built vector: `aspRoot` and the deny-list come from
+    /// instance storage (so the LIVE policy is what gets proved against, not a caller
+    /// hardcode), `sourceKey` is derived on-chain from the party's XDR (so a prover cannot
+    /// substitute someone else's public membership witness), and `bindHash` is a value the
+    /// caller could not choose freely either — a deposit commitment, or a withdraw's
+    /// on-chain-recomputed ext-data hash. Both compliance call sites route through here, so
+    /// the ordering and io-count are pinned in ONE place: `verify` hands the verifier
+    /// exactly 1 + DENY_LEN + 2 elements, and a caller who shifts what a slot means changes
+    /// the vector and the pairing check fails.
+    fn compliance_inputs(env: &Env, party: &Address, bind_hash: &BytesN<32>) -> Vec<Bn254Fr> {
+        let asp_root: BytesN<32> = env.storage().instance().get(&DataKey::AspRoot).unwrap();
+        let deny: Vec<BytesN<32>> = env.storage().instance().get(&DataKey::DenyList).unwrap();
+        let mut pi = vec![env, Self::fr(env, &asp_root)];
+        for d in deny.iter() {
+            pi.push_back(Self::fr(env, &d));
+        }
+        pi.push_back(Self::addr_field(env, party));
+        pi.push_back(Self::fr(env, bind_hash));
+        pi
     }
 
     fn transfer_inputs(

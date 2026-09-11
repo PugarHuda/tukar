@@ -11,14 +11,17 @@ import * as Sdk from "@stellar/stellar-sdk";
 import sha3 from "js-sha3";
 import * as snarkjs from "snarkjs";
 import { makePoseidon, buildTree } from "./merkle.mjs";
+import { pick, requireArtifacts, rejectedByCircuit } from "./_soundness.mjs";
 import { readFileSync } from "node:fs";
 
 const keccak256 = sha3.keccak256;
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const field = (addr) => BigInt("0x" + keccak256(Sdk.nativeToScVal(addr, { type: "address" }).toXDR())) % R;
 const pub = (b) => Sdk.Keypair.fromRawEd25519Seed(Buffer.alloc(32, b)).publicKey();
-const WASM = "circuits/build/compliance_js/compliance.wasm";
-const ZKEY = "circuits/build/compliance_final.zkey";
+// circuits/build/ is gitignored, so fall back to the committed artifacts (what CI has).
+const WASM = pick("circuits/build/compliance_js/compliance.wasm", "frontend/circuit/compliance.wasm");
+const ZKEY = pick("circuits/build/compliance_final.zkey", "frontend/circuit/compliance_final.zkey");
+requireArtifacts(WASM, ZKEY);
 const LEVELS = 10, N = 16, BIND = "987654321";
 
 let pass = 0, fail = 0;
@@ -64,7 +67,10 @@ await (async () => {
   try {
     await snarkjs.groth16.fullProve(inputFor(3, denyFields, outsider), WASM, ZKEY); // outsider key + member3 path
     bad("non-member rejected", "a proof was generated for a non-member");
-  } catch { ok("non-member rejected by the circuit (aspRoot mismatch — no valid witness)"); }
+  } catch (e) {
+    if (rejectedByCircuit(e)) ok("non-member rejected by the circuit (aspRoot mismatch — no valid witness)");
+    else bad("non-member rejected", `threw, but NOT from a circuit constraint — ${e.message.split("\n")[0]}`);
+  }
 })();
 
 // 3) a deny-listed approved account is rejected even though it's in the allow-list
@@ -73,7 +79,10 @@ await (async () => {
   try {
     await snarkjs.groth16.fullProve(inputFor(2, denyWithMember), WASM, ZKEY);
     bad("deny-listed member rejected", "a proof was generated for a deny-listed account");
-  } catch { ok("deny-listed approved account rejected by the circuit (non-membership check)"); }
+  } catch (e) {
+    if (rejectedByCircuit(e)) ok("deny-listed approved account rejected by the circuit (non-membership check)");
+    else bad("deny-listed member rejected", `threw, but NOT from a circuit constraint — ${e.message.split("\n")[0]}`);
+  }
 })();
 
 // 4) non-breaking: the demo-only allow-list still reproduces the DEPLOYED aspRoot

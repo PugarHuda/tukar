@@ -26,3 +26,16 @@ export async function scheduleSignIn(address: string, kind: string | null): Prom
   if (!tj?.token) throw new Error(tj?.error || "sign-in failed");
   return tj.token as string;
 }
+
+/**
+ * Prove to /api/sep7 that this wallet holds the account a payment request names as payee: fetch the
+ * server's challenge for `address` and sign it (SEP-53), so the server can vouch for the request
+ * with the domain key. Returns null when the server issues no challenge (no signing secret), and
+ * throws when the wallet refuses or cannot sign a message (passkey, Albedo, Rabet, Ledger) — either
+ * way the caller just posts the request without a proof and gets an honest unsigned URI back.
+ */
+export async function sep7PayeeProof(address: string, kind: string | null): Promise<{ nonce: string; signature: string } | null> {
+  const j = await (await fetch(`/api/sep7?address=${encodeURIComponent(address)}`)).json();
+  if (!j?.nonce) return null;
+  return { nonce: j.nonce as string, signature: await signMessageWithWallet(j.nonce, address, kind) };
+}

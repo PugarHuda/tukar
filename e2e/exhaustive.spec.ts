@@ -856,10 +856,12 @@ test.describe("sender", () => {
     expect(w.crashes()).toEqual([]);
   });
 
-  test.skip("Send $ with the demo key executes a real deposit", () => {
-    // Deliberately not part of the sweep: it spends the shared testnet key's USDC (proving + two
-    // signed txs). Run e2e/p28-live.spec.ts on demand for the real deposit + registration check.
-  });
+  // NOTE: the real deposit is deliberately NOT driven from this sweep — it spends the shared
+  // testnet key's USDC (proving + two signed txs). It is covered twice elsewhere and is a real,
+  // running test in both places: e2e/features.spec.ts "live deposit (one real send…)" runs it on
+  // chromium every sweep unless SKIP_DEPOSIT=1, and e2e/p28-live.spec.ts asserts the on-chain
+  // registration on demand with LIVE_DEPOSIT=1. A permanently-skipped placeholder used to sit
+  // here promising that coverage; it was removed because it only ever reported a green skip.
 
   test("offline mid-flow: Send degrades to an honest failure and returns to the confirm screen", async ({ page, context }) => {
     // The circuit assets are immutable-cached, so offline the prover still loads and the proofs run

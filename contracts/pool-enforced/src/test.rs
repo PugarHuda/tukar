@@ -353,7 +353,7 @@ fn set_deny_list_updates_view() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Contract, #4)")] // BadDenyList
 fn set_deny_list_rejects_wrong_len() {
     let env = Env::default();
     let c = setup(&env);
@@ -407,7 +407,7 @@ fn withdraw_releases_bound_amount() {
     // public_amount must equal the field-negative of the released amount (binding)
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
-        &nulls, &outs, &recipient, &120, &None, &None,
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
     );
     assert_eq!(c.token.balance(&recipient), 120);
     assert_eq!(c.pool.balance(), 180);
@@ -425,7 +425,7 @@ fn withdraw_amount_must_match_public_amount() {
     // public_amount binds to 50 but caller tries to release 120 -> rejected
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 50),
-        &nulls, &outs, &recipient, &120, &None, &None,
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
     );
 }
 
@@ -446,7 +446,7 @@ fn withdraw_rejects_noncanonical_nullifier() {
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
-        &nulls, &outs, &recipient, &120, &None, &None,
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
     );
 }
 
@@ -477,7 +477,7 @@ fn withdraw_oracle_gate_passes_when_rate_meets_floor() {
     let sym = soroban_sdk::Symbol::new(&env, "MXN");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
-        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40), &None,
     );
     assert_eq!(c.token.balance(&recipient), two_usdc); // released: live rate met the floor
 }
@@ -497,7 +497,7 @@ fn withdraw_oracle_gate_rejects_below_floor() {
     // quote is 40 local; demanding 41 must reject and release nothing.
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
-        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(41),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(41), &None,
     );
 }
 
@@ -521,7 +521,7 @@ fn withdraw_oracle_gate_rejects_stale_feed() {
     let sym = soroban_sdk::Symbol::new(&env, "MXN");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
-        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1), &None,
     );
 }
 
@@ -544,7 +544,7 @@ fn withdraw_oracle_gate_fails_closed_on_dead_feed() {
     let sym = soroban_sdk::Symbol::new(&env, "MXN");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
-        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1), &None,
     );
 }
 
@@ -568,7 +568,7 @@ fn withdraw_oracle_gate_median_ignores_spot_outlier() {
     let sym = soroban_sdk::Symbol::new(&env, "MXN");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
-        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(40), &None,
     );
     assert_eq!(c.token.balance(&recipient), two_usdc); // released: median (5e12) met the 40 floor
 }
@@ -591,7 +591,7 @@ fn withdraw_oracle_gate_rejects_thin_feed() {
     let sym = soroban_sdk::Symbol::new(&env, "MXN");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, two_usdc),
-        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1),
+        &nulls, &outs, &recipient, &two_usdc, &Some(sym), &Some(1), &None,
     );
 }
 
@@ -633,7 +633,7 @@ fn withdraw_rejects_shifted_io_split() {
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 11), b32(&env, 20), b32(&env, 21)];
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
-        &nulls, &outs, &recipient, &120, &None, &None,
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
     );
 }
 
@@ -863,7 +863,7 @@ fn compliance_public_inputs_are_bound_in_order() {
 
 // Admin-gated setters must actually require the admin's auth (not just be documented so).
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_asp_root_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -990,7 +990,7 @@ fn disclose_aggregate_rejects_unregistered_request() {
 
 // The auditor role is admin-gated.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_auditor_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1053,7 +1053,7 @@ fn withdraw_rejects_over_cap() {
     let sym = soroban_sdk::Symbol::new(&env, "MX");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, six_usdc),
-        &nulls, &outs, &recipient, &six_usdc, &Some(sym), &None,
+        &nulls, &outs, &recipient, &six_usdc, &Some(sym), &None, &None,
     );
 }
 
@@ -1074,7 +1074,7 @@ fn withdraw_allows_under_cap() {
     let sym = soroban_sdk::Symbol::new(&env, "MX");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, five_usdc),
-        &nulls, &outs, &recipient, &five_usdc, &Some(sym), &None,
+        &nulls, &outs, &recipient, &five_usdc, &Some(sym), &None, &None,
     );
     assert_eq!(c.token.balance(&recipient), five_usdc); // released: at/under the cap
 }
@@ -1096,7 +1096,7 @@ fn withdraw_allows_uncapped_corridor() {
     let sym = soroban_sdk::Symbol::new(&env, "ZZ");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, big),
-        &nulls, &outs, &recipient, &big, &Some(sym), &None,
+        &nulls, &outs, &recipient, &big, &Some(sym), &None, &None,
     );
     assert_eq!(c.token.balance(&recipient), big);
 }
@@ -1115,7 +1115,7 @@ fn withdraw_no_registry_is_unenforced() {
     let sym = soroban_sdk::Symbol::new(&env, "MX");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, six_usdc),
-        &nulls, &outs, &recipient, &six_usdc, &Some(sym), &None,
+        &nulls, &outs, &recipient, &six_usdc, &Some(sym), &None, &None,
     );
     assert_eq!(c.token.balance(&recipient), six_usdc); // no registry -> no cap
 }
@@ -1131,7 +1131,7 @@ fn set_policy_registry_updates_view() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_policy_registry_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1157,7 +1157,7 @@ fn withdraw_requires_corridor_when_registry_set() {
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, six_usdc),
-        &nulls, &outs, &recipient, &six_usdc, &None, &None,
+        &nulls, &outs, &recipient, &six_usdc, &None, &None, &None,
     );
 }
 
@@ -1179,7 +1179,7 @@ fn withdraw_rejects_fractional_over_cap() {
     let sym = soroban_sdk::Symbol::new(&env, "MX");
     c.pool.withdraw(
         &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, over),
-        &nulls, &outs, &recipient, &over, &Some(sym), &None,
+        &nulls, &outs, &recipient, &over, &Some(sym), &None, &None,
     );
 }
 
@@ -1199,7 +1199,7 @@ fn state_change_bumps_instance_ttl() {
 
 // The in-place upgrade entrypoint is admin-gated: a non-admin call fails auth.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn upgrade_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1326,7 +1326,7 @@ fn import_state_rejects_nonvirgin_pool() {
 
 // import_state is admin-gated: a non-admin call fails auth.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn import_state_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1353,7 +1353,7 @@ fn import_state_then_withdraw_unspent_note_succeeds() {
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
     c.pool.withdraw(
         &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
-        &nulls, &outs, &recipient, &120, &None, &None,
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
     );
     assert_eq!(c.token.balance(&recipient), 120);
 }
@@ -1377,6 +1377,291 @@ fn import_state_then_withdraw_reusing_spent_nullifier_rejected() {
     let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 90), b32(&env, 91)];
     c.pool.withdraw(
         &dummy_proof(&env), &root, &neg_amt_bytes(&env, 120),
-        &nulls, &outs, &recipient, &120, &None, &None,
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
     );
+}
+
+// ---- EXIT COMPLIANCE GATE ----------------------------------------------------------
+// The live pool verifies a compliance proof at DEPOSIT and nowhere else, so an
+// allow-listed party could deposit and an arbitrary party could exit. These tests cover
+// the withdraw-side gate that closes that on the preview track. Note what is being tested:
+// that the POOL builds the right public-input vector from LIVE policy state, pins
+// sourceKey to the recipient it actually pays, and fails closed — not that Groth16 works
+// (the real ComplianceVerifier WASM is exercised elsewhere; here the circuit semantics are
+// modelled by a stub so the contract's own logic is what is under test).
+
+// Stub that models what circuits/compliance.circom actually enforces, so the contract's
+// behaviour under a REJECTING compliance proof is testable: it accepts only when the
+// pool-supplied sourceKey (slot 9) is in a configured allow-set (standing in for a valid
+// Merkle-membership witness against aspRoot) and differs from every deny slot (1..=8), and
+// — when a bind is pinned — only when bindHash (slot 10) matches the value the "proof" was
+// generated for. That last part is what makes proof replay to a different recipient
+// observable at the contract boundary.
+#[contract]
+pub struct MockComplianceVerifier;
+
+#[contractimpl]
+impl MockComplianceVerifier {
+    /// Add a sourceKey the stub treats as holding a valid allow-list witness.
+    pub fn allow(e: Env, key: BytesN<32>) {
+        let mut keys: Vec<BytesN<32>> =
+            e.storage().instance().get(&symbol_short!("ALLOW")).unwrap_or(vec![&e]);
+        keys.push_back(key);
+        e.storage().instance().set(&symbol_short!("ALLOW"), &keys);
+    }
+    /// Pin the bindHash this "proof" was generated against (models a real proof, which is
+    /// only valid for the one bindHash its witness was built with).
+    pub fn pin_bind(e: Env, bind: BytesN<32>) {
+        e.storage().instance().set(&symbol_short!("BIND"), &bind);
+    }
+    pub fn verify(e: Env, _p: Groth16Proof, pi: Vec<Bn254Fr>) -> bool {
+        if pi.len() != 11 {
+            return false; // aspRoot + 8 deny + sourceKey + bindHash
+        }
+        let src = pi.get(9).unwrap().to_bytes();
+        // NON-MEMBERSHIP: sourceKey must differ from every deny-listed key.
+        for i in 1..9u32 {
+            if pi.get(i).unwrap().to_bytes() == src {
+                return false;
+            }
+        }
+        // MEMBERSHIP: sourceKey must be one the stub was told holds a witness.
+        let keys: Vec<BytesN<32>> =
+            e.storage().instance().get(&symbol_short!("ALLOW")).unwrap_or(vec![&e]);
+        let mut found = false;
+        for k in keys.iter() {
+            if k == src {
+                found = true;
+            }
+        }
+        if !found {
+            return false;
+        }
+        // BINDING: if a bind was pinned, the proof is only valid for that bindHash.
+        if let Some(b) = e.storage().instance().get::<_, BytesN<32>>(&symbol_short!("BIND")) {
+            if pi.get(10).unwrap().to_bytes() != b {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+// A pool wired to a caller-chosen COMPLIANCE verifier (everything else stubbed), funded by
+// minting straight to the pool address rather than via `deposit` — deposit would itself
+// have to satisfy the compliance stub, which would confound what these tests assert.
+fn exit_setup(env: &Env, compliance: &Address) -> Ctx {
+    env.mock_all_auths();
+    let admin = Address::generate(env);
+    let user = Address::generate(env);
+    let v = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
+    let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_addr = sac.address();
+    let deny: Vec<BytesN<32>> = vec![env, b32(env, 91), b32(env, 92), b32(env, 93), b32(env, 94), b32(env, 95), b32(env, 96), b32(env, 97), b32(env, 98)];
+    let id = env.register(
+        Pool,
+        (
+            admin,
+            token_addr.clone(),
+            v.clone(),          // transfer
+            compliance.clone(), // compliance
+            v.clone(),          // disclosure
+            v.clone(),          // update
+            b32(env, 0),        // initial_root
+            b32(env, 100),      // asp_root
+            deny,
+            oracle,
+        ),
+    );
+    let pool = PoolClient::new(env, &id);
+    StellarAssetClient::new(env, &token_addr).mint(&pool.address, &1_000);
+    Ctx { pool, token: TokenClient::new(env, &token_addr), user }
+}
+
+// Happy path: gate armed, recipient holds an allow-list witness and is not deny-listed ->
+// the withdraw verifies the compliance proof and releases the tokens.
+#[test]
+fn withdraw_exit_gate_allows_compliant_recipient() {
+    let env = Env::default();
+    let cv = env.register(MockComplianceVerifier, ());
+    let c = exit_setup(&env, &cv);
+    c.pool.set_exit_compliance(&true);
+    assert!(c.pool.exit_compliance());
+    let recipient = Address::generate(&env);
+    MockComplianceVerifierClient::new(&env, &cv).allow(&c.pool.source_key_of(&recipient));
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None, &Some(dummy_proof(&env)),
+    );
+    assert_eq!(c.token.balance(&recipient), 120);
+}
+
+// A recipient with NO allow-list witness is refused (the verifier returns false ->
+// ProofRejected), and nothing moves: no tokens released, no nullifier burned.
+#[test]
+fn withdraw_exit_gate_rejects_unlisted_recipient() {
+    let env = Env::default();
+    let cv = env.register(MockComplianceVerifier, ());
+    let c = exit_setup(&env, &cv);
+    c.pool.set_exit_compliance(&true);
+    let recipient = Address::generate(&env); // never allowed
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let r = c.pool.try_withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None, &Some(dummy_proof(&env)),
+    );
+    assert_eq!(r, Err(Ok(PoolError::ProofRejected.into())));
+    assert_eq!(c.token.balance(&recipient), 0);
+    assert_eq!(c.pool.balance(), 1_000); // custody untouched
+    assert!(!c.pool.is_nullifier_used(&b32(&env, 10))); // rejected BEFORE any state change
+}
+
+// A deny-listed recipient is refused even though they hold an allow-list witness. This
+// also proves the pool feeds the LIVE deny-list into the vector: the deny entry is set
+// after construction via set_deny_list, and the stub only sees it because the pool re-read
+// it from storage at withdraw time.
+#[test]
+fn withdraw_exit_gate_rejects_denylisted_recipient() {
+    let env = Env::default();
+    let cv = env.register(MockComplianceVerifier, ());
+    let c = exit_setup(&env, &cv);
+    c.pool.set_exit_compliance(&true);
+    let recipient = Address::generate(&env);
+    let key = c.pool.source_key_of(&recipient);
+    MockComplianceVerifierClient::new(&env, &cv).allow(&key); // allow-listed...
+    let deny: Vec<BytesN<32>> = vec![
+        &env, key, b32(&env, 92), b32(&env, 93), b32(&env, 94),
+        b32(&env, 95), b32(&env, 96), b32(&env, 97), b32(&env, 98),
+    ];
+    c.pool.set_deny_list(&deny); // ...but sanctioned after the fact
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    let r = c.pool.try_withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None, &Some(dummy_proof(&env)),
+    );
+    assert_eq!(r, Err(Ok(PoolError::ProofRejected.into())));
+    assert_eq!(c.token.balance(&recipient), 0);
+}
+
+// Armed means armed: omitting the proof cannot skip the gate (fail closed, #23).
+#[test]
+#[should_panic(expected = "Error(Contract, #23)")] // ExitComplianceRequired
+fn withdraw_exit_gate_requires_proof_when_armed() {
+    let env = Env::default();
+    let cv = env.register(MockComplianceVerifier, ());
+    let c = exit_setup(&env, &cv);
+    c.pool.set_exit_compliance(&true);
+    let recipient = Address::generate(&env);
+    MockComplianceVerifierClient::new(&env, &cv).allow(&c.pool.source_key_of(&recipient));
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
+    );
+}
+
+// Default OFF: an unarmed pool behaves exactly like the live pool — no compliance proof is
+// asked for and none is verified (notes deposited under deposit-only rules stay spendable).
+#[test]
+fn withdraw_exit_gate_off_by_default() {
+    let env = Env::default();
+    let cv = env.register(MockComplianceVerifier, ());
+    let c = exit_setup(&env, &cv);
+    assert!(!c.pool.exit_compliance());
+    let recipient = Address::generate(&env); // NOT allow-listed anywhere
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg_amt_bytes(&env, 120),
+        &nulls, &outs, &recipient, &120, &None, &None, &None,
+    );
+    assert_eq!(c.token.balance(&recipient), 120);
+}
+
+// The compliance proof is bound to the recipient the tokens actually go to: a proof built
+// for recipient A cannot be replayed to pay recipient B, even when B is also allow-listed.
+// The stub pins the bindHash A's proof was generated for; the pool recomputes bindHash from
+// (recipient, public_amount) on-chain, so paying B changes it and the check fails.
+#[test]
+fn withdraw_exit_gate_proof_cannot_be_replayed_to_another_recipient() {
+    let env = Env::default();
+    let cv = env.register(MockComplianceVerifier, ());
+    let c = exit_setup(&env, &cv);
+    c.pool.set_exit_compliance(&true);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let stub = MockComplianceVerifierClient::new(&env, &cv);
+    stub.allow(&c.pool.source_key_of(&alice));
+    stub.allow(&c.pool.source_key_of(&bob)); // Bob is allow-listed too — binding is the only difference
+    let neg = neg_amt_bytes(&env, 120);
+    // Alice's proof is valid for exactly this bindHash (reduced mod r, as the pool feeds it).
+    stub.pin_bind(&Pool::fr(&env, &Pool::ext_data_hash(&env, &alice, &neg)).to_bytes());
+
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg,
+        &vec![&env, b32(&env, 10), b32(&env, 11)], &outs, &alice, &120, &None, &None,
+        &Some(dummy_proof(&env)),
+    );
+    assert_eq!(c.token.balance(&alice), 120);
+
+    // Same proof, same amount, different payee -> rejected.
+    let r = c.pool.try_withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg,
+        &vec![&env, b32(&env, 12), b32(&env, 13)], &outs, &bob, &120, &None, &None,
+        &Some(dummy_proof(&env)),
+    );
+    assert_eq!(r, Err(Ok(PoolError::ProofRejected.into())));
+    assert_eq!(c.token.balance(&bob), 0);
+}
+
+// The exact public-input vector the pool hands the compliance verifier at EXIT, asserted
+// slot by slot with CapturingVerifier (the deposit-side twin of this is
+// compliance_public_inputs_are_bound_in_order). sourceKey is derived on-chain from the
+// recipient — the caller never supplies it — and bindHash is the withdraw's
+// on-chain-recomputed ext-data hash, reduced mod r like every other signal.
+#[test]
+fn exit_compliance_public_inputs_are_bound_in_order() {
+    let env = Env::default();
+    let cap = env.register(CapturingVerifier, ());
+    let c = exit_setup(&env, &cap);
+    c.pool.set_exit_compliance(&true);
+    let recipient = Address::generate(&env);
+    let neg = neg_amt_bytes(&env, 120);
+    let nulls: Vec<BytesN<32>> = vec![&env, b32(&env, 10), b32(&env, 11)];
+    let outs: Vec<BytesN<32>> = vec![&env, b32(&env, 20), b32(&env, 21)];
+    c.pool.withdraw(
+        &dummy_proof(&env), &b32(&env, 0), &neg,
+        &nulls, &outs, &recipient, &120, &None, &None, &Some(dummy_proof(&env)),
+    );
+
+    let pi = CapturingVerifierClient::new(&env, &cap).captured();
+    assert_eq!(pi.len(), 11); // aspRoot + 8 deny + sourceKey + bindHash
+    assert_eq!(pi.get(0).unwrap(), b32(&env, 100)); // aspRoot, from live storage
+    for i in 0..8u32 {
+        assert_eq!(pi.get(1 + i).unwrap(), b32(&env, 91 + i as u8)); // deny0..7, from live storage
+    }
+    assert_eq!(pi.get(9).unwrap(), c.pool.source_key_of(&recipient)); // sourceKey == field(recipient)
+    let bind = |to: &Address| Pool::fr(&env, &Pool::ext_data_hash(&env, to, &neg)).to_bytes();
+    // bindHash == the SAME ext-data hash the transfer proof was bound to, so one withdraw
+    // cannot pair a transfer proof for one payee with a compliance proof for another.
+    assert_eq!(pi.get(10).unwrap(), bind(&recipient));
+    // A different payee yields a different binding — this is the anti-replay property.
+    assert_ne!(pi.get(10).unwrap(), bind(&Address::generate(&env)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
+fn set_exit_compliance_requires_admin() {
+    let env = Env::default();
+    let cv = env.register(MockComplianceVerifier, ());
+    let c = exit_setup(&env, &cv);
+    env.mock_auths(&[]); // nothing authorized
+    c.pool.set_exit_compliance(&true);
 }

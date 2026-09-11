@@ -148,12 +148,15 @@ export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRec
       // Step 3: mint_and_forward on Stellar.
       setPhase("minting");
       setStatus("Minting native USDC on Stellar…");
+      // The server re-reads the attestation from Circle for this burn hash rather than trusting
+      // bytes from the browser, so it only ever signs a payload Circle itself issued.
       const mintRes = await fetch("/api/cctp/mint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: attest.message, attestation: attest.attestation }),
+        body: JSON.stringify({ txHash: p.burnTx }),
       }).then((x) => x.json());
       if (!alive.current) return;
+      if (mintRes.status === "pending") throw new Error("Circle's attestation is not ready yet. The burn is safe; use Resume pending transfer to finish the mint.");
       if (mintRes.error || !mintRes.txHash) throw new Error(mintRes.error || "Mint failed on Stellar.");
       writePending(null);
       setPending(null);

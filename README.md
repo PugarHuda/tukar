@@ -443,7 +443,8 @@ live on-chain with each proof **bound through the pool to a real deposit**:
    bound to an `auditContextHash` an **auditor registers on-chain** for the full
    required set (`register_audit_request`), and `disclose_aggregate` rejects any
    unregistered hash, so a holder can't report a cherry-picked subset.
-   `npm run test:aggregate` → **6/6**.
+   `npm run test:aggregate` → **10/10** (including a substituted note, a wrong
+   `ctxNonce` and a flipped `active` flag, each UNPROVABLE).
 4. **Two-sided range** ([`rangeDisclosure.circom`](circuits/rangeDisclosure.circom)).
    The amount is in a reportable band `lower ≤ amount ≤ upper`, amount hidden.
    `npm run test:range` → **5/5** (in-band proves, boundaries inclusive, below/above and
@@ -540,20 +541,27 @@ professionally audited, see the caveats below). What that means concretely:
   demo itself isn't access-controlled, though the design is correct for real wallets.
 
 **55/55 pool unit tests** + **6/6 circuit-soundness** (plus disclosure-variant
-soundness suites: threshold **4/4**, two-sided range **5/5**, aggregate **6/6**) + a
+soundness suites: threshold **4/4**, two-sided range **5/5**, aggregate **10/10**) + a
 19-point [threat model](docs/SECURITY.md). CI runs the pool tests, the in-browser
 proving flow, and the circuit-soundness suite on every push (`.github/workflows/ci.yml`).
 
-**Live real-click e2e (`npm run test:e2e`): 11/11** against the deployed site (or a
-local `webapp` dev server). Playwright drives genuine clicks through the full on-chain
-flow (deposit → reveal → withdraw → disclose → tamper-rejected), on-chain ASP
-forge-rejection, corridor switching, graceful junk-input handling, UI gating, and a
-**cross-wallet double-spend**: export a bearer note, reset to a second holder, import,
-and the on-chain `NullifierUsed` (`#2`) rejects the second spend, all with zero
-uncaught page errors. Back-to-back txns on the shared demo key ride a
-rebuild-and-retry that self-heals transient testnet faults (sequence races,
+**Real-click browser e2e (`npm run test:e2e`, = `playwright test`)** across
+chromium/firefox/webkit plus a 390px mobile project, against the deployed site by
+default or a local build with `QA_BASE=http://127.0.0.1:3100`. Playwright drives genuine
+clicks through the full on-chain flow (deposit → reveal → withdraw → disclose →
+tamper-rejected), on-chain ASP forge-rejection, corridor switching, graceful junk-input
+handling, UI gating, and a **cross-wallet double-spend**: export a bearer note, reset to
+a second holder, import, and the on-chain `NullifierUsed` (`#2`) rejects the second
+spend, all with zero uncaught page errors. Back-to-back txns on the shared demo key ride
+a rebuild-and-retry that self-heals transient testnet faults (sequence races,
 `TRY_AGAIN_LATER`, RPC 5xx); a contract revert like that double-spend `#2` is
-deterministic and is never retried, so it surfaces immediately. See
+deterministic and is never retried, so it surfaces immediately.
+
+CI runs the chain-free half of that suite on every push, **63 chromium tests**
+(`routes` / `a11y` / `edge-inputs` / `failure` / `mobile` / `resilience`) against a real
+`next start` build. The specs that spend the shared testnet key's USDC (`features`,
+`exhaustive`, `p28-live`) and the push specs (need a real Chrome + `CRON_SECRET`) stay a
+local/manual sweep; the CI job says so in a comment rather than pretending otherwise. See
 [docs/TESTING.md](docs/TESTING.md) §6.
 
 **Trusted setup is independently verifiable:** all seven deployed proving keys

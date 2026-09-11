@@ -48,6 +48,24 @@ Behaviour change to know: with the registry set, every `withdraw` MUST pass
 `--offramp_symbol <CORRIDOR>` (else `PolicyRequired` #22), and the cap is now compared in
 stroops (`amount > cap_usdc * 10^7` -> `PolicyExceeded` #16).
 
+Second behaviour change: `withdraw` takes one more argument, `--compliance_proof` (an
+`Option<Groth16Proof>`), and the pool gained the EXIT COMPLIANCE GATE. It stays dormant
+until armed, so the upgrade alone changes nothing for existing callers beyond the extra
+(optional) argument. To arm it:
+
+```bash
+tools/bin/stellar.exe contract invoke --id CBIGD4YL... --source corredor --network testnet \
+  -- set_exit_compliance --enabled true
+tools/bin/stellar.exe contract invoke --id CBIGD4YL... --network testnet -- exit_compliance
+```
+
+Once armed, EVERY withdraw must carry a compliance proof whose `sourceKey` is
+`field(recipient)` (read it back with `source_key_of`) and whose `bindHash` is the
+withdraw's `ext_data_hash` reduced mod r, otherwise `ExitComplianceRequired` (#23) for a
+missing proof, or `ProofRejected` (#7) for a recipient who is not on the live allow-list or
+is deny-listed. Publish allow-list witnesses for the corridor's receiving side BEFORE
+arming, or withdrawals will start failing. It is reversible: `set_exit_compliance false`.
+
 ## 2. pool-accumulator: upload + in-place upgrade
 
 ```bash

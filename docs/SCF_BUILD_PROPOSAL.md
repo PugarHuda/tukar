@@ -35,7 +35,14 @@ the request and the answer are both on-chain and bound to each other. One bound 
 further: the gate rests entirely on the auditor role, and on the live testnet pool that role is
 still the demo key whose secret ships in the client bundle, so anyone can register a hash there
 today. The contract mechanism is real and tested, the live role assignment is open, and
-repointing it is a single admin call listed as a mainnet precondition. A holder cannot answer "sum
+repointing it is a single admin call listed as a mainnet precondition. A second bound matters
+more, and we found it ourselves on 2026-09-12 by generating the proof rather than reading the
+circuit: the binding pins the SET, not the BOUND. `cap` is a free public input, and the deployed
+verifier returns true for the same registered request with a cap of `2^72 - 1`, so a holder
+cannot omit a payment but can answer with a limit that says nothing. Closing it needs no circuit
+change and no ceremony, only that the auditor registers the cap with the request, and that is
+built and tested in `contracts/pool-enforced`'s sibling crate today. The live pool cannot take
+it, which is one more concrete thing Tranche 1 buys. A holder cannot answer "sum
 of everything" with a subset they picked. That is a completeness guarantee, not a disclosure
 feature, and no other project named in Section 4 has one. Counting contracts and tests is not
 traction and a panel that has opened the Nethermind repository will not be moved by fifteen

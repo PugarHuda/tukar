@@ -891,7 +891,7 @@ fn compliance_public_inputs_are_bound_in_order() {
 
 // The timelocked setters must actually require the admin's auth to PROPOSE.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_asp_root_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1018,7 +1018,7 @@ fn disclose_aggregate_rejects_unregistered_request() {
 
 // The auditor role change is admin-gated at propose time.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_auditor_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1159,7 +1159,7 @@ fn set_policy_registry_updates_view() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn set_policy_registry_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1241,7 +1241,7 @@ fn upgrade_instant_path_removed() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn propose_upgrade_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1306,7 +1306,7 @@ fn set_admin_is_timelocked() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn propose_set_admin_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1433,7 +1433,7 @@ fn import_state_rejects_nonvirgin_pool() {
 
 // import_state is admin-gated: a non-admin call fails auth.
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn import_state_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1601,7 +1601,7 @@ fn cancel_nothing_pending_rejected() {
 
 // Non-admin cannot propose / execute / cancel (auth-gated end to end).
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn propose_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1610,7 +1610,7 @@ fn propose_requires_admin() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn execute_requires_admin() {
     let env = Env::default();
     let c = setup(&env);
@@ -1621,7 +1621,7 @@ fn execute_requires_admin() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn cancel_requires_admin() {
     let env = Env::default();
     let c = setup(&env);

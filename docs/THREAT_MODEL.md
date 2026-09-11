@@ -460,6 +460,24 @@ a key that is not published is a single admin call and is a precondition for mai
 feature. It is listed with the key rotation in 3.5 because the same compromised admin key
 can set it back.
 
+Second bound, found on 2026-09-12 by generating the proof rather than by reading the circuit.
+The completeness property covers the SET and not the BOUND. `aggregateDisclosure.circom` binds
+`auditContextHash` to `Poseidon(ctxNonce, commitments, active)` and to nothing else, so `cap` is
+a free public input the prover chooses, and the pool passes it straight through after a
+canonical-encoding check. Against the deployed aggregate verifier
+`CCTN437J4BX6S4JDMGUZFS2IEHV4ECHHK4ZLMM3N6VU5IIX2777AZJYA`, the same registered audit request
+accepts a cap of `2^72 - 1` and returns `true`. So a holder cannot omit a payment, but can
+answer the auditor's exact question with a bound so loose that the answer carries nothing. That
+is the same evasion through a different door, and this document previously described it as
+closed.
+
+The fix needs no circuit change, no ceremony and no new verifier, because the registry entry
+already existed and merely stored `()`: the auditor registers the cap alongside the hash, and
+`disclose_aggregate` refuses any other cap (`AuditCapMismatch`). It is implemented and tested in
+`contracts/pool-accumulator`, whose `register_audit_request` now takes the cap. It is NOT on the
+live pool, which has no `upgrade` hook, so on the live deployment the bound remains holder-chosen
+and this is Tranche 1 migration work.
+
 Residual risk, and this one is a real gap. The live pool emits events for only four
 actions: `(deposit, index)`, `(withdraw, recipient)`, `(transfer,)`, and `(root, new_leaf)`
 (`env.events().publish` at four sites in `lib.rs`). `set_asp_root`, `set_deny_list`,

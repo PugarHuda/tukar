@@ -23,6 +23,7 @@ import { qrSvgString } from "@/components/sender/qr";
 import { PaymentCard } from "@/components/receiver/PaymentCard";
 import { CORRIDORS, corridorByCode, type ClaimedNote, type FxRate } from "@/components/receiver/corridors";
 import { claimPayloadFromHash, isPinWrapped, openClaimPayload, isValidPin, normalizePin } from "@/lib/claim-link";
+import { sep7PayeeProof } from "@/lib/auth-client";
 
 type Prover = { poseidon: any; F: any; tree: { root: (l: bigint[]) => bigint; pathElements: (l: bigint[], i: number) => bigint[] } };
 
@@ -40,7 +41,7 @@ const FIELD =
   "mt-1.5 w-full rounded-tile border border-ink/45 bg-input px-3.5 py-3 font-mono text-[12.5px] text-ink shadow-inset transition-[border-color,box-shadow] duration-clock ease-clock placeholder:text-ink-4 hover:border-ink focus:border-stamp focus:outline-none focus:shadow-[inset_0_1px_2px_rgba(22,19,17,0.14),0_0_0_3px_rgba(42,79,168,0.18)]";
 
 export default function ReceiverPage() {
-  const { connected } = useWallet();
+  const { connected, kind } = useWallet();
   const { toast } = useToast();
 
   const [notes, setNotes] = useState<ClaimedNote[]>([]);
@@ -309,18 +310,24 @@ export default function ReceiverPage() {
     if (navigator.clipboard) navigator.clipboard.writeText(str).then(() => { setCopied(true); toast("Request copied", "success"); }).catch(() => {});
     setStatus(`Requested ${amt} USDC. Share the string with the sender.`);
     // Standard SEP-7 twin of the same request: signed by the server (domain key), QR for wallets.
+    // The server only vouches for a request its payee signed, so prove this wallet holds the payee
+    // account first; a wallet that cannot sign messages just gets the unsigned URI back.
     setSep7(null);
     setSep7Copied(false);
     const { amount, addr, memo } = decodePaymentRequest(str);
-    fetch("/api/sep7", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destination: addr, amount, msg: memo }) })
-      .then((r) => r.json())
-      .then(async (j) => {
-        if (!j.ok || !j.uri) throw new Error(j.error || "SEP-7 request failed");
-        const qr = await qrSvgString(j.uri, "#0a0705", "#f3ad79", "SEP-7 payment request QR code").catch(() => null);
-        setSep7({ uri: j.uri, signed: Boolean(j.signed), qr, note: j.note });
-      })
-      .catch((e) => setStatus("SEP-7 request not built: " + ((e && e.message) || e)));
-  }, [reqAmount, connected, setStatus, toast]);
+    (async () => {
+      const proof = await sep7PayeeProof(addr, kind).catch(() => null);
+      const r = await fetch("/api/sep7", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination: addr, amount, msg: memo, ...proof }),
+      });
+      const j = await r.json();
+      if (!j.ok || !j.uri) throw new Error(j.error || "SEP-7 request failed");
+      const qr = await qrSvgString(j.uri, "#0a0705", "#f3ad79", "SEP-7 payment request QR code").catch(() => null);
+      setSep7({ uri: j.uri, signed: Boolean(j.signed), qr, note: j.note });
+    })().catch((e) => setStatus("SEP-7 request not built: " + ((e && e.message) || e)));
+  }, [reqAmount, connected, kind, setStatus, toast]);
 
   // ---- QR scan (native BarcodeDetector, degrades to paste) ----
   const stopScan = useCallback(() => {

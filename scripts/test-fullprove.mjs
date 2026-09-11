@@ -3,9 +3,11 @@
 import * as snarkjs from "snarkjs";
 import { buildPoseidon } from "circomlibjs";
 import { readFileSync } from "node:fs";
+import { requireArtifacts, rejectedByCircuit } from "./_soundness.mjs";
 
 const WASM = "frontend/circuit/disclosure.wasm";
 const ZKEY = "frontend/circuit/disclosure_final.zkey";
+requireArtifacts(WASM, ZKEY, "frontend/circuit/verification_key.json");
 const vkey = JSON.parse(readFileSync("frontend/circuit/verification_key.json", "utf8"));
 
 const poseidon = await buildPoseidon();
@@ -41,7 +43,12 @@ console.log("2. tampered claim verifies      :", okTampered, "(expect false)");
 let threw = false;
 try {
   await snarkjs.groth16.fullProve({ ...base, disclosedAmount: "9999" }, WASM, ZKEY);
-} catch { threw = true; }
+} catch (e) {
+  // Only a circuit constraint counts. An ENOENT or a bad import must NOT score as
+  // "false witness rejected" — that would make this check green while proving nothing.
+  threw = rejectedByCircuit(e);
+  if (!threw) console.log("   (threw, but NOT from a circuit constraint:", String(e.message).split("\n")[0], ")");
+}
 console.log("3. false witness proof rejected :", threw, "(expect true)");
 
 const allGood = okValid && !okTampered && threw;
