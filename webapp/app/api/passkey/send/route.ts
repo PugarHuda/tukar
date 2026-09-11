@@ -21,15 +21,20 @@ function allowed(built: ReturnType<typeof TransactionBuilder.fromXDR>): string |
   if (!("operations" in built) || built.operations.length !== 1) return "expected one operation";
   const op: any = built.operations[0];
   if (op.type !== "invokeHostFunction") return "expected an invokeHostFunction operation";
+  // SDK 17 (@stellar/js-xdr v5): unions are discriminated classes. The arm is `.type` (the same
+  // string the old `.switch().name` gave) and the payload is the `.value` property, so the
+  // per-arm accessors (createContractV2(), wasmHash(), ...) are gone. A named byte alias such as
+  // Hash wraps its bytes, so unwrap with .toBytes() and encode explicitly: a raw Uint8Array's
+  // toString("hex") would silently return comma-joined decimals and match nothing.
   const func: xdr.HostFunction = op.func;
-  switch (func.switch().name) {
+  switch (func.type) {
     case "hostFunctionTypeCreateContractV2": {
-      const exec = func.createContractV2().executable();
-      const ok = exec.switch().name === "contractExecutableWasm" && exec.wasmHash().toString("hex") === WALLET_WASM_HASH;
+      const exec = func.value.executable;
+      const ok = exec.type === "contractExecutableWasm" && xdr.encodeBytes(exec.value.toBytes(), "hex") === WALLET_WASM_HASH;
       return ok ? null : "only the passkey smart-wallet WASM may be deployed here";
     }
     case "hostFunctionTypeInvokeContract": {
-      const target = Address.fromScAddress(func.invokeContract().contractAddress()).toString();
+      const target = Address.fromScAddress(func.value.contractAddress).toString();
       return target === POOL || target === USDC_SAC ? null : "only pool and USDC calls are sponsored";
     }
     default:

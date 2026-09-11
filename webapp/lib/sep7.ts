@@ -8,7 +8,7 @@
 // (amount, payee, message) and prefills its shielded send instead. Signed with the domain key
 // published as URI_REQUEST_SIGNING_KEY in /.well-known/stellar.toml so a sender can verify who
 // issued the request (SEP-7 "Request Signing").
-import { Keypair, StrKey } from "@stellar/stellar-sdk";
+import { Keypair, StrKey, xdr } from "@stellar/stellar-sdk";
 import { USDC_ISSUER } from "./constants";
 import { fetchWithTimeout } from "./net";
 
@@ -72,7 +72,9 @@ export function unsignedPart(uri: string): { unsigned: string; signature: string
 export function signPayUri(uri: string, secret: string): string {
   if (!/[?&]origin_domain=/.test(uri)) throw new Error("SEP-7: origin_domain is required to sign");
   if (unsignedPart(uri).signature !== null) throw new Error("SEP-7: URI is already signed");
-  const sig = Keypair.fromSecret(secret).sign(sep7Payload(uri)).toString("base64");
+  // SDK 17 signs to a plain Uint8Array, whose toString() ignores its argument and would
+  // silently yield comma-joined decimals. xdr.encodeBytes is the SDK's own base64 encoder.
+  const sig = xdr.encodeBytes(Keypair.fromSecret(secret).sign(sep7Payload(uri)), "base64");
   return `${uri}&signature=${encodeURIComponent(sig)}`;
 }
 

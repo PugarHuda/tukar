@@ -1,7 +1,9 @@
 # On-Chain Verification (Stellar testnet)
 
 How Tukar verifies a Groth16 proof inside a Soroban smart contract using
-Stellar's native BN254 host functions (Protocol 25 "X-Ray" / 26 "Yardstick").
+Stellar's native BN254 host functions. They arrived in Protocol 25 "X-Ray" and 26
+"Yardstick"; testnet has run Protocol 28 "Adapter" since 2026-08-27 and the mainnet
+vote is scheduled for 2026-09-16, and the host functions are unchanged by it.
 
 The verifier contract pattern is adapted from Nethermind's
 `circom-groth16-verifier` (verifies over **BN254** via `env.crypto().bn254()`,

@@ -7,7 +7,8 @@ on-chain behaviour (positive + negative) on Stellar testnet.
 
 | Type | Suite | Command | Result |
 |---|---|---|---|
-| **Unit** — contract | pool (Rust) | `cargo test` | **52/52** |
+| **Unit** — contract | pool (Rust) | `cargo test` in `contracts/pool` | **52/52** |
+| **Unit** — contract | all eight contract crates | `cargo test` per crate | **314** (pool 52, pool-enforced 71, pool-timelock 89, pool-accumulator 78, policy-registry 6, reserves 6, reserves-aggregate 12) |
 | **Unit** — frontend | client Merkle tree | `npm run test:unit` | **15/15** |
 | **Unit** — circuit soundness | negative (transfer + compliance) | `npm run test:negative` | **6/6** |
 | **Soundness** — widened ASP | multi-member allow-list, real proofs | `npm run test:asp` | **4/4** |

@@ -400,7 +400,8 @@ next two sections.
 The zero-knowledge is not decorative. It is the entire product. Eight circuits,
 all **Groth16 over BN254**, generated **client-side in the browser (WASM)** and
 verified **on-chain** by Soroban contracts using Stellar's native BN254 host
-functions (Protocol 25/26). Secrets never leave the device. Four are the core; the
+functions (added in Protocol 25/26; testnet runs Protocol 28 "Adapter" today). Secrets
+never leave the device. Four are the core; the
 other three are selective-disclosure variants (see the disclosure family below).
 
 | Circuit | Proves | Where |
@@ -618,8 +619,9 @@ pot14_hez.ptau <zkey>` returns `ZKey Ok!` for every circuit (TESTING.md §5).
   activates (the OpenVASP TRP 3.2.1 path runs without that).
 - **Not audited. Do not use with real assets.**
 
-Built on Stellar's BN254 Groth16 verification (Protocol 25 "X-Ray" / 26
-"Yardstick"). The verifier pattern is adapted from Nethermind's
+Built on Stellar's BN254 Groth16 verification, which arrived in Protocol 25 "X-Ray"
+and 26 "Yardstick" and is unchanged in Protocol 28 "Adapter", the protocol testnet
+runs today. The verifier pattern is adapted from Nethermind's
 [stellar-private-payments](https://github.com/NethermindEth/stellar-private-payments)
 reference (Apache-2.0 / GPLv3).
 

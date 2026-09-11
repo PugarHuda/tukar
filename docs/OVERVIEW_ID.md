@@ -134,8 +134,9 @@ Pemegang pembayaran bisa buktiin satu hal ke auditor, sisanya tetap rahasia:
 - **ZK:** Circom 2, Groth16 over BN254, snarkjs, Poseidon (circomlibjs). **8 circuit.**
 - **Kontrak:** Rust di Soroban (Stellar), **15 kontrak** (inti: pool + 7 verifier; tambahan:
   verifier reserves, policy-registry, reserves, reserves-aggregate, plus pool-enforced,
-  pool-accumulator, dan pool-timelock di jalur preview), host function Protocol 25/26.
-  **314 test Cargo lolos** (52 di pool yang live) dan **230 test webapp lolos.**
+  pool-accumulator, dan pool-timelock di jalur preview), host function BN254 bawaan Stellar
+  (masuk di Protocol 25 "X-Ray" / 26 "Yardstick"; testnet sekarang jalan di Protocol 28 "Adapter").
+  **314 test Cargo lolos** (52 di pool yang live) dan **231 test webapp lolos.**
 - **Standar Stellar:** SEP-1 (stellar.toml), SEP-10, SEP-12 (status KYC), SEP-24
   (deposit/withdraw interaktif), SEP-38 (firm quote), SEP-41/SAC (USDC), SEP-7 (URI
   pembayaran), Reflector SEP-40 (oracle), fee-bump CAP-15.

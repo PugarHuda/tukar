@@ -272,5 +272,5 @@
       "transfer": 15884
     }
   },
-  "protocol": "Stellar Protocol 25/26 (X-Ray / Yardstick) native BN254 host functions"
+  "protocol": "Native BN254 host functions, introduced in Stellar Protocol 25 (X-Ray) / 26 (Yardstick); testnet has run Protocol 28 (Adapter) since 2026-08-27"
 }

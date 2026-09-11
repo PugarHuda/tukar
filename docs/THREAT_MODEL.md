@@ -1,13 +1,25 @@
 # Tukar Threat Model and Monitoring Plan
 
-Status: testnet. Scope: the deployed testnet system (15 Soroban contracts on Stellar
-testnet, of which the 8-contract core corridor of pool plus 7 verifiers is what the app
-transacts against, plus the Next.js app at tukar-six.vercel.app). This document is the SCF #46
-tranche 2 (testnet) threat model and monitoring plan. It describes the security
-posture that actually exists in this repository today, the mitigations that are in
-code, and the residual risk that remains. It does not claim a professional audit,
-real users, or metrics the project does not have. Where a control is planned rather
-than live, it is labeled.
+Status: testnet (Stellar testnet, Protocol 28 "Adapter"). Scope: the deployed testnet
+system (15 Soroban contracts, of which the 8-contract core corridor of pool plus 7
+verifiers is what the app transacts against, plus the Next.js app at
+tukar-six.vercel.app). This document is the SCF #46 Tranche #2 threat model and
+monitoring plan. It describes the security posture that actually exists in this
+repository today, the mitigations that are in code, and the residual risk that remains.
+It does not claim a professional audit, real users, or metrics the project does not
+have. Where a control is planned rather than live, it is labeled.
+
+It follows the structure SDF publishes for builders: the four threat-modeling questions
+and the STRIDE template at
+[developers.stellar.org/docs/build/security-docs/threat-modeling](https://developers.stellar.org/docs/build/security-docs/threat-modeling).
+
+| SDF question | Where answered here |
+|---|---|
+| What are we working on? | Section 1 (system, data flow diagram, trust boundaries) and Section 2 (assets) |
+| What can go wrong? | Section 3, with a STRIDE index at 3.0 |
+| What are we going to do about it? | Section 3 per threat (mitigation in code plus residual risk) and Section 4 |
+| Did we do a good job? | Section 6 retrospective |
+| How would we detect it? | Section 5 monitoring plan, derived from Section 3 |
 
 Ground truth for every claim below is the code in `contracts/pool/src/lib.rs` and the
 `webapp/` server routes and libraries cited inline. The honest limits are the same
@@ -54,6 +66,60 @@ There are four trust surfaces.
    personhood), and an optional TRISA companion node for Travel Rule exchange. Each is a
    separate operator and a separate failure domain. The pool trusts none of them for
    fund safety beyond the specific, bounded roles described in Section 3.
+
+### Data flow diagram
+
+External entities are outside our control, processes are ours, stores hold data, and the
+dashed boxes are the trust boundaries. A rendered architecture drawing of the same system
+is at [`docs/architecture.svg`](architecture.svg).
+
+```mermaid
+flowchart LR
+  subgraph TB1["Trust boundary 1: user device"]
+    U([External entity: sender or receiver])
+    BR["Process: browser app<br/>snarkjs proving, tx signing<br/>webapp/lib/zk.ts, stellar.ts"]
+    LS[("Store: localStorage<br/>note secrets, blinding,<br/>bearer strings")]
+  end
+  subgraph TB2["Trust boundary 2: our serverless routes (Vercel)"]
+    API["Process: Next.js API routes<br/>relayer, cron, auth,<br/>Reclaim verify, CCTP helpers"]
+    BLOB[("Store: private Vercel Blob<br/>schedule metadata,<br/>run receipts")]
+    ENV[("Store: server env secrets<br/>RELAYER_SECRET, AUTH_SECRET,<br/>CRON_SECRET, blob token")]
+  end
+  subgraph TB3["Trust boundary 3: Stellar testnet (public, permissionless)"]
+    POOL["Process: pool contract<br/>CBIYQACY..."]
+    VER["Process: 7 BN254 Groth16<br/>verifier contracts"]
+    LEDGER[("Store: contract state<br/>roots, nullifiers, commitments,<br/>ASP root, deny-list, admin, auditor")]
+    SAC[("Store: USDC SAC custody<br/>CAT6F6HX...")]
+  end
+  subgraph TB4["Trust boundary 4: third-party operators"]
+    FX([External entity: Reflector SEP-40 oracle])
+    ANCH([External entity: SEP anchor - SDF reference on testnet])
+    CIRCLE([External entity: Circle CCTP V2 / Iris])
+    RECL([External entity: Reclaim zkTLS])
+    TRISA([External entity: counterparty VASP - TRP / TRISA])
+  end
+  ADMIN([External entity: corridor admin, offline key])
+  AUD([External entity: regulator / auditor role])
+
+  U -->|note, amount| BR
+  BR <-->|secrets never leave| LS
+  BR -->|"deposit / register_root_verified / withdraw / disclose (signed tx)"| POOL
+  BR -->|schedule CRUD, SEP-53 token| API
+  API -->|"relayer-signed deposit + register_root_verified"| POOL
+  API <--> BLOB
+  API --> ENV
+  POOL -->|public input vector| VER
+  VER -->|bool| POOL
+  POOL <--> LEDGER
+  POOL <-->|token.transfer| SAC
+  POOL -->|"cross-contract price read (withdraw gate)"| FX
+  BR <-->|SEP-10 / SEP-24 fiat edge| ANCH
+  BR <-->|burn / attest / mint| CIRCLE
+  API -->|verifyProof| RECL
+  API <-->|IVMS101 originator + beneficiary| TRISA
+  ADMIN -->|"offline-signed setters (set_asp_root, set_deny_list, set_fx_oracle, set_auditor)"| POOL
+  AUD -->|register_audit_request| POOL
+```
 
 ### Data flow: a private send
 
@@ -122,6 +188,28 @@ Deposits and withdrawals are visible at the edges by Privacy-Pools design.
 ## 3. Threats and mitigations
 
 Each item states the mitigation that exists in code and the residual risk honestly.
+
+### 3.0 STRIDE index
+
+Every STRIDE category has at least one identified issue. The id in the first column is
+what Section 5 refers to when it names the signal that would detect the threat.
+
+| STRIDE id | Issue | Detail |
+|---|---|---|
+| Spoofing.1 | Depositing as someone else's allow-listed identity | 3.3 |
+| Spoofing.2 | Forging a cron or scheduler caller to drive the relayer | 3.6 |
+| Spoofing.3 | Impersonating the settlement asset with a look-alike asset code | 3.11 |
+| Tampering.1 | Forged or altered Groth16 proof accepted on-chain | 3.2 |
+| Tampering.2 | Replaying a spent note (nullifier reuse, including non-canonical re-encoding) | 3.1 |
+| Tampering.3 | Corrupting custodied state during the pool migration | 3.9 |
+| Repudiation.1 | A holder answering an aggregate audit request with a cherry-picked subset | 3.12 |
+| Repudiation.2 | A live-pool policy change leaving no on-chain event to reconcile against | 3.12 |
+| InfoDisclosure.1 | Linking sender to receiver, or recovering an amount, from on-chain data | 3.13 |
+| InfoDisclosure.2 | Server secrets or note secrets reaching the browser bundle or a third party | 3.10 |
+| DoS.1 | Oracle staleness or a thin feed blocking off-ramp settlement | 3.4 |
+| DoS.2 | Relayer key drained of fees, or the cron not running, stalling recurring sends | 3.6, 3.14 |
+| ElevationOfPriv.1 | Admin-key compromise re-pointing the ASP root, deny-list, or FX oracle | 3.5 |
+| ElevationOfPriv.2 | Auditor role misuse to register arbitrary audit contexts | 3.12 |
 
 ### 3.1 Double-spend and nullifier reuse
 Mitigation (live). Every spend records the nullifier in a persistent set
@@ -279,6 +367,76 @@ source for in-browser snarkjs proving, so it is not a nonce-strict policy. The b
 snarkjs and circomlibjs from a public ESM CDN (esm.sh), which is an external code dependency at
 runtime.
 
+### 3.11 Settlement-asset impersonation (Spoofing.3)
+Mitigation (live). Nothing in the system resolves the settlement asset from a bare asset
+code. The pool stores the token as a Soroban `Address` at initialisation
+(`DataKey::Token`, `contracts/pool/src/lib.rs`) and every transfer goes through
+`TokenClient::new(env, &addr)` on that stored contract id, so the custodied asset is the
+USDC SAC `CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2` and cannot be swapped
+by a caller. The app pins the classic side by issuer as well as code
+(`USDC_ISSUER = GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B`,
+`webapp/lib/constants.ts:14`), and the monitoring reader filters token events by the same
+SAC contract id (`POOL_TOKEN`, `webapp/lib/anomaly.ts`). Asset-code collision is a live
+problem on Stellar generally: a testnet search for a popular stablecoin code returns many
+assets from unofficial issuers, some copying the real asset's `auth_revocable` and
+`auth_clawback_enabled` flags. Contract-id and issuer pinning is the correct defence and
+it is what the code already does.
+Residual risk. The defence is only as good as the constant. A wrong contract id at
+deployment or in a future config change would custody the wrong asset, so the deployed
+token address is part of the deployment checklist and is displayed in the operator
+console's contract inventory for reconciliation.
+
+### 3.12 Repudiation and the audit trail (Repudiation.1, Repudiation.2, ElevationOfPriv.2)
+Mitigation (live). For the aggregate disclosure the pool rejects any `auditContextHash`
+the auditor never registered via `register_audit_request`, so a holder cannot answer a
+"sum of everything" request with a subset they chose themselves; the request and the
+answer are both on-chain and bound to each other. Ordinary spends are non-repudiable by
+construction: a nullifier is recorded permanently and a withdraw binds
+`ext_data_hash = keccak256(recipient || public_amount)` so the recipient and amount of a
+release cannot later be disputed.
+Residual risk, and this one is a real gap. The live pool emits events for only four
+actions: `(deposit, index)`, `(withdraw, recipient)`, `(transfer,)`, and `(root, new_leaf)`
+(`env.events().publish` at four sites in `lib.rs`). `set_asp_root`, `set_deny_list`,
+`set_auditor`, `set_fx_oracle`, and `register_audit_request` emit nothing. A policy change
+is therefore visible only as a transaction on the admin account, not as a contract event,
+so an event-based watcher alone cannot reconcile it. The preview-track contracts do better
+(the policy registry emits `(policy, corridor)` and the timelock emits
+`(tl_prop | tl_exec | tl_cancel, setter)`), which is why Section 5 watches the admin
+account directly for the live pool and treats adding events to the live setters as work,
+not as an existing control. The auditor role is a single key and is the admin by default;
+splitting it is production hardening.
+
+### 3.13 Linkability and metadata leakage (InfoDisclosure.1)
+Mitigation (live). The amount and the sender-to-recipient link are hidden on-chain across
+the transfer leg: the pool stores commitments and nullifiers, and the JoinSplit proof
+reveals only a root and a signed `public_amount`. Note secrets and blinding factors never
+leave the device. Deposits and withdrawals are visible at the edges by Privacy-Pools
+design, which is deliberate and is what makes compliance provable.
+Residual risk. Privacy is statistical, not absolute. A small anonymity set links a deposit
+to a withdraw by timing and amount, and today the pool has no real traffic, so the
+anonymity set is small enough that an observer can often correlate the two edges. The app
+shows the current anonymity set so a user is not misled about this. The depositor address
+is not in the `deposit` event but is recoverable by joining the USDC SAC `transfer` event
+on the same transaction hash, which is exactly what the operator console does; an
+adversary can do the same. Relayer-submitted recurring deposits all originate from one
+key, which groups those payments together.
+
+### 3.14 Corridor availability (DoS.2)
+Mitigation (live). The withdraw settlement gate fails closed rather than settling on a bad
+price (3.4), and a gate rejection burns no nullifier so the user retries. The recurring
+relayer retries transient faults and leaves a failed plan due rather than silently
+skipping it, and each cron invocation returns a structured JSON receipt. Both cron routes
+are wrapped in a Sentry cron monitor (`Sentry.withMonitor("recurring-deposit", ...)` in
+`webapp/app/api/cron/recurring/route.ts` and `Sentry.withMonitor("push-watches", ...)` in
+`webapp/app/api/cron/push/route.ts`), which reports a missed or failing run.
+Residual risk. The Sentry monitors only report when a DSN is configured:
+`sentry.server.config.ts` gates `Sentry.init` on `NEXT_PUBLIC_SENTRY_DSN`, which is unset
+today, so the wiring exists and the alerting does not yet. Setting the DSN is a
+configuration step and is listed in Section 5 as such. Beyond that, the corridor depends on
+Soroban RPC, Vercel, the anchor, and Reflector; none of them is under our control and each
+is a separate availability domain. The relayer account must stay funded or recurring runs
+fail for lack of fees.
+
 ---
 
 ## 4. Known limitations and residual risk
@@ -316,62 +474,141 @@ These are the honest limits, consistent with `README.md` and `docs/SECURITY.md`.
 
 ## 5. Monitoring plan
 
-This distinguishes what is live now from what is planned. The SCF #46 tranche 2 expectation is a
-threat model plus a monitoring plan for the testnet deployment; the on-chain and application
-metrics below are the concrete plan, and the analytics layer is already integrated.
+This plan is derived from Section 3: every signal below names the STRIDE id it is there to
+detect. It distinguishes what runs today from what Tranche #2 builds, and it only names
+signals this system actually produces. The authority for "what is observable" is
+`webapp/lib/anomaly.ts`, which decodes the events the deployed contracts really emit.
 
-### Live now
+### 5.1 What the contracts actually emit
 
-- Vercel Web Analytics and Speed Insights are integrated in `webapp/app/layout.tsx`
-  (`@vercel/analytics` and `@vercel/speed-insights`). These give page traffic and Core Web Vitals
-  (LCP, INP, CLS) in the Vercel dashboard once traffic arrives.
-- Loading and error states surface failures to the user as honest toasts (stale oracle, RPC blip,
-  account not allow-listed, insufficient funds) rather than silent failure.
-- The cron run returns a structured JSON receipt per invocation (`processed`, `pending`, `depHash`,
-  `depositOk`, `regOk`, `error`), and each plan keeps its last 20 run receipts, so scheduler outcomes
-  are observable in the response and in the per-owner store.
+The live pool (`contracts/pool/src/lib.rs`) publishes exactly four events:
 
-### On-chain metrics to watch (planned instrumentation)
+| Topics | Data | Emitted by |
+|---|---|---|
+| `(deposit, index)` | `(commitment, amount)` | `deposit` |
+| `(withdraw, recipient)` | `amount` | `withdraw` |
+| `(transfer,)` | `root` | shielded transfer |
+| `(root, new_leaf)` | `new_root` | `register_root_verified` |
 
-Every pool action emits an event and is publicly inspectable on stellar.expert for the pool contract
-`CBIYQACY…`. The plan is to index these events and track:
+There is no depositor address in the `deposit` event; it is recovered by joining the USDC
+SAC `transfer` event with the pool as destination on the same transaction hash. The live
+pool's policy setters (`set_asp_root`, `set_deny_list`, `set_auditor`, `set_fx_oracle`) and
+`register_audit_request` emit **no** events at all, which is the gap recorded in 3.12. On
+the additive contracts the policy registry emits `(policy, corridor)` with
+`(cap_usdc, disclosure)` and the preview timelock pool emits
+`(tl_prop | tl_exec | tl_cancel, setter)`.
 
-- Deposit and withdraw volume and failure rate. Observe `deposit` and `withdraw` events and the
-  pool balance (`balance()`), and the commitment and leaf counts (`commitment_count`, `leaf_count`).
-  A rising rate of reverts is the primary abuse signal. Alert threshold: a sustained failure rate
-  above a normal baseline, or any unexpected drop in pool balance not matched by a withdraw event.
-- Rejected-proof and contract-error rates. Track the frequency of `ProofRejected` (#7),
-  `NullifierUsed` (#2), `NonCanonicalField` (#14), `AmountNotBound` (#6), and `BadIoCount` (#13) from
-  reverted transactions. A spike in `ProofRejected` or `NonCanonicalField` indicates tampering or a
-  bypass attempt and should page.
-- Oracle staleness and settlement-gate rejections. Track `SlippageExceeded` (#12) and `FxUnavailable`
-  (#11) rates on withdraws that use the gate. A sustained `FxUnavailable` rate means the Reflector
-  feed is stale or thin and off-ramp settlement is failing closed. Alert when the rate crosses a low
-  threshold, and cross-check the Reflector feed freshness directly.
-- ASP-root and deny-list changes. Every `set_asp_root` and `set_deny_list` is an admin transaction.
-  These are rare and high-privilege; alert on any occurrence and reconcile it against an expected
-  operator change. An unexpected policy change is a strong admin-compromise signal. `register_audit_request`
-  (auditor) is watched the same way.
-- Relayer key balance. The recurring relayer signs with `RELAYER_SECRET` / `DEMO_SECRET`. Monitor that
-  account's XLM and USDC balance so recurring runs do not fail for lack of funds, and alert below a
-  low-water mark.
+A reverted transaction publishes no contract events. Every error-rate signal below
+(`ProofRejected`, `NullifierUsed`, `NonCanonicalField`, `SlippageExceeded`, `FxUnavailable`)
+therefore has to come from transaction results, not from `getEvents`. That is a real
+constraint on the design and is why the transaction-level indexer is a Tranche #2
+deliverable rather than something the current console can do.
 
-### Application and integration metrics (planned)
+### 5.2 Live now
 
-- CCTP attestation latency and failures. The attest poller returns `pending` until Circle Iris
-  completes. Track poll count and time-to-complete per burn, and alert on attestations that never
-  complete within an expected window (a Circle outage or a mis-encoded burn).
-- Schedules and cron run outcomes. Track per-run `depositOk` / `regOk` / `error`, the count of due
-  vs processed plans, and repeated failures on the same plan (which stays due and retries). Alert on a
-  plan failing several consecutive runs, or on the cron not running on schedule.
-- Auth failures. Track 401 rates on `/api/schedules` and rejected sign-in attempts. A spike suggests
-  token-forgery attempts or an `AUTH_SECRET` misconfiguration.
+- **Operator monitoring console.** `/operator` then Monitoring (`webapp/app/operator/page.tsx`,
+  `MonitoringSection`) calls `readMonitoringWindow()` in `webapp/lib/anomaly.ts`: one
+  paginated `getEvents` with four filters (the pool, USDC SAC transfers into the pool, the
+  policy registry, the preview timelock pool), starting at `getHealth().oldestLedger`, so
+  it covers the whole RPC retention window, about 7 days on public testnet. Pages are capped
+  at 10 pages of 1000 and the result carries `truncated` when the tail was cut. It is
+  read-only RPC simulation and needs no key.
+- **Deposit velocity.** `velocity()` buckets deposits into the last 24 hours by hour and the
+  whole window by UTC day, with count and USDC per bucket. This is the baseline any threshold
+  below will eventually be tuned against.
+- **Near-cap structuring heuristic.** `nearCap()` flags deposits sitting within 10% below a
+  corridor cap but under it, tested against every distinct cap read from the policy registry
+  because the `deposit` event carries no corridor.
+- **Repeated-actor heuristic.** `repeatedActors()` reports depositors with at least N deposits
+  inside a rolling 24-hour window, and separately counts deposits whose depositor could not be
+  attributed.
+- **Admin-event view.** `adminEvents()` surfaces policy-registry writes and timelock
+  propose / execute / cancel, newest first. Note the limitation above: this covers the
+  additive contracts, not the live pool's own setters.
+- **Sentry cron monitors.** `Sentry.withMonitor("recurring-deposit", ...)` and
+  `Sentry.withMonitor("push-watches", ...)` wrap the two cron routes, and `lib/log.ts`
+  supplies shared sampling, PII and secret-scrubbing options. These are wired but inert:
+  `sentry.server.config.ts` gates `Sentry.init` on `NEXT_PUBLIC_SENTRY_DSN`, which is not set
+  today, so no events are transported. Setting the DSN is a configuration step, listed in 5.5.
+- **Structured cron receipts.** Each invocation returns `processed`, `pending`, `depHash`,
+  `depositOk`, `regOk`, `error`, and each plan keeps its last 20 run receipts.
+- **Vercel Web Analytics and Speed Insights.** Integrated in `webapp/app/layout.tsx`; page
+  traffic and Core Web Vitals once traffic exists.
 
-### Alerting posture
+### 5.3 Signals, thresholds and response
 
-Thresholds above are starting points to tune against a real baseline once testnet traffic exists.
-High-privilege on-chain events (any admin or auditor write) warrant an immediate alert regardless of
-rate. Fund-safety signals (unexpected balance drop, `NullifierUsed` or `ProofRejected` spikes) warrant
-paging. Volume, latency, and Web Vitals are dashboards, not pages. Implementing the on-chain indexer and
-the alert wiring is the tranche-2 monitoring work to complete; the analytics layer and the structured
-cron receipts are already in place.
+Severities follow SDF's published examples (Info, Warning, Critical). Thresholds marked
+"baseline pending" have no number yet on purpose: there is no real traffic to tune against,
+and inventing one would be worse than saying so. They are set during the Tranche #2 pilot.
+
+| Signal | Detects (STRIDE id) | Source | Severity | Response |
+|---|---|---|---|---|
+| Pool USDC balance falls without a matching `withdraw` event | Tampering.1, Tampering.2 | `balance()` reconciled against summed `withdraw` events | Critical | Page. Halt the operator flow, reconcile every withdraw in the window |
+| `NullifierUsed` (#2) or `NonCanonicalField` (#14) revert rate rises | Tampering.2 | Transaction results (Tranche #2 indexer) | Critical | Page. A replay attempt against the double-spend guard |
+| `ProofRejected` (#7) or `InvalidProof` revert spike | Tampering.1 | Transaction results (Tranche #2 indexer) | Critical | Page. Tampering, or a key or artifact mismatch |
+| Any transaction on the admin account `GB2CVRVN...` | ElevationOfPriv.1, Repudiation.2 | Admin account operation history | Critical | Page on every occurrence and reconcile against an expected change. Rare and high-privilege by definition |
+| `tl_prop` / `tl_exec` / `tl_cancel` on the timelock pool | ElevationOfPriv.1 | Timelock pool events (live) | Warning | Reconcile the proposed setter and eta against an expected change. An unexpected proposal is the compromise signal, and the delay is the response window |
+| `(policy, corridor)` write on the policy registry | ElevationOfPriv.1 | Policy-registry events (live) | Warning | Reconcile the cap and disclosure change against an expected operator change |
+| `register_audit_request` by the auditor | ElevationOfPriv.2 | Auditor account operation history (the call emits no event) | Info | Log and reconcile against a real regulator request |
+| `FxUnavailable` (#11) rate on gated withdraws | DoS.1 | Transaction results (Tranche #2 indexer), cross-checked against Reflector freshness directly | Warning | Off-ramp settlement is failing closed. Check the Reflector feed. No funds are at risk |
+| `SlippageExceeded` (#12) rate | DoS.1 | Transaction results (Tranche #2 indexer) | Info | Expected under FX movement. Warning only if sustained |
+| Deposit velocity outside the rolling baseline | Spoofing.1, InfoDisclosure.1 | `velocity()` (live) | Warning | Baseline pending. Investigate the contributing actors |
+| Deposits clustered just under a corridor cap | Spoofing.1 | `nearCap()` (live) | Warning | Structuring heuristic. Review with the anchor's KYC signal, not in isolation |
+| One depositor with many deposits in 24h | Spoofing.1 | `repeatedActors()` (live) | Info | Expected during testing. Meaningful once real corridor traffic exists |
+| Relayer account XLM or USDC below a low-water mark | DoS.2 | Account balance of the relayer key | Warning | Top up before recurring runs start failing for fees |
+| Cron run missed or failing | DoS.2 | Sentry cron monitor (needs a DSN) plus the run receipts | Warning | A missed schedule or a route error |
+| A plan failing several consecutive runs | DoS.2 | Per-plan run receipts | Warning | The plan stays due and retries; repeated failure means a real fault |
+| 401 rate on `/api/schedules`, rejected sign-ins | Spoofing.2 | Route logs | Warning | Token-forgery attempts or an `AUTH_SECRET` misconfiguration |
+| CCTP attestation never completing within the expected window | DoS.2 | Attest poller poll count and time-to-complete | Warning | A Circle outage or a mis-encoded burn |
+| Deployed token address differing from the expected USDC SAC | Spoofing.3 | Operator console contract inventory | Critical | Wrong settlement asset. Stop and reconcile the deployment |
+| `truncated: true` on the monitoring window | coverage gap | `readMonitoringWindow()` (live) | Info | The window was cut at the page cap. Raise the cap or narrow the window before trusting the counts |
+
+### 5.4 Coverage gaps, stated plainly
+
+- No alert transport exists yet. The console is pull-based: a human opens `/operator`. Every
+  "page" and "alert" above is a design target for the Tranche #2 work, not a live pager.
+- Reverted transactions are invisible to `getEvents`, so every error-rate row depends on the
+  transaction-level indexer that Tranche #2 builds.
+- The live pool's own policy setters emit no events (3.12), so policy changes are watched at
+  the account level until events are added to those setters.
+- RPC retention is about 7 days on public testnet. Anything longer needs an archive or an
+  indexer with its own store.
+- Every threshold is unset. There is no real traffic and no users, so there is no baseline.
+  This is stated rather than filled in with a plausible-looking number.
+
+### 5.5 Tranche #2 monitoring work
+
+1. Set `NEXT_PUBLIC_SENTRY_DSN` so the two cron monitors and the error pipeline actually
+   transport, and add alert rules for missed runs.
+2. Build the transaction-level indexer over the pool's transaction history so the contract
+   error codes in 5.3 become countable, and store beyond the RPC retention window.
+3. Add an alert transport (paging for Critical, a channel for Warning) in front of both the
+   indexer and the existing console heuristics.
+4. Watch the admin and auditor accounts' operation history, and add events to the live pool's
+   policy setters as part of the Tranche #1 migration so the account-level watch can be
+   replaced with an event-level one.
+5. Tune every "baseline pending" threshold against the pilot traffic in Tranche #2, and
+   re-tune against the real baseline after the Tranche #3 mainnet launch.
+
+---
+
+## 6. Did we do a good job?
+
+The retrospective SDF's template asks for, answered honestly.
+
+- **Did the diagram help find issues?** Yes. Drawing the trust boundaries is what surfaced
+  that the live pool's policy setters emit nothing (3.12), which invalidated an earlier
+  version of this monitoring plan that claimed policy changes could be alerted on from
+  contract events. That claim is now corrected.
+- **Did we find issues we did not already know about?** Two. The setter-event gap above, and
+  the fact that reverted transactions are invisible to `getEvents`, which moved every
+  error-rate signal from "planned indexing" onto a different data source.
+- **Are the treatments adequate?** For fund safety, the on-chain mitigations are in code and
+  tested (double-spend, canonical encoding, proof binding, oracle fail-closed). For admin
+  compromise on the live pool they are not yet: the timelock is on the preview track and
+  applying it is Tranche #1 work, and this document says so rather than implying otherwise.
+  Detection is the weakest area, because there is no alert transport.
+- **What would improve the next pass?** A professional audit, which is planned separately
+  through the Audit Bank and is not funded by this proposal. A real traffic baseline, which
+  the Tranche #2 pilot produces. And re-running this exercise after the Tranche #1 migration,
+  since the migration changes the contract that most of Section 3 describes.

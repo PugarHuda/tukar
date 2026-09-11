@@ -36,8 +36,9 @@ export function withFailover<C extends { post: Post }>(client: C, primary = RPC,
 
 // Every rpc.Server the app uses comes from here. The SDK default is NO timeout, so a black-holed
 // network (captive portal, dropped mobile link, Firefox offline) left a send hanging forever with
-// no message. `Server` documents a `timeout` option but (16.2.0) never forwards it to its http
-// client, so the ceiling is applied through the documented request interceptor instead; the
+// no message. `Server` documents a `timeout` option but still never forwards it to its http
+// client (re-checked on 17.0.1: the constructor hands createHttpClient only `opts.headers`),
+// so the ceiling is applied through the documented request interceptor instead; the
 // fetch client turns `config.timeout` into an AbortSignal, which fails honestly.
 export function makeServer(): Sdk.rpc.Server {
   const s = new Sdk.rpc.Server(RPC, { timeout: RPC_TIMEOUT_MS });

@@ -8,6 +8,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 // so no ASP allow-list entry may be derived from it. A leaked share id must buy nothing.
 vi.mock("server-only", () => ({})); // Next build-time alias, unresolvable under vitest.
 
+// The @idos-network/kwil-infra chain this pulls in takes tens of seconds to import cold, which
+// blows vitest's 5s default and makes this file fail on a fresh checkout or after an install while
+// passing on every warm run. Same treatment as reclaim-session.test.ts and soroban/oracle.test.ts.
+vi.setConfig({ testTimeout: 30_000 });
+
 const sdk = vi.hoisted(() => ({
   // The consumer's own kwil identity (the hex auth public key users grant to).
   address: "299EDD683EC70703640B1A63B4DA4D8D96B1085E641D64F81D0FEA063412FD11",

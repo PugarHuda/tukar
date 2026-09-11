@@ -108,7 +108,8 @@ transfer (the reference Nethermind PoC already does that), but a full
 
 All proofs are **Groth16 over BN254**, generated client-side (browser WASM) and
 verified on-chain by a Soroban verifier using Stellar's native BN254 host
-functions (Protocol 25/26). Secrets never leave the device.
+functions (introduced in Protocol 25 "X-Ray" and 26 "Yardstick"; testnet has run
+Protocol 28 "Adapter" since 2026-08-27). Secrets never leave the device.
 
 | Circuit | Proves | Public inputs | Used at |
 |---|---|---|---|
