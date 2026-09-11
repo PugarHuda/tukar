@@ -76,12 +76,12 @@ end to end by real people who are not the author, with what broke published.
 
 **$5,000. One hundred hours at $50 per hour.**
 
-| Deliverable | Breakdown | Hours |
-|---|---|---|
-| D1. Travel Rule binding | Design the scheme and write the negative tests first 16. Implement the commitment in the contract and circuit 28. Deploy to testnet and verify on-chain 12. Build and exercise the public verification path 16. | 72 |
-| D2. Pilot, three people | Recruit and schedule 3. Three sessions at about 2.5 hours each including setup, the session itself and writing up notes, 8. Write the report 7. | 18 |
-| D3. Spec, optional | Write the scheme up with a runnable example against the deployed contract. | 10 |
-| **Total** | 100 hours over 30 calendar days, about 23 hours per week | **100** |
+| Deliverable | What it produces | Hours breakdown | Hours |
+|---|---|---|---|
+| **D1. Travel Rule binding** | The canonical hash of a TRP 3.2.1 transfer inquiry committed on-chain at deposit time and tied to that specific note, plus a public verification path that tells anyone holding the payload whether it corresponds to a real deposit of the stated amount, and refuses a payload that has already been used or belongs to a different deposit. Lands on the upgradeable preview pool, since the live pool has no upgrade hook. | Design the scheme and write the negative tests first 16. Implement the commitment in the contract and circuit 28. Deploy to testnet and verify on-chain 12. Build and exercise the public verification path 16. | 72 |
+| **D2. Pilot, three people** | Three people who are not the author run the corridor end to end, roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. A published report names the sample size, how people were found, the selection bias, what broke, and what changed as a result, separating first-contact findings from repeat-session ones. | Recruit and schedule 3. Three sessions at about 2.5 hours each including setup, the session itself and writing up notes, 8. Write the report 7. | 18 |
+| **D3. Spec, optional** | The payload-commitment scheme written up as a short spec with a runnable example against the deployed testnet contract, so another Stellar team can implement it without reading Tukar's source. Dropped first if the sprint runs short. | Write the scheme up with a runnable example against the deployed contract. | 10 |
+| **Total** | Both core outcomes land inside the sprint; D3 is the release valve. | 100 hours over 30 calendar days, about 23 hours per week | **100** |
 
 **Why these hours.** D1 is roughly two thirds of the sprint because it is contract and proof work
 where a mistake is not a bug but a soundness failure. That is why the negative tests are written in
@@ -92,7 +92,7 @@ than code. The sessions cannot overlap: the built-in testnet key is a single sha
 concurrent senders collide and the Merkle tree moves underneath the second one.
 
 **Why $50 per hour.** This is not general application development. D1 is Circom circuit design and
-Soroban contract work with the soundness burden described above. Independent contracting rates for
+Soroban contract work, with the consequence described above. Independent contracting rates for
 zero-knowledge and smart contract work run well above this internationally, commonly two to three
 times it, so $50 sits below the specialty market rather than above it. Said plainly, because the
 chapter lead will know the local market: $50 per hour is above a standard senior software rate in
