@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tukar, The Balikbayan Parcel. A strip of brown packing tape: translucent amber body (it is
+     applied with multiply blending so whatever it crosses shows through), long fibre streaks,
+     a brighter sheen band, both ends torn by hand. Authored by hand as SVG on 2026-08-28; no image
+     generator involved. Stretch to any strip; the ends keep their tear. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40" viewBox="0 0 400 40" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a5a2a" stop-opacity="0.62" />
+      <stop offset="0.28" stop-color="#b27a3c" stop-opacity="0.66" />
+      <stop offset="0.5" stop-color="#c58b48" stop-opacity="0.58" />
+      <stop offset="0.74" stop-color="#a06a33" stop-opacity="0.66" />
+      <stop offset="1" stop-color="#6f4520" stop-opacity="0.72" />
+    </linearGradient>
+    <filter id="fibre" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02 0.9" numOctaves="2" seed="11" result="n" />
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 0.92  0 0 0 0 0.78  0 0 0 0.22 0" />
+    </filter>
+    <clipPath id="torn">
+      <path d="M6 2 L9 6 L5 9 L10 13 L4 18 L9 22 L6 27 L11 31 L7 36 L12 39 L388 39.5 L394 36 L390 31 L396 27 L391 22 L397 17 L392 12 L398 8 L393 4 L396 1 L60 0.5 L58 2 L54 0.6 Z" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#torn)">
+    <rect width="400" height="40" fill="url(#body)" />
+    <rect width="400" height="40" filter="url(#fibre)" />
+    <rect x="0" y="12" width="400" height="6" fill="#fff3dd" fill-opacity="0.16" />
+    <rect x="0" y="0.5" width="400" height="1" fill="#fff3dd" fill-opacity="0.28" />
+    <rect x="0" y="38.5" width="400" height="1" fill="#3d2410" fill-opacity="0.35" />
+  </g>
+</svg>

@@ -265,15 +265,19 @@ to a production, multi-anchor corridor.
 - **Demo video (self-hosted, always available):**
   **▶ [Watch the narrated walkthrough](https://tukar-six.vercel.app/deck)** plays on
   **slide 8** of the pitch deck, or open the raw file directly at
-  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~90-second English cut of the
-  **real on-chain flow** (connect → on-chain deposit → off-ramp via Reflector → claim →
-  disclosure verified on-chain → tampered claim rejected on-chain), the consumer apps shown
-  inside a phone frame and the dashboards on desktop, narrated with a natural neural voice.
-  (A fuller ~1:50 cut also exists.)
-  It's recorded end-to-end from the live app by Playwright (`scripts/record-shortcut.mjs`),
-  narrated by `edge-tts`, and muxed with ffmpeg; the on-chain waits are sped up, not cut. The
-  caption and voiceover script lives in [`docs/DEMO_VO_SUBTITLES.md`](docs/DEMO_VO_SUBTITLES.md),
-  and a slide-by-slide deck script in [`docs/DECK_SCRIPT.md`](docs/DECK_SCRIPT.md).
+  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~3-minute 1080p walkthrough of
+  the **real on-chain flow** across all four apps (connect → compliance proof on the device →
+  on-chain deposit → claim note → the local figure read on-chain from Reflector → anchor quote →
+  on-chain withdraw → selective disclosure → verified on-chain → a tampered receipt rejected
+  on-chain → regulator audit, Travel Rule and compliance export → operator pool, reserves, policy
+  and oracle → the public verify page), narrated with a neural voice and captioned throughout.
+  Every frame is the running app: Playwright drives and records it (`video/capture.mjs`),
+  `edge-tts` narrates (`video/vo.py`), and Remotion composes it into the kraft-and-label world
+  (`video/src/`). On-chain waits are sped up, never cut, and the frame says by how much.
+  Rebuild with `cd video && npm run vo && npm run capture && npm run prep && npm run render`.
+  The script lives in [`video/script.json`](video/script.json), with the longer reading scripts in
+  [`docs/DEMO_VO_SUBTITLES.md`](docs/DEMO_VO_SUBTITLES.md) and a slide-by-slide deck script in
+  [`docs/DECK_SCRIPT.md`](docs/DECK_SCRIPT.md).
 
 ## Production readiness
 

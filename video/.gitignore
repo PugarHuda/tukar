@@ -1,0 +1,7 @@
+# Build artifacts of the demo video. Regenerate with: npm run vo && npm run capture && npm run prep && npm run render
+node_modules/
+captures/
+scratch/
+out/
+public/vo/
+public/cap/

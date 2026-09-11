@@ -1,6 +1,6 @@
 # 20 questions the deck and demo don't answer
 
-These are the gaps. The 9-slide deck and the 90-second demo cover the problem, the moat, the
+These are the gaps. The 9-slide deck and the demo video cover the problem, the moat, the
 market, the tech depth, and the on-chain verification. They do NOT cover team, traction,
 regulatory operations, key governance, scale, economics, or recovery. A sharp judge goes
 straight here. Short answers and angles below. The three team and traction ones you must

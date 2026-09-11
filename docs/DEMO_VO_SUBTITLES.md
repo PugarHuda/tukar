@@ -5,6 +5,10 @@ VO; the SUBTITLE lines double as captions. Keep each spoken line short so it fit
 on screen. Timings are a guide, not a rule. Full run is about 5 to 6 minutes;
 skip any bracketed [OPTIONAL] block to shorten.
 
+This is the long reading script, for narrating a walkthrough yourself. It is not what
+the shipped video says. The video at `/demo-id.mp4` runs about 3 minutes and its narration
+lives in `video/script.json`.
+
 Honesty notes baked in (say them the way they read): this is Stellar testnet, the
 contracts are not professionally audited, and the fiat on and off ramps are
 simulated at the edges. Everything in the middle, the proofs and the on-chain
@@ -225,22 +229,15 @@ SUBTITLE:
 
 ---
 
-## SHORT CUT (80 to 90 second live-pitch script, matches `scripts/demo-video-out/tukar-shortcut.mp4`)
+## SHORT CUT (80 to 90 second live-pitch script)
 
-The tight cut used in the 3-minute live pitch (deck plus demo). These are the exact
-on-screen captions, in order, and they double as the voiceover, word for word.
+A tight reading for a timed stage slot, when you are running the four apps live rather
+than playing the video. These are the exact on-screen captions, in order, and they double
+as the voiceover, word for word. Pair it with `LIVE_DEMO_SCRIPT.md` for the clicks.
 
-Renders (all 1366x768, scratch neural VO baked in with en-US-AndrewNeural, plus a silent
-twin; replace the VO with your own):
-- `tukar-shortcut-90s.mp4` / `-silent.mp4` is the ~1:35 live-pitch cut (drops the standalone
-  amount beat; the amount line is merged into the send line).
-- `tukar-shortcut.mp4` / `-silent.mp4` is the ~1:50 full cut (keeps every line below).
-
-The mobile-first consumer apps (Sender, Receiver) are shown inside a phone frame; the
-desktop consoles (Regulator, Operator) stay full-screen. Loading/proving waits are shown
-but sped up 4x, so the real work is visible without dead time. Everything shown is real:
-a real testnet key, a real on-chain deposit, a real Reflector quote, and a real on-chain
-verify with a tamper rejected.
+This section is a reading script, not a render. The older `tukar-shortcut*.mp4` files it
+used to describe are gone. The shipped video is `/demo-id.mp4`, about 3 minutes at
+1920x1080, and its narration lives in `video/script.json`, not here.
 
 Sender:
 - "This is Tukar. Send money home privately, on Stellar. One tap connects a real testnet key."

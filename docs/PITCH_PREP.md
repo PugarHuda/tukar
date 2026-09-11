@@ -56,7 +56,7 @@ That single loop shows the whole thesis: private, compliant, real, on-chain. The
 **Demo discipline (critical):**
 - Pre-fund the key (done: ~9.5k XLM for fees, ~960k testnet USDC). Sign in with the one-tap built-in testnet key (funded, allow-listed) or Freighter; a hint nudges Freighter for anyone testing concurrently.
 - Do ONE on-chain action at a time. Tree registration takes ~20s to confirm; back-to-back deposits collide on the shared key.
-- Have a BACKUP RECORDING queued: the ~90s English VO demo clip (consumer apps in a phone frame) at `/demo-id.mp4`, or a screen capture of `npm run qa:watch`. If the live demo stalls, cut to the recording and keep talking.
+- Have a BACKUP RECORDING queued: the narrated demo video at `/demo-id.mp4`, about 3 minutes across four titled acts, or a screen capture of `npm run qa:watch`. If the live demo stalls, cut to the recording. It carries its own narration and captions, so you can let it run, and you can skip to act 03 (Prove) if the clock is tight.
 - One person drives the demo, one narrates. Practice it 5+ times on the actual machine and network.
 
 ---

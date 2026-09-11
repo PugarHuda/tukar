@@ -7,8 +7,9 @@ fiat figure and makes a selective-disclosure proof, the **Regulator** re-verifie
 it on the live Stellar verifier and watches it break on a one-character tamper,
 then a quick **Operator** glance shows the corridor is real.
 
-This matches the 90-second demo video (`/demo-id.mp4`). During the live pitch you
-can either play that video or run the flow live here.
+The recorded demo video (`/demo-id.mp4`) covers the same loop and more, but it runs
+about 3 minutes and carries its own narration. This runbook is the tight live version.
+Run it live here, or play the video if you have the full three minutes.
 
 Two lines win the whole thing: **"bound to a real on-chain deposit"** and
 **"Invalid."** Land those and the rest carries itself.
@@ -42,8 +43,9 @@ video.
 - [ ] Have a pre-exported receipt JSON ready on the clipboard or in a text file
       (export one during rehearsal from the Receiver step). This is what the SAFE
       SHORT VERSION pastes.
-- [ ] Backup video ready to cut to (`/demo-id.mp4`). Know where it is and have it
-      one click from full screen.
+- [ ] Backup video ready to cut to (`/demo-id.mp4`, about 3 minutes, already
+      narrated). Know where it is and have it one click from full screen, and know
+      which act to skip to if you only have a minute left.
 - [ ] Timer visible. One person drives, one narrates, one holds the timer and the
       backup video.
 - [ ] Say it once, honestly, near the top: it's testnet, it's not audited, and
@@ -197,6 +199,7 @@ a mock, and you just watched it run. Happy to do the full live deposit in Q&A."
 **SAY:** "Testnet's taking its time confirming, so let me show you the same loop from a
 run we did earlier. Same contracts, same live verifier."
 
-Then full-screen `/demo-id.mp4` and narrate over it using the Step 1 to Step 4 SAY lines
-above, or the SHORT CUT captions in `DEMO_VO_SUBTITLES.md`. Keep your pace calm and don't
-apologize for it.
+Then full-screen `/demo-id.mp4` and let its own narration carry it. It runs about
+3 minutes and is captioned throughout, so you do not have to talk over it. If you are
+short on time, its four acts are titled on screen: skip to **03 Prove**, which is the
+verify and tamper beat. Keep your pace calm and don't apologize for it.

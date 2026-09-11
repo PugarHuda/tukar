@@ -11,10 +11,14 @@ close (slide 9).
 This is the flowing stage version. Two companion docs go with it:
 - `DECK_SCRIPT.md` is the slide-by-slide reading, one block per slide. Use that
   if you present against the deck.
-- `DEMO_VO_SUBTITLES.md` (the **SHORT CUT** section) is the caption and
-  voiceover for the 90-second demo, word for word.
+- `DEMO_VO_SUBTITLES.md` (the **SHORT CUT** section) is a caption and voiceover
+  script for a tight demo beat, word for word.
 - `LIVE_DEMO_SCRIPT.md` is the click-by-click runbook if you run the demo live
   in the four apps instead of playing the video.
+
+The recorded demo video (`/demo-id.mp4`) runs about 3 minutes, so it does not fit
+the 90-second slot on stage. For a timed slot, run the demo live. The video is for
+submissions, and for narrating over if you have the whole 3 minutes to give it.
 
 Markers: **(breathe)** = stop for a beat. **(slow)** = drop the pace and let it
 land. **bold** = hit that word a little harder.
@@ -66,13 +70,13 @@ land. **bold** = hit that word a little harder.
 
 > Let me show you. This is live on Stellar testnet.
 
-You've got two ways to run this. Either **play the 90-second video** (`/demo-id.mp4`),
-or **run it live** in the four apps. Either way, narrate with the **SHORT CUT**
-captions in `DEMO_VO_SUBTITLES.md`. If you run it live, follow `LIVE_DEMO_SCRIPT.md`
-click by click.
+In a 90-second slot, **run it live** in the four apps and follow
+`LIVE_DEMO_SCRIPT.md` click by click, narrating with the **SHORT CUT** captions in
+`DEMO_VO_SUBTITLES.md`. The recorded video at `/demo-id.mp4` is about 3 minutes and
+carries its own narration, so play it only if you have the full three minutes.
 
-The flow is the same both ways. Sender and Receiver are the mobile consumer apps,
-shown in a phone frame. Regulator and Operator are the desktop consoles.
+The flow is the same both ways. Sender and Receiver are the mobile consumer apps.
+Regulator and Operator are the desktop consoles.
 
 > **(Sender)** Someone sends five hundred dollars home to Mexico. The compliance
 > proof builds right on the phone. It shows they're allow-listed and not

@@ -1,9 +1,9 @@
 # Tukar deck, read this per slide (English, tight)
 
 Word for word, one short block per slide. The whole deck talk (slides 1 to 7 and 9) is
-about 85 to 90 seconds, roughly 10 seconds a slide. Slide 8 is the ~90 second demo. Then
-2 minutes of Q&A. Do not add sentences, this is timed. Read it warm, a little bit sales,
-land the first line at the judges. Push slides 3 and 4, land the ask on slide 7.
+about 85 to 90 seconds, roughly 10 seconds a slide. Slide 8 is the demo, about 90 seconds if
+you run it live. Then 2 minutes of Q&A. Do not add sentences, this is timed. Read it warm,
+a little bit sales, land the first line at the judges. Push slides 3 and 4, land the ask on slide 7.
 
 ---
 
@@ -39,7 +39,9 @@ a real Travel Rule exchange, on-chain per-corridor policy, and cryptographic pro
 What we need is one licensed-anchor pilot and a Stellar Community Fund award."
 
 **SLIDE 8: Live demo** (~90s)
-"Let me show you." → play the 90 second video, or run it live.
+"Let me show you." → run it live from `LIVE_DEMO_SCRIPT.md`. The video embedded on that
+slide (`/demo-id.mp4`) runs about 3 minutes with its own narration, so play it only if you
+have the time for it.
 
 **SLIDE 9: Close** (~15s)
 "That's Tukar. Private in the middle, compliant at the edges, on Stellar. We placed fifth in
