@@ -4,9 +4,11 @@
 > Companion to the interest-form answers in [`docs/SCF_SUBMISSION.md`](SCF_SUBMISSION.md).
 > Every technical claim traces to code in this repository and to contracts already
 > deployed on Stellar testnet (see [`deployments/testnet.json`](../deployments/testnet.json)).
-> The budget in Section 6 is derived from the scope in Section 5, with the derivation shown
-> in 6a and the weekly rate stated as a single input the owner confirms or replaces.
-> Team details are marked **[ISI SENDIRI]** and must be filled in by the team, not invented.
+> The request is $135,000 in XLM over 6 months. Section 6 derives it from the scope in
+> Section 5, and 6a shows the three components it is made of so a reviewer can argue with
+> each input rather than with the total.
+> The team is one person and Section 8 says so plainly, including what the record does not
+> evidence. The only field still left for the owner to supply is the team video in Section 8.
 
 ---
 
@@ -519,183 +521,450 @@ integration SDK, and production monitoring.
 
 ## 6. Budget
 
-The Build Award pays out across the acceptance payment and three tranches at
-**10% / 20% / 30% / 40%**, capped at $150,000 worth of XLM, over a project duration that
-must not exceed 6 months. Requesting the maximum is not expected, and inflated or
-unbalanced budgets are one of the named prescreen rejection reasons, so the request should
-be **modest and matched to the team**, not sized to the cap.
+**The request is $135,000 worth of XLM over 6 months.** The Build Award is "capped at $150,000
+worth of XLM" and the project timeline "should not exceed 6 months", so this is 90% of the cap
+at the full duration. The payout is fixed at **10% / 20% / 30% / 40%**, which is $13,500,
+$27,000, $40,500 and $54,000.
+
+This is not a salary request. It is a project budget for a **one-person team** (Section 8)
+that buys in specialist engineering for the parts a solo generalist should not carry alone,
+and that pays for six months of the infrastructure the later deliverables run on. The three
+components are set out in 6a and they total $135,000 exactly: the founder's own full-time
+work, five contracted engagements, and infrastructure.
+
+**How this is priced against the handbook's own rules.** The handbook asks that a budget
+"reflect the actual hours of engineering and product work required to deliver the milestones,
+not operational overhead or unrelated expenses", and it lists eligible activities rather than
+cost categories: Core Development, Frontend and UX, Testing and Verification, Deployment and
+Release. Every line in 6a maps to one of those four and the mapping is shown in the
+per-deliverable table. Two honest notes on the fit:
+
+- **Contracted engineering.** The handbook prices budgets in hours of engineering and product
+  work against deliverables. It does not say whether those hours have to be the applicant's
+  own, and nothing in the Build Award budget guidance addresses contractors either way, so
+  this proposal claims no permission it was not given. What it does instead is state plainly
+  that a large share of the hours are contracted, name each engagement, and map each to an
+  eligible activity. About 28 of the roughly 54 engineering weeks in this plan are bought in
+  because one person cannot supply them.
+- **Infrastructure.** The eligible-activity list includes "building out backend infrastructure
+  or indexing tools" and "setting up infrastructure like NAV APIs or alerting tools", which is
+  the work. It also excludes "operational overhead", and six months of hosting could be read
+  that way. It is stated as its own $9,500 line rather than buried in a blended rate so the
+  reviewer can make that call: the indexer in D2.3 cannot be delivered without a datastore and
+  the TRISA node in D2.2 cannot be delivered without a hosted endpoint and live certificates,
+  which is why it is here, but if the panel treats running costs as overhead the line should be
+  struck and the request falls to $125,500.
 
 The handbook also rejects "deliverables that don't have a specific budget amount associated
-with them", so every deliverable label from Section 5 gets its own line below. The amounts
-are derived from the scope in Section 5 rather than picked to look plausible, and the
-derivation is shown in 6a so a reviewer can argue with the inputs instead of the output.
+with them", so every deliverable label from Section 5 carries its own amount below. And it
+warns that "proposals that overreach in cost relative to their scope often perform poorly in
+review and voting", which is exactly why 6a shows the composition instead of one blended rate.
+A reviewer who disagrees with an input can change that one input and see what it does to the
+total.
 
-> **Owner confirmation required.** The weekly rate below and the implied team size are
-> assumptions, not facts. The rate is a single input: change it and every number in this
-> section recomputes by the same multiplier, because every amount is person-weeks times that
-> rate. Confirm or replace it against the real team in Section 8 before submitting.
+**Why $135,000 sits inside the band rather than above it.** Privacy and confidentiality
+projects on Stellar have been funded at this level and higher, and each of these was checked
+against its SCF project or awards page rather than taken from memory:
+
+- **LumenShade**, SCF #37, **$135,000**, Applications track, with a stated team size of 1 on
+  its SCF project page. This is the closest precedent for the number and the team size
+  together. One honest qualifier: its public write-up names two contributors, so it is better
+  read as a precedent for a very small team than strictly for one person.
+- **Moonlight** (Aha Labs), SCF #37, listed at **$135.0K** on the SCF #37 awards round, with
+  the round recap giving the precise figure as $134,990.
+- **Arcane**, SCF #42, **$150,000**, for a private compliant layer on Stellar. This is the
+  closest comparable on scope and is already cited in Section 4.
+- **Confidential Transfers and Balances** by **Fairblock**, SCF #40, **$150,000**, team size 2.
+  Note for anyone checking: the SCF site indexes it under the project title, not under
+  "Fairblock", and it was awarded on the Developer Tooling track rather than Applications, so
+  it is a price comparable rather than a scope comparable.
+
+The peer set places the request; it does not justify padding it. The composition in 6a has to
+stand on its own, and if a reviewer rejects a line the request should fall by that line's
+amount. Two further handbook facts that cut against the request are stated here rather than
+left for the reviewer to raise: the award is described as covering "(up to ~4 months of)
+development costs" with a typical timeline of 3 to 6 months, and the $150,000 is a lifetime
+cap across all Build Awards, so a $135,000 award leaves this project $15,000 of lifetime
+headroom. Section 7 explains why the plan uses the full 6 months, and the answer is the
+licensed anchor's schedule in Tranche #3, which is not under the team's control.
 
 ### 6a. How these numbers were derived
 
-**The rate input.** One blended rate of **$1,200 per person-week**, used for every
-deliverable. It is all-in project cost, not take-home pay: it covers engineer compensation
-and employer costs plus the project's share of infrastructure (Soroban RPC, app hosting, the
-TRISA node and its certificates, the indexer's datastore, Sentry). That is why there is no
-separate infrastructure line. The figure is set for a small team building in Indonesia,
-where a senior blockchain engineer costs roughly IDR 50 to 60 million a month fully loaded,
-with a premium on top for the Circom and Soroban specialty this work needs and for the
-hosting the later tranches add. It is deliberately not a US or European agency rate, and it
-is deliberately not a bare Indonesian salary either. **This is the number to argue with
-first**, and it is the number the owner must confirm.
+Three components. Each is priced from the work in Section 5 rather than back-solved from the
+total.
 
-**Person-weeks per deliverable.** Each estimate is against the work that is actually left in
-this repository, not against a generic software estimate. Where something already exists, the
-estimate prices only the remainder.
+**Component 1. The founder, six months full time. $45,500.**
 
-| Deliverable | Person-weeks | What the estimate is based on |
-|---|---:|---|
-| **D0.1** Acceptance and tranche plan | 0.5 | Signing, publishing the tranche plan, and opening the tracking issue that maps each label to its artifact. Administrative, not development. |
-| **D1.1** Live-pool state migration | 3.0 | `scripts/migrate-pool.mjs` is 220 lines and already proves the whole path against a test double, but it refuses a live source by design. The remainder is dry-run rehearsals against the real pool, collecting and logging the operator-supplied nullifier list (it cannot be reconstructed on-chain), re-wiring seven verifiers plus the oracle and policy registry to the new pool, repointing the app, a rollback plan, and the CAP-85 / CAP-86 evaluation writeup. |
-| **D1.2** Exact accumulator on the live pool | 2.0 | The accumulator logic exists and passes (`contracts/pool-accumulator`, 1,392 lines, 78 tests), but it lives on a separate preview fork from `pool-enforced` and `pool-timelock`. The work is converging that fork into the one production pool contract, re-running the suite on the merged contract, and proving deposit-then-withdraw leaves `total_liabilities` exact on-chain. |
-| **D1.3** Admin-key hardening on the live pool | 2.0 | Same convergence for `contracts/pool-timelock` (1,509 lines, 89 tests) onto the merged pool, configuring the Stellar multisig admin account, then regressing all eight contract crates and the live Playwright end-to-end suite against the migrated pool. |
-| **D2.1** Candidate licensed-anchor flow | 4.0 | `webapp/lib/stellar.ts` already resolves SEP-1, SEP-10, SEP-24 and SEP-38 from one endpoints object, so the protocol code is not the cost. The cost is anchor sandbox onboarding, mapping that anchor's SEP-12 KYC fields, building the path that feeds its KYC signal into the ASP allow-list (`webapp/lib/asp.ts` has no such feed today), the frontend for the anchor flow, and a recorded end-to-end run. |
-| **D2.2** TRISA companion node | 3.0 | `trisa-node/` is about 520 lines of Go that compiles and has IVMS101 tests. The remainder is registering a test VASP in the directory, hosting the node with its mTLS certificate lifecycle, exchanging with a counterparty endpoint, and confirming the exchange carries the required originator and beneficiary data without leaking the shielded payment graph. |
-| **D2.3** Threat model re-issue plus monitoring stack | 6.0 | The largest line, and the one with the least existing code. `docs/THREAT_MODEL.md` section 5.5 lists five work items: the transaction-level indexer (a new service with its own datastore, because reverted transactions publish no events and RPC retention is about 7 days), the alert transport in front of both the indexer and the existing console heuristics, the Sentry DSN and its rules, admin and auditor account-history watches, and adding events to the live pool's policy setters. Plus re-running the full STRIDE exercise against the migrated pool and re-issuing the document, and tuning every "baseline pending" threshold against D2.4's traffic. |
-| **D2.4** Scoped testnet pilot | 2.0 | Operating the corridor with a small tester group, supporting them through the flow in `docs/ONBOARDING.md`, collecting the on-chain evidence, and writing the pilot report. Running and verifying the corridor, not acquiring users. |
-| **D3.1** Mainnet deploy and verification | 4.0 | Includes the production trusted-setup ceremony that Section 9 makes a mainnet prerequisite: coordinating genuinely independent contributors across all 8 circuits, verifying the transcripts, regenerating the verifier contracts against the new keys, then deploying the pool and verifiers to mainnet with SEP-0055 attested builds and a reproducible verification record. |
-| **D3.2** Corridor go-live with a licensed anchor | 3.0 | Production anchor integration is not the sandbox integration again: production credentials, production KYC, settlement and reconciliation runbooks, and the first real end-to-end mainnet remittance. |
-| **D3.3** Public SDK / API and docs | 3.0 | Extracting the corridor client surface out of `webapp/lib` (`stellar.ts`, `zk.ts`, `asp.ts` and their dependencies) into a published package with a stable API, integration documentation, and a runnable example against the mainnet contracts. |
-| **D3.4** Go-live monitoring | 1.5 | Repointing the D2.3 stack at the mainnet contracts and re-tuning every threshold against the real baseline, which only exists after D3.2. |
-| **Total** | **34.0** | |
+One person, 26 weeks, at **$1,750 per week**. This is the largest single line and it pays for
+the only person who is on the project every day.
 
-**The arithmetic.** 34.0 person-weeks times $1,200 per person-week is **$40,800**, which is
-the total requested. That is 27% of the $150,000 cap. Each tranche subtotal is the SCF-fixed
-percentage of that total, and each deliverable amount inside a tranche is its share of that
-tranche's person-weeks, rounded so the subtotals stay exact.
+The rate is stated so it can be argued with. A senior blockchain engineer in Indonesia costs
+roughly IDR 50 to 60 million a month fully loaded, which is about $3,100 to $3,700 a month, so
+$1,750 a week (about $7,580 a month) is roughly double the local market salary. The premium is
+deliberate and it is not hidden. It prices three things. First, Circom / Groth16 plus Soroban
+is a skillset with a global market rather than a local one, and the alternative to this
+project is not unemployment, it is the full-time engineering role the founder currently holds
+and would leave for the award window (Section 8 states that commitment plainly). Second, six
+months of sole-founder risk on a project with no revenue, where there is no second engineer to
+absorb a bad month. Third, the award is paid in XLM, converted at the benchmark rate on the
+scheduled payment day, so the founder carries the price movement between award and spend.
 
-**Where effort and tranche weighting do not match, stated plainly.** The 10 / 20 / 30 / 40
-split is fixed by SCF, and the honest effort estimates do not fall in that ratio. By
-person-weeks the shares are about 1% / 21% / 44% / 34%. Tranche #1 lands almost exactly on
-its 20%. Tranche #2 is the heaviest tranche of work and receives the smaller 30% share, and
-Tranche #0 receives 10% for half a person-week of administrative work. The estimates are not
-adjusted to hide this. The acceptance payment is what resolves it: it is working capital paid
-up front, and it funds the Tranche #2 overhang rather than paying for the kickoff itself. The
-totals are consistent, because 34 person-weeks at the stated rate equals the requested total
-exactly; only the distribution across tranches differs from the distribution of work.
+A reviewer who thinks the local salary rate should apply can discount this line to $24,000,
+which is $4,000 a month and sits at the top of that local fully loaded range. The request then
+falls to $113,500. That is the honest sensitivity and it is better stated here than discovered
+later.
 
-**Team-size sanity check.** 34 person-weeks spread over a 6-month (about 26-week) window is
-an average of roughly 1.3 full-time engineers, peaking near 1.7 during Months 3 and 4 where
-Tranche #2's 15 person-weeks fall. That means about two people, not full-time across the
-whole window. **Section 8 must match this.** If the team listed there is larger or smaller,
-change the person-weeks or the rate here rather than leaving the two sections disagreeing,
-which is exactly the "over-scoping your budget without a matching team" the handbook warns
-about.
+**Component 2. Contracted specialist engineering. $80,000, about 28 contractor-weeks plus one
+fixed-fee engagement.**
 
-**Per-deliverable budget.**
+These are the deliverables a solo generalist should not carry alone, chosen by reading Section
+5 rather than by filling a budget. Each one is either a distinct discipline, a distinct
+operational burden, or something that by definition cannot be done by one person.
 
-| Deliverable | What it covers | Budget category (Build Award DOs) | Person-weeks | Amount |
+| Engagement | Deliverables | Weeks | Rate | Amount | Why it is bought in |
+|---|---|---:|---:|---:|---|
+| Backend and data engineer, transaction-level indexer and alert transport | D2.3 | 10 | $2,600 | **$26,000** | The indexer is a new always-on service with its own datastore, not a feature of the app. `docs/THREAT_MODEL.md` 5.5 requires it because a reverted transaction publishes no events and RPC retention is about 7 days, so contract error codes are not countable without it. Ingestion, backfill, retention and an alert transport in front of it are backend and data-pipeline work, a different discipline from circuits and contracts. Handbook activity: Core Development ("backend infrastructure or indexing tools"). |
+| Infrastructure and SRE engineer, TRISA node hosting and mTLS certificate lifecycle | D2.2 | 5 | $2,800 | **$14,000** | `trisa-node/` is about 520 lines of Go that already compiles and passes IVMS101 tests, so the code is not the cost. The cost is running a VASP endpoint: directory registration, a stable public endpoint, mutual-TLS issuance, rotation and expiry handling, and the counterparty exchange. A missed certificate renewal takes the Travel Rule leg down, which is an on-call burden a solo founder cannot hold alongside the rest of the plan. Handbook activity: Core Development. |
+| Anchor integration engineer | D2.1, D3.2 | 7 | $2,600 | **$18,200** | `webapp/lib/stellar.ts` already resolves SEP-1, SEP-10, SEP-24 and SEP-38, so the protocol code is not the cost either. The cost is anchor-side: sandbox onboarding, mapping one specific anchor's SEP-12 KYC field set, then production credentials and reconciliation runbooks in Tranche #3. This is calendar-bound work that runs on the anchor's schedule rather than the founder's, and it is the line that most needs someone who has integrated a licensed anchor before. Handbook activity: Core Development ("integrating external protocols or creating adapters"). |
+| Product design and UX | D2.1, D3.3 | 6 | $1,800 | **$10,800** | The anchor flow adds a KYC and interactive-deposit path to a four-role app, and D3.3 ships a public SDK that needs integration docs an outside developer can follow. The existing UI was built by the founder and is functional; an anchor-facing money flow and a public developer surface are where non-specialist design costs the project users. Handbook activity: Frontend and UX. |
+| Trusted-setup ceremony, independent contributors and coordination | D3.1 | fixed fee | | **$11,000** | Section 9 states that the demo ceremony ran every round on one machine. The one-honest-party soundness guarantee needs contributors who are genuinely independent of the founder, so this is the one line on the project that a solo team cannot supply from inside, by definition. It pays a coordinator and a set of contracted independent contributors across all 8 circuits against a defined deliverable: published transcripts that verify, and verifier contracts regenerated against the new keys. **This is not an audit and is not funded as one.** It produces no security opinion and no findings report. See the exclusions below. Handbook activity: Deployment and Release. |
+| **Contractor total** | | **28** | | **$80,000** | |
+
+Contractor weeks cost more than founder weeks and produce less per week, because a contractor
+ramps on an unfamiliar codebase and the founder spends time specifying and reviewing. That is
+priced in rather than wished away: the same scope the previous draft of this section sized at
+34 person-weeks takes about 54 engineering weeks once it is split across a founder and five
+outside engagements. The difference is handoff plus two disciplines the earlier estimate did
+not price at all, product design and SRE, neither of which the founder was ever going to
+supply.
+
+**Component 3. Infrastructure, six months. $9,500.**
+
+The previous draft folded infrastructure into a blended weekly rate. At this scale it is real
+money and it gets its own line, with the eligibility question raised above rather than hidden.
+
+| Item | Basis | Amount |
+|---|---|---:|
+| Soroban RPC, paid tier, testnet through mainnet | $400/month for 6 months. Free tiers do not carry an indexer backfill or a monitored mainnet corridor. | **$2,400** |
+| Indexer datastore and worker | $250/month for 6 months. Managed Postgres plus an always-on ingestion worker, sized for retention well past RPC's roughly 7 days. | **$1,500** |
+| TRISA node hosting, endpoint and certificates | $300/month for 6 months. VM, static public endpoint, directory registration, mTLS certificate issuance and renewal. | **$1,800** |
+| CI and proving machines | $250/month for 6 months. Groth16 proving and circuit compilation need more memory than standard runners, plus a host for the D3.1 ceremony coordination. | **$1,500** |
+| Mainnet on-chain costs | Contract instance reserves for the corridor pool and its seven verifiers, ledger entry rent, and transaction fees across the Tranche #3 window. | **$1,040** |
+| App hosting and preview environments | $120/month for 6 months. | **$720** |
+| Sentry, team plan with cron monitors | $90/month for 6 months. Wired today but inert with no DSN; D2.3 turns it on. | **$540** |
+| **Infrastructure total** | | **$9,500** |
+
+**The composition adds up.** $45,500 founder plus $80,000 contracted engineering plus $9,500
+infrastructure is **$135,000**.
+
+**What each deliverable actually costs.** Each deliverable's cost basis is its share of the
+three components above.
+
+| Deliverable | Founder weeks | Founder | Contracted | Infra | Cost basis |
+|---|---:|---:|---:|---:|---:|
+| **D0.1** Acceptance and tranche plan | 0.5 | $875 | $0 | $0 | **$875** |
+| **D1.1** Live-pool state migration | 3.0 | $5,250 | $0 | $600 | **$5,850** |
+| **D1.2** Exact accumulator on the live pool | 2.0 | $3,500 | $0 | $300 | **$3,800** |
+| **D1.3** Admin-key hardening on the live pool | 2.0 | $3,500 | $0 | $300 | **$3,800** |
+| **D2.1** Candidate licensed-anchor flow | 2.5 | $4,375 | $18,400 | $700 | **$23,475** |
+| **D2.2** TRISA companion node | 1.5 | $2,625 | $14,000 | $1,800 | **$18,425** |
+| **D2.3** Threat model re-issue plus monitoring stack | 2.5 | $4,375 | $26,000 | $2,040 | **$32,415** |
+| **D2.4** Scoped testnet pilot | 2.5 | $4,375 | $0 | $500 | **$4,875** |
+| **D3.1** Mainnet deploy, verification, production ceremony | 3.0 | $5,250 | $11,000 | $2,000 | **$18,250** |
+| **D3.2** Corridor go-live with a licensed anchor | 2.5 | $4,375 | $5,200 | $600 | **$10,175** |
+| **D3.3** Public SDK / API and docs | 3.0 | $5,250 | $5,400 | $300 | **$10,950** |
+| **D3.4** Go-live monitoring | 1.0 | $1,750 | $0 | $360 | **$2,110** |
+| **Total** | **26.0** | **$45,500** | **$80,000** | **$9,500** | **$135,000** |
+
+The contracted column splits like this: D2.1 takes 5 of the anchor engineer's 7 weeks
+($13,000) plus 3 of the designer's 6 weeks ($5,400); D3.2 takes the anchor engineer's
+remaining 2 weeks ($5,200); D3.3 takes the designer's remaining 3 weeks ($5,400); D2.2 takes
+the whole SRE engagement; D2.3 takes the whole indexer engagement; D3.1 takes the ceremony
+fee. Note that **Tranche #1 is entirely founder work with no contracted line at all.** That is
+deliberate rather than convenient: the migration, the accumulator and the timelock are the
+parts only the person who wrote the system can safely execute against live state.
+
+**Where cost and tranche weighting do not match, stated plainly.** The 10 / 20 / 30 / 40 split
+is fixed by SCF and the cost basis does not fall in that ratio. By cost the shares are about
+1% / 10% / 59% / 31%. Tranche #2 is where almost every contracted engagement lands, so it
+costs $79,190 against a $40,500 payment, an overhang of $38,690. The other three tranches run
+surpluses that cover it exactly: $12,625 on Tranche #0, $13,550 on Tranche #1 and $12,515 on
+Tranche #3. The estimates are not adjusted to hide this.
+
+That is a cash-flow statement, not an accounting trick, and it is the reason the acceptance
+payment exists. The acceptance payment plus Tranche #1 is $40,500 and arrives before Tranche
+#2 work begins, while Tranche #1 itself costs $13,450, so about $27,050 of working capital
+carries into Tranche #2. The engagements are staged in Section 7 so that commitments follow
+received funds rather than preceding them, and the indexer engagement starts in Month 2 rather
+than Month 3 for exactly that reason.
+
+**Team-size sanity check, for a team of one.** Section 8 lists one person. The founder's own
+load is a flat 1.0 FTE across 26 weeks and never exceeds it, which is the real constraint a
+solo team has. The contracted engagements add about 1.1 average FTE across the window, peaking
+near 2.1 concurrent contractors in Months 3 and 4 where Tranche #2 falls. Peak headcount is
+about three people, one of them permanent. The previous draft of this section claimed an
+average of 1.3 full-time engineers rising to a peak of 1.7 **supplied by the team itself**,
+which no solo team can supply. That figure is withdrawn and replaced by the split above.
+Section 8 states how one person supervises that peak and which scope moves if it does not
+hold.
+
+**Per-deliverable budget, at the fixed tranche percentages.**
+
+Each amount below is the deliverable's share of its tranche's cost basis, scaled to the
+SCF-fixed tranche subtotal. The cost-basis column says what the work costs; the amount column
+says what SCF pays and when.
+
+| Deliverable | What it covers | Handbook activity | Cost basis | Amount |
 |---|---|---|---:|---:|
-| **D0.1** Acceptance, tranche plan, public tracking issue | Kickoff, planning, publishing the verifiable-artifact map | Project management | 0.5 | **$4,080** |
-| *Tranche #0 subtotal (10%)* | | | 0.5 | **$4,080** |
-| **D1.1** Live-pool state migration onto the upgradeable pool | Migration execution and verification, nullifier-completeness control, CAP-85 / CAP-86 evaluation writeup | Core development | 3.0 | **$3,500** |
-| **D1.2** Exact proof-of-reserves accumulator applied to the live pool | Contract change carried through the migration, deposit-then-withdraw verification on-chain | Core development | 2.0 | **$2,330** |
-| **D1.3** Admin-key hardening on the live pool | Timelock applied via the migration, multisig admin account configuration, regression of the contract and live e2e suites | Core development, testing and verification | 2.0 | **$2,330** |
-| *Tranche #1 subtotal (20%)* | | | 7.0 | **$8,160** |
-| **D2.1** Candidate licensed-anchor flow on testnet | SEP-10 / SEP-24 adapter against the anchor sandbox, ASP allow-list fed from the anchor KYC signal, frontend for the anchor flow | Core development, frontend / UX | 4.0 | **$3,260** |
-| **D2.2** TRISA companion node for a live Travel Rule leg | VASP registration, node hosting and configuration, IVMS101 exchange against a counterparty endpoint | Backend / infrastructure | 3.0 | **$2,450** |
-| **D2.3** Threat model re-issue plus the monitoring and alerting stack | Transaction-level indexer, alert transport and rules, Sentry DSN configuration, admin and auditor account watches, setter events, threshold tuning, re-run of the threat model against the migrated pool | Backend, monitoring / alerting | 6.0 | **$4,900** |
-| **D2.4** Scoped testnet pilot | Running the corridor with a small set of real testers and publishing the pilot report | Testing and verification | 2.0 | **$1,630** |
-| *Tranche #2 subtotal (30%)* | | | 15.0 | **$12,240** |
-| **D3.1** Mainnet contract deployment and verification | Production trusted-setup keys, mainnet deploy, reproducible verification record | Deployment and release | 4.0 | **$5,680** |
-| **D3.2** One corridor go-live with a licensed anchor | Production anchor integration and the first end-to-end mainnet remittance | Core development, deployment | 3.0 | **$4,260** |
-| **D3.3** Public SDK / API and integration documentation | Published package, integration docs, a runnable example against the mainnet contracts | Developer tooling, documentation | 3.0 | **$4,260** |
-| **D3.4** Go-live monitoring | Repointing the stack at mainnet and tuning thresholds against the real baseline | Monitoring / alerting | 1.5 | **$2,120** |
-| *Tranche #3 subtotal (40%)* | | | 11.5 | **$16,320** |
-| **Total** | | Capped at $150,000 in XLM, 6 months or less | **34.0** | **$40,800** |
+| **D0.1** Acceptance, tranche plan, public tracking issue | Kickoff, publishing the verifiable-artifact map, and working capital for the Tranche #2 overhang below | Tranche #0 is n/a for development deliverables per the handbook's own tranche table | $875 | **$13,500** |
+| *Tranche #0 subtotal (10%)* | | | $875 | **$13,500** |
+| **D1.1** Live-pool state migration onto the upgradeable pool | Migration execution and verification, nullifier-completeness control, CAP-85 / CAP-86 evaluation writeup | Core Development | $5,850 | **$11,750** |
+| **D1.2** Exact proof-of-reserves accumulator applied to the live pool | Contract change carried through the migration, deposit-then-withdraw verification on-chain | Core Development | $3,800 | **$7,625** |
+| **D1.3** Admin-key hardening on the live pool | Timelock applied via the migration, multisig admin account configuration, regression of the contract and live e2e suites | Core Development, Testing and Verification | $3,800 | **$7,625** |
+| *Tranche #1 subtotal (20%)* | | | $13,450 | **$27,000** |
+| **D2.1** Candidate licensed-anchor flow on testnet | Contracted anchor sandbox onboarding and SEP-12 KYC mapping, ASP allow-list fed from the anchor KYC signal, designed anchor flow in the app | Core Development, Frontend and UX | $23,475 | **$12,000** |
+| **D2.2** TRISA companion node for a live Travel Rule leg | VASP registration, contracted node hosting with the mTLS certificate lifecycle, IVMS101 exchange against a counterparty endpoint | Core Development | $18,425 | **$9,425** |
+| **D2.3** Threat model re-issue plus the monitoring and alerting stack | Contracted transaction-level indexer and its datastore, alert transport and rules, Sentry DSN, admin and auditor account watches, setter events, threshold tuning, re-run of the threat model against the migrated pool | Core Development, Testing and Verification | $32,415 | **$16,575** |
+| **D2.4** Scoped testnet pilot | Running the corridor with a small set of real testers and publishing the pilot report | Testing and Verification | $4,875 | **$2,500** |
+| *Tranche #2 subtotal (30%)* | | | $79,190 | **$40,500** |
+| **D3.1** Mainnet contract deployment and verification | Production trusted-setup ceremony with contracted independent contributors, verifiers regenerated against the new keys, mainnet deploy, reproducible verification record | Deployment and Release | $18,250 | **$23,750** |
+| **D3.2** One corridor go-live with a licensed anchor | Contracted production anchor credentials and runbooks, and the first end-to-end mainnet remittance | Core Development, Deployment and Release | $10,175 | **$13,250** |
+| **D3.3** Public SDK / API and integration documentation | Published package, designed integration docs, a runnable example against the mainnet contracts | Deployment and Release | $10,950 | **$14,250** |
+| **D3.4** Go-live monitoring | Repointing the stack at mainnet and tuning thresholds against the real baseline | Testing and Verification, Deployment and Release | $2,110 | **$2,750** |
+| *Tranche #3 subtotal (40%)* | | | $41,485 | **$54,000** |
+| **Total** | | Capped at $150,000 in XLM, 6 months or less | **$135,000** | **$135,000** |
 
-The four subtotals are exactly 10%, 20%, 30% and 40% of $40,800, which is $4,080, $8,160,
-$12,240 and $16,320. Each is checkable, and the deliverable amounts inside each tranche sum
-to that tranche's subtotal. The person-week column and the amount column disagree on
-distribution for the reason given in 6a, and the two columns agree on the total: 34.0
-person-weeks at $1,200 is $40,800. The award is paid in XLM, so the dollar figures convert
-at the rate SDF applies at award time and the XLM amount is not fixed here.
+**The arithmetic, checkable line by line.** The four subtotals are exactly 10%, 20%, 30% and
+40% of $135,000: $13,500, $27,000, $40,500 and $54,000, which sum to $135,000. Inside each
+tranche the deliverable amounts sum to that tranche's subtotal ($11,750 + $7,625 + $7,625 =
+$27,000; $12,000 + $9,425 + $16,575 + $2,500 = $40,500; $23,750 + $13,250 + $14,250 + $2,750 =
+$54,000). The cost-basis column sums to $135,000 as well, and equals the three components:
+$45,500 + $80,000 + $9,500. The two columns differ per tranche for the cash-flow reason given
+above and agree on the total. The award is paid in XLM, so the dollar figures convert at the
+benchmark rate SDF applies on the scheduled payment day and the XLM amount is not fixed here.
 
 **Excluded from this budget (per the handbook's ineligible and non-fundable costs).**
 
-- **Audit costs.** A professional audit is planned separately through the Audit Bank and
-  is not funded here. No line above pays for one.
-- **Marketing and user acquisition.** None. The Tranche #2 pilot line (D2.4) pays for
-  running and verifying the corridor, not for acquiring users; the limited Integration
-  Track exception for validation testing does not apply to this submission and is not
-  claimed.
-- **Bounties, token giveaways, and prize pools.** None.
-- **Legal fees and entity registration.** None. The licensed-anchor and jurisdiction work
-  in Section 9 is a business dependency, not a budget line.
-- **Reimbursement for past or unrelated work.** The award funds only the future work in
-  Section 5. The existing testnet architecture, the 15 deployed contracts, the 8 circuits,
-  and the hackathon work are prior work and are not billed.
+- **Audit costs.** "Audit costs (covered separately by Audit Bank for eligible projects)" are
+  ineligible. A professional audit is planned separately through the Audit Bank and no line
+  above pays for one. The trusted-setup ceremony in D3.1 is named explicitly because it could
+  be mistaken for one: it is a cryptographic key-generation procedure that produces verifiable
+  transcripts, not a security review. It delivers no opinion and no findings report, and the
+  contracted parties are ceremony contributors, not auditors. If a reviewer still reads that
+  line as an audit it should be struck, and the request falls to $124,000.
+- **Marketing and user acquisition.** None. The Tranche #2 pilot line (D2.4) pays for running
+  and verifying the corridor, not for acquiring users. The handbook's narrow validation-testing
+  exception applies to Integration Track awards only; this is an Open Track submission and the
+  exception is not claimed.
+- **Bounties, token giveaways and prize pools.** None. The D3.1 ceremony contributors are
+  engaged on a contract with a defined deliverable, not paid a bounty against an open call.
+- **Legal fees and entity registration.** None. The licensed-anchor and jurisdiction work in
+  Section 9 is a business dependency, not a budget line, and the anchor integration engagement
+  above pays for engineering and operational integration only.
+- **Reimbursement for past or unrelated work.** "Costs must support future development, not
+  past work or general operations." The award funds only the future work in Section 5. The
+  existing testnet architecture, the 15 deployed contracts, the 8 circuits and the hackathon
+  work are prior work and are not billed.
 
-**What the owner should check before submitting.** Three things, in order of how much they
-move the number. First, the $1,200 per person-week rate: it is an assumption and it scales
-everything. Second, the team in Section 8 against the 1.3 average full-time engineers this
-plan implies. Third, any person-week estimate in 6a that reads wrong from inside the team,
-since each one names the specific code it is estimated against and can be argued on that
-basis. $40,800 is 27% of the cap, which is where a request for productionizing an existing
-system should sit; a request near the cap for a team this size is the "inflated or unbalanced
-budget" the prescreen filters for.
+**If the panel wants a smaller number, here is exactly what comes out.** Each reduction below
+is a single line, already priced above, and none of them changes any other number:
+
+| Reduction | Request becomes |
+|---|---:|
+| Founder line repriced at the Indonesian market salary rather than the specialist rate | **$113,500** |
+| Trusted-setup ceremony struck (mainnet then ships on the demo ceremony's keys, which Section 9 says is not good enough, so this is the worst of the four) | **$124,000** |
+| Product design and UX engagement struck (the founder ships the anchor flow and the SDK docs himself, at lower quality) | **$124,200** |
+| Infrastructure struck as operational overhead | **$125,500** |
+
+**The three inputs a reviewer should attack first**, in order of how much they move the
+number. First, the founder rate of $1,750 per week, with the sensitivity already priced above at
+$113,500.
+Second, the contractor rates and week counts, which are $80,000 of the $135,000 and therefore
+the bulk of it; each engagement names the specific code or operational burden it is sized
+against and can be argued on that basis. Third, whether any of the five engagements should be
+absorbed by the founder instead, which is a judgment about what one person can hold across six
+months rather than an arithmetic question. Section 8 gives the answer this proposal is making.
 
 ---
 
 ## 7. Timeline
 
-Six months or less, across the three development tranches. Refine the month boundaries to
-the team's real capacity.
+Six months or less, across the three development tranches. The founder works the full window
+at 1.0 FTE; the contracted engagements from Section 6a are staged below so that every
+commitment follows a received tranche payment rather than preceding it.
 
-| Period | Focus | Milestone |
-|---|---|---|
-| Month 0 | Acceptance, kickoff, public tranche tracking (D0.1) | Tranche #0 |
-| Months 1 to 2 | Pool migration onto the upgradeable contract including the exact proof-of-reserves accumulator, admin-key hardening (D1.1 to D1.3) | Tranche #1 MVP |
-| Months 3 to 4 | Candidate-anchor flow, TRISA node, monitoring and alerting stack, re-issued threat model, scoped pilot (D2.1 to D2.4) | Tranche #2 Testnet |
-| Months 5 to 6 | Mainnet deploy and verification, licensed-anchor corridor go-live, SDK/API and docs, go-live monitoring (D3.1 to D3.4) | Tranche #3 Mainnet |
+| Period | Focus | Contracted engagements running | Milestone |
+|---|---|---|---|
+| Month 0 | Acceptance, kickoff, public tranche tracking (D0.1) | None | Tranche #0 |
+| Months 1 to 2 | Pool migration onto the upgradeable contract including the exact proof-of-reserves accumulator, admin-key hardening (D1.1 to D1.3) | Indexer engagement starts in Month 2 (spec and ramp only) | Tranche #1 MVP |
+| Months 3 to 4 | Candidate-anchor flow, TRISA node, monitoring and alerting stack, re-issued threat model, scoped pilot (D2.1 to D2.4) | Indexer (continuing), SRE / TRISA, anchor integration, design block 1. Peak of about 2.1 concurrent contractors | Tranche #2 Testnet |
+| Months 5 to 6 | Mainnet deploy and verification, licensed-anchor corridor go-live, SDK/API and docs, go-live monitoring (D3.1 to D3.4) | Ceremony (Month 5, fixed fee), anchor integration production weeks (Month 5), design block 2 (Month 6) | Tranche #3 Mainnet |
 
-Each tranche completion form must be submitted within 90 calendar days of the tranche
-becoming due or the remaining balance is forfeited, so the month boundaries above leave
-slack rather than running to the edge of each window.
+**Why the full 6 months rather than the roughly 4 the handbook describes as typical.** Tranche
+#3 depends on a licensed anchor's own onboarding and production-credential schedule, which is
+not under the team's control and is named as a business dependency in Section 9. Compressing
+the window would not move that date, it would only remove the slack that absorbs it.
+
+Each tranche completion form must be submitted within 90 calendar days of receiving the
+previous tranche payment, and silence past that window forfeits the remaining balance, so the
+month boundaries above leave slack rather than running to the edge of each window.
 
 ---
 
 ## 8. Team
 
-**[ISI SENDIRI: jumlah anggota + roles + LinkedIn]**
+**One person. Team size 1.**
 
-A team of [N], with expertise across zero-knowledge (Circom / Groth16 / snarkjs),
-Soroban / Rust smart contracts, and full-stack product (Next.js, TypeScript). [Sebutkan
-pengalaman atau company sebelumnya kalau ada.] LinkedIn: [link tiap anggota].
+| | |
+|---|---|
+| **Name** | Pugar Huda Mantoro |
+| **Role** | Founder and sole engineer. Circuits, Soroban contracts, application, deployments, documentation. |
+| **Location** | Yogyakarta, Indonesia |
+| **LinkedIn** | https://www.linkedin.com/in/pugar-huda-mantoro/ |
+| **GitHub** | https://github.com/PugarHuda |
+| **Email** | hudapugar@gmail.com |
 
-Scope this proposal to the team as it actually is. The tranche deliverables in Section 5
-and the budget in Section 6 should be sized to the people listed here, since an
-over-scoped plan relative to the team performs poorly in review. Section 6a's estimate is
-34 person-weeks over the 6-month window, an average of about 1.3 full-time engineers and a
-peak near 1.7 in Months 3 and 4. If the team listed above cannot supply that, change the
-estimates in 6a rather than leaving the two sections disagreeing.
+Everything in this repository was built by this one person working with AI assistance, which
+Section 10 discloses in full. There is no second engineer, no co-founder and no company behind
+it. The budget in Section 6 is built on that fact rather than around it.
 
-**Evidence the team has built and scaled before.** The Open Track asks for evidence that
-the team has previously built and scaled similar products. What this project can evidence
-on its own is build capability, not scale:
+**Professional background.** Full-time Software Engineer at SmartID (Malang, remote) since
+April 2026. Before that, contract Software Engineer at Geo Santara Indonesia from December
+2025 to January 2026, IT Curriculum Architect and Software Engineer at Lumintu Logic from 2023
+to 2025, and freelance backend mentor at Harisenin in 2023. Studying Informatics at
+Universitas Islam Indonesia since 2022. Working languages and tools: Solidity, Rust,
+TypeScript, Next.js, Foundry, Hardhat, Python, and Claude Code and n8n as AI tooling.
 
-- 5th place in the Stellar Privacy / Real-World ZK hackathon, hosted on DoraHacks.
+**The commitment the budget depends on, stated up front.** The SmartID role is full-time. The
+founder line in Section 6a funds 26 weeks of full-time work on Tukar, which means leaving that
+role for the award window. That is a real decision and it is written here because the whole
+plan rests on it: if the founder stays employed, the 26 founder-weeks are not available, the
+schedule in Section 7 does not hold, and the correct response is to cut scope rather than to
+pretend the hours exist.
+
+### Evidence of building and scaling before
+
+The Open Track asks for evidence that the team has previously built and scaled similar
+products. The honest answer has two halves, and the second half is a no.
+
+**On building: yes, repeatedly, alone, and in this exact domain.** All of the work below is
+solo, all of it is 2026 unless noted, and all of it was judged by people outside the project.
+
+The three that matter most for this proposal, because they are the same problem in a different
+venue:
+
+- **Sealed Pair.** A privacy-preserving OTC trading platform on Sui, using Walrus for
+  encrypted quote negotiation with on-chain settlement. Won Best Walrus Integration at the
+  Tatum x Sui hackathon. Confidential negotiation that still settles verifiably on-chain is the
+  same shape as Tukar's private-in-the-middle, accountable-at-the-edges design.
+- **Diam.** A confidential OTC trading desk on Arbitrum, using iExec TEE confidential computing
+  with ERC-7984 confidential tokens. First place at the iExec Vibe Coding Challenge. A second
+  confidential-trading system, built on a different privacy technology, which is the evidence
+  that the domain knowledge is not tied to one toolchain.
+- **Turu.** An NFT sleep-tracking system using zkTLS proof verification. Top 10 at the Manta
+  hackathon, 2024. The zero-knowledge proof-verification work predates this project by two
+  years.
+
+The rest of the record, which is shipping evidence rather than privacy evidence:
+
+- **Portaldot Dev Kit**, a Python developer toolkit with a transaction failure decoder. First
+  place.
+- **KasPay**, a Kaspa payment gateway with merchant tooling. Top 10 Finalist and Community
+  Choice at Kaspathon.
+- **Kutip**, an AI research assistant. Fifth place at the Kite AI Global Hackathon.
+- **Brownie to Ape**, an AST-based codemod published to the Codemod registry. Second place at
+  the Boring AI Hackathon.
+
+And on Stellar specifically, which is Tukar itself:
+
+- Fifth place in the Stellar Privacy / Real-World ZK hackathon, hosted on DoraHacks.
 - Payments and Consumer Applications Grand Finalist in the Stellar APAC hackathon.
-- 15 Soroban contracts deployed and exercised on testnet with public explorer links, 8
-  Circom circuits with a multi-party phase-2 ceremony, 314 Cargo tests, 231 frontend unit
-  tests, and Playwright end-to-end suites that drive the live deployment.
+- 15 Soroban contracts deployed and exercised on testnet with public explorer links, 8 Circom
+  circuits with a multi-party phase-2 ceremony, 314 Cargo tests, 231 frontend unit tests, and
+  Playwright end-to-end suites that drive the live deployment.
 
-That is a record of shipping, not of scaling. Nothing here has run at production volume.
-**[ISI SENDIRI: prior products the team built and scaled, with the numbers and links that
-back them. If there is no such prior record, say so plainly rather than stretching the
-hackathon results to cover it. Reviewers check.]**
+**On scaling: no. There is no such record, and this proposal is not going to imply one.** Not
+one of the projects above has run at production volume. None has paying users, none has
+revenue, none was operated past the end of the event it was built for, and none has been
+maintained for a live user base through an incident. Tukar is testnet with no users. The
+distinction matters and it is drawn here explicitly rather than left for a reviewer to infer,
+because a reviewer who works it out unaided will reasonably conclude the proposal was hiding
+it.
 
-**Video presentation. [ISI SENDIRI]** The Open Track expects a video presentation of the
-team. Record and link it; a demo video alone does not satisfy the team half of it.
+What the record does prove is narrower and still relevant: this person repeatedly takes a
+hard cryptographic system from nothing to something that works and that outside judges can
+verify, alone, under a deadline, across several different chains and toolchains, and has done it
+three times inside the privacy and confidential-computing domain this proposal is about. That
+is build capability and domain fit. It is not operational maturity.
+
+**This gap is why the budget looks the way it does.** The contracted engagements in Section 6a
+are concentrated in exactly the disciplines a hackathon record does not evidence: running an
+always-on indexer with a datastore, holding an mTLS certificate lifecycle for a VASP endpoint,
+integrating a licensed anchor on that anchor's terms, and a trusted-setup ceremony that needs
+independent parties. The honest reading of the team section and the honest reading of the
+budget are the same reading.
+
+### How one person plus contractors delivers this in 6 months
+
+**The FTE picture, corrected.** An earlier draft of this proposal estimated 34 person-weeks
+across the window and described it as an average of 1.3 full-time engineers peaking near 1.7.
+That figure is withdrawn. A team of one cannot supply 1.3 FTE. The real shape is:
+
+| | Average FTE over the 6-month window | Peak |
+|---|---|---|
+| Founder | 1.0, flat | 1.0, never higher |
+| Contracted engineers | about 1.1 | about 2.1 concurrent, in Months 3 and 4 |
+
+The founder's own load is capped at one full-time person because that is the only honest
+number available. Everything above that line is bought in, named, and priced in Section 6a.
+
+**The division of labour.** The founder does the work that requires knowing this system:
+circuits, Soroban contracts, the live-state migration, the application, the pilot, and the SDK
+extraction. **Tranche #1 has no contracted line at all**, which is deliberate: migrating live
+shielded-pool state, applying the accumulator and applying the timelock are operations where an
+outside engineer's unfamiliarity is a fund-safety risk, not a cost saving. The contractors take
+the four disciplines listed above plus design, all of which are separable from the cryptography
+by a clean interface.
+
+**The tightest point in the plan, named.** Months 3 and 4. Tranche #2 runs up to three
+concurrent engagements while the founder is also running the D2.4 pilot. Supervising three
+contractors while writing code is itself a load and it is the single most likely place for this
+plan to slip. Three things are done about it, and they are scheduling decisions rather than
+optimism:
+
+1. The indexer engagement starts in **Month 2**, inside the Tranche #1 window, so its
+   specification and ramp happen while the founder still has slack and while Tranche #1 is
+   founder-only work. Section 7 stages it there.
+2. Every engagement has one named deliverable with an acceptance test that is already written
+   down, in `docs/THREAT_MODEL.md` section 5.5 or in Section 5 of this document. Review is
+   therefore a check against a written condition rather than an open design conversation, which
+   is the difference between supervision costing hours and costing days.
+3. The design engagement is deliberately split, 3 weeks in Month 3 and 3 weeks in Month 6, so
+   it does not stack on top of the other three.
+
+**What moves if it still does not hold.** Stated now, in priority order, rather than
+negotiated later:
+
+- **D2.4, the scoped testnet pilot, is the first thing to shrink.** It can run with a smaller
+  tester set or slide into Month 5. Its evidence requirement is publicly inspectable testnet
+  transactions and a pilot report, and both survive a smaller pilot.
+- **D3.3, the public SDK, degrades gracefully.** If Month 6 is tight it ships as a documented
+  and versioned API surface over the existing `webapp/lib` modules with a runnable example,
+  rather than as a separately packaged and published SDK.
+- **D3.2, the mainnet corridor go-live, is the scope that moves if the anchor or the
+  jurisdiction is not ready**, which Section 9 already names as a business dependency outside
+  the team's control. The handbook's option to keep the final tranche on testnet is the release
+  valve, and it is the same answer whether the cause is the anchor's schedule or the team's
+  capacity.
+
+**And the honest bound on all of it.** This plan is deliverable by one person only because the
+heaviest tranche is largely contracted out. If the engagements in Section 6a cannot be filled,
+the plan does not compress back into one person by working longer hours. The correct response
+in that case is to cut scope and say so in the tranche completion form, not to slip quietly
+past the 90-day window.
+
+**Video presentation. [ISI SENDIRI]** The Open Track expects a video presentation of the team.
+Record and link it; a demo video alone does not satisfy the team half of it.
 
 ---
 

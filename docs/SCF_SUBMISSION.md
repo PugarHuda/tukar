@@ -100,18 +100,22 @@ under Apache-2.0. Live app and deck: https://tukar-six.vercel.app
 
 **Submitter type**
 ```
-Team
+Individual
 ```
-> (Or Company if incorporated; Individual if solo.)
+> Solo builder, not incorporated. Team size 1.
 
 **Email**
 ```
 hudapugar@gmail.com
 ```
 
-**Team Description.** **[ISI SENDIRI: jumlah anggota + LinkedIn]**
+**Team Description**
 ```
-We are a team of [N]. Expertise across zero-knowledge (Circom / Groth16 / snarkjs), Soroban / Rust smart contracts, and full-stack product (Next.js, TypeScript). [Sebutkan pengalaman atau company sebelumnya kalau ada.] LinkedIn: [link tiap anggota].
+One person. Pugar Huda Mantoro, founder and sole engineer, Yogyakarta, Indonesia. LinkedIn https://www.linkedin.com/in/pugar-huda-mantoro/ , GitHub https://github.com/PugarHuda . Everything in the repository was built by this one person with AI assistance, disclosed in full in the proposal section 10. Expertise across zero-knowledge (Circom / Groth16 / snarkjs), Soroban / Rust smart contracts, and full-stack product (Next.js, TypeScript), plus Solidity, Foundry, Hardhat and Python. Currently a full-time Software Engineer at SmartID (Malang, remote) since April 2026; previously contract Software Engineer at Geo Santara Indonesia (Dec 2025 to Jan 2026), IT Curriculum Architect and Software Engineer at Lumintu Logic (2023 to 2025), and freelance backend mentor at Harisenin (2023). Studying Informatics at Universitas Islam Indonesia since 2022. The award funds six months full-time on Tukar, which means leaving the SmartID role for the award window; the budget depends on that and says so.
+
+Prior solo work, closest first. Sealed Pair, a privacy-preserving OTC trading platform on Sui using Walrus for encrypted quote negotiation with on-chain settlement, Best Walrus Integration at the Tatum x Sui hackathon. Diam, a confidential OTC trading desk on Arbitrum using iExec TEE confidential computing with ERC-7984 confidential tokens, 1st place at the iExec Vibe Coding Challenge. Turu, an NFT sleep-tracking system using zkTLS proof verification, Top 10 at the Manta hackathon (2024). Also Portaldot Dev Kit, a Python developer toolkit with a transaction failure decoder (1st place); KasPay, a Kaspa payment gateway with merchant tooling (Top 10 Finalist and Community Choice at Kaspathon); Kutip, an AI research assistant (5th at the Kite AI Global Hackathon); and Brownie to Ape, an AST-based codemod published to the Codemod registry (2nd at the Boring AI Hackathon). All 2026 unless noted, all solo.
+
+Built and scaled before, answered honestly: this is a record of building, not of scaling. None of the projects above has run at production volume, none has paying users or revenue, and none was operated past the end of the event it was built for. Tukar itself is testnet with no users. What the record does prove is that this person repeatedly takes a hard cryptographic system from nothing to something outside judges can verify, alone and under a deadline, three times inside the privacy and confidential-computing domain this proposal is about. That is build capability and domain fit, not operational maturity, and the contracted engagements in the budget are concentrated in exactly the operational disciplines the record does not evidence. Full version: docs/SCF_BUILD_PROPOSAL.md section 8.
 ```
 
 ---
@@ -133,10 +137,10 @@ REF-RISEI-449
 ---
 
 ## Checklist sebelum submit
-- [ ] Team Description: isi jumlah anggota + LinkedIn
-- [ ] Evidence "built and scaled before" (Open Track): isi produk sebelumnya + angka + link, atau bilang terus terang kalau belum ada. Jangan dipaksa pakai hasil hackathon.
+- [x] Team Description: solo, sudah terisi lengkap (nama, LinkedIn, GitHub, riwayat kerja, prior work)
+- [x] Evidence "built and scaled before" (Open Track): sudah ditulis jujur. Building: ya, berulang, solo, tiga di antaranya di domain privacy (Sealed Pair, Diam, Turu). Scaling: tidak ada, dan itu dinyatakan terang-terangan, bukan disamarkan. Jangan diubah jadi lebih tebal.
 - [ ] Video presentation tim (Open Track minta ini; video demo saja tidak cukup)
-- [ ] Budget: draft sudah terisi di docs/SCF_BUILD_PROPOSAL.md section 6 (total $40,800 = 34 person-week x $1,200/minggu, subtotal 10/20/30/40 sudah pas). Yang perlu dikonfirmasi: rate $1,200 per person-week, dan jumlah tim di section 8 harus cocok dengan rata-rata ~1,3 engineer full-time. Ganti rate-nya dan semua angka ikut berubah.
+- [x] Budget: $135,000 di docs/SCF_BUILD_PROPOSAL.md section 6. Komposisinya: founder 26 minggu full-time $45,500, lima engagement kontraktor $80,000, infrastruktur 6 bulan $9,500. Subtotal tranche pas di 10/20/30/40 ($13,500 / $27,000 / $40,500 / $54,000). Yang perlu dikonfirmasi owner: (a) rate founder $1,750/minggu, (b) kesediaan benar-benar keluar dari SmartID selama 6 bulan, karena seluruh rencana bergantung pada itu, (c) apakah lima engagement kontraktor itu realistis untuk dicari dan dibayar.
 - [ ] Putuskan apakah docs/ mau di-publish ke satu situs dokumentasi (Gitbook) sebelum submit
 - [x] Referral: Yes + code REF-RISEI-449 (dari Kenny). Di form SCF ubah dari "No" ke "Yes" lalu masukkan kode
 - [ ] Cek juga form referral terpisah dari Kenny (link ada di bagian Referral)

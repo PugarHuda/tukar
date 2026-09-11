@@ -19,10 +19,7 @@ describe("document set", () => {
       "docs/CONTRACT-UPGRADE-STEPS.md",
       "docs/ACTIVATION-STEPS.md",
       "docs/SESSION-HANDOFF.md",
-      "docs/idos-issuer-email.md",
-      "docs/GROWTH_REPORT.md",
       "docs/ONBOARDING.md",
-      "docs/DISCORD_POST.md",
     ]) {
       expect(files).not.toContain(excluded);
     }
