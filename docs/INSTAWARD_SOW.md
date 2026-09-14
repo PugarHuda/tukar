@@ -31,7 +31,8 @@ will be delivered, why it matters, and how success will be verified.
 
 ### Problem Being Addressed
 
-Tukar is a private cross-border remittance corridor on Stellar. Fifteen contracts are live on
+Tukar is a private cross-border remittance corridor on Stellar, paying out to receivers in ten
+countries across Latin America, Asia and Africa. Fifteen contracts are live on
 testnet, eight Circom circuits prove in the browser, and real deposits settle on Protocol 28. The
 blocker is not the cryptography. It is two specific things.
 
@@ -60,12 +61,22 @@ developer meeting notes for 2026-08-06, written by Kaan Kacar, say that "scoped 
 monitoring, and selective-disclosure tooling ... are wide-open design space. Nobody is building that
 platform for you."
 
-The per-person monthly limit has a real regulatory shape in the founder's own country. Bank Indonesia
-Regulation 20/6/PBI/2018, Article 45(2), limits electronic money transactions in one month to "paling
-banyak Rp20.000.000,00 (dua puluh juta rupiah)", and Article 45(3) says that limit is "diperhitungkan
-dari transaksi yang bersifat incoming", counted from incoming transactions, which is the receiving
-side. Tukar is not an electronic money issuer and does not claim this rule applies to it. The rule is
-cited as the concrete shape of a per-person monthly limit that a regulator would recognise.
+A limit on one person's total across a window is not a local rule. Regulators in different regions
+count one person's transactions together, so that splitting a payment does not escape the limit. In
+the United States, 31 CFR 1010.313(b) says multiple currency transactions "shall be treated as a
+single transaction if the financial institution has knowledge that they are by or on behalf of any
+person and result in either cash in or cash out totaling more than $10,000 during any one business
+day", and 31 U.S.C. 5324(a)(3) bars anyone from structuring transactions for the purpose of evading
+those reports. In the European Union, the EBA's Travel Rule Guidelines (EBA/GL/2024/11, paragraph 18)
+tell payment service providers to treat as linked transfers "sent from one payer to different payees
+or from different payers to the same payee within a short timeframe; including cases where different
+accounts are used belonging to the same person". In Indonesia, Bank Indonesia Regulation
+20/6/PBI/2018, Article 45(2), caps electronic money transactions at "paling banyak Rp20.000.000,00
+(dua puluh juta rupiah)" in one month, counted from incoming transactions under Article 45(3). Tukar
+is not a US financial institution, an EU payment service provider or an Indonesian electronic money
+issuer, and does not claim any of these rules applies to it. They are cited because they share one
+shape, a limit on one person's total across a window, and that is the shape fresh addresses defeat
+and a shielded pool cannot enforce today.
 
 **What was searched, and what came closest.** Nothing that does this was found in the sources
 searched on 2026-09-14. Those were all 345 Stellar Hacks: Real-World ZK submissions read by
@@ -80,6 +91,20 @@ The nearest neighbours were each read from source, and they differ in ways that 
   contract transfers, and the vault owner can roll the period forward at will
   (`guest/methods/guest/src/bin/allowance.rs` and `contracts/vault/src/lib.rs`). The cap therefore
   rests on the prover rather than on the contract.
+- **Stellar's developer documentation** describes the transparent version on its page "Advanced
+  contract account patterns", which says "Store a limit and a running total in instance storage (for example, outflows
+  over the last 24 hours). Derive a window key from the ledger timestamp (for example, day = timestamp
+  / 86_400) and reset the total when the window changes." D1 is that pattern moved inside the shielded
+  set. In the documented form the limit, the total and the account are public, and the limit belongs
+  to one account rather than to the person behind several.
+- **StellarSpend** proves in a Noir circuit that a single payment is within a limit,
+  `assert(payment_amount <= spending_limit)`. The running total is kept as `limit` and `spent` in its
+  delegation contract's public storage, so the total and the spender are visible.
+- **Warrant** keeps a trading mandate's limits and book private (`prevPosition`, `peakEquity`,
+  `currentEquity`), while the amount, the recipient and the state roots are public. It bounds a known
+  agent's drawdown, not one verified person's total across addresses.
+- **Stellar Whisper** shares viewing keys with an auditor or tax authority. Nothing in its code proves
+  the disclosed set is whole.
 - **Prism** proves `total <= cap` over a batch of Stellar Private Payments transfers, but the
   submitter chooses the cap, and there is no person, period or request it answers to.
 - **OZKY** keeps an on-chain accumulator, but it proves a nullifier is unspent. It is not a history
@@ -126,8 +151,9 @@ run end to end by three people who are not the author, with what broke published
   note, so one person's cash-outs in a period go one at a time.
 - **No hiding of how many people cash out.** Each person opens one ledger per period, so the number of
   people who cash out in a period is visible, even though who they are is not.
-- **No legal claim.** The Bank Indonesia limit is cited as the shape of a real monthly rule. Nothing
-  here says Tukar is subject to it.
+- **No legal claim.** The US, EU and Indonesian rules are cited as the shape of real per-person
+  limits. Nothing here says Tukar is subject to any of them, and the ledger is not a compliance
+  product for any one jurisdiction. The cap and the period are policy settings.
 
 ### 4.2 Deliverable-Aligned Budget Request
 
