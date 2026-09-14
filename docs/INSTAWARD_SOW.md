@@ -20,16 +20,6 @@ https://tukar-six.vercel.app/docs, and the source at https://github.com/PugarHud
 
 ## 3. Problem statement and objective
 
-### Why this changed from the first draft
-
-The first draft of this scope proposed binding a Travel Rule message to a shielded deposit. When the
-chapter lead ran it through stellar-raven it came back as overlapping, and reading the source
-confirmed it. Veritas, from Stellar Hacks: Real-World ZK in July 2026, anchors a Groth16 Travel Rule
-attestation to a settlement reference that its Soroban contract accepts once. ZK-TRP, from the same
-event, describes a contract that requires proofs from both VASPs to share a transaction hash and
-records nullifiers against replay. What was left that was new was narrow, and no one in the
-ecosystem was found asking for it. So this scope replaces that idea rather than arguing around it.
-
 ### The problem
 
 Tukar is a private cross-border remittance corridor on Stellar. Fifteen contracts are live on
@@ -39,7 +29,7 @@ blocker is not the cryptography. It is two specific things.
 **First, Tukar cannot tie the money leaving the pool to the verified person it belongs to without
 exposing that person.** Tukar's strongest existing claim is an auditor-registered audit request. A
 regulator pins the exact set of payments an answer must cover and the cap it is tested against, and
-the contract rejects anything else. Checked honestly this week, that set is built from deposits, and
+the contract rejects anything else. That set is built from deposits, and
 deposits on Stellar are public by design, so the answer is complete only over payments the regulator
 could already read from the chain. What privacy actually hides is the other end. A withdraw shows the
 address and the amount released, but not which verified person is behind it across every address
@@ -106,7 +96,7 @@ three people who are not the author, with what broke published.
 
 | Deliverable | What will be built | Why it matters |
 |---|---|---|
-| **D1. A shielded monthly ledger for each verified person** | Each allow-listed person holds one shielded ledger note per period, carrying a count and a running total. Every withdraw on the preview pool must carry a second, small proof that spends the person's current ledger note and creates the next one, adding exactly the withdraw's own public amount, so the figure checked against the cap and the figure released are the same number. The cap is the one for the person's tier, read by the contract rather than supplied by the prover, and the period comes from the ledger clock, pinned by the contract. Opening a period publishes one nullifier derived from the person's secret and the period, so no one runs two ledgers in the same period, and those nullifiers do not link across periods. When a period closes, the audit-request registry, adapted to name a person and a closed period, accepts an answer only over the final ledger note, meaning the one whose nullifier is still unspent. Lands on the upgradeable preview pool, reusing the second-proof pattern already tested there. | Turns a monthly limit that can be split around into one that cannot, and turns a list of cash-outs into an answer that is provably whole. It is the gap OpenZeppelin lists as out of scope and Stellar Private Payments calls a near-term goal, and it replaces the weakness found in Tukar's own strongest claim. |
+| **D1. A shielded monthly ledger for each verified person** | Each allow-listed person holds one shielded ledger note per period, carrying a count and a running total. Every withdraw on the preview pool must carry a second, small proof that spends the person's current ledger note and creates the next one, adding exactly the withdraw's own public amount, so the figure checked against the cap and the figure released are the same number. The cap is the one for the person's tier, read by the contract rather than supplied by the prover, and the period comes from the ledger clock, pinned by the contract. Opening a period publishes one nullifier derived from the person's secret and the period, so no one runs two ledgers in the same period, and those nullifiers do not link across periods. When a period closes, the audit-request registry, adapted to name a person and a closed period, accepts an answer only over the final ledger note, meaning the one whose nullifier is still unspent. Lands on the upgradeable preview pool, reusing the second-proof pattern already tested there. | Turns a monthly limit that can be split around into one that cannot, and turns a list of cash-outs into an answer that is provably whole. It is the gap OpenZeppelin lists as out of scope and Stellar Private Payments calls a near-term goal, and it closes the gap in Tukar's existing audit request, which today is complete only over public deposits. |
 | **D2. Scoped testnet pilot with a published report** | Three people who are not the author run the corridor end to end, with roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. Where they hesitate, what they misread and what they cannot finish is recorded in their own words. A report is published naming the sample size, how people were found, the selection bias, what broke, and what was changed because of it. The report separates first-contact findings from repeat-session findings, because a person who has already seen the app is no longer fresh evidence. | The product has never been touched by a stranger. Three is small and the report will say so, but three sessions that happen beat ten that are scheduled and cancelled. |
 | **D3 (optional, dropped first if the sprint runs short). The ledger published as reusable tooling** | The ledger scheme written up as a short spec with a runnable example against the deployed testnet contract, so the teams behind Stellar Private Payments and the confidential token can adopt it without reading Tukar's source. | Both teams have said in writing that completeness is not done yet. An open spec lets them take it rather than rebuild it. |
 
@@ -223,9 +213,8 @@ document that names its own limitations.
 
 - [x] **Apply to the SCF Build Award.** The submission is already written at
   `docs/SCF_BUILD_PROPOSAL.md` and the deadline for round 46 is 2026-11-08, which this sprint
-  finishes ahead of. The two deliverables map directly onto its two weakest points. D1 replaces a
-  disclosure claim that turned out to be complete only over public data with one that is complete
-  over what privacy actually hides, and D2 is the first evidence that anyone other than the author
+  finishes ahead of. The two deliverables map directly onto its two weakest points. D1 makes Tukar's disclosure complete over what privacy actually
+  hides, not only over public deposits, and D2 is the first evidence that anyone other than the author
   has used the thing.
 
 ## 8. Constraints acknowledgement
