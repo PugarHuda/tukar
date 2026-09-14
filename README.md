@@ -43,7 +43,7 @@ Jun 2026):
   counterparties.
 - **Anonymous (privacy pool).** The tier that *also* hides the counterparties. The
   Confidential Tokens post names **Stellar Private Payments (SPP)** here: *"privacy
-  pool implementations … shield **both the parties and the amounts**."* **Tukar is
+  pool implementations ... shield **both the parties and the amounts**."* **Tukar is
   in this tier.** Its shielded transfer leg hides amount *and* who-paid-whom, which
   is exactly the cross-border-remittance threat model (a corridor must not leak the
   payment graph).
@@ -474,8 +474,8 @@ adversarial self-audit rounds into a **security-hardened testnet** system (not
 professionally audited, see the caveats below). What that means concretely:
 
 - **Real USDC, real custody.** The pool custodies a **real testnet USDC asset**
-  (SAC [`CAT6F6HX…FVA2`](https://stellar.expert/explorer/testnet/contract/CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2),
-  issuer `GC7SWGHR…SY3B`). `deposit` moves the **actual amount** you type into the
+  (SAC [`CAT6F6HX...FVA2`](https://stellar.expert/explorer/testnet/contract/CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2),
+  issuer `GC7SWGHR...SY3B`). `deposit` moves the **actual amount** you type into the
   pool; `withdraw` releases it.
 - **Amount ↔ commitment binding.** `deposit` requires a second (disclosure) proof
   that the commitment **opens to exactly the deposited amount**, so privacy can't
@@ -517,7 +517,7 @@ professionally audited, see the caveats below). What that means concretely:
 - **On-chain Poseidon (proven).** The pool exposes
   [`poseidon_hash(a,b)`](contracts/pool/src/poseidon.rs), a **circomlib-exact**
   Poseidon computed on-chain from BN254 Fr host ops. Live, `poseidon_hash(1,2)`
-  returns `0x115cc0f5…4417189a`, exactly circomlibjs `poseidon([1,2])`. We measured
+  returns `0x115cc0f5...4417189a`, exactly circomlibjs `poseidon([1,2])`. We measured
   it at ~13.6M CPU/hash, so a depth-10 insert (~135M) exceeds the per-tx budget,
   which is *why* the tree is advanced with a cheap `merkleUpdate` SNARK rather than
   hashed on-chain. See [`onChainPoseidonFinding`](deployments/testnet.json).

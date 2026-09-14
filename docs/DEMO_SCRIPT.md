@@ -103,7 +103,7 @@ Amount = 500 USDC; pick a **destination corridor** (e.g. Mexico · MXN, or switc
 to Indonesia/Philippines/Vietnam/Thailand/India/Brazil/Argentina/Nigeria/Colombia; the recipient + off-ramp
 currency update, with **live** USD→local FX; for Mexico/Brazil/Argentina that rate
 is read **on-chain from the Reflector oracle by the pool contract**). Click **Send
-into corridor →** (the button shows "Building compliance proof…").
+into corridor →** (the button shows "Building compliance proof...").
 **Say:**
 > "A sender pays 500 real USDC into the corridor, bound for, say, Mexico. In the
 > browser, Tukar builds a compliance proof *and* an amount-binding proof, then
@@ -112,7 +112,7 @@ into corridor →** (the button shows "Building compliance proof…").
 ## Scene 2. Corridor on Stellar, live (0:50-1:15)
 **Screen:** the deposit **auto-advances to the Corridor step** (URL → `/demo/corridor`).
 A commitment row appears
-(`PAY-001`, a `0x…` hash, a **Shielded** chip, "•••• USDC · hidden"); the
+(`PAY-001`, a `0x...` hash, a **Shielded** chip, "•••• USDC · hidden"); the
 **COMMITMENTS** counter, read **live from chain**, ticks up.
 **Say:**
 > "On the public Stellar ledger you see only a commitment. The amount and the
@@ -138,7 +138,7 @@ A commitment row appears
 **Screen:** click **Regulator** in the flow strip → the **Regulator** step
 (`/demo/audit`). Pick `PAY-001` in the dropdown, audit
 context "2026-Q2 · CNBV". Click **Generate & verify disclosure proof**. The proof
-box shows **Proving in browser…** (progress bar), then turns green **"Verified
+box shows **Proving in browser...** (progress bar), then turns green **"Verified
 on-chain. Disclosed amount: $500 USDC. Nothing else is revealed."** with the line
 **"⛓ Verified on-chain too, by the live Stellar verifier ↗"**.
 **Say:**
@@ -150,7 +150,7 @@ on-chain. Disclosed amount: $500 USDC. Nothing else is revealed."** with the lin
 
 ## Scene 5. You can't cheat (2:15-2:35)
 **Screen:** tick **Tamper: claim a false amount**, click the button again → red
-**"InvalidProof. Claimed amount … contradicts the proof."** and **"⛓ The live
+**"InvalidProof. Claimed amount ... contradicts the proof."** and **"⛓ The live
 Stellar verifier also rejected it (InvalidProof)."**
 **Say:**
 > "And a false claim can't pass. Tamper with the amount, and it's rejected, in
@@ -207,8 +207,8 @@ deposit. Bearer notes hand value one way; requests pull it the other. That's the
 full peer-to-peer loop."*
 
 ### Optional B-roll (deeper, for a longer cut)
-- **On-chain Poseidon:** in a terminal, `stellar contract invoke … -- poseidon_hash
-  --a 0x…01 --b 0x…02` returns `0x115cc0f5…4417189a`, the pool computing the
+- **On-chain Poseidon:** in a terminal, `stellar contract invoke ... -- poseidon_hash
+  --a 0x...01 --b 0x...02` returns `0x115cc0f5...4417189a`, the pool computing the
   *circuit's* Poseidon on-chain, byte-for-byte. (We measured why a full tree insert
   stays a SNARK rather than on-chain hashing; see the README.)
 - **Connect Freighter:** click **Connect wallet** to sign a deposit with your own
@@ -221,4 +221,4 @@ full peer-to-peer loop."*
 - Pre-warm `/demo`; the first proof loads a ~1.8 MB wasm.
 - One step per page now. Keep browser zoom up so the single active panel is readable, and trim dead air during proving.
 - The on-chain confirmation line appears ~2-3s after the in-browser result, so don't cut early.
-- Navigate with the flow strip (Sender→Corridor→Receiver→Regulator) or the Back/Next pager; the URL changes per step (`/demo/send` … `/demo/audit`) and many actions auto-advance. Let each page settle before narrating. You can also deep-link a scene (e.g. open `/demo/receive` directly) for a clean retake.
+- Navigate with the flow strip (Sender→Corridor→Receiver→Regulator) or the Back/Next pager; the URL changes per step (`/demo/send` ... `/demo/audit`) and many actions auto-advance. Let each page settle before narrating. You can also deep-link a scene (e.g. open `/demo/receive` directly) for a clean retake.

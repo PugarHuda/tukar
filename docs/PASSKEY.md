@@ -24,7 +24,7 @@ something was not verified, it says so and why.
 | `webapp/components/WalletProvider.tsx` | `connectPasskey("create" \| "connect")`, `kind === "passkey"`, silent rehydrate across reloads, disconnect. |
 | `webapp/components/WalletBar.tsx` | The two buttons ("Sign in with passkey", "New passkey wallet") and the honest limitations copy. |
 
-The wallet is a **Soroban contract account** (a `C…` address) whose only signer is the user's passkey
+The wallet is a **Soroban contract account** (a `C...` address) whose only signer is the user's passkey
 (secp256r1, verified on-chain by the wallet contract's `__check_auth`). It holds no XLM: the
 OpenZeppelin relayer builds the envelope with a channel account and pays the fee.
 
@@ -40,7 +40,7 @@ Flow, as the code actually runs it:
    signer** on that contract before connecting.
 3. **Reload**: `tukar:conn` stores `passkey:<keyId>`; the rehydrate path calls `connectWallet({keyId})`,
    which is silent (no WebAuthn prompt).
-4. **Funding**: a classic payment cannot target a `C…` address, so `faucetUsdcToContract` sends a USDC
+4. **Funding**: a classic payment cannot target a `C...` address, so `faucetUsdcToContract` sends a USDC
    **SAC transfer** from the demo key when the new wallet's balance is 0. No trustline, no XLM needed.
 
 Trust boundary on the server route: the relayer sponsor pays for whatever lands there, so only two
@@ -115,12 +115,12 @@ verification), against the production build on `:3260`, clicking the real button
 4. SIGN IN WITH PASSKEY -> same address, via the discoverable-credential picker
 credentials on the virtual authenticator: 1 (unchanged across all four steps)
 USDC balance of the wallet: 1000000000 stroops (100 USDC, from the SAC faucet)
-deployed instance executable wasm hash: 502ea4e7…d58b58   (matches the pin)
+deployed instance executable wasm hash: 502ea4e7...d58b58   (matches the pin)
 ```
 
-An earlier identical run produced wallet `CDK7…Q7BE` and deploy tx
+An earlier identical run produced wallet `CDK7...Q7BE` and deploy tx
 `200fa6f3c2a935aa23de65b3e644d6fceb795f21001e2fa95aa3c38cd14e3304` (ledger 4429926, `fee_account`
-`GCNJB6V5…35CN`, deployer `GC2C7AWLS2FMFTQAHW3IBUB4ZXVP4E37XNLEF2IK7IVXBB6CMEPCSXFO`, the
+`GCNJB6V5...35CN`, deployer `GC2C7AWLS2FMFTQAHW3IBUB4ZXVP4E37XNLEF2IK7IVXBB6CMEPCSXFO`, the
 deterministic passkey-kit deployer).
 
 So: **passkey registration, wallet deployment, funding, silent rehydrate, disconnect and
@@ -301,7 +301,7 @@ decodes CAP-0071-02 credentials, so the rest of 3.1 still applies after that.
 
 ### 3.2 SEP-53 message signing is impossible for a contract account
 
-A `C…` address has no ed25519 key, so it cannot produce a SEP-53 message signature and cannot be the
+A `C...` address has no ed25519 key, so it cannot produce a SEP-53 message signature and cannot be the
 source account of a classic transaction. `lib/wallet-kit.ts` refuses honestly for
 `kind === "passkey"`, and `makePasskeySigner.signTransaction` throws with a specific message rather
 than silently doing nothing. Covered by a unit test in `lib/wallet-kit.test.ts`.
@@ -313,7 +313,7 @@ Every place in the app that needs it, and what the user sees:
 | Scheduler sign-in (private recurring plans, server-side spending guard) | `lib/auth-client.ts` `scheduleSignIn`, called from `app/sender/page.tsx` | SEP-53 signature over a server nonce | Sign-in fails; the sender toasts "Could not sign in to the scheduler with this wallet" and plans stay device-local |
 | Travel Rule lifecycle read + Notabene sandbox send | `app/regulator/page.tsx` (`scheduleSignIn` twice) | same bearer flow | Both refuse; the regulator UI reports it could not authorize |
 | idOS reusable KYC (enclave sign-in and the sharing binding message) | `components/idos/IdosConnect.tsx` | SEP-53 signature | Hidden for passkey wallets, replaced by an explanation |
-| Reclaim zkTLS proof | `components/WalletBar.tsx` -> `app/api/reclaim/route.ts` | binds the proof to a `G…` key; the route rejects anything else with a 400 | Hidden for passkey wallets, same explanation |
+| Reclaim zkTLS proof | `components/WalletBar.tsx` -> `app/api/reclaim/route.ts` | binds the proof to a `G...` key; the route rejects anything else with a 400 | Hidden for passkey wallets, same explanation |
 | SEP-10 anchor auth (SEP-24 off-ramp, SEP-12 KYC, SEP-38 quotes) | `lib/stellar.ts` `anchorAuth` | signs a classic challenge transaction | `signTransaction` throws with "connect a keypair wallet for this step" |
 | USDC trustline | `lib/stellar.ts` `addUsdcTrustline` | classic `changeTrust` | Not needed and not attempted: a contract account holds USDC as a SAC balance |
 | CCTP burn / Blend supply | `lib/cctp.ts`, `lib/blend.ts` | classic + Soroban signing via `signTransaction` | Same throw |
@@ -334,7 +334,7 @@ The WalletBar states this verbatim under "Verify identity to enable deposits":
 - **Firefox / Safari.** Only headless Chromium was driven. The button and the WebAuthn calls are
   standard, but the ceremonies were not run in those engines.
 - **A pool deposit or withdrawal from a passkey wallet.** Blocked twice over: by 3.1, and because a
-  fresh `C…` address is not on the ASP allow-list, so the compliance proof cannot be built for it.
+  fresh `C...` address is not on the ASP allow-list, so the compliance proof cannot be built for it.
 
 ---
 
@@ -380,21 +380,21 @@ security key, and a browser that supports WebAuthn resident credentials.
    WebAuthn needs a secure context: `http://localhost` counts, any other host needs HTTPS.
 2. Open `http://localhost:3260/sender`.
 3. Click **New passkey wallet**. Approve the registration prompt.
-   Expect toasts: "register a passkey in your browser…", then
-   "smart wallet deployed, fee paid by the relayer (tx `<8 hex chars>`…)", then
-   "sending test USDC to your smart wallet…", then "passkey wallet ready".
-4. The strip should read `passkey wallet · C…`. Confirm on-chain:
+   Expect toasts: "register a passkey in your browser...", then
+   "smart wallet deployed, fee paid by the relayer (tx `<8 hex chars>`...)", then
+   "sending test USDC to your smart wallet...", then "passkey wallet ready".
+4. The strip should read `passkey wallet · C...`. Confirm on-chain:
    - open `https://stellar.expert/explorer/testnet/tx/<the tx hash from the toast>` and check the
      fee account is the relayer's, not yours;
    - `stellar contract invoke --id <USDC SAC> --network testnet -- balance --id <your C-address>`
      should show `1000000000` (100 USDC).
-5. Reload the page. It must reconnect to the same `C…` address **without** a second biometric prompt.
+5. Reload the page. It must reconnect to the same `C...` address **without** a second biometric prompt.
 6. Click **Disconnect**, then **Sign in with passkey**. Pick the passkey; you must land on the same
-   `C…` address.
+   `C...` address.
 7. Open the "Verify identity to enable deposits" disclosure. It must show the SEP-53 explanation, not
    the idOS/Reclaim controls.
 8. Expected to fail today (see 3.1): attempting a pool deposit from this wallet. It should surface
-   "The fee relayer cannot yet decode the auth entry a passkey signs…", not a raw XDR error.
+   "The fee relayer cannot yet decode the auth entry a passkey signs...", not a raw XDR error.
 
 To repeat the headless version instead, drive Playwright with a CDP virtual authenticator:
 `WebAuthn.enable`, then `WebAuthn.addVirtualAuthenticator` with

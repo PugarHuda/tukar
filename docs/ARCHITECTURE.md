@@ -203,13 +203,13 @@ As deployed on testnet (see `deployments/testnet.json`):
 |---|---|
 | **`pool`** | Custodies the token; holds the root registry, nullifier set, and commitment set; processes deposit / transfer / withdraw / disclose / register_root_verified. Builds each verifier's public inputs from typed signals so every value is **bound** to the proof. |
 | **`disclosure` verifier** | BN254 Groth16 verifier for the selective-disclosure circuit (VK embedded at compile time). |
-| **`transfer` verifier** | …for the shielded JoinSplit circuit. |
-| **`compliance` verifier** | …for the ASP membership + deny-list circuit. The allow-list root and deny-list are **pinned in the pool**, not separate contracts. |
-| **`merkleUpdate` verifier** | …for the tree-update circuit, enabling trustless `register_root_verified`. |
-| **`thresholdDisclosure` verifier** | …for the threshold circuit; routed via `pool.disclose_threshold` (amount ≤ a figure, amount hidden). |
-| **`aggregateDisclosure` verifier** | …for the aggregate circuit; routed via `pool.disclose_aggregate` (Σ portfolio ≤ cap, bound to a registered audit request). |
-| **`rangeDisclosure` verifier** | …for the two-sided range circuit; routed via `pool.disclose_range` (`lower ≤ amount ≤ upper`). |
-| **token (SAC)** | The asset the pool custodies, a **real testnet USDC** asset (SAC `CAT6F6HX…FVA2`). `deposit` moves the actual typed amount in; `withdraw` releases it. |
+| **`transfer` verifier** | ...for the shielded JoinSplit circuit. |
+| **`compliance` verifier** | ...for the ASP membership + deny-list circuit. The allow-list root and deny-list are **pinned in the pool**, not separate contracts. |
+| **`merkleUpdate` verifier** | ...for the tree-update circuit, enabling trustless `register_root_verified`. |
+| **`thresholdDisclosure` verifier** | ...for the threshold circuit; routed via `pool.disclose_threshold` (amount ≤ a figure, amount hidden). |
+| **`aggregateDisclosure` verifier** | ...for the aggregate circuit; routed via `pool.disclose_aggregate` (Σ portfolio ≤ cap, bound to a registered audit request). |
+| **`rangeDisclosure` verifier** | ...for the two-sided range circuit; routed via `pool.disclose_range` (`lower ≤ amount ≤ upper`). |
+| **token (SAC)** | The asset the pool custodies, a **real testnet USDC** asset (SAC `CAT6F6HX...FVA2`). `deposit` moves the actual typed amount in; `withdraw` releases it. |
 
 As deployed: **15 contracts** live on testnet. The **core 8** are the pool plus the 7
 verifiers in the table above; the three disclosure-variant verifiers were deployed

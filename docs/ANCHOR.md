@@ -33,7 +33,7 @@ const ANCHOR = "https://ramps.moneygram.com"; // was https://testanchor.stellar.
 
 | Path | Off-ramp coverage | Stellar/USDC | Integration | Sandbox | License held by |
 |------|-------------------|--------------|-------------|---------|-----------------|
-| **MoneyGram Ramps** ⭐ | Cash-out **170+ countries** (MX, CO, PH, ID, TH, VN, NG, …) | Native USDC on Stellar | **SEP-10 + SEP-24** (reuses Tukar's code) | Yes (testnet USDC issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` + public Postman collection) | MoneyGram (NMLS #898432) |
+| **MoneyGram Ramps** ⭐ | Cash-out **170+ countries** (MX, CO, PH, ID, TH, VN, NG, ...) | Native USDC on Stellar | **SEP-10 + SEP-24** (reuses Tukar's code) | Yes (testnet USDC issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` + public Postman collection) | MoneyGram (NMLS #898432) |
 | **Onramper → Alchemy Pay / Transak** | Broad EM (Alchemy Pay 173 countries) | Native USDC on Stellar | Hosted widget / REST | **Yes (`api-stg.onramper.com`, zero-contact)** | The ramp |
 | **Alchemy Pay / Transak direct** | Broad | Native USDC on Stellar | Widget / SDK / REST | Keys via merchant onboarding | The ramp |
 | **Anclap / Settle Network** | AR (ARS), BR (BRL), PE via bank deposit | Own Stellar stablecoins | API | Contact | Regulated locally |

@@ -127,23 +127,24 @@ Tukar's own verifiable features, not any guess about their internals.
 
 | Rival | What it is (public read) | Where Tukar differs |
 |---|---|---|
-| **Veil** | A **ZK privacy pool / mixer** on Stellar, private-by-default | Veil is private but, on public material, has **no compliance layer**. Tukar is the **compliant** version: ASP allow/deny proven **in-circuit** and bound to the authenticated depositor, plus **four** on-chain-verified selective-disclosure types a regulator can check. Tukar is also a **cross-border corridor with fiat edges**, not a bare pool. |
+| **Veil** | A **ZK privacy pool / mixer** on Stellar, private-by-default | An earlier version of this row said Veil has no compliance layer. That is wrong for at least one project of that name: Veil-Protocolz/veil, built at Stellar Hacks: Real-World ZK, proves in-circuit that the spent commitment is a leaf of the ASP tree (`circuits/shielded_transfer.circom`, read from source 2026-09-14). Several projects use the name and we could not confirm which one this row describes, so no compliance contrast is claimed here. What Tukar adds on top of an allow-list gate is four on-chain-verified selective-disclosure types and an auditor-registered audit request. |
 | **OLIO** | **Private USDC payment links**, freelancer-focused | OLIO is a private-payment tool for a different job (getting paid via a link). Tukar is **cross-border remittance** with fiat-in/fiat-out to **local currency**, an on-chain FX oracle gating settlement, and a **regulator-verifiable** disclosure layer. Different user, different edges. |
 | **Palengke-pay, Pundar, Pacta, Family Haven, StarTip, Human FX, Payoes** | Consumer wallets / payments plays (send, tip, remit, FX) | These are consumer money apps without an on-chain privacy + compliance layer (on public material). Tukar adds **privacy AND provable compliance** to cross-border money: the payment graph is hidden on-chain, yet a regulator can verify a single fact via on-chain selective disclosure. That combination is the wedge. |
 
-Honest framing for judges: vs the **privacy pools/mixers** (Veil, and the LumenShade
-tier below), Tukar's edge is **compliance** (allow/deny in-circuit plus four
-contract-verified disclosure types) and being a **real remittance corridor with fiat
-edges**. Vs the **consumer wallets**, Tukar's edge is adding **privacy + compliance**
-to cross-border money. We do not claim to know any rival's internals beyond what is
+Honest framing for judges: against the **privacy pools**, in-circuit allow/deny is not
+Tukar's edge, because several of them prove it too, and neither is being a corridor with
+anchor edges, because ShadowWire built one at the same event. What is left is the
+disclosure layer and the oracle-gated settlement described below. Vs the **consumer
+wallets**, Tukar's edge is adding **privacy + compliance** to cross-border money. We do not claim to know any rival's internals beyond what is
 public, and these descriptions may lag their latest releases.
 
 ## Concept-siblings at the same hackathon (Stellar Hacks: Real-World ZK)
 
 Tukar placed **5th** at Stellar Hacks: Real-World ZK. Being honest about that event
 matters, because the "compliant privacy pool" theme was crowded there. Several projects
-shipped the same core idea (a shielded pool plus a compliance gate). We list them with
-public one-liners only and do not claim to know their internals.
+shipped the same core idea (a shielded pool plus a compliance gate). Most rows are public
+one-liners and claim nothing about internals. The rows marked as read from source were
+checked against the repository's code.
 
 | Project | Public one-liner |
 |---|---|
@@ -153,14 +154,17 @@ public one-liners only and do not claim to know their internals.
 | **Shroud** | Compliant privacy pool with an Association Set Provider (ASP) gateway. |
 | **EclipsePrivacy** | Compliant USDC privacy pool, Groth16/BN254. |
 | **Compliant Privacy Pool** | Private stablecoin transfers tied to a live allow-list. |
+| **ShadowWire** | A remittance corridor: SEP-10 and SEP-24 at both edges, a Groth16 shielded pool, and the same compliance verifier called at deposit and at withdraw. Read from source at commit `e362a25`, 2026-07-03. |
+| **Prism** | Settles K Stellar Private Payments transfers under one proof with in-circuit `total <= cap`. The cap is a private input the submitter chooses and passes as calldata, and there is no request registry. Read from source, 2026-09-14. |
 | **Zebra / ZeroWage** | Compliant ZK payroll. |
 
 **Honest takeaway.** The core "privacy pool plus compliance" idea is **not unique**, and
 we should stop positioning on it as if it were. SPP, Arcane and several of the projects
-above all ship it. Tukar's real differentiation is the parts
-these siblings do not build: the full **remittance corridor** (real fiat edges via SEP
-anchors, an oracle-gated off-ramp to local currency, four contract-verified disclosure
-types, and an on-chain audit registry), plus the **anchor-layer positioning** (Tukar as
+above all ship it. Tukar's differentiation is narrower than a corridor,
+because ShadowWire built a corridor with SEP-10 and SEP-24 edges at the same event. What
+these siblings do not build, on the evidence read: an **off-ramp priced on-chain** against
+the median of recent Reflector records that fails closed, and **four contract-verified
+disclosure types with an auditor-registered audit request**, plus the **anchor-layer positioning** (Tukar as
 the layer a licensed anchor plugs into), a working **OpenVASP TRP 3.2.1 Travel Rule
 exchange** with signatures verified on receipt, a **liability accumulator for proof of reserves**
 (built and exercised, with zero coverage of the live corridor until the Tranche 1 migration, so
@@ -250,12 +254,13 @@ disclose), and against **LumenShade**, which lists compliance as a future goal. 
 compliance is **proven on-chain, per deposit, with no trusted intermediary**: the ASP proof
 pins `sourceKey = field(from)` and the deposit `require_auth`s that account, so it
 authenticates that *this* depositor is allow-listed and not deny-listed. It is live and
-soundness-tested today (`npm run test:asp`, `test:negative`). The one detail here that is
-not standard on the tier is the binding of the proof to the authenticated depositor
-account, which is a small hardening choice, not a moat.
+soundness-tested today (`npm run test:asp`, `test:negative`). Binding the proof to the
+authenticated depositor account is not unique on the tier either: ShadowWire binds its
+compliance attestation to the wallet that authorised the call. It is a hardening choice,
+not a moat.
 
 **3. Four on-chain-verified disclosure types, with completeness enforced on-chain.**
-A general privacy pool lets a holder hide a fact; it does not let a regulator *verify one*.
+Verifiable disclosure on its own is not the gap. Stellar Private Payments lets a user prove note-level facts about a specific transaction to a party of their choosing, and Prism verifies `total <= cap` on-chain, so a sum under a cap is not a new disclosure type either.
 Tukar ships **four** selective-disclosure circuits, each verified by its own live Soroban
 contract and each bound to a **real on-chain deposit** (the pool checks the commitment is a
 known deposit before it routes to the verifier): exact amount, threshold (`amount ≤ X`,
@@ -276,7 +281,7 @@ request closes it, is implemented in the preview crate, and cannot reach the liv
 the Tranche 1 migration.
 
 **4. Oracle-gated settlement binds privacy to real-world FX.**
-None of the neighbours tie fund movement to an on-chain FX oracle. Tukar's off-ramp
+No shielded pool we read gates a withdraw on an on-chain FX price: an adversarial source read covered thirteen shielded pools, and every Reflector build in the build index is unshielded. The nearest thing, Obscura, ties a solvency proof to a mock mark price stored by a contract call rather than read from a feed. Tukar's off-ramp
 rate is read **on-chain from Reflector** and *gates the release* (min-receive on the
 median of 5 records, fail-closed on a stale/thin feed). Remittance is fundamentally an
 FX product, so making the oracle **load-bearing for settlement** is a differentiator the
@@ -318,9 +323,10 @@ confidential-token architecture and real distribution, and Tukar has no traction
 against it. **Fairblock** hides amounts and balances while leaving addresses visible, a
 different privacy model for a different threat. **Moonlight** is live on mainnet with
 compliance through trusted providers. **LumenShade** is a pool with compliance on its
-roadmap. What none of them ships, on public material, is the four-part composition above
-wired to real anchor SEPs. That composition is the claim, and each of its four parts is
-checkable in this repository.
+roadmap. What none of them ships, on the evidence read, is the composition above as a
+whole. Its anchor-SEP part alone is not unique, because ShadowWire has SEP-10 and SEP-24 at
+both edges, so the claim rests on the oracle-gated settlement, the disclosure layer and the
+Travel Rule leg. Each of those is checkable in this repository.
 
 **What we did not find.** In the sources searched for this document, we found no
 SCF-funded project doing FATF Travel Rule messaging on Stellar, and none doing

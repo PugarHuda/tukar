@@ -1,6 +1,6 @@
 # Instawards Statement of Work: Tukar
 
-> Filled in and checked against the project on 2026-09-11. A copy-friendly version with a copy
+> Filled in and checked against the project on 2026-09-14. A copy-friendly version with a copy
 > button per section, for pasting into the Airtable form, is published as a Claude artifact.
 
 ## 1. Project and team information
@@ -12,13 +12,23 @@
 | Primary contact | Pugar Huda Mantoro, hudapugar@gmail.com |
 | Ambassador Chapter | Ambassador Chapter Indonesia |
 | Ambassador Chapter Lead | Kenny Rivaldi |
-| Date submitted | 2026-09-11 |
+| Date submitted | 2026-09-14 |
 | Suggested sprint start date | 2026-09-22, finishing 2026-10-22, seventeen days before the SCF round 46 deadline |
 
-Links a reviewer can open today: the live app at https://tukar-six.vercel.app, the documentation at
-https://tukar-six.vercel.app/docs, the source at https://github.com/PugarHuda/tukar.
+A reviewer can open the live app at https://tukar-six.vercel.app, the documentation at
+https://tukar-six.vercel.app/docs, and the source at https://github.com/PugarHuda/tukar.
 
 ## 3. Problem statement and objective
+
+### Why this changed from the first draft
+
+The first draft of this scope proposed binding a Travel Rule message to a shielded deposit. When the
+chapter lead ran it through stellar-raven it came back as overlapping, and reading the source
+confirmed it. Veritas, from Stellar Hacks: Real-World ZK in July 2026, anchors a Groth16 Travel Rule
+attestation to a settlement reference that its Soroban contract accepts once. ZK-TRP, from the same
+event, describes a contract that requires proofs from both VASPs to share a transaction hash and
+records nullifiers against replay. What was left that was new was narrow, and no one in the
+ecosystem was found asking for it. So this scope replaces that idea rather than arguing around it.
 
 ### The problem
 
@@ -26,27 +36,57 @@ Tukar is a private cross-border remittance corridor on Stellar. Fifteen contract
 testnet, eight Circom circuits prove in the browser, and real deposits settle on Protocol 28. The
 blocker is not the cryptography. It is two specific things.
 
-**First, the Travel Rule cannot currently be satisfied for a shielded transfer.** Every Travel Rule
-system in production, TRISA, TRP, Notabene and the rest, assumes the receiving institution can look
-at the on-chain transfer that the IVMS101 message refers to. On a shielded transfer it cannot see
-one. So a Travel Rule message about a private payment is today an unverifiable assertion: the
-receiving side has to take the sender's word that the message describes a real transfer of the
-stated amount. Tukar already sends and answers TRP 3.2.1 messages with real Ed25519 signatures, and
-they have exactly this weakness: `validateIvms101` checks the transaction fields for non-emptiness
-and nothing resolves the reference against the ledger, and the `txid` a counterparty posts to the
-callback is stored verbatim and never fetched.
+**First, Tukar cannot tie the money leaving the pool to the verified person it belongs to without
+exposing that person.** Tukar's strongest existing claim is an auditor-registered audit request. A
+regulator pins the exact set of payments an answer must cover and the cap it is tested against, and
+the contract rejects anything else. Checked honestly this week, that set is built from deposits, and
+deposits on Stellar are public by design, so the answer is complete only over payments the regulator
+could already read from the chain. What privacy actually hides is the other end. A withdraw shows the
+address and the amount released, but not which verified person is behind it across every address
+they use. Two things a regulator needs follow from that gap, and neither can be done today without
+breaking the privacy the corridor exists for. A per-person monthly limit can be split around with
+fresh addresses. And a person asked to account for a month of cash-outs can leave some out, because
+nothing proves the list is whole.
 
-The binding idea is not unprecedented on transparent transfers, and this proposal does not claim to
-originate it. Veritas, a hackathon build at Stellar Hacks: Real-World ZK in July 2026, anchors a
-Groth16 Travel Rule attestation to a public Stellar settlement inside a Soroban contract, live on
-testnet, and D1 builds on that design. What is not found in the sources searched on 2026-09-11
-(Stellar's developer documentation, the SEP and CAP corpora, the SCF-funded set, the Stellar
-hackathon build index, SDF blog posts and developer-meeting recordings, and the privacy ecosystems
-of Ethereum, Zcash, Solana, Aztec, Namada and Penumbra) is anyone doing the same binding where the
-transfer itself is shielded. That is the case where the receiving institution has nothing to check
-the message against, and therefore the only case where the binding is load-bearing. Stellar's own
-documentation does not cover the Travel Rule at all: a full-text search of developers.stellar.org
-for "travel rule" returns one hit, and it is a false positive.
+**The gap is named in writing by the teams building Stellar's own privacy stack.** OpenZeppelin's
+selective-disclosure specification for Stellar confidential tokens lists it among the things it does
+not do, in section 14, last changed on 2026-07-31: "Merkle-accumulated event history with
+non-membership proofs. Would enable cryptographic completeness ("the disclosed set is exhaustive")
+without trusting the auditor. Requires substantial on-chain storage changes and a new
+accumulator-maintenance circuit." SDF's developer preview of Stellar Private Payments says of its own
+disclosure: "Today this disclosure is note-scoped: it does not prove source of funds or transaction
+history, so it is not yet an attestation a user can hand to an outside party for a guarantee of
+transaction integrity and completeness, though this is a near-term goal for the project." And SDF's
+developer meeting notes for 2026-08-06, written by Kaan Kacar, say that "scoped audit requests,
+monitoring, and selective-disclosure tooling ... are wide-open design space. Nobody is building that
+platform for you."
+
+The per-person monthly limit has a real regulatory shape in the founder's own country. Bank Indonesia
+Regulation 20/6/PBI/2018, Article 45(2), limits electronic money transactions in one month to "paling
+banyak Rp20.000.000,00 (dua puluh juta rupiah)", and Article 45(3) says that limit is "diperhitungkan
+dari transaksi yang bersifat incoming", counted from incoming transactions, which is the receiving
+side. Tukar is not an electronic money issuer and does not claim this rule applies to it. The rule is
+cited as the concrete shape of a per-person monthly limit that a regulator would recognise.
+
+**What was searched, and what came closest.** Nothing that does this was found in the sources
+searched on 2026-09-14. Those were all 345 Stellar Hacks: Real-World ZK submissions read by
+description, a keyword pass over 1,348 indexed Stellar hackathon builds, a sample of 162 SCF
+submissions, Stellar's developer documentation and meeting notes, and the source code of more than
+twenty Stellar privacy repositories. That means not found in those sources, not proven not to exist.
+The nearest neighbours were each read from source, and they differ in ways that matter.
+
+- **Ciphermit** (Stellar Hacks: Real-World ZK) caps spending per vault per period with a RISC Zero
+  proof. The amount already spent is supplied by the prover and is not checked against the commitment
+  the contract stored last time, the amount checked against the cap is not tied to the amount the
+  contract transfers, and the vault owner can roll the period forward at will
+  (`guest/methods/guest/src/bin/allowance.rs` and `contracts/vault/src/lib.rs`). The cap therefore
+  rests on the prover rather than on the contract.
+- **Prism** proves `total <= cap` over a batch of Stellar Private Payments transfers, but the
+  submitter chooses the cap, and there is no person, period or request it answers to.
+- **OZKY** keeps an on-chain accumulator, but it proves a nullifier is unspent. It is not a history
+  of anyone's payments.
+- **Stellar Private Payments and OpenZeppelin confidential tokens** disclose single notes or
+  transactions and, as quoted above, leave completeness for later.
 
 **Second, the project has never been used by anyone except its author.** Every design decision about
 the hardest part of the product, the twenty to sixty seconds of in-browser proving with no progress
@@ -54,10 +94,11 @@ a person can interpret, rests on one developer's intuition.
 
 ### Objective
 
-At the end of 30 days: a Travel Rule payload is committed on-chain and provably bound to a specific
-shielded deposit, so a receiving institution can verify for itself that the message refers to a real
-transfer of the stated amount without learning who sent it or to whom. And the corridor has been run
-end to end by real people who are not the author, with what broke published.
+By the end of the 30 days, every cash-out on the preview pool updates a shielded monthly ledger for
+the verified person behind it. A monthly limit then cannot be split around, and an auditor's request
+for one person's month gets an answer that is complete by construction, without the auditor learning
+anything else and without trusting the holder. The corridor will also have been run end to end by
+three people who are not the author, with what broke published.
 
 ## 4. Scope of work
 
@@ -65,9 +106,9 @@ end to end by real people who are not the author, with what broke published.
 
 | Deliverable | What will be built | Why it matters |
 |---|---|---|
-| **D1. Travel Rule payload bound to a shielded deposit** | The canonical hash of a TRP 3.2.1 transfer inquiry is committed on-chain at deposit time and tied to that specific note. A public verification path lets anyone holding the payload check that it corresponds to a real deposit of the stated amount, and that the same payload cannot be reused for a second transfer or swapped for a different one. Lands on the upgradeable preview pool, because the live pool has no upgrade hook and its address must not change. | Turns a Travel Rule message about a private payment from an assertion into something the receiving side can check. The transparent-transfer version exists as a July 2026 hackathon prototype (Veritas); the shielded-transfer version is not found in the sources searched. |
+| **D1. A shielded monthly ledger for each verified person** | Each allow-listed person holds one shielded ledger note per period, carrying a count and a running total. Every withdraw on the preview pool must carry a second, small proof that spends the person's current ledger note and creates the next one, adding exactly the withdraw's own public amount, so the figure checked against the cap and the figure released are the same number. The cap is the one for the person's tier, read by the contract rather than supplied by the prover, and the period comes from the ledger clock, pinned by the contract. Opening a period publishes one nullifier derived from the person's secret and the period, so no one runs two ledgers in the same period, and those nullifiers do not link across periods. When a period closes, the audit-request registry, adapted to name a person and a closed period, accepts an answer only over the final ledger note, meaning the one whose nullifier is still unspent. Lands on the upgradeable preview pool, reusing the second-proof pattern already tested there. | Turns a monthly limit that can be split around into one that cannot, and turns a list of cash-outs into an answer that is provably whole. It is the gap OpenZeppelin lists as out of scope and Stellar Private Payments calls a near-term goal, and it replaces the weakness found in Tukar's own strongest claim. |
 | **D2. Scoped testnet pilot with a published report** | Three people who are not the author run the corridor end to end, with roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. Where they hesitate, what they misread and what they cannot finish is recorded in their own words. A report is published naming the sample size, how people were found, the selection bias, what broke, and what was changed because of it. The report separates first-contact findings from repeat-session findings, because a person who has already seen the app is no longer fresh evidence. | The product has never been touched by a stranger. Three is small and the report will say so, but three sessions that happen beat ten that are scheduled and cancelled. |
-| **D3 (optional, dropped first if the sprint runs short). The binding published as reusable tooling** | The payload-commitment scheme written up as a short spec with a runnable example against the deployed testnet contract, so another Stellar team can implement it without reading Tukar's source. | Travel Rule over shielded transfers is an ecosystem-wide gap, not a Tukar one. |
+| **D3 (optional, dropped first if the sprint runs short). The ledger published as reusable tooling** | The ledger scheme written up as a short spec with a runnable example against the deployed testnet contract, so the teams behind Stellar Private Payments and the confidential token can adopt it without reading Tukar's source. | Both teams have said in writing that completeness is not done yet. An open spec lets them take it rather than rebuild it. |
 
 ### Out of scope, explicitly
 
@@ -79,28 +120,44 @@ end to end by real people who are not the author, with what broke published.
   promised inside 30 days.
 - **No change to the eight live core contracts.** They keep their addresses so every explorer link
   already published stays valid.
-- **No counterparty VASP network.** D1 makes the binding verifiable. It does not make a second
-  institution exist to verify it.
+- **No completeness for money that never leaves the pool.** The ledger counts cash-outs, which is
+  where value leaves the shielded set. Shielded transfers that stay inside the pool are not cash-outs
+  and are not counted.
+- **No claim that one ledger means one human.** A person holding two verified identities gets two
+  ledgers. Stopping that is the job of whoever issues the allow-list, not of this contract.
+- **No parallel cash-outs for one person inside one period.** Each cash-out spends the previous ledger
+  note, so one person's cash-outs in a period go one at a time.
+- **No hiding of how many people cash out.** Each person opens one ledger per period, so the number of
+  people who cash out in a period is visible, even though who they are is not.
+- **No legal claim.** The Bank Indonesia limit is cited as the shape of a real monthly rule. Nothing
+  here says Tukar is subject to it.
 - **Nothing that depends on the recurring scheduler, a TRISA node, or the Notabene sandbox.** All
-  three are unprovisioned on this deployment. The Notabene path exists in the code and is gated on an
-  API key that is not set, so it degrades to the self-hosted TRP path rather than being absent.
+  three are unprovisioned on this deployment.
 
 ### 4.2 Budget request
 
 **$5,000, which is 100 hours at $50 per hour.**
 
-**D1, the Travel Rule binding, is 72 of those hours.** It produces the canonical hash of a TRP 3.2.1
-transfer inquiry committed on-chain at deposit time and tied to that specific note, plus a public
-verification path that tells anyone holding the payload whether it corresponds to a real deposit of
-the stated amount, and refuses a payload that has already been used or belongs to a different
-deposit. It lands on the upgradeable preview pool, since the live pool has no upgrade hook. The
-hours split as 16 to design the scheme and write the negative tests first, 28 to implement the
-commitment in the contract and circuit, 12 to deploy to testnet and verify on-chain, and 16 to build
-and exercise the public verification path. It is roughly two thirds of the sprint because this is
-contract and proof work where a mistake is not a bug but a soundness failure, which is why the three
-negative tests come first rather than last: a payload that does not match must fail, a reused
-payload must fail, and a payload bound to a different deposit must fail. Making those three pass for
-the right reason is the deliverable.
+**D1, the monthly ledger, is 72 of those hours.** It produces three things. A small circuit spends
+one ledger note and creates the next, adds exactly the withdraw's public amount, and checks the
+running total against the person's tier cap. A contract gate on the preview pool pins the period from
+the ledger clock, records the nullifier that opens a period, reads the tier cap itself, and refuses a
+withdraw that carries no valid ledger proof. And an audit answer over a closed period is accepted by
+the audit-request registry only for the final, unspent ledger note. The hours split as 14 to fix the
+design and write the negative tests first, 18 for the circuit, 4 for its trusted setup, 16 for the
+contract gate, 8 to upgrade the preview pool on testnet and verify on-chain, and 12 for the audit
+answer and a public page that shows whether a request has a complete answer on record. The trusted
+setup takes its beacon from a Stellar ledger that closes after the contributions end, instead of the
+fixed byte string Tukar's current ceremonies used, which closes a known weakness at no extra cost.
+The period length is a policy setting. Testnet uses a short period so that a closed period can be
+shown inside the sprint, and the production setting is a calendar month.
+
+It is roughly two thirds of the sprint because a mistake here is a soundness failure rather than a
+bug, which is why the five negative tests come first. A cash-out over the monthly cap must fail. A
+second ledger opened in the same period must fail. A withdraw with no ledger proof must fail once the
+gate is armed. A ledger proof whose amount differs from the amount released must fail. And an audit
+answer built on an earlier, already spent ledger note must fail, because that is exactly how a holder
+would leave a cash-out out. Making those five fail for the right reason is the deliverable.
 
 **D2, the pilot, is 18 hours.** Three people who are not the author run the corridor end to end,
 roles rotating so each is a first-time sender once and a first-time receiver once, giving three
@@ -109,13 +166,13 @@ bias, what broke, and what changed as a result, separating first-contact finding
 repeat-session ones. That is 3 hours recruiting and scheduling, 8 across three sessions of about two
 and a half hours each including setup and writing up notes, and 7 writing the report. It looks small
 for its value because it is scheduling and observation rather than code. The sessions cannot
-overlap: the built-in testnet key is a single shared account, so two concurrent senders collide and
-the Merkle tree moves underneath the second one.
+overlap, because the built-in testnet key is a single shared account, so two concurrent senders
+collide and the Merkle tree moves underneath the second one.
 
-**D3, the spec, is 10 hours and optional.** The payload-commitment scheme written up with a runnable
-example against the deployed testnet contract, so another Stellar team can implement it without
-reading Tukar's source. It is the release valve: if the sprint runs short, this is what goes, and
-both core outcomes still land.
+**D3, the spec, is 10 hours and optional.** The ledger scheme written up with a runnable example
+against the deployed testnet contract, so the teams behind Stellar Private Payments and the
+confidential token can adopt it without reading Tukar's source. It is the release valve. If the
+sprint runs short, this is what goes, and both core outcomes still land.
 
 That totals 100 hours across 30 calendar days, about 23 hours a week, which is what fits honestly
 beside a full-time job.
@@ -124,7 +181,7 @@ beside a full-time job.
 Soroban contract work, with the consequence described above. Independent contracting rates for
 zero-knowledge and smart contract work run well above this internationally, commonly two to three
 times it, so $50 sits below the specialty market rather than above it. Said plainly, because the
-chapter lead will know the local market: $50 per hour is above a standard senior software rate in
+chapter lead will know the local market, $50 per hour is above a standard senior software rate in
 Indonesia, and the justification is the specialisation and the consequence of getting it wrong, not
 the cost of living. If the chapter reads the rate rather than the work, the honest response is to
 lower the rate and keep the hours, because the hours are derived from the work and do not move.
@@ -141,10 +198,10 @@ two core outcomes.
 
 | Week | Planned work | Expected output |
 |---|---|---|
-| **Week 1** | Rotate the corridor admin key before any contract work, since the current one was committed to a public repository and every upgrade in this sprint is signed by it. Apply the preview-pool upgrade that is already queued, so D1 does not stack on an unapplied change. Design the payload commitment and decide where it binds. Write the negative tests first: wrong payload, reused payload, payload bound to another deposit. Recruit the three testers in parallel, since scheduling is the long pole. | Admin key rotated, preview pool current, the scheme written down, failing tests committed, three testers booked. |
-| **Week 2** | Implement the binding on the preview pool. Deploy to testnet. Make the negative tests pass for the right reason rather than by accident. | Contract deployed, tests green, first real bound deposit on-chain. |
-| **Week 3** | Build and exercise the public verification path end to end. Run the first pilot sessions. | Anyone with a payload can verify it against the chain. First session notes captured. |
-| **Week 4** | Remaining pilot sessions. Write the pilot report. If time allows, D3. Fix whatever the pilot exposed that can be fixed inside the sprint, and record what cannot. | Report published, verification path documented, evidence links assembled. |
+| **Week 1** | Rotate the corridor admin key before any contract work, since the current one was committed to a public repository and every upgrade in this sprint is signed by it. Apply the preview-pool upgrade that is already queued, so D1 does not stack on an unapplied change. Fix the ledger design and write the five negative tests first, so they fail before any code exists. Recruit the three testers in parallel, since scheduling is the long pole. | Admin key rotated, preview pool current, the design written down, five failing tests committed, three testers booked. |
+| **Week 2** | Write the ledger circuit and run its trusted setup with a beacon from a Stellar ledger that closes after the contributions end. Add the contract gate to the preview pool and upgrade it on testnet. Make the negative tests pass for the right reason rather than by accident. | Circuit and setup transcript published, preview pool upgraded, tests green, first cash-out carrying a ledger proof on-chain. |
+| **Week 3** | Build the audit answer over a closed period and the public page that shows whether a request has a complete answer on record. Run the first pilot sessions. | A registered request answered complete on-chain, a stale answer rejected, first session notes captured. |
+| **Week 4** | Remaining pilot sessions. Write the pilot report. If time allows, D3. Fix whatever the pilot exposed that can be fixed inside the sprint, and record what cannot. | Report published, ledger scheme documented, evidence links assembled. |
 
 The pilot is deliberately spread across weeks 3 and 4 rather than saved for the end, because
 sessions cancel and a pilot squeezed into the last three days is a pilot that does not happen.
@@ -155,9 +212,9 @@ Chosen so a chapter lead can check each one without reading any code.
 
 | Deliverable | Evidence | What the reviewer does |
 |---|---|---|
-| **D1** | Two testnet transaction hashes on stellar.expert: a deposit carrying a bound Travel Rule payload, and a failed attempt to reuse that same payload for a second deposit. Plus a public verification page where pasting the payload returns bound or not bound. | Open both hashes in the explorer and see one succeed and one be rejected on-chain. Paste the payload into the page, then change one character and paste it again. |
+| **D1** | Testnet transaction hashes on stellar.expert. A cash-out inside the cap, accepted with its ledger proof. A second cash-out that would pass the cap, rejected on-chain. An attempt to open a second ledger in the same period, rejected. A registered audit request answered complete and accepted, and an answer built on an earlier ledger note, rejected. Plus a public page that shows whether a request has a complete answer on record. | Open the hashes and see which were accepted and which were rejected on-chain. The rejections are the point. Each one is a way to cheat the limit or the audit, refused by the contract. |
 | **D2** | The published pilot report, with the number of testers, how they were found, the selection bias, what broke, and what changed as a result. | Read it. Look for findings that contradict the design; a report where everything went well is a report to distrust. |
-| **D3** | A spec page and a runnable example against the deployed contract. | Follow the example and see it return the same answer the verification page gave. |
+| **D3** | A spec page and a runnable example against the deployed contract. | Follow the example and see it return the same result the public page shows. |
 
 Nothing here is a screenshot of something working. Every item is either on a public ledger or a
 document that names its own limitations.
@@ -166,9 +223,10 @@ document that names its own limitations.
 
 - [x] **Apply to the SCF Build Award.** The submission is already written at
   `docs/SCF_BUILD_PROPOSAL.md` and the deadline for round 46 is 2026-11-08, which this sprint
-  finishes ahead of. The two deliverables map directly onto its two weakest points: D1 is the
-  differentiation against a funded portfolio that already ships shielded pools, and D2 is the first
-  evidence that anyone other than the author has used the thing.
+  finishes ahead of. The two deliverables map directly onto its two weakest points. D1 replaces a
+  disclosure claim that turned out to be complete only over public data with one that is complete
+  over what privacy actually hides, and D2 is the first evidence that anyone other than the author
+  has used the thing.
 
 ## 8. Constraints acknowledgement
 
@@ -178,12 +236,12 @@ document that names its own limitations.
 - [x] Total Instawards funding may not exceed $15,000 in the aggregate.
 - [x] $5,000 is the top of the range the rules give for an initial Instaward, which is
       $1,000 to $5,000 depending on scope and readiness. It is not a per-award cap, and this
-      request sits at the top of that range rather than under a ceiling. Section 5 is the
+      request sits at the top of that range rather than under a ceiling. Section 4.2 is the
       argument for why the scope earns it, and the two reductions there are real offers.
 
 ## Before it goes in
 
-Everything on this page is filled in. What is left is not a field: Instawards require active
+Everything on this page is filled in. What is left is not a field. Instawards require active
 engagement in the chapter, and the lead is the one who submits this through the Airtable form and
 puts their name to it. That conversation is the last step, not this document.
 

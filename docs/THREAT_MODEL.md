@@ -52,7 +52,7 @@ There are four trust surfaces.
    `RECLAIM_PROVIDER_ID`) and are marked `import "server-only"` so they cannot be pulled
    into a browser bundle.
 
-3. Soroban contracts. The pool (`CBIYQACY…`) custodies the USDC and holds the
+3. Soroban contracts. The pool (`CBIYQACY...`) custodies the USDC and holds the
    root / nullifier / commitment / leaf sets, the ASP allow-list root, the deny-list,
    and the admin and auditor roles. Seven BN254 Groth16 verifiers verify the transfer,
    compliance, disclosure, merkleUpdate, threshold, aggregate, and range circuits. The
@@ -161,7 +161,7 @@ Deposits and withdrawals are visible at the edges by Privacy-Pools design.
 
 ## 2. Assets to protect
 
-- Shielded-pool USDC custody. The pool holds real testnet USDC (SAC `CAT6F6HX…`). The
+- Shielded-pool USDC custody. The pool holds real testnet USDC (SAC `CAT6F6HX...`). The
   primary loss scenario is an unauthorized withdrawal or a drain via a forged proof,
   double-spend, or an unbacked leaf. This is the highest-value asset in the system.
 - Note secrets and bearer notes. A note is a bearer instrument; its secret is the
@@ -656,8 +656,8 @@ than the whole signal.
   transactions whose top-level invocation hits a watched contract, and fills in the exact contract
   error for the failures still inside RPC retention. Verified live on 2026-09-11 against a
   deliberately reverted `withdraw` (`amount = 0`, which panics `InvalidAmount` before touching
-  state): tx `3809e755…b17593` decodes to `InvalidAmount (#5)` on `CBIYQACY…`, and the older
-  `046163a9…48f104` shows the coarse `Trapped` with `error code aged out of RPC retention`.
+  state): tx `3809e755...b17593` decodes to `InvalidAmount (#5)` on `CBIYQACY...`, and the older
+  `046163a9...48f104` shows the coarse `Trapped` with `error code aged out of RPC retention`.
 - **Admin setter detection without events.** 3.12 says the live pool emits nothing from
   `set_asp_root`, `set_deny_list`, `set_auditor` or `set_fx_oracle`. The function name is still in
   the transaction envelope, so the transaction-level read recovers it. The console currently shows

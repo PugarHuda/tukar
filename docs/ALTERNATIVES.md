@@ -129,7 +129,7 @@ reads the live `deny_list` before proving so a policy change can't desync the pr
 
 ## 6. The anchor SEP stack (SEP-1 / 6 / 10 / 24 / 31): what's real vs KYC-gated
 
-Community feedback (Stellar Discord): *"simulated anchor… you should integrate
+Community feedback (Stellar Discord): *"simulated anchor... you should integrate
 SEP-1, SEP-6, SEP-10, SEP-24 and SEP-31 if you are making your anchor."* Correct
 list, for **building an anchor**. But Tukar isn't an anchor: it's the confidential
 on-chain **settlement rail that sits between anchors**. So the honest mapping is:
@@ -143,7 +143,7 @@ signatures and no mocks (**5/5 steps pass**):
 | **SEP-1** (`stellar.toml`) | org/asset/contract discovery | ✅ **published**. [`/.well-known/stellar.toml`](../webapp/public/.well-known/stellar.toml) declares the org + the live Soroban contracts (pool + 7 verifiers), network, operating account. Deliberately omits anchor endpoints and claims no `[[CURRENCIES]]` (Tukar issues no asset; it settles in Circle/SDF USDC). Also **consumed**: `sep:anchor` reads the anchor's toml to discover its endpoints. |
 | **SEP-10** (web-auth) | challenge → sign → JWT | ✅ **real JWT obtained**. It fetches the anchor's challenge tx, signs it with the demo key, POSTs it back, and gets a valid ~400-char JWT. Genuine anchor authentication, not a stub. |
 | **SEP-6** (programmatic) | non-interactive deposit/withdraw | ✅ **authenticated `/info`** read live (anchor supports USDC/SRT/native deposit + withdraw). |
-| **SEP-24** (interactive) | hosted deposit/withdraw | ✅ **real interactive URL**. An authenticated `POST …/transactions/deposit/interactive` for **USDC** returns a live hosted ramp URL (`anchor-ref-ui-testanchor.stellar.org?transaction_id=…&token=…`) + a transaction id. This is a genuine fiat-on-ramp session against a real anchor. |
+| **SEP-24** (interactive) | hosted deposit/withdraw | ✅ **real interactive URL**. An authenticated `POST .../transactions/deposit/interactive` for **USDC** returns a live hosted ramp URL (`anchor-ref-ui-testanchor.stellar.org?transaction_id=...&token=...`) + a transaction id. This is a genuine fiat-on-ramp session against a real anchor. |
 | **SEP-31** (cross-border) | sending-anchor → receiving-anchor | ◑ `/info` reached live (the anchor advertises the SEP-31 endpoint; the testnet reference anchor has no receive assets configured). **This is where Tukar fits**: a SEP-31 pair handles fiat + KYC (SEP-12) + quotes (SEP-38) at each edge, and Tukar is the amount-and-counterparty-**private** settlement leg between them, the confidential middle a plain SEP-31 corridor lacks. |
 
 So the protocol wiring is **real and verifiable**, not mocked: Tukar authenticates

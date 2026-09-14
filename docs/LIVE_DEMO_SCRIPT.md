@@ -68,7 +68,7 @@ key so nobody else can reuse it. Then the real USDC goes into the shielded pool.
 
 **SEE:** The progress screen ticks through its steps: the zero-knowledge proofs, the
 on-chain deposit, and registering the note into the shielded tree. A deposit tx hash
-link appears. It lands on a "sent and shielded" state with a **claim note (tukar1:…)**
+link appears. It lands on a "sent and shielded" state with a **claim note (tukar1:...)**
 and a QR.
 
 **DO:** Click **Copy** on the claim note.
@@ -113,7 +113,7 @@ Checked in the browser, and checked again on the live Stellar verifier."
 
 **SAY:** "That's a portable receipt. Anyone can re-verify it, with zero trust in us."
 
-**SEE:** A `tukar-audit-receipt-….json` file downloads.
+**SEE:** A `tukar-audit-receipt-....json` file downloads.
 
 ---
 

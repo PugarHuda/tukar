@@ -58,7 +58,7 @@ cd contracts/pool && cargo test          # 55/55
 - Only the demo artifacts (`frontend/circuit/disclosure.wasm`, `.zkey`, vk) are
   committed (needed to serve the browser demo). Largest tracked file 1.8 MB.
 - Contract IDs are consistent across README, the frontend, these docs, and
-  `deployments/testnet.json` (current pool `CBIYQAC…DK2MHTWJ`; older deployments are
+  `deployments/testnet.json` (current pool `CBIYQAC...DK2MHTWJ`; older deployments are
   recorded under `deployments/testnet.json` → `pool.supersedes`).
 - `LICENSE` (Apache-2.0) present; `test_snapshots/` ignored.
 
@@ -158,14 +158,14 @@ Positive cases (all return `true`):
 
 | Call | Contract | Result |
 |---|---|---|
-| `disclosure.verify` | `CAYGUR…J4W4V` | `true` |
-| `transfer.verify` | `CACHZSW…3PUNE` | `true` |
-| `compliance.verify` | `CDXYGM3…XBCG2` | `true` |
-| `pool.deposit` | `CBIYQAC…DK2MHTWJ` | success (moved real USDC in, bound to the commitment) |
-| `pool.withdraw` | `CBIYQAC…DK2MHTWJ` | success (released USDC, amount bound to negative `public_amount`) |
-| `pool.register_root_verified` | `CBIYQAC…DK2MHTWJ` | success (trustless root advance, merkleUpdate proof) |
-| `pool.poseidon_hash(1,2)` | `CBIYQAC…DK2MHTWJ` | `0x115cc0f5…4417189a` (circomlib-exact Poseidon on-chain) |
-| `merkleUpdate.verify` | `CCA3T54…S3X6H` | `true` |
+| `disclosure.verify` | `CAYGUR...J4W4V` | `true` |
+| `transfer.verify` | `CACHZSW...3PUNE` | `true` |
+| `compliance.verify` | `CDXYGM3...XBCG2` | `true` |
+| `pool.deposit` | `CBIYQAC...DK2MHTWJ` | success (moved real USDC in, bound to the commitment) |
+| `pool.withdraw` | `CBIYQAC...DK2MHTWJ` | success (released USDC, amount bound to negative `public_amount`) |
+| `pool.register_root_verified` | `CBIYQAC...DK2MHTWJ` | success (trustless root advance, merkleUpdate proof) |
+| `pool.poseidon_hash(1,2)` | `CBIYQAC...DK2MHTWJ` | `0x115cc0f5...4417189a` (circomlib-exact Poseidon on-chain) |
+| `merkleUpdate.verify` | `CCA3T54...S3X6H` | `true` |
 
 Negative cases (all correctly rejected):
 
@@ -246,13 +246,13 @@ plain black-on-white. The test loads the live demo, generates each QR, then deco
 the rendered PNG with **jsQR** over its raw pixels (the same algorithm a scanner
 uses) and asserts `decoded === the visible string`.
 
-Verified 2026-06-30 against the live deploy: **2/2**. `tukreq1:…` (payment request)
-and `tukar1:…` (bearer note, after a real on-chain deposit) both decode exactly,
+Verified 2026-06-30 against the live deploy: **2/2**. `tukreq1:...` (payment request)
+and `tukar1:...` (bearer note, after a real on-chain deposit) both decode exactly,
 with zero uncaught page errors. So the custom-styled QR remains camera-scannable.
 
 ## 8. Bearer note is real spendable money ✅ 4/4 live
 
-`npm run test:bearer` proves the `tukar1:…` string a QR encodes is withdrawable value
+`npm run test:bearer` proves the `tukar1:...` string a QR encodes is withdrawable value
 on a device that has nothing but the string. Steps, on the live deploy:
 (1) deposit a note on-chain, (2) export the bearer string, (3) **wipe
 the local session** and import the bare string as a fresh holder (the pool
@@ -304,8 +304,8 @@ anchor (`testanchor.stellar.org`), no mocks:
   session at the anchor's hosted UI, from the browser.
 
 Honest scope: SDF's testanchor is a *reference* anchor (no real KYC on testnet) and
-it issues **Circle testnet USDC** (issuer `GBBD47IF…`), whereas the corridor demo is
-pre-funded with a project USDC SAC (issuer `GC7SWGHR…`). So the on-ramp demonstrates
+it issues **Circle testnet USDC** (issuer `GBBD47IF...`), whereas the corridor demo is
+pre-funded with a project USDC SAC (issuer `GC7SWGHR...`). So the on-ramp demonstrates
 the live SEP flow; it is **not** the corridor's deposit source. A production deploy
 would align the corridor's settlement asset to a *licensed* anchor's USDC (a partner +
 KYC step, not code). Tukar also **publishes** its own SEP-1 `stellar.toml`
