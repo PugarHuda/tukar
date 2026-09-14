@@ -1,26 +1,35 @@
 # Instawards Statement of Work: Tukar
 
-> Filled in and checked against the project on 2026-09-14. A copy-friendly version with a copy
-> button per section, for pasting into the Airtable form, is published as a Claude artifact.
+> Filled in and checked against the project on 2026-09-14, in the order of the Instawards SOW
+> template. A copy-friendly version with a copy button per field, for pasting into the Airtable form,
+> is published as a Claude artifact.
 
-## 1. Project and team information
+## 1. Project & Team Information
 
 | Field | Value |
 |---|---|
-| Project name | Tukar |
-| Builder / team name | Pugar Huda Mantoro (solo builder) |
-| Primary contact | Pugar Huda Mantoro, hudapugar@gmail.com |
+| Project Name | Tukar |
+| Builder / Team Name | Pugar Huda Mantoro |
+| Primary Contact (Name + Email) | Pugar Huda Mantoro and hudapugar@gmail.com |
 | Ambassador Chapter | Ambassador Chapter Indonesia |
 | Ambassador Chapter Lead | Kenny Rivaldi |
-| Date submitted | 2026-09-14 |
-| Suggested sprint start date | 2026-09-22, finishing 2026-10-22, seventeen days before the SCF round 46 deadline |
+| Date Submitted | 2026-09-14 |
+| Suggested Sprint Start Date | 2026-09-22 |
 
-A reviewer can open the live app at https://tukar-six.vercel.app, the documentation at
-https://tukar-six.vercel.app/docs, and the source at https://github.com/PugarHuda/tukar.
+## 2. Instawards Overview & Intent
 
-## 3. Problem statement and objective
+### 2.1 Instawards Purpose (for Builder Context)
 
-### The problem
+Instawards are designed to support short, clearly scoped, execution-focused work that helps a project
+make tangible progress toward building on Stellar. Instawards are meant to fund specific, achievable
+outcomes that can be completed and demonstrated within 30 days or less.
+
+This SOW represents a shared commitment between the Builder and the Ambassador Chapter Lead on what
+will be delivered, why it matters, and how success will be verified.
+
+## 3. Problem Statement & Objective
+
+### Problem Being Addressed
 
 Tukar is a private cross-border remittance corridor on Stellar. Fifteen contracts are live on
 testnet, eight Circom circuits prove in the browser, and real deposits settle on Protocol 28. The
@@ -29,14 +38,14 @@ blocker is not the cryptography. It is two specific things.
 **First, Tukar cannot tie the money leaving the pool to the verified person it belongs to without
 exposing that person.** Tukar's strongest existing claim is an auditor-registered audit request. A
 regulator pins the exact set of payments an answer must cover and the cap it is tested against, and
-the contract rejects anything else. That set is built from deposits, and
-deposits on Stellar are public by design, so the answer is complete only over payments the regulator
-could already read from the chain. What privacy actually hides is the other end. A withdraw shows the
-address and the amount released, but not which verified person is behind it across every address
-they use. Two things a regulator needs follow from that gap, and neither can be done today without
-breaking the privacy the corridor exists for. A per-person monthly limit can be split around with
-fresh addresses. And a person asked to account for a month of cash-outs can leave some out, because
-nothing proves the list is whole.
+the contract rejects anything else. That set is built from deposits, and deposits on Stellar are
+public by design, so the answer is complete only over payments the regulator could already read from
+the chain. What privacy actually hides is the other end. A withdraw shows the address and the amount
+released, but not which verified person is behind it across every address they use. Two things a
+regulator needs follow from that gap, and neither can be done today without breaking the privacy the
+corridor exists for. A per-person monthly limit can be split around with fresh addresses. And a
+person asked to account for a month of cash-outs can leave some out, because nothing proves the list
+is whole.
 
 **The gap is named in writing by the teams building Stellar's own privacy stack.** OpenZeppelin's
 selective-disclosure specification for Stellar confidential tokens lists it among the things it does
@@ -82,32 +91,30 @@ The nearest neighbours were each read from source, and they differ in ways that 
 the hardest part of the product, the twenty to sixty seconds of in-browser proving with no progress
 a person can interpret, rests on one developer's intuition.
 
-### Objective
+### Objective of This Instaward
 
 By the end of the 30 days, every cash-out on the preview pool updates a shielded monthly ledger for
-the verified person behind it. A monthly limit then cannot be split around, and an auditor's request
-for one person's month gets an answer that is complete by construction, without the auditor learning
-anything else and without trusting the holder. The corridor will also have been run end to end by
-three people who are not the author, with what broke published.
+the verified person behind it, so a monthly limit cannot be split around and an auditor's request for
+one person's month gets an answer that is complete by construction. The corridor will also have been
+run end to end by three people who are not the author, with what broke published.
 
-## 4. Scope of work
+## 4. Scope of Work (30-Day Deliverables)
 
-### 4.1 In-scope deliverables
+### 4.1 In-Scope Deliverables
 
-| Deliverable | What will be built | Why it matters |
+| Deliverable | Description (What will be built or produced?) | Why this matters |
 |---|---|---|
 | **D1. A shielded monthly ledger for each verified person** | Each allow-listed person holds one shielded ledger note per period, carrying a count and a running total. Every withdraw on the preview pool must carry a second, small proof that spends the person's current ledger note and creates the next one, adding exactly the withdraw's own public amount, so the figure checked against the cap and the figure released are the same number. The cap is the one for the person's tier, read by the contract rather than supplied by the prover, and the period comes from the ledger clock, pinned by the contract. Opening a period publishes one nullifier derived from the person's secret and the period, so no one runs two ledgers in the same period, and those nullifiers do not link across periods. When a period closes, the audit-request registry, adapted to name a person and a closed period, accepts an answer only over the final ledger note, meaning the one whose nullifier is still unspent. Lands on the upgradeable preview pool, reusing the second-proof pattern already tested there. | Turns a monthly limit that can be split around into one that cannot, and turns a list of cash-outs into an answer that is provably whole. It is the gap OpenZeppelin lists as out of scope and Stellar Private Payments calls a near-term goal, and it closes the gap in Tukar's existing audit request, which today is complete only over public deposits. |
 | **D2. Scoped testnet pilot with a published report** | Three people who are not the author run the corridor end to end, with roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. Where they hesitate, what they misread and what they cannot finish is recorded in their own words. A report is published naming the sample size, how people were found, the selection bias, what broke, and what was changed because of it. The report separates first-contact findings from repeat-session findings, because a person who has already seen the app is no longer fresh evidence. | The product has never been touched by a stranger. Three is small and the report will say so, but three sessions that happen beat ten that are scheduled and cancelled. |
-| **D3 (optional, dropped first if the sprint runs short). The ledger published as reusable tooling** | The ledger scheme written up as a short spec with a runnable example against the deployed testnet contract, so the teams behind Stellar Private Payments and the confidential token can adopt it without reading Tukar's source. | Both teams have said in writing that completeness is not done yet. An open spec lets them take it rather than rebuild it. |
+| **D3. The ledger published as reusable tooling** | The ledger scheme written up as a short spec with a runnable example against the deployed testnet contract, so the teams behind Stellar Private Payments and the confidential token can adopt it without reading Tukar's source. | Both teams have said in writing that completeness is not done yet. An open spec lets them take it rather than rebuild it. |
 
-### Out of scope, explicitly
+### Out-of-Scope (Explicitly Not Included)
 
 - **No mainnet.** Nothing deploys to mainnet, no mainnet key is generated, no mainnet transaction is
-  signed. Mainnet is a later milestone with its own prerequisites, recorded in
-  `docs/MAINNET-CHECKLIST.md`.
-- **No licensed anchor integration.** Cash-out continues to run against SDF's testnet reference
-  anchor. A licensed anchor is a business relationship on someone else's timeline and cannot be
-  promised inside 30 days.
+  signed.
+- **No licensed anchor integration.** Cash-out continues against SDF's testnet reference anchor. A
+  licensed anchor is a business relationship on someone else's timeline and cannot be promised inside
+  30 days.
 - **No change to the eight live core contracts.** They keep their addresses so every explorer link
   already published stays valid.
 - **No completeness for money that never leaves the pool.** The ledger counts cash-outs, which is
@@ -121,12 +128,14 @@ three people who are not the author, with what broke published.
   people who cash out in a period is visible, even though who they are is not.
 - **No legal claim.** The Bank Indonesia limit is cited as the shape of a real monthly rule. Nothing
   here says Tukar is subject to it.
-- **Nothing that depends on the recurring scheduler, a TRISA node, or the Notabene sandbox.** All
-  three are unprovisioned on this deployment.
 
-### 4.2 Budget request
+### 4.2 Deliverable-Aligned Budget Request
 
-**$5,000, which is 100 hours at $50 per hour.**
+#### Requested Budget Amount
+
+$5,000, which is 100 hours at $50 per hour.
+
+#### Rationale for Budget Request
 
 **D1, the monthly ledger, is 72 of those hours.** It produces three things. A small circuit spends
 one ledger note and creates the next, adds exactly the withdraw's public amount, and checks the
@@ -180,62 +189,61 @@ lower the rate and keep the hours, because the hours are derived from the work a
 tier, which is exactly why this project keeps hitting the free daily deploy limit, the Stellar
 testnet is free through friendbot, and Upstash is on its free tier. The whole request is labour.
 
-Two honest reductions if the chapter wants a smaller first award. Dropping D3 takes it to 90 hours
-and $4,500. Holding the scope and setting the rate at $35 takes it to $3,500. Both still deliver the
-two core outcomes.
+## 5. 30-Day Execution Plan & Timeline
 
-## 5. Thirty day execution plan
+### 5.1 Weekly Breakdown
 
-| Week | Planned work | Expected output |
+| Week | Planned Work | Expected Output |
 |---|---|---|
 | **Week 1** | Rotate the corridor admin key before any contract work, since the current one was committed to a public repository and every upgrade in this sprint is signed by it. Apply the preview-pool upgrade that is already queued, so D1 does not stack on an unapplied change. Fix the ledger design and write the five negative tests first, so they fail before any code exists. Recruit the three testers in parallel, since scheduling is the long pole. | Admin key rotated, preview pool current, the design written down, five failing tests committed, three testers booked. |
 | **Week 2** | Write the ledger circuit and run its trusted setup with a beacon from a Stellar ledger that closes after the contributions end. Add the contract gate to the preview pool and upgrade it on testnet. Make the negative tests pass for the right reason rather than by accident. | Circuit and setup transcript published, preview pool upgraded, tests green, first cash-out carrying a ledger proof on-chain. |
 | **Week 3** | Build the audit answer over a closed period and the public page that shows whether a request has a complete answer on record. Run the first pilot sessions. | A registered request answered complete on-chain, a stale answer rejected, first session notes captured. |
 | **Week 4** | Remaining pilot sessions. Write the pilot report. If time allows, D3. Fix whatever the pilot exposed that can be fixed inside the sprint, and record what cannot. | Report published, ledger scheme documented, evidence links assembled. |
 
-The pilot is deliberately spread across weeks 3 and 4 rather than saved for the end, because
-sessions cancel and a pilot squeezed into the last three days is a pilot that does not happen.
+## 6. Evidence of Completion (Required)
 
-## 6. Evidence of completion
+### 6.1 Planned Evidence to Be Submitted
 
-Chosen so a chapter lead can check each one without reading any code.
-
-| Deliverable | Evidence | What the reviewer does |
+| Deliverable | Evidence Type (link, repo, demo, screenshot, doc, tx hash, etc.) | Description |
 |---|---|---|
-| **D1** | Testnet transaction hashes on stellar.expert. A cash-out inside the cap, accepted with its ledger proof. A second cash-out that would pass the cap, rejected on-chain. An attempt to open a second ledger in the same period, rejected. A registered audit request answered complete and accepted, and an answer built on an earlier ledger note, rejected. Plus a public page that shows whether a request has a complete answer on record. | Open the hashes and see which were accepted and which were rejected on-chain. The rejections are the point. Each one is a way to cheat the limit or the audit, refused by the contract. |
-| **D2** | The published pilot report, with the number of testers, how they were found, the selection bias, what broke, and what changed as a result. | Read it. Look for findings that contradict the design; a report where everything went well is a report to distrust. |
-| **D3** | A spec page and a runnable example against the deployed contract. | Follow the example and see it return the same result the public page shows. |
+| **Deliverable 1** | Testnet tx hashes on stellar.expert, and a public status page | Five transactions. A cash-out inside the cap, accepted with its ledger proof. A second cash-out that would pass the cap, rejected on-chain. An attempt to open a second ledger in the same period, rejected. A registered audit request answered complete and accepted, and an answer built on an earlier ledger note, rejected. Open each hash to see which were accepted and which were rejected. The rejections are the point, because each one is a way to cheat the limit or the audit that the contract refused. The status page shows whether a request has a complete answer on record. |
+| **Deliverable 2** | Doc (published pilot report) | Names the number of testers, how they were found, the selection bias, what broke, and what changed as a result. Look for findings that contradict the design; a report where everything went well is a report to distrust. |
+| **Deliverable 3** | Doc and repo (spec page with a runnable example) | Follow the example against the deployed testnet contract and see it return the same result the status page shows. |
 
-Nothing here is a screenshot of something working. Every item is either on a public ledger or a
-document that names its own limitations.
+### 6.2 Evidence Verification Checklist (For Ambassador Use)
 
-## 7. Next step after completion
+For each deliverable, the Ambassador Chapter Lead will assess whether evidence is present and
+sufficient.
 
-- [x] **Apply to the SCF Build Award.** The submission is already written at
-  `docs/SCF_BUILD_PROPOSAL.md` and the deadline for round 46 is 2026-11-08, which this sprint
-  finishes ahead of. The two deliverables map directly onto its two weakest points. D1 makes Tukar's disclosure complete over what privacy actually
-  hides, not only over public deposits, and D2 is the first evidence that anyone other than the author
-  has used the thing.
+| Deliverable | Evidence Present | Evidence Partial | Evidence Missing | Comments |
+|---|---|---|---|---|
+| Deliverable 1 | ☐ | ☐ | ☐ | |
+| Deliverable 2 | ☐ | ☐ | ☐ | |
+| Deliverable 3 | ☐ | ☐ | ☐ | |
 
-## 8. Constraints acknowledgement
+## 7. Next-Step Alignment
 
-- [x] This scope will be completed within 30 days or less.
-- [x] Instawards support execution, not open-ended exploration.
-- [x] A project may receive no more than two follow-on disbursements.
-- [x] Total Instawards funding may not exceed $15,000 in the aggregate.
-- [x] $5,000 is the top of the range the rules give for an initial Instaward, which is
-      $1,000 to $5,000 depending on scope and readiness. It is not a per-award cap, and this
-      request sits at the top of that range rather than under a ceiling. Section 4.2 is the
-      argument for why the scope earns it, and the two reductions there are real offers.
+### 7.1 Anticipated Next Step After Completion
 
-## Before it goes in
+After this Instaward, the most likely next step is:
 
-Everything on this page is filled in. What is left is not a field. Instawards require active
-engagement in the chapter, and the lead is the one who submits this through the Airtable form and
-puts their name to it. That conversation is the last step, not this document.
+- ☑ Apply to SCF Build Award
+- ☐ Continue development independently
+- ☐ Apply for a follow-on Instaward (if eligible)
+- ☐ Seek other ecosystem support
+- ☐ Other
 
-Two dependencies inside the sprint are worth naming to the lead up front rather than discovering in
-week 2. The admin key that signs every contract upgrade here was committed to a public repository
-and has to be rotated first, per `docs/KEY-ROTATION.md`. And the preview pool already has an upgrade
-queued and unapplied in `docs/CONTRACT-UPGRADE-STEPS.md`, so that lands before D1 rather than
-underneath it. Both are in week 1.
+## 8. Instawards Constraints Acknowledgement
+
+By submitting this SOW, the Builder acknowledges:
+
+- ☑ This scope will be completed within 30 days or less.
+- ☑ Instawards support execution, not open-ended exploration.
+- ☑ A project may receive no more than two follow-on Instawards.
+- ☑ Each Instaward is capped at $5,000.
+- ☑ Total Instawards funding may not exceed $15,000.
+
+## 9. Submission Confirmation
+
+Once finalized, this Statement of Work will be submitted by the Ambassador Chapter Lead via the
+Instawards Airtable submission form for review and approval.
