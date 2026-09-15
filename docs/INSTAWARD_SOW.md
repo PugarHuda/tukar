@@ -38,8 +38,8 @@ blocker is not the cryptography. It is two specific things.
 
 **First, Tukar cannot tie the money leaving the pool to the verified person it belongs to without
 exposing that person.** Tukar's strongest existing claim is an auditor-registered audit request. A
-regulator pins the exact set of payments an answer must cover and the cap it is tested against, and
-the contract rejects anything else. That set is built from deposits, and deposits on Stellar are
+regulator pins the exact set of payments an answer must cover, and on the preview pool the cap it is
+tested against as well, and the contract rejects anything else. That set is built from deposits, and deposits on Stellar are
 public by design, so the answer is complete only over payments the regulator could already read from
 the chain. What privacy actually hides is the other end. A withdraw shows the address and the amount
 released, but not which verified person is behind it across every address they use. Two things a

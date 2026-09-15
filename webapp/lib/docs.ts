@@ -88,7 +88,8 @@ export const GROUPS: Group[] = [
     note: "The Build Award proposal, the interest form, and the questions reviewers have asked.",
     docs: [
       doc("docs/SCF_BUILD_PROPOSAL.md", "SCF Build Award proposal"),
-      doc("docs/SCF_SUBMISSION.md", "SCF Build interest form"),
+      doc("docs/SCF_SUBMISSION.md", "SCF Build submission answers"),
+      doc("docs/SCF_INTEREST_FORM.md", "SCF Build interest form answers"),
       doc("docs/JUDGE_QA.md", "Judge questions and answers"),
       doc("docs/JUDGE_QA_UNCOVERED.md", "Questions the deck does not answer"),
       doc("docs/OVERVIEW_ID.md", "Penjelasan lengkap (Bahasa Indonesia)", "id"),

@@ -1,4 +1,4 @@
-# Tukar SCF #46 Build Award Proposal
+# Tukar SCF Build Award Proposal
 
 > Full tranche-structured proposal for the Stellar Community Fund Build Award.
 > Companion to the interest-form answers in [`docs/SCF_SUBMISSION.md`](SCF_SUBMISSION.md).
@@ -27,9 +27,9 @@ about a payment that a Stellar contract verifies on-chain. The payment is privat
 the user and provable to a regulator at the same time. It is private in the middle
 and accountable at the edges.
 
-**The single idea worth reading this document for.** Selective disclosure everywhere else has
-the same weakness: the holder chooses what to disclose, so a regulator asking for a total can be
-answered with a flattering subset. Tukar closes that on-chain. An auditor registers a request
+**The single idea worth reading this document for.** Selective disclosure on its own has a
+weakness, because the holder chooses what to disclose, so a regulator asking for a total can be
+answered with a flattering subset. Tukar binds the answer on-chain to the set the auditor registered. An auditor registers a request
 with `register_audit_request`, which pins the exact set of commitments the answer must cover into
 a context hash. `disclose_aggregate` recomputes that hash from the proof's public inputs and
 panics with `UnknownAuditRequest` (error 15) against anything the auditor never registered, so
@@ -44,9 +44,13 @@ verifier returns true for the same registered request with a cap of `2^72 - 1`, 
 cannot omit a payment but can answer with a limit that says nothing. Closing it needs no circuit
 change and no ceremony, only that the auditor registers the cap with the request, and that is
 built and tested in `contracts/pool-enforced`'s sibling crate today. The live pool cannot take
-it, which is one more concrete thing Tranche 1 buys. A holder cannot answer "sum
-of everything" with a subset they picked. That is a completeness guarantee, not a disclosure
-feature, and no other project named in Section 4 has one. Counting contracts and tests is not
+it, which is one more concrete thing Tranche 1 buys. A holder cannot drop
+a payment from the set the auditor named. That is not yet completeness over a person's history,
+because the named set is built from deposits, which are public on Stellar, so the answer is
+complete over payments the auditor could already list rather than over one person's cash-outs
+across every address they use. Verified disclosure is not unique to Tukar either, since Stellar
+Private Payments verifies disclosures too. What was not found in the projects named in Section 4
+is an answer bound on-chain to a set the auditor registered. Counting contracts and tests is not
 traction and a panel that has opened the Nethermind repository will not be moved by fifteen
 contracts; this is the part that is genuinely ours.
 
@@ -100,8 +104,8 @@ searched for [`docs/COMPETITIVE.md`](COMPETITIVE.md) show:
    `disclose_aggregate` in `contracts/pool/src/lib.rs`, each routed to its own live
    verifier contract and each bound to a commitment the pool already knows. The aggregate
    path checks the context hash against an auditor-registered request and panics with
-   `UnknownAuditRequest` (error 15) otherwise, so a holder cannot answer a "sum of
-   everything" request with a subset they chose. Covered by a should-panic test in
+   `UnknownAuditRequest` (error 15) otherwise, so a holder cannot drop a payment from
+   the set the auditor registered, which is built from public deposits. Covered by a should-panic test in
    `contracts/pool/src/test.rs`.
 2. **A settlement oracle that gates withdrawal.** When the caller asks for off-ramp
    slippage protection, `withdraw` reads the Reflector SEP-40 feed on-chain, prices the
@@ -170,9 +174,9 @@ Two clarifications that follow from the track choice.
   anchor on testnet), that is a statement about which software the corridor talks to and
   nothing more.
 
-### #46 requirements this proposal is written against
+### Requirements this proposal is written against
 
-The two requirements new for round #46 apply to this submission and are addressed
+The two requirements added to the Build Award in round #46 apply to this submission and are addressed
 directly: Tranche #2 must deliver a threat model **and** a monitoring plan built from that
 threat model's output, and the Open Track requires full disclosure of AI-generated and
 AI-assisted artifacts. The threat model and monitoring plan are at
@@ -232,11 +236,11 @@ That is 15 Soroban contracts across the core corridor and the additive productio
 track. The identity/admin key is `corredor`
 (`GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS`).
 
-**Tests.** 333 passing Cargo tests across the contract crates, counted from `#[test]` in the
-repository on 2026-09-11: pool 55, pool-enforced 71, pool-accumulator 78, pool-timelock 89,
-policy-registry 6, reserves 6, reserves-aggregate 12. The eighth crate, `reserves-testpool`,
+**Tests.** 333 passing Cargo tests across the contract crates, run on 2026-09-15 rather than
+counted from `#[test]` attributes: pool 55, pool-enforced 82, pool-accumulator 83, pool-timelock
+89, policy-registry 6, reserves 6, reserves-aggregate 12. The eighth crate, `reserves-testpool`,
 is a test double for the cross-contract read and carries no tests of its own. Plus
-282 frontend unit tests across 36 files (run 2026-09-11), circuit-soundness suites
+295 passing frontend unit tests across 38 files (run the same day), circuit-soundness suites
 (threshold 4/4, range 5/5, aggregate 6/6), and Playwright real-click end-to-end suites run
 across multiple browsers against the live testnet deployment, including a Protocol 28
 write-path check that performs a real on-chain deposit and registration
@@ -251,7 +255,7 @@ from that STRIDE index. The monitoring plan names only signals this system reall
 (it enumerates the four events the live pool emits, the policy-registry and timelock events,
 and it says plainly which setters emit nothing and that reverted transactions are invisible
 to `getEvents`), and it separates what runs today from the transaction-level indexer and
-alert transport that Tranche #2 builds. This document is a required SCF #46 Tranche #2
+alert transport that Tranche #2 builds. This document is a required Tranche #2
 deliverable and is drafted ahead of need, so Tranche #2 completes and operationalizes it
 rather than starting it.
 
@@ -314,10 +318,10 @@ anyway).
 **Why an anchor would buy.** An anchor on a public stablecoin rail leaks its customers'
 payment amounts and counterparties onto a permanent ledger, which is a competitive and a
 privacy problem, and it cannot fix that with a mixer because it then cannot answer its
-regulator. Tukar is the only position that solves both at once for that buyer: private in
-the middle, provable at the edges. The disclosure family is the part a compliance officer
-actually uses, and the on-chain audit-request registry is what stops a holder answering a
-regulator with a subset they picked themselves.
+regulator. Private in the middle and provable at the edges is the position that solves both for
+that buyer. The disclosure family is the part a compliance officer actually uses, and the
+on-chain audit-request registry is what stops a holder dropping a payment from the set a
+regulator named.
 
 **Revenue, honestly.** There is no revenue and no pricing in market today. The intended
 model is a per-transfer corridor fee charged to the anchor, benchmarked against the 6.2%
@@ -383,13 +387,15 @@ in this repository:
    cross-border corridor with anchor SEP fiat edges, an off-ramp to local currency, bearer
    notes and payment requests, across 10 corridors. Arcane's funded scope is explicitly the
    horizontal shape, so this is a difference of product, not of quality.
-2. **Disclosure depth verified on-chain, with completeness enforced on-chain.** The generic
+2. **Disclosure depth verified on-chain, bound to an auditor-registered request.** The generic
    position on this tier is one auditor view key plus per-transaction selective disclosure.
    Tukar ships four disclosure types (exact, threshold, two-sided range, portfolio
    aggregate), each verified by its own live Soroban contract and bound to a commitment the
    pool already knows, and the aggregate path checks the context hash against an
    auditor-registered request and rejects anything unregistered with `UnknownAuditRequest`.
-   A holder therefore cannot answer a "sum of everything" request with a subset they chose.
+   A holder therefore cannot drop a payment from the set the auditor named. The limit is that
+   the set is built from public deposits, so this is not completeness over one person's cash-outs
+   across addresses, and verified disclosure as such also ships in Stellar Private Payments.
    Arcane scopes disclosure by role, application and time window in an off-chain services
    layer; the on-chain verification and the registry rejection are where Tukar differs.
 3. **Oracle-gated settlement.** None of the named neighbours tie fund movement to an
@@ -431,18 +437,15 @@ carries its own budget amount in Section 6. The dependency order is production-g
 first, then a testnet expansion with a candidate anchor and the monitoring stack, then
 mainnet go-live.
 
-Every deliverable below is labeled D0.1, D1.1 and so on, and Section 6 prices each label
-individually.
+Every deliverable below is labeled D1.1, D1.2 and so on, and Section 6 prices each label
+individually at what it costs.
 
 ### Tranche #0, award acceptance (10%)
 
-Paid on acceptance of the award. No development deliverable beyond acceptance and the
-kickoff. Deliverable **D0.1**: signed acceptance, published tranche plan, and a public tracking
-issue mapping each deliverable below to a verifiable artifact. Verifiable: the acceptance on
-file with SDF, and a public tracking issue in the repository carrying one open item per
-deliverable label below, each naming the artifact that closes it and linking that artifact when
-it lands. D0.1 is priced at **$13,500** in Section 6 against a cost basis of $875; the balance
-is working capital for the Tranche #2 overhang, which Section 6a states rather than hides.
+Paid on acceptance of the award under the fixed SCF split. The handbook's tranche table lists it
+as "n/a", so no deliverable is attached to it and nothing is priced against it. The kickoff and
+the public tracking issue that maps each deliverable below to a verifiable artifact are part of
+D1.1.
 
 ### Tranche #1, MVP, production-grade core (20%)
 
@@ -456,7 +459,9 @@ upgradeable pool, so mainnet is a deployment step rather than a rebuild.
   Tranche #1 runs a real migration of the shielded tree, nullifier set, and policy onto the
   upgradeable pool on testnet, which is the step that repoints the live corridor. Verifiable:
   target `leaf_count`, `current_root`, and every spent nullifier match the source, and a note
-  spent on the source is rejected as `NullifierUsed` on the migrated pool. Includes the honest
+  spent on the source is rejected as `NullifierUsed` on the migrated pool, and a public tracking
+  issue in the repository carries one open item per deliverable label, each naming the artifact
+  that closes it and linking that artifact when it lands. Includes the honest
   completeness control from the repository (the nullifier set is operator-supplied and cannot be
   reconstructed from on-chain data alone; the migration requires and logs the operator's full
   nullifier list).
@@ -464,8 +469,8 @@ upgradeable pool, so mainnet is a deployment step rather than a rebuild.
   proof-of-reserves already runs EXACT on testnet via the liability accumulator (`pool-accumulator`,
   `CBZOGXYS...`), which folds `+amount` on each deposit AND subtracts the public off-ramp `released`
   amount on each withdraw, so the on-chain total equals the exact live outstanding liabilities
-  (a contract-only change, no circuit or ceremony change; `pool-accumulator` cargo 78/78 counted
-  2026-09-11, deposit-then-withdraw e2e-proven on-chain). It ships on the preview track, so what remains is carrying the exact
+  (a contract-only change, no circuit or ceremony change; `pool-accumulator` cargo 83/83 run
+  2026-09-15, deposit-then-withdraw e2e-proven on-chain). It ships on the preview track, so what remains is carrying the exact
   accumulator onto the live pool as part of the migration above, alongside the per-corridor cap
   enforcement and the admin timelock. Verifiable: on the migrated pool a deposit-then-withdraw
   sequence leaves `total_liabilities` equal to the true remaining sum on-chain, and
@@ -566,7 +571,7 @@ deliverable.
   the required originator and beneficiary IVMS101 data over a live TRISA leg for a testnet
   corridor transfer, without leaking the shielded payment graph.
 - **D2.3 Ship the threat model and the monitoring / alerting stack.** Both halves of the
-  #46 Tranche #2 requirement. The threat model is already drafted at `docs/THREAT_MODEL.md`
+  Tranche #2 requirement. The threat model is already drafted at `docs/THREAT_MODEL.md`
   on SDF's four-question and STRIDE structure, with a data flow diagram, at least one issue
   per STRIDE category, and a monitoring plan derived from that index; the STRIDE index and the
   monitoring signal table are reproduced in full in `docs/SCF_SUBMISSION.md` so a reviewer needs
@@ -586,6 +591,9 @@ deliverable.
   small set of real testers and record their on-chain wallet interactions. Verifiable: a
   short pilot report with the testers' testnet transactions publicly inspectable on
   stellar.expert (the honest onboarding method already specified in `docs/ONBOARDING.md`).
+  This is not the Instaward pilot disclosed in Section 6. That one runs before this award on SDF's
+  reference anchor, is funded separately and is not billed here. D2.4 runs on the candidate
+  licensed-anchor corridor that D2.1 builds, with that anchor's KYC flow in the loop.
 
 Tranche #2 outcome: a monitored testnet corridor with a candidate anchor and a live Travel
 Rule leg, plus the finalized threat model and monitoring stack.
@@ -656,6 +664,13 @@ warns that "proposals that overreach in cost relative to their scope often perfo
 review and voting", which is exactly why 6a shows the composition instead of one blended rate.
 A reviewer who disagrees with an input can change that one input and see what it does to the
 total.
+
+**Other funding, disclosed.** A $5,000 Instaward Statement of Work was prepared on 2026-09-14
+with Stellar Ambassador Chapter Indonesia, for a 30-day sprint that builds three things. A
+shielded monthly ledger for each verified person on the preview pool, a pilot in which three
+people who are not the author run the corridor on SDF's reference anchor, and a short spec of the
+ledger. None of that work is billed here and it overlaps no line in this budget. D2.4 is a
+different pilot, on the licensed-anchor corridor that D2.1 builds.
 
 **Why $135,000 sits inside the band rather than above it.** Privacy and confidentiality
 projects on Stellar have been funded at this level and higher, and each of these was checked
@@ -758,8 +773,7 @@ three components above.
 
 | Deliverable | Founder weeks | Founder | Contracted | Infra | Cost basis |
 |---|---:|---:|---:|---:|---:|
-| **D0.1** Acceptance and tranche plan | 0.5 | $875 | $0 | $0 | **$875** |
-| **D1.1** Live-pool state migration | 3.0 | $5,250 | $0 | $600 | **$5,850** |
+| **D1.1** Live-pool state migration, kickoff and tracking issue | 3.5 | $6,125 | $0 | $600 | **$6,725** |
 | **D1.2** Exact accumulator on the live pool | 2.0 | $3,500 | $0 | $300 | **$3,800** |
 | **D1.3** Admin-key hardening on the live pool | 2.0 | $3,500 | $0 | $300 | **$3,800** |
 | **D2.1** Candidate licensed-anchor flow | 2.5 | $4,375 | $18,400 | $700 | **$23,475** |
@@ -782,17 +796,20 @@ parts only the person who wrote the system can safely execute against live state
 
 **Where cost and tranche weighting do not match, stated plainly.** The 10 / 20 / 30 / 40 split
 is fixed by SCF and the cost basis does not fall in that ratio. By cost the shares are about
-1% / 10% / 59% / 31%. Tranche #2 is where almost every contracted engagement lands, so it
-costs $79,190 against a $40,500 payment, an overhang of $38,690. The other three tranches run
-surpluses that cover it exactly: $12,625 on Tranche #0, $13,550 on Tranche #1 and $12,515 on
-Tranche #3. The estimates are not adjusted to hide this.
+0% / 11% / 59% / 31%. Tranche #2 is where almost every contracted engagement lands, so it
+costs $79,190 against a $40,500 payment, an overhang of $38,690. The acceptance payment and the
+other two tranches run surpluses that sum to it, $13,500 on Tranche #0, $12,675 on Tranche #1
+and $12,515 on Tranche #3. The estimates are not adjusted to hide this.
 
-That is a cash-flow statement, not an accounting trick, and it is the reason the acceptance
-payment exists. The acceptance payment plus Tranche #1 is $40,500 and arrives before Tranche
-#2 work begins, while Tranche #1 itself costs $13,450, so about $27,050 of working capital
-carries into Tranche #2. The engagements are staged in Section 7 so that commitments follow
-received funds rather than preceding them, and the indexer engagement starts in Month 2 rather
-than Month 3 for exactly that reason.
+That is a cash-flow statement, not an accounting trick. The acceptance payment plus Tranche #1
+is $40,500 and arrives before Tranche #2 work begins, while Tranche #1 itself costs $14,325, so
+about $26,175 of working capital carries into Tranche #2. That does not cover Tranche #2 on its
+own, because each payment follows review of completed work. $79,190 of Tranche #2 cost meets
+$26,175 on hand, and the $40,500 Tranche #2 payment arrives only after that work is reviewed. The
+engagements are staged in Section 7 so that commitments follow received funds rather than
+preceding them, the indexer engagement starts in Month 2 rather than Month 3 for exactly that
+reason, and if staging does not close the gap, the scope order in Section 8 applies before any
+engagement is committed without the funds to pay it.
 
 **Team-size sanity check, for a team of one.** Section 8 lists one person. The founder's own
 load is a flat 1.0 FTE across 26 weeks and never exceeds it, which is the real constraint a
@@ -804,39 +821,39 @@ which no solo team can supply. That figure is withdrawn and replaced by the spli
 Section 8 states how one person supervises that peak and which scope moves if it does not
 hold.
 
-**Per-deliverable budget, at the fixed tranche percentages.**
+**Per-deliverable budget.**
 
-Each amount below is the deliverable's share of its tranche's cost basis, scaled to the
-SCF-fixed tranche subtotal. The cost-basis column says what the work costs; the amount column
-says what SCF pays and when.
+Each amount below is what the deliverable costs, which is what the handbook asks a budget to
+state. SCF pays a fixed share of the total at the completion of each tranche, so each tranche
+row shows that payment beside the tranche's cost rather than spreading it back across the
+deliverables.
 
-| Deliverable | What it covers | Handbook activity | Cost basis | Amount |
-|---|---|---|---:|---:|
-| **D0.1** Acceptance, tranche plan, public tracking issue | Kickoff, publishing the verifiable-artifact map, and working capital for the Tranche #2 overhang below | Tranche #0 is n/a for development deliverables per the handbook's own tranche table | $875 | **$13,500** |
-| *Tranche #0 subtotal (10%)* | | | $875 | **$13,500** |
-| **D1.1** Live-pool state migration onto the upgradeable pool | Migration execution and verification, nullifier-completeness control, CAP-85 / CAP-86 evaluation writeup | Core Development | $5,850 | **$11,750** |
-| **D1.2** Exact proof-of-reserves accumulator applied to the live pool | Contract change carried through the migration, deposit-then-withdraw verification on-chain | Core Development | $3,800 | **$7,625** |
-| **D1.3** Admin-key hardening on the live pool | Timelock applied via the migration, multisig admin account configuration, regression of the contract and live e2e suites | Core Development, Testing and Verification | $3,800 | **$7,625** |
-| *Tranche #1 subtotal (20%)* | | | $13,450 | **$27,000** |
-| **D2.1** Candidate licensed-anchor flow on testnet | Contracted anchor sandbox onboarding and SEP-12 KYC mapping, ASP allow-list fed from the anchor KYC signal, designed anchor flow in the app | Core Development, Frontend and UX | $23,475 | **$12,000** |
-| **D2.2** TRISA companion node for a live Travel Rule leg | TRISA test-directory VASP registration (a technical enrolment, not a legal entity registration), contracted node hosting with the mTLS certificate lifecycle, IVMS101 exchange against a counterparty endpoint | Core Development | $18,425 | **$9,425** |
-| **D2.3** Threat model re-issue plus the monitoring and alerting stack | Contracted transaction-level indexer and its datastore, alert transport and rules, Sentry DSN, admin and auditor account watches, setter events, threshold tuning, re-run of the threat model against the migrated pool | Core Development, Testing and Verification | $32,415 | **$16,575** |
-| **D2.4** Scoped testnet pilot | Running the corridor with a small set of real testers and publishing the pilot report | Testing and Verification | $4,875 | **$2,500** |
-| *Tranche #2 subtotal (30%)* | | | $79,190 | **$40,500** |
-| **D3.1** Mainnet contract deployment and verification | Production trusted-setup ceremony with contracted independent contributors, verifiers regenerated against the new keys, mainnet deploy, reproducible verification record | Deployment and Release | $18,250 | **$23,750** |
-| **D3.2** One corridor go-live with a licensed anchor | Contracted production anchor credentials and runbooks, and the first end-to-end mainnet remittance | Core Development, Deployment and Release | $10,175 | **$13,250** |
-| **D3.3** Public SDK / API and integration documentation | Published package, designed integration docs, a runnable example against the mainnet contracts | Deployment and Release | $10,950 | **$14,250** |
-| **D3.4** Go-live monitoring | Repointing the stack at mainnet and tuning thresholds against the real baseline | Testing and Verification, Deployment and Release | $2,110 | **$2,750** |
-| *Tranche #3 subtotal (40%)* | | | $41,485 | **$54,000** |
-| **Total** | | Capped at $150,000 in XLM, 6 months or less | **$135,000** | **$135,000** |
+| Deliverable | What it covers | Handbook activity | Amount |
+|---|---|---|---:|
+| *Tranche #0, paid on acceptance, $13,500 (10%)* | No deliverable is attached, per the handbook's own tranche table | | **$0** |
+| **D1.1** Live-pool state migration onto the upgradeable pool | Kickoff and the public tracking issue, migration execution and verification, nullifier-completeness control, CAP-85 / CAP-86 evaluation writeup | Core Development | **$6,725** |
+| **D1.2** Exact proof-of-reserves accumulator applied to the live pool | Contract change carried through the migration, deposit-then-withdraw verification on-chain | Core Development | **$3,800** |
+| **D1.3** Admin-key hardening on the live pool | Timelock applied via the migration, multisig admin account configuration, regression of the contract and live e2e suites | Core Development, Testing and Verification | **$3,800** |
+| *Tranche #1 cost. SCF pays $27,000 (20%) at completion* | | | **$14,325** |
+| **D2.1** Candidate licensed-anchor flow on testnet | Contracted anchor sandbox onboarding and SEP-12 KYC mapping, ASP allow-list fed from the anchor KYC signal, designed anchor flow in the app | Core Development, Frontend and UX | **$23,475** |
+| **D2.2** TRISA companion node for a live Travel Rule leg | TRISA test-directory VASP registration (a technical enrolment, not a legal entity registration), contracted node hosting with the mTLS certificate lifecycle, IVMS101 exchange against a counterparty endpoint | Core Development | **$18,425** |
+| **D2.3** Threat model re-issue plus the monitoring and alerting stack | Contracted transaction-level indexer and its datastore, alert transport and rules, Sentry DSN, admin and auditor account watches, setter events, threshold tuning, re-run of the threat model against the migrated pool | Core Development, Testing and Verification | **$32,415** |
+| **D2.4** Scoped testnet pilot on the candidate licensed-anchor corridor | Running the D2.1 corridor with a small set of real testers and publishing the pilot report. Not the separately funded Instaward pilot | Testing and Verification | **$4,875** |
+| *Tranche #2 cost. SCF pays $40,500 (30%) at completion* | | | **$79,190** |
+| **D3.1** Mainnet contract deployment and verification | Production trusted-setup ceremony with contracted independent contributors, verifiers regenerated against the new keys, mainnet deploy, reproducible verification record | Deployment and Release | **$18,250** |
+| **D3.2** One corridor go-live with a licensed anchor | Contracted production anchor credentials and runbooks, and the first end-to-end mainnet remittance | Core Development, Deployment and Release | **$10,175** |
+| **D3.3** Public SDK / API and integration documentation | Published package, designed integration docs, a runnable example against the mainnet contracts | Deployment and Release | **$10,950** |
+| **D3.4** Go-live monitoring | Repointing the stack at mainnet and tuning thresholds against the real baseline | Testing and Verification, Deployment and Release | **$2,110** |
+| *Tranche #3 cost. SCF pays $54,000 (40%) at completion* | | | **$41,485** |
+| **Total** | | Capped at $150,000 in XLM, 6 months or less | **$135,000** |
 
-**The arithmetic, checkable line by line.** The four subtotals are exactly 10%, 20%, 30% and
-40% of $135,000: $13,500, $27,000, $40,500 and $54,000, which sum to $135,000. Inside each
-tranche the deliverable amounts sum to that tranche's subtotal ($11,750 + $7,625 + $7,625 =
-$27,000; $12,000 + $9,425 + $16,575 + $2,500 = $40,500; $23,750 + $13,250 + $14,250 + $2,750 =
-$54,000). The cost-basis column sums to $135,000 as well, and equals the three components:
-$45,500 + $80,000 + $9,500. The two columns differ per tranche for the cash-flow reason given
-above and agree on the total. The award is paid in XLM, so the dollar figures convert at the
+**The arithmetic, checkable line by line.** The deliverable amounts sum to $135,000. Tranche #1
+is $6,725 + $3,800 + $3,800 = $14,325. Tranche #2 is $23,475 + $18,425 + $32,415 + $4,875 =
+$79,190. Tranche #3 is $18,250 + $10,175 + $10,950 + $2,110 = $41,485. And $14,325 + $79,190 +
+$41,485 = $135,000, which equals the three components, $45,500 + $80,000 + $9,500. The payments
+are exactly 10%, 20%, 30% and 40% of $135,000, which is $13,500, $27,000, $40,500 and $54,000.
+Per tranche, cost and payment differ for the cash-flow reason given above and agree on the
+total. The award is paid in XLM, so the dollar figures convert at the
 benchmark rate SDF applies on the scheduled payment day and the XLM amount is not fixed here.
 
 **Excluded from this budget (per the handbook's ineligible and non-fundable costs).**
@@ -891,7 +908,7 @@ commitment follows a received tranche payment rather than preceding it.
 
 | Period | Focus | Contracted engagements running | Milestone |
 |---|---|---|---|
-| Month 0 | Acceptance, kickoff, public tranche tracking (D0.1) | None | Tranche #0 |
+| Month 0 | Acceptance, kickoff, and the public tracking issue that opens D1.1 | None | Tranche #0 |
 | Months 1 to 2 | Pool migration onto the upgradeable contract including the exact proof-of-reserves accumulator, admin-key hardening (D1.1 to D1.3) | Indexer engagement starts in Month 2 (spec and ramp only) | Tranche #1 MVP |
 | Months 3 to 4 | Candidate-anchor flow, TRISA node, monitoring and alerting stack, re-issued threat model, scoped pilot (D2.1 to D2.4) | Indexer (continuing), SRE / TRISA, anchor integration, design block 1. Peak of about 2.1 concurrent contractors | Tranche #2 Testnet |
 | Months 5 to 6 | Mainnet deploy and verification, licensed-anchor corridor go-live, SDK/API and docs, go-live monitoring (D3.1 to D3.4) | Ceremony (Month 5, fixed fee), anchor integration production weeks (Month 5), design block 2 (Month 6) | Tranche #3 Mainnet |
@@ -985,7 +1002,7 @@ And on Stellar specifically, which is Tukar itself:
 - Fifth place in the Stellar Privacy / Real-World ZK hackathon, hosted on DoraHacks.
 - Payments and Consumer Applications Grand Finalist in the Stellar APAC hackathon.
 - 15 Soroban contracts deployed and exercised on testnet with public explorer links, 8 Circom
-  circuits with a multi-party phase-2 ceremony, 333 Cargo tests, 282 frontend unit tests, and
+  circuits with a multi-party phase-2 ceremony, 333 Cargo tests, 295 frontend unit tests, and
   Playwright end-to-end suites that drive the live deployment.
 
 **On scaling: no. There is no such record, and this proposal is not going to imply one.** Not
@@ -1031,9 +1048,9 @@ outside engineer's unfamiliarity is a fund-safety risk, not a cost saving. The c
 the four disciplines listed above plus design, all of which are separable from the cryptography
 by a clean interface.
 
-**The tightest point in the plan, named.** Months 3 and 4. Tranche #2 runs up to three
-concurrent engagements while the founder is also running the D2.4 pilot. Supervising three
-contractors while writing code is itself a load and it is the single most likely place for this
+**The tightest point in the plan, named.** Months 3 and 4. Tranche #2 runs up to four
+concurrent engagements, about 2.1 full-time contractors, while the founder is also running the
+D2.4 pilot. Supervising them while writing code is itself a load and it is the single most likely place for this
 plan to slip. Three things are done about it, and they are scheduling decisions rather than
 optimism:
 
@@ -1056,7 +1073,7 @@ optimism:
    trusted-setup ceremony against published transcripts that verify plus verifier contracts
    regenerated against the new keys (D3.1).
 3. The design engagement is deliberately split, 3 weeks in Month 3 and 3 weeks in Month 6, so
-   it does not stack on top of the other three.
+   only its first half overlaps the other three.
 
 **What moves if it still does not hold.** Stated now, in priority order, rather than
 negotiated later:
@@ -1115,8 +1132,9 @@ that the owner still has to record.
   because the live pool has no upgrade hook. Tranche #1's migration onto the upgradeable
   pool is the step that makes it enforceable in place.
 - **Testnet only, no users or revenue yet.** The market sizing in Section 1 is the
-  opportunity and the model, not traction. The scoped pilot in Tranche #2 is the first real
-  usage, and mainnet volume follows Tranche #3.
+  opportunity and the model, not traction. The Instaward pilot disclosed in Section 6 is planned
+  as the first use by anyone other than the author, the scoped pilot in Tranche #2 is the first
+  on a licensed-anchor corridor, and mainnet volume follows Tranche #3.
 - **Custody of the award funds, and a key failure this project has already had.** The award is
   paid in XLM to a wallet this project secures, and under Official Rules 5.9 SDF has no
   obligation to recover, replace or replenish funds that are lost, stolen or misdirected. That
@@ -1184,10 +1202,10 @@ a licensed anchor. Each step is a verifiable outcome on top of a system that alr
 The Open Track requires full disclosure of AI-generated and AI-assisted artifacts. This
 project was built with heavy AI assistance and this section says so without hedging.
 
-**Scale of it, measured rather than estimated.** Counted on **2026-09-11**: 242 of the 292
+**Scale of it, measured rather than estimated.** Counted on **2026-09-15**: 252 of the 302
 commits in this repository carry a `Co-Authored-By: Claude ... <noreply@anthropic.com>` trailer
-(198 Claude Opus 4.8, 25 Opus 4.8 in the long-context configuration, 10 Opus 5, 5 Fable 5, 4
-Opus 5 in the long-context configuration). The figure is dated because it moves with every
+(198 Claude Opus 4.8, 25 Opus 4.8 in the long-context configuration, 15 Opus 5, 9 Opus 5 in the
+long-context configuration, 5 Fable 5). The figure is dated because it moves with every
 commit, and a dated count that a reviewer can re-run is worth more than a round number that
 silently goes stale. That trailer is written by the tooling on every commit an assistant worked
 on, so the count is a lower bound on AI involvement and not a self-assessment. Anyone can
@@ -1223,7 +1241,7 @@ was found by adversarial self-review of AI-written contract code, and the monito
 section 5 had to be rewritten after the threat-model pass established that the live pool's
 policy setters emit no events at all, contradicting an earlier AI-drafted plan that assumed
 they did. The controls are: everything is verified against the running system rather than
-against the model's description of it (333 Cargo tests, 282 unit tests, Playwright suites
+against the model's description of it (333 Cargo tests, 295 unit tests, Playwright suites
 driving the live deployment, real on-chain transactions), the repository is public so the
 code can be read, and the system is explicitly not audited and carries a
 do-not-use-with-real-assets warning until the Audit Bank audit that precedes mainnet.
