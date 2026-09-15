@@ -1,9 +1,10 @@
 # Tukar testnet pilot kit
 
 This is the runbook for putting the Tukar corridor in front of real people on Stellar testnet,
-watching what happens, and writing down the result honestly. It is deliverable **D2.4** in
-`docs/SCF_BUILD_PROPOSAL.md`, brought forward so that a funding panel can read a pilot report
-instead of a promise of one.
+watching what happens, and writing down the result honestly. It is the pilot method that
+deliverable **D2.3** in `docs/SCF_BUILD_PROPOSAL.md` will use, brought forward so that a funding
+panel can read a pilot report instead of a promise of one. A run of this kit on SDF's reference
+anchor is not D2.3 itself, which runs on a candidate licensed-anchor corridor.
 
 It is written for someone who is not the author of the app. If you can open a browser, read a
 script out loud, and type notes while somebody else clicks, you can run it.

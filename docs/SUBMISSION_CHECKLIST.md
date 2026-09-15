@@ -46,16 +46,15 @@ Akibatnya:
 
 **3. Kirim ulang interest form, setelah Instaward selesai.**
 
-- [ ] Pakai `SCF_INTEREST_FORM.md`. Sebelum menempel, perbarui:
-      status Instaward (disetujui atau tidak, selesai atau tidak), hasil pilot yang benar-benar
-      terjadi, dan angka tes hari itu.
+- [ ] Pakai `SCF_INTEREST_FORM.md`. Sebelum menempel, perbarui status Instaward (disetujui atau
+      tidak, selesai atau tidak), hasil pilot yang benar-benar terjadi, dan angka tes hari itu.
 - [ ] Kode referral REF-RISEI-449 wajib terisi, jangan hanya "Yes".
-- [ ] Submitter type: tetap "Individual" kecuali orang kedua benar-benar bergabung.
+- [ ] Submitter type tetap "Individual" kecuali orang kedua benar-benar bergabung.
 - [ ] Isi juga form referral terpisah dari Kenny:
       https://docs.google.com/forms/d/e/1FAIpQLSfMWF9cALLvIY_RLUagBbmE7abviwdTckxpkqTdvsdMxqhdUg/viewform
       dengan kode yang sama. Platform referrer: https://raven.stellar.buzz/
 
-**4. Kalau diundang, full submission.** Lihat bagian keputusan dan janji di bawah.
+**4. Kalau diundang, full submission.** Lihat bagian budget dan janji di bawah.
 
 ## Email kelayakan, kirim sekarang
 
@@ -92,34 +91,49 @@ Ke communityfund@stellar.org:
 > Thank you,
 > Pugar Huda Mantoro
 
-## Keputusan budget yang masih milik owner
+## Budget $120,100: yang sudah diputuskan
 
-Perubahan 2026-09-15 yang sudah dibuat di dokumen: D0.1 dihapus (tranche #0 di tabel handbook
-tertulis "n/a"), kickoff dan tracking issue masuk ke D1.1, dan amount tiap deliverable sekarang
-sama dengan biaya riilnya. Total $135,000 dan komposisinya tidak berubah. Pilot D2.4 sekarang
-dinyatakan berjalan di koridor anchor kandidat dari D2.1, bukan pilot Instaward. Jawaban email
-pertanyaan kedua di atas bisa mengubah cara penyajian ini.
+Per 2026-09-15 request turun dari $135,000 ke **$120,100**, sekitar 80% cap. Caranya:
 
-- [ ] **Celah arus kas Tranche #2. Paling penting.** Pembayaran datang setelah pekerjaan
-      direview. Saat Tranche #2 mulai, kas $26,175 ($40,500 diterima dikurangi biaya Tranche #1
-      $14,325), sementara biaya Tranche #2 $79,190. Setelah pembayaran Tranche #2 pun kas masih
-      kurang $12,515 sampai pembayaran Tranche #3. Dokumen sekarang menyatakan ini terbuka dan
-      berkomitmen memotong scope (Section 8) sebelum kontrak yang tidak bisa dibayar. Pilihan
-      nyata yang harus diputuskan:
-      (a) kontraktor Tranche #2 dibayar setelah pembayaran tranche cair (perlu disepakati dengan
-      mereka);
-      (b) pindahkan D2.2 TRISA ke Tranche #3, sehingga biaya menjadi $14,325 / $60,765 / $59,910,
-      kas awal Tranche #2 tetap $26,175, dan setelah pembayaran Tranche #2 kas surplus $5,910;
-      (c) kecilkan scope Tranche #2.
-- [ ] **Ukuran request.** Handbook: "Requesting the maximum award amount is not expected", Build
-      Award ditujukan untuk "(up to ~4 months of) development costs", dan menanyakan "Are you a
-      solo builder or a full dev team?". Kita minta $135,000 (90% cap) untuk 6 bulan, satu
-      orang, belum ada user. Pengurangan yang sudah dihitung ada di proposal Section 6
-      ($113,500 dengan rate lokal, $125,500 tanpa infrastruktur, dan seterusnya).
+- Rate founder $1,750/minggu dan 26 minggu **tidak diubah**.
+- Biaya running (hosting, RPC berbayar, datastore indexer, endpoint dan sertifikat TRISA, CI,
+  reserve mainnet, sekitar $9,500 selama 6 bulan) **tidak lagi ditagihkan**, karena handbook
+  mengecualikan "operational overhead". Biayanya tetap ada dan ditanggung proyek di luar award.
+- Blok desain untuk alur anchor (3 minggu, $5,400) dihapus. Layar KYC dan deposit alur anchor
+  dikerjakan founder. Desain hanya dibeli untuk dokumen integrasi SDK (D3.3).
+- TRISA dipindah dari Tranche #2 ke Tranche #3 dan sekarang berlabel D3.5. Label lain ikut
+  bergeser: monitoring jadi D2.2, pilot jadi D2.3.
+- D0.1 sudah dihapus sebelumnya. Amount tiap deliverable sama dengan biaya riilnya.
+
+Hasilnya:
+
+| | Tranche #0 | Tranche #1 | Tranche #2 | Tranche #3 |
+|---|---:|---:|---:|---:|
+| Biaya deliverable | $0 | $13,125 | $52,125 | $54,850 |
+| Pembayaran SCF | $12,010 | $24,020 | $36,030 | $48,040 |
+| Kas saat tranche mulai | | $12,010 | $22,905 | $6,810 |
+| Kas setelah tranche dibayar | $12,010 | $22,905 | $6,810 | $0 |
+
+Kas tidak pernah negatif setelah pembayaran. Kalau TRISA tetap di Tranche #2, Tranche #2 kurang
+$9,815 bahkan setelah dibayar.
+
+Pengurangan lain yang sudah dihitung, kalau panel minta lebih kecil: $98,600 (rate founder pakai
+gaji pasar Indonesia), $109,100 (ceremony dicoret, paling buruk), $114,700 (desain dicoret).
+
+## Budget: yang harus kamu konfirmasi
+
+- [ ] **Dua syarat pembayaran yang sekarang tertulis di dokumen atas nama kamu.** Keduanya yang
+      membuat tabel di atas benar.
+      (1) Gaji founder untuk satu tranche diambil setelah pembayaran tranche itu cair. Artinya
+      kamu menalangi gaji sendiri sampai sekitar 11 minggu, di Tranche #3.
+      (2) Setiap kontraktor dibayar dua tahap, tahap pertama dari kas yang ada saat mulai, sisanya
+      saat pembayaran tranche yang memuat pekerjaannya cair. Kontraktor yang tidak mau syarat ini
+      tidak dipakai, dan deliverable-nya bergeser sesuai Section 8 proposal.
+      Kalau salah satu tidak bisa kamu jalani, bilang, karena kasnya jadi negatif lagi.
+- [ ] Biaya running sekitar $9,500 selama 6 bulan sekarang dibayar dari luar award. Pastikan
+      sanggup.
 - [ ] Rate founder $1,750/minggu dan kesediaan benar-benar keluar dari SmartID selama 6 bulan.
-- [ ] Lima engagement kontraktor benar-benar bisa dicari dan dibayar. Section 8 menyatakan rencana
-      tidak bisa dikompres balik ke satu orang.
-- [ ] Baris infrastruktur $9,500: pertahankan atau coret (bisa dibaca "operational overhead").
+- [ ] Lima engagement kontraktor benar-benar bisa dicari, dengan syarat dua tahap di atas.
 - [ ] Setuju dengan pernyataan menerima milestone testnet-only (Official Rules 2A).
 - [ ] **Siapa yang pernah bertransaksi di kontrak kita?** Submission, proposal, dan interest form
       menulis "submitted by the team or by testers the team invited". SOW Instaward menulis
@@ -152,7 +166,8 @@ pertanyaan kedua di atas bisa mengubah cara penyajian ini.
       (`TESTING.md`) dan prototipe UI/UX (app yang live, `DESIGN.md`, delapan screenshot).
 - [x] Angka tes: dijalankan ulang 2026-09-15 per crate, 333 total (pool 55, pool-enforced 82,
       pool-accumulator 83, pool-timelock 89, policy-registry 6, reserves 6, reserves-aggregate
-      12). Hitung dengan menjalankan suite, bukan menghitung `#[test]`.
+      12), dan 295 tes frontend di 38 file. Hitung dengan menjalankan suite, bukan menghitung
+      `#[test]`.
 - [x] Angka AI disclosure bergerak. **Hitung ulang di hari submit** dengan:
       `git log --format="%(trailers:key=Co-Authored-By,valueonly)" | sort | uniq -c`
 - [x] Referral: Yes plus kode REF-RISEI-449.
@@ -168,7 +183,7 @@ pertanyaan kedua di atas bisa mengubah cara penyajian ini.
 ## Yang tidak boleh berubah
 
 - Semua konsesi jujur.
-- Total $135,000 dan komposisinya ($45,500 founder, $80,000 kontraktor, $9,500 infrastruktur),
-  kecuali owner memutuskan salah satu keputusan di atas.
+- Total $120,100 dan komposisinya ($45,500 founder, $74,600 kontraktor), kecuali owner mengubah
+  salah satu keputusan di atas.
 - Klaim anchor. Belum ada satu pun anchor yang dihubungi (`ANCHOR_OUTREACH.md`: "Nothing here has
   been sent"). Jangan pernah menulis "partnered with", "working with", atau menyebut nama kontak.

@@ -42,7 +42,7 @@ https://tukar-six.vercel.app (documentation at https://tukar-six.vercel.app/docs
 ```
 Already integrated on testnet. Soroban contracts in Rust include a pool that custodies testnet USDC through its SAC, plus eight BN254 Groth16 verifier contracts that use Stellar's native BN254 host functions for on-chain pairing checks. The anchor stack is SEP-1, SEP-10, SEP-24 in both directions and SEP-38 firm quotes, run against SDF's reference anchor, which proves the protocol and not a licensed payout. The Reflector SEP-40 FX oracle is read on-chain as a min-receive gate on withdraw, native fee-bump (CAP-15) lets a receiver get paid without holding XLM, and Circle CCTP V2 bridges USDC in and out.
 
-The award would fund migrating the live corridor onto the upgradeable pool with the admin timelock and a multisig admin, a candidate licensed-anchor flow on testnet, a live Travel Rule leg and a monitoring stack built from the threat model, and then one mainnet corridor with a public SDK. MoneyGram is the one screened anchor that publishes the SEP-10 and SEP-24 endpoints Tukar already drives. It has not been contacted.
+The award would fund migrating the live corridor onto the upgradeable pool with the admin timelock and a multisig admin, a candidate licensed-anchor flow on testnet and a monitoring stack built from the threat model, and then one mainnet corridor with a live Travel Rule leg and a public SDK. MoneyGram is the one screened anchor that publishes the SEP-10 and SEP-24 endpoints Tukar already drives. It has not been contacted.
 ```
 
 **Interested Build Track**
