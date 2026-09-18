@@ -33,4 +33,4 @@ const probe = (f) =>
     "-of", "default=nw=1", f], { encoding: "utf8" }).trim().replace(/\s+/g, " ");
 
 console.log(`\nmaster  ${(statSync(master).size / 1e6).toFixed(1)} MB  ${probe(master)}`);
-console.log(`shipped ${(statSync(ship).size / 1e6).toFixed(1)} MB  ${probe(ship)}  -> webapp/public/demo-id.mp4`);
+console.log(`shipped ${(statSync(ship).size / 1e6).toFixed(1)} MB  ${probe(ship)}  -> ${path.relative(path.join(HERE, ".."), ship).split(path.sep).join("/")}`);

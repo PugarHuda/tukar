@@ -94,3 +94,5 @@ video/*.log
 video/captures/
 video/out/
 video/scratch/
+!webapp/public/demo-id.mp4
+!webapp/public/demo-live.mp4

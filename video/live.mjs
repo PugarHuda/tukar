@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+// Node 26 on Windows refuses to spawnSync a .cmd shim (EINVAL), so call the CLI's own
+// entry script with this same node binary instead of going through npx.
+const REMOTION_CLI = path.join(HERE, "node_modules", "@remotion", "cli", "remotion-cli.js");
 const run = (bin, args) => execFileSync(bin, args, { cwd: HERE, stdio: "inherit" });
 const load = (name) => {
   copyFileSync(path.join(HERE, "cuts", `${name}.json`), path.join(HERE, "script.json"));
@@ -24,7 +26,7 @@ const title = () => JSON.parse(readFileSync(path.join(HERE, "script.json"), "utf
 try {
   load("livedemo");
   console.log(`rendering: ${title()}`);
-  run(npx, ["remotion", "render", "src/index.ts", "TukarDemo", "out/tukar-livedemo.mp4", "--concurrency=2", "--crf=20"]);
+  run(process.execPath, [REMOTION_CLI, "render", "src/index.ts", "TukarDemo", "out/tukar-livedemo.mp4", "--concurrency=2", "--crf=20"]);
   run("node", ["ship.mjs", "28", "out/tukar-livedemo.mp4", "../webapp/public/demo-live.mp4"]);
 } finally {
   load("full");
