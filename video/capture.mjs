@@ -206,7 +206,7 @@ if (wants("desk1")) {
   await safe(() => page.getByRole("heading", { name: /Send money home/i }).waitFor(), "hero");
   await sleep(1600);
 
-  begin("s1");
+  begin("n01");
   await glide(page, "#apps", 1600);
   await sleep(1100);
   await glide(page, "#corridor", 1600);
@@ -216,7 +216,7 @@ if (wants("desk1")) {
   await glide(page, 0, 1200);
   await safe(() => page.locator("header .launch-trigger").first().click(), "launch dialog");
   await sleep(900);
-  await hold("s1");
+  await hold("n01");
   await closeShot(ctx, page, "desk1");
 }
 
@@ -241,7 +241,7 @@ if (wants("phone")) {
   await fillStable(amount, "200");
   await sleep(600);
 
-  begin("s2");
+  begin("n02");
   if (!(await connect(page))) throw new Error("could not connect the testnet key");
   await sleep(1200);
   await typeSlow(amount, "200");
@@ -250,10 +250,10 @@ if (wants("phone")) {
   await glide(page, "aside", 1300); // the cost-and-policy packing slip
   await sleep(2600); // let the policy registry + provider benchmark land
   await glide(page, 0, 1000);
-  await hold("s2");
+  await hold("n02");
 
   // -- proving + deposit (real, ~30s) ---------------------------------------
-  begin("s3");
+  begin("n03");
   await safe(() => page.getByRole("button", { name: /Continue/ }).click(), "continue");
   await safe(() => page.getByText(/Confirm and send/).waitFor({ timeout: 20000 }), "confirm");
   await sleep(1400);
@@ -269,10 +269,10 @@ if (wants("phone")) {
   // heading means the deposit landed but registration did not, which is a re-take.
   carry.registered = await page.getByRole("heading", { name: /Sent and shielded/ }).isVisible().catch(() => false);
   log(`    deposit ${carry.registered ? "registered into the tree" : "DEPOSITED BUT NOT REGISTERED (re-take)"}`);
-  await hold("s3");
+  await hold("n03");
 
   // -- the claim note -------------------------------------------------------
-  begin("s4");
+  begin("n04");
   await sleep(1500);
   carry.note = await page.locator("pre", { hasText: /^tukar1:/ }).first().innerText();
   await glide(page, "aside", 1200);
@@ -283,7 +283,7 @@ if (wants("phone")) {
   await safe(() => page.getByRole("button", { name: "Export view-only note" }).click(), "view-only");
   await sleep(1400);
   carry.viewNote = await safe(() => page.evaluate(() => navigator.clipboard.readText()), "clipboard");
-  await hold("s4");
+  await hold("n04");
 
   // -- receiver: claim ------------------------------------------------------
   await page.goto(`${BASE}/receiver`, { waitUntil: "domcontentloaded" });
@@ -291,16 +291,16 @@ if (wants("phone")) {
   await safe(() => page.locator("#claimNote").waitFor(), "claim box");
   await sleep(800);
 
-  begin("s5");
+  begin("n05");
   await safe(() => page.locator("#claimNote").fill(carry.note), "paste note");
   await sleep(1400);
   await safe(() => page.getByRole("button", { name: "Claim payment" }).click(), "claim");
   await safe(() => page.getByRole("tab", { name: /Payments \(1\)/ }).waitFor({ timeout: 120_000 }), "claimed");
   await sleep(1600);
-  await hold("s5");
+  await hold("n05");
 
   // -- receiver: the on-chain FX quote --------------------------------------
-  begin("s6");
+  begin("n06");
   await safe(() => page.getByRole("button", { name: /Reveal in / }).click(), "reveal");
   await safe(
     () => page.getByText(/Off-ramp figure read on-chain|On-chain quote unavailable|no live price/).waitFor({ timeout: 90_000 }),
@@ -309,10 +309,10 @@ if (wants("phone")) {
   await sleep(1200);
   await glide(page, page.getByText("Customs desk").first(), 1200);
   await sleep(3000);
-  await hold("s6");
+  await hold("n06");
 
   // -- receiver: anchor quote + on-chain withdraw ---------------------------
-  begin("s7");
+  begin("n07");
   await openDetails(page, "Cash out to fiat");
   await safe(() => page.getByText(/Indicative:/).first().waitFor({ timeout: 60_000 }), "sep-38 quote");
   await glide(page, page.getByText("Anchor desk").first(), 1100);
@@ -325,10 +325,10 @@ if (wants("phone")) {
     "withdrawn",
   );
   await sleep(1500);
-  await hold("s7");
+  await hold("n07");
 
   // -- receiver: selective disclosure ---------------------------------------
-  begin("s8");
+  begin("n08");
   await openDetails(page, "Prove to a regulator");
   await sleep(800);
   const modeSel = page.locator("select[id^='disc-mode-']").first();
@@ -353,7 +353,7 @@ if (wants("phone")) {
     () => page.locator(".tk-print dd", { hasText: /\/verify#r=/ }).first().innerText(),
     "verify link",
   );
-  await hold("s8");
+  await hold("n08");
 
   await closeShot(ctx, page, "phone");
   writeFileSync(CARRY_FILE, JSON.stringify({ note: carry.note, viewNote: carry.viewNote, receipt: carry.receipt, verifyLink: carry.verifyLink, registered: carry.registered }, null, 2));
@@ -382,16 +382,16 @@ if (wants("desk2")) {
   await sleep(900);
 
   // -- verify a genuine receipt --------------------------------------------
-  begin("s9");
+  begin("n09");
   await safe(() => page.locator("#receipt").fill(carry.receipt), "paste receipt");
   await sleep(1300);
   await safe(() => page.getByRole("button", { name: /Re-verify in browser and on-chain/ }).click(), "verify");
   await safe(() => page.getByText(/Verified and bound|Proof is valid but NOT bound|Not valid/).waitFor({ timeout: 180_000 }), "verdict");
   await sleep(2200);
-  await hold("s9");
+  await hold("n09");
 
   // -- tamper one character -------------------------------------------------
-  begin("s10");
+  begin("n10");
   const bad = (() => {
     const r = JSON.parse(carry.receipt);
     const bump = (s) => (String(s).endsWith("7") ? String(s).slice(0, -1) + "8" : String(s).slice(0, -1) + "7");
@@ -404,10 +404,10 @@ if (wants("desk2")) {
   await safe(() => page.getByRole("button", { name: /Re-verify in browser and on-chain/ }).click(), "re-verify");
   await safe(() => page.getByText(/Not valid|Proof is valid but NOT bound/).waitFor({ timeout: 180_000 }), "rejected");
   await sleep(2400);
-  await hold("s10");
+  await hold("n10");
 
   // -- view-only note, audit request, travel rule, compliance export --------
-  begin("s11");
+  begin("n11");
   // Put the genuine receipt back: the Travel Rule payload is filled from the last
   // disclosure that actually verified, and the tamper just overwrote it.
   await safe(() => page.locator("#receipt").fill(carry.receipt), "restore receipt");
@@ -422,6 +422,9 @@ if (wants("desk2")) {
     await safe(() => page.getByText(/Opening reproduces the commitment|not a Tukar view-only note/).waitFor({ timeout: 120_000 }), "view-note result");
     await sleep(2000);
   }
+  await hold("n11");
+
+  begin("n12");
   await nav("Issue audit request");
   await sleep(900);
   await connect(page);
@@ -432,6 +435,9 @@ if (wants("desk2")) {
   await safe(() => page.getByRole("button", { name: "Compute hash and register on-chain" }).click(), "audit request");
   await safe(() => page.locator("#audit-str").waitFor({ timeout: 90_000 }), "audit string");
   await sleep(1600);
+  await hold("n12");
+
+  begin("n13");
   await nav("Travel Rule");
   await sleep(1200);
   await glide(page, 600, 1200);
@@ -440,6 +446,9 @@ if (wants("desk2")) {
   await sleep(2200);
   await glide(page, 99999, 1400); // the TRISA panel's honest not-deployed stamp
   await sleep(1300);
+  await hold("n13");
+
+  begin("n14");
   await nav("Pool report");
   await sleep(1000);
   await glide(page, page.getByText("Compliance export pack").first(), 1300);
@@ -447,7 +456,7 @@ if (wants("desk2")) {
   await sleep(900);
   await safe(() => page.locator("#ce-preset").selectOption("eu-tfr"), "preset");
   await sleep(1200);
-  await hold("s11");
+  await hold("n14");
 
   // -- operator -------------------------------------------------------------
   await page.goto(`${BASE}/operator`, { waitUntil: "domcontentloaded" });
@@ -455,11 +464,14 @@ if (wants("desk2")) {
   await safe(() => page.getByText(/reading pool state…/).waitFor({ state: "detached", timeout: 120_000 }), "pool read");
   await sleep(1200);
 
-  begin("s12");
+  begin("n15");
   await glide(page, page.getByText("Reserves attestation").first(), 1500);
   await sleep(2400);
   await glide(page, page.getByText("Deployed contract inventory").first(), 1500);
   await sleep(2200);
+  await hold("n15");
+
+  begin("n16");
   await nav("Compliance policy");
   await sleep(800);
   await glide(page, page.getByText("Per-corridor policy registry").first(), 1400);
@@ -468,13 +480,16 @@ if (wants("desk2")) {
   // the gauge card reads Reflector live; do not film its skeleton
   await safe(() => page.getByText(/reading FX oracle/).first().waitFor({ state: "detached", timeout: 90_000 }), "oracle read");
   await sleep(2600);
+  await hold("n16");
+
+  begin("n17");
   await nav("Monitoring");
   await safe(() => page.getByText(/reading events…/).waitFor({ state: "detached", timeout: 150_000 }), "events");
   await sleep(2400);
-  await hold("s12");
+  await hold("n17");
 
   // -- the public verify page, then the docs --------------------------------
-  begin("s13");
+  begin("n18");
   const link = (carry.verifyLink || "").trim();
   if (link.startsWith("http")) {
     await page.goto(link, { waitUntil: "domcontentloaded" });
@@ -486,20 +501,23 @@ if (wants("desk2")) {
   }
   await safe(() => page.getByRole("img", { name: /passed|failed/ }).first().waitFor({ timeout: 180_000 }), "verify verdict");
   await sleep(2600);
+  await hold("n18");
+
+  begin("n19");
   await page.goto(`${BASE}/docs`, { waitUntil: "domcontentloaded" });
   await sleep(1000);
   await glide(page, 700, 1600);
   await sleep(1400);
-  await hold("s13");
+  await hold("n19");
 
   // -- close ----------------------------------------------------------------
-  begin("s14");
+  begin("n20");
   await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
   await safe(() => page.getByRole("heading", { name: /Send money home/i }).waitFor(), "hero");
   await sleep(2200);
   await glide(page, page.getByText("Try it now").first(), 1800);
   await sleep(2200);
-  await hold("s14");
+  await hold("n20");
 
   await closeShot(ctx, page, "desk2");
 }

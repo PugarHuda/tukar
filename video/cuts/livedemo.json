@@ -1,0 +1,145 @@
+{
+  "title": "Tukar live demo",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "voice": "en-US-AndrewNeural",
+  "rate": "+8%",
+  "note": "The live demo on its own, cut from the same captures and the same narration clips as the full video. Scene ids match cuts/full.json, so no re-capture and no re-recording is needed: switch with node cut.mjs livedemo and render.",
+  "acts": [
+    {
+      "before": "n01",
+      "n": "01",
+      "title": "Send",
+      "sub": "sender app / real on-chain deposit"
+    },
+    {
+      "before": "n05",
+      "n": "02",
+      "title": "Arrive",
+      "sub": "claim / on-chain FX / cash out"
+    },
+    {
+      "before": "n09",
+      "n": "03",
+      "title": "Prove",
+      "sub": "verify on-chain / tamper rejected"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "n01",
+      "source": "desk1",
+      "bar": "Landing / tukar.app",
+      "vo": "This is Tukar, a private remittance corridor on Stellar. Everything here runs on public testnet, and every receipt is one you can check yourself.",
+      "captions": [
+        "This is Tukar, a private remittance corridor on Stellar.",
+        "Everything here runs on public testnet,",
+        "and every receipt is one you can check yourself."
+      ]
+    },
+    {
+      "id": "n02",
+      "source": "phone",
+      "bar": "Sender / compose",
+      "vo": "A sender connects a testnet key in one tap. Two hundred dollars to Mexico, with the corridor's cap read from an on-chain policy registry.",
+      "captions": [
+        "A sender connects a testnet key in one tap.",
+        "Two hundred dollars to Mexico,",
+        "with the corridor's cap read from an on-chain policy registry."
+      ]
+    },
+    {
+      "id": "n03",
+      "source": "phone",
+      "bar": "Sender / proving on the device",
+      "vo": "The compliance proof is built on the phone: allow-listed, not sanctioned, bound to this key. It really takes about thirty seconds, so the clip runs fast and says so.",
+      "captions": [
+        "The compliance proof is built on the phone: allow-listed, not sanctioned, bound to this key.",
+        "It really takes about thirty seconds, so the clip runs fast and says so."
+      ]
+    },
+    {
+      "id": "n04",
+      "source": "phone",
+      "bar": "Sender / sent and shielded",
+      "vo": "Real testnet USDC enters the shielded pool and the note joins the Merkle tree. The ledger carries a commitment, not an amount or a recipient.",
+      "captions": [
+        "Real testnet USDC enters the shielded pool and the note joins the Merkle tree.",
+        "The ledger carries a commitment, not an amount or a recipient."
+      ]
+    },
+    {
+      "id": "n05",
+      "source": "phone",
+      "bar": "Receiver / claim",
+      "vo": "The receiver claims with a bearer note. No seed phrase, and no account with us.",
+      "captions": [
+        "The receiver claims with a bearer note.",
+        "No seed phrase, and no account with us."
+      ]
+    },
+    {
+      "id": "n06",
+      "source": "phone",
+      "bar": "Receiver / on-chain FX",
+      "vo": "The payout rate is read on-chain from Reflector, and the withdraw fails closed when the live quote sits under the contract's floor.",
+      "captions": [
+        "The payout rate is read on-chain from Reflector,",
+        "and the withdraw fails closed when the live quote sits under the contract's floor."
+      ]
+    },
+    {
+      "id": "n07",
+      "source": "phone",
+      "bar": "Receiver / cash out",
+      "vo": "The withdraw settles on-chain, and only at that edge does an amount become public. That edge is what a compliance officer works with.",
+      "captions": [
+        "The withdraw settles on-chain, and only at that edge does an amount become public.",
+        "That edge is what a compliance officer works with."
+      ]
+    },
+    {
+      "id": "n08",
+      "source": "phone",
+      "bar": "Receiver / selective disclosure",
+      "vo": "The holder discloses one fact on the device: an exact amount, a threshold, a range, or an aggregate. Not a key, and not their history.",
+      "captions": [
+        "The holder discloses one fact on the device:",
+        "an exact amount, a threshold, a range, or an aggregate.",
+        "Not a key, and not their history."
+      ]
+    },
+    {
+      "id": "n09",
+      "source": "desk2",
+      "bar": "Regulator / verify",
+      "vo": "A regulator pastes the receipt. It is checked twice, in the browser and by the same verifier contract the pool calls.",
+      "captions": [
+        "A regulator pastes the receipt.",
+        "It is checked twice, in the browser and by the same verifier contract the pool calls."
+      ]
+    },
+    {
+      "id": "n10",
+      "source": "desk2",
+      "bar": "Regulator / tampered receipt",
+      "vo": "Change one character and it is rejected. A proof that verifies but is not bound to on-chain state is rejected too, and named as that.",
+      "captions": [
+        "Change one character and it is rejected.",
+        "A proof that verifies but is not bound to on-chain state is rejected too, and named as that."
+      ]
+    },
+    {
+      "id": "n20",
+      "source": "desk2",
+      "bar": "Close",
+      "vo": "That was one real payment, end to end on testnet: shielded in the middle, proved at the edge, and checkable by anyone. No users yet, and we say so.",
+      "captions": [
+        "That was one real payment, end to end on testnet:",
+        "shielded in the middle, proved at the edge, and checkable by anyone.",
+        "No users yet, and we say so."
+      ]
+    }
+  ]
+}

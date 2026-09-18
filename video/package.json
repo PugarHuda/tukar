@@ -10,7 +10,10 @@
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts TukarDemo out/tukar-demo.mp4 --concurrency=2 --crf=20",
     "all": "npm run vo && npm run capture && npm run prep && npm run render && npm run ship",
-    "ship": "node ship.mjs"
+    "ship": "node ship.mjs",
+    "cut": "node cut.mjs",
+    "render:live": "remotion render src/index.ts TukarDemo out/tukar-livedemo.mp4 --concurrency=2 --crf=20",
+    "live": "node cut.mjs livedemo && npm run render:live && node cut.mjs full"
   },
   "dependencies": {
     "@remotion/cli": "4.0.418",

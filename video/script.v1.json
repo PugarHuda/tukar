@@ -1,0 +1,192 @@
+{
+  "title": "Tukar demo",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "voice": "en-US-AndrewNeural",
+  "rate": "+8%",
+  "note": "One source of truth. vo.py speaks `vo`, capture.mjs runs `id` against the real app, Remotion lays the capture into the kraft world and burns `captions`. Scene length follows the narration; if the real capture ran longer (a proof, a ledger wait) the composition speeds that clip up and says by how much on screen.",
+  "acts": [
+    {
+      "before": "s1",
+      "n": "01",
+      "title": "Send",
+      "sub": "sender app / real on-chain deposit"
+    },
+    {
+      "before": "s5",
+      "n": "02",
+      "title": "Receive",
+      "sub": "claim / on-chain FX / cash out"
+    },
+    {
+      "before": "s9",
+      "n": "03",
+      "title": "Prove",
+      "sub": "selective disclosure / on-chain verify"
+    },
+    {
+      "before": "s13",
+      "n": "04",
+      "title": "Run the desk",
+      "sub": "operator console / public verify"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "s1",
+      "source": "desk1",
+      "bar": "Landing · tukar.app",
+      "vo": "This is Tukar. A private way to send money home on Stellar, live on testnet today. Dollars in one end, local currency out the other.",
+      "captions": [
+        "This is Tukar. A private way to send money home on Stellar, live on testnet today.",
+        "Dollars in one end, local currency out the other."
+      ]
+    },
+    {
+      "id": "s2",
+      "source": "phone",
+      "bar": "Sender · compose",
+      "vo": "Here is the sender. One tap connects a real testnet key, no seed phrase. Two hundred dollars to Mexico. The panel beside it reads the corridor's cap and its required disclosure from an on-chain policy registry, and prices the send against eight real remittance providers.",
+      "captions": [
+        "Here is the sender. One tap connects a real testnet key, no seed phrase.",
+        "Two hundred dollars to Mexico.",
+        "The panel beside it reads the corridor's cap and its required disclosure from an on-chain policy registry,",
+        "and prices the send against eight real remittance providers."
+      ]
+    },
+    {
+      "id": "s3",
+      "source": "phone",
+      "bar": "Sender · proving on the device",
+      "vo": "Sending builds the compliance proof on the device. It shows the sender is allow-listed and not sanctioned, and it is bound to their key, so nobody else can reuse it. It takes about thirty seconds for real, so this clip runs fast.",
+      "captions": [
+        "Sending builds the compliance proof on the device.",
+        "It shows the sender is allow-listed and not sanctioned,",
+        "and it is bound to their key, so nobody else can reuse it.",
+        "It takes about thirty seconds for real, so this clip runs fast."
+      ]
+    },
+    {
+      "id": "s4",
+      "source": "phone",
+      "bar": "Sender · sent and shielded",
+      "vo": "Then real testnet USDC moves into the shielded pool and the note is registered in the Merkle tree. Out comes a bearer claim note: a string, a QR, or a claim link you can wrap in a PIN. An auditor gets a view-only copy that cannot spend.",
+      "captions": [
+        "Then real testnet USDC moves into the shielded pool and the note is registered in the Merkle tree.",
+        "Out comes a bearer claim note: a string, a QR, or a claim link you can wrap in a PIN.",
+        "An auditor gets a view-only copy that cannot spend."
+      ]
+    },
+    {
+      "id": "s5",
+      "source": "phone",
+      "bar": "Receiver · claim",
+      "vo": "Back home the recipient pastes the note. The app rebuilds the tree from chain, and the payment is there.",
+      "captions": [
+        "Back home the recipient pastes the note.",
+        "The app rebuilds the tree from chain, and the payment is there."
+      ]
+    },
+    {
+      "id": "s6",
+      "source": "phone",
+      "bar": "Receiver · on-chain FX",
+      "vo": "The local figure is read on-chain from the pool's Reflector quote, at the median of five records. That is the same basis the settlement gate enforces, so a bad price fails closed instead of quietly costing the receiver money.",
+      "captions": [
+        "The local figure is read on-chain from the pool's Reflector quote, at the median of five records.",
+        "That is the same basis the settlement gate enforces,",
+        "so a bad price fails closed instead of quietly costing the receiver money."
+      ]
+    },
+    {
+      "id": "s7",
+      "source": "phone",
+      "bar": "Receiver · cash out and withdraw",
+      "vo": "Cash out goes through an anchor. A real SEP-38 quote from the reference testnet anchor, and the app says plainly what that anchor will and will not do. Withdrawing spends the note's nullifier on-chain, which releases the tokens and blocks a second spend.",
+      "captions": [
+        "Cash out goes through an anchor. A real SEP-38 quote from the reference testnet anchor,",
+        "and the app says plainly what that anchor will and will not do.",
+        "Withdrawing spends the note's nullifier on-chain,",
+        "which releases the tokens and blocks a second spend."
+      ]
+    },
+    {
+      "id": "s8",
+      "source": "phone",
+      "bar": "Receiver · selective disclosure",
+      "vo": "Now the part that makes this compliant and not only private. Prove the exact amount, or that it is under a figure, or inside a band, or that a set of payments sums under a cap. Nothing else is revealed.",
+      "captions": [
+        "Now the part that makes this compliant and not only private.",
+        "Prove the exact amount, or that it is under a figure, or inside a band,",
+        "or that a set of payments sums under a cap. Nothing else is revealed."
+      ]
+    },
+    {
+      "id": "s9",
+      "source": "desk2",
+      "bar": "Regulator · verify disclosure",
+      "vo": "The regulator pastes that receipt. It is checked twice, in the browser and by the live Stellar verifier contract. Valid, and bound to a real on-chain deposit.",
+      "captions": [
+        "The regulator pastes that receipt.",
+        "It is checked twice, in the browser and by the live Stellar verifier contract.",
+        "Valid, and bound to a real on-chain deposit."
+      ]
+    },
+    {
+      "id": "s10",
+      "source": "desk2",
+      "bar": "Regulator · tampered receipt",
+      "vo": "Change one character. It is rejected on-chain and nothing is disclosed. There is a third verdict too, for a proof that is cryptographically valid but not tied to real state.",
+      "captions": [
+        "Change one character.",
+        "It is rejected on-chain and nothing is disclosed.",
+        "There is a third verdict too, for a proof that is cryptographically valid but not tied to real state."
+      ]
+    },
+    {
+      "id": "s11",
+      "source": "desk2",
+      "bar": "Regulator · audit, travel rule, export",
+      "vo": "The same console imports a view-only note, registers an audit request a disclosure has to answer, runs a real Travel Rule exchange over signed TRP, and exports a compliance pack for three jurisdictions.",
+      "captions": [
+        "The same console imports a view-only note,",
+        "registers an audit request a disclosure has to answer,",
+        "runs a real Travel Rule exchange over signed TRP,",
+        "and exports a compliance pack for three jurisdictions."
+      ]
+    },
+    {
+      "id": "s12",
+      "source": "desk2",
+      "bar": "Operator · pool, reserves, policy, oracle",
+      "vo": "The operator console reads everything from chain. Pool health and custody, a reserves attestation setting declared liabilities against the USDC actually held, per-corridor policy, oracle health, monitoring, and every contract by ID.",
+      "captions": [
+        "The operator console reads everything from chain.",
+        "Pool health and custody, a reserves attestation setting declared liabilities against the USDC actually held,",
+        "per-corridor policy, oracle health, monitoring, and every contract by ID."
+      ]
+    },
+    {
+      "id": "s13",
+      "source": "desk2",
+      "bar": "Public verify · no wallet",
+      "vo": "Anyone can check a receipt on the public verify page, no wallet, no account. The documentation ships with the app.",
+      "captions": [
+        "Anyone can check a receipt on the public verify page, no wallet, no account.",
+        "The documentation ships with the app."
+      ]
+    },
+    {
+      "id": "s14",
+      "source": "desk2",
+      "bar": "Close",
+      "vo": "This is Stellar testnet, it is not audited, and the fiat edges run against a reference anchor. Everything in between is real. Private in the middle, accountable at the edges.",
+      "captions": [
+        "This is Stellar testnet, it is not audited, and the fiat edges run against a reference anchor.",
+        "Everything in between is real.",
+        "Private in the middle, accountable at the edges."
+      ]
+    }
+  ]
+}
