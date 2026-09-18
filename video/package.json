@@ -13,7 +13,8 @@
     "ship": "node ship.mjs",
     "cut": "node cut.mjs",
     "render:live": "remotion render src/index.ts TukarDemo out/tukar-livedemo.mp4 --concurrency=2 --crf=20",
-    "live": "node cut.mjs livedemo && npm run render:live && node cut.mjs full"
+    "live": "node cut.mjs livedemo && npm run render:live && npm run ship:live && node cut.mjs full",
+    "ship:live": "node ship.mjs 28 out/tukar-livedemo.mp4 ../webapp/public/demo-live.mp4"
   },
   "dependencies": {
     "@remotion/cli": "4.0.418",

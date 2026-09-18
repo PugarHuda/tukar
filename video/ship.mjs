@@ -1,6 +1,9 @@
 // Compress the render and drop it where the deck and the README expect it.
 //
-//   node ship.mjs [crf]
+//   node ship.mjs [crf] [master] [dest]
+//
+// Defaults ship the full cut. The live cut renders to out/tukar-livedemo.mp4 and ships
+// beside it, so both can sit in webapp/public at once.
 //
 // Remotion writes a high-quality master to out/tukar-demo.mp4. The copy the deck
 // embeds is served by Vercel and lives in git, so it gets a second pass tuned for
@@ -12,8 +15,8 @@ import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CRF = process.argv[2] || "28";
-const master = path.join(HERE, "out", "tukar-demo.mp4");
-const ship = path.join(HERE, "..", "webapp", "public", "demo-id.mp4");
+const master = path.resolve(HERE, process.argv[3] || "out/tukar-demo.mp4");
+const ship = path.resolve(HERE, process.argv[4] || "../webapp/public/demo-id.mp4");
 
 execFileSync("ffmpeg", [
   "-y", "-i", master,

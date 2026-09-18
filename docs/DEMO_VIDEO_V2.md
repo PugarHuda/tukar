@@ -45,7 +45,8 @@ cuts costs a render and nothing else.
 npm run cut            # list the cuts and show which one is loaded
 npm run cut livedemo   # swap it in
 npm run render:live    # renders out/tukar-livedemo.mp4
-npm run live           # swap, render the live cut, swap back to full
+npm run ship:live      # compresses it into webapp/public/demo-live.mp4
+npm run live           # swap, render, ship, swap back to full
 ```
 
 The live cut is scenes n01 to n10 plus a close written for it, so it ends on the payment rather
