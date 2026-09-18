@@ -7,14 +7,18 @@
 // render then quietly produces the wrong video. This swaps, renders, ships, and restores
 // in a finally block, so an interrupted run still leaves the full cut loaded.
 import { execFileSync } from "node:child_process";
-import { copyFileSync, readFileSync } from "node:fs";
+import { copyFileSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const run = (bin, args) => execFileSync(bin, args, { cwd: HERE, stdio: "inherit" });
-const load = (name) => copyFileSync(path.join(HERE, "cuts", `${name}.json`), path.join(HERE, "script.json"));
+const load = (name) => {
+  copyFileSync(path.join(HERE, "cuts", `${name}.json`), path.join(HERE, "script.json"));
+  // Without this the bundler cache renders the cut that was loaded a moment ago.
+  rmSync(path.join(HERE, "node_modules", ".cache"), { recursive: true, force: true });
+};
 const title = () => JSON.parse(readFileSync(path.join(HERE, "script.json"), "utf8")).title;
 
 try {

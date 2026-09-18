@@ -8,7 +8,7 @@
 // sitting there. Capture always wants the full cut, because that run is what records a
 // mark for every scene; the shorter cuts re-use those same marks and the same narration
 // clips, so switching a cut and re-rendering costs nothing but the render.
-import { readdirSync, copyFileSync, readFileSync, existsSync } from "node:fs";
+import { readdirSync, copyFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -41,6 +41,9 @@ if (!names.includes(want)) {
 
 const src = path.join(CUTS, `${want}.json`);
 copyFileSync(src, SCRIPT);
+// webpack's filesystem cache will happily serve the previous script.json, and the render
+// then produces the wrong cut under the right filename. Drop it whenever the cut changes.
+rmSync(path.join(HERE, "node_modules", ".cache"), { recursive: true, force: true });
 const s = read(SCRIPT);
 console.log(`script.json <- cuts/${want}.json\n  ${s.title}\n  ${summary(s)}`);
 console.log(`\nnext: npm run render   (re-run npm run vo first only if the narration text changed)`);
