@@ -104,6 +104,7 @@ export const GROUPS: Group[] = [
     docs: [
       doc("docs/DEMO_SCRIPT.md", "Demo video script"),
       doc("docs/DEMO_VIDEO_V2.md", "Demo video shot list"),
+      doc("docs/deck/NARASI_DECK.md", "Narasi deck, slide per slide (Bahasa Indonesia)", "id"),
       doc("docs/DEMO_VO_SUBTITLES.md", "Demo voiceover and subtitles"),
       doc("docs/LIVE_DEMO_SCRIPT.md", "Live demo reading script"),
       doc("docs/DECK_SCRIPT.md", "Deck script"),
