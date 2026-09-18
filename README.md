@@ -279,7 +279,9 @@ to a production, multi-anchor corridor.
 - **Demo video (self-hosted, always available):**
   **▶ [Watch the narrated walkthrough](https://tukar-six.vercel.app/deck)** plays on
   **slide 8** of the pitch deck, or open the raw file directly at
-  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. A ~3-minute 1080p walkthrough of
+  **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. Short on time? The
+  **[1:45 live demo cut](https://tukar-six.vercel.app/demo-live.mp4)** is the same capture
+  trimmed to the payment itself. The full cut is a 3:10 1080p walkthrough of
   the **real on-chain flow** across all four apps (connect → compliance proof on the device →
   on-chain deposit → claim note → the local figure read on-chain from Reflector → anchor quote →
   on-chain withdraw → selective disclosure → verified on-chain → a tampered receipt rejected

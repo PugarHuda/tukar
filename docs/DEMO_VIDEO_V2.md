@@ -1,7 +1,7 @@
 # Tukar demo video, second cut
 
-The shot list for the current demo video. Twenty scenes in five acts, about 3 minutes 20
-seconds. Nothing in it is staged: Playwright drives the deployed app, makes a real testnet
+The shot list for the current demo video. Twenty scenes in five acts, 3 minutes 10 seconds as
+rendered. Nothing in it is staged: Playwright drives the deployed app, makes a real testnet
 deposit, claims the note, reads the live Reflector quote, withdraws on-chain, generates real
 disclosure proofs and verifies them against the live Stellar verifier contract. Remotion lays
 those recordings into the parcel world from [`DESIGN.md`](../DESIGN.md) and burns the captions.
@@ -38,8 +38,8 @@ cuts costs a render and nothing else.
 
 | Cut | Scenes | Runtime | What it is for |
 |---|---:|---:|---|
-| `full` | 20 | about 3:21 | The whole story, including the consoles and the evidence tour |
-| `livedemo` | 11 | about 1:54 | The live demo on its own: send, arrive, prove, close |
+| `full` | 20 | 3:10 rendered | The whole story, including the consoles and the evidence tour |
+| `livedemo` | 11 | 1:45 rendered | The live demo on its own: send, arrive, prove, close |
 
 ```
 npm run cut            # list the cuts and show which one is loaded
@@ -104,11 +104,13 @@ consoles at 1600x900. The seconds are the narration estimate at 165 words per mi
 | n19 | desk2 | Evidence / docs and source | Opens the documentation site and scrolls the index | 6.9s |
 | n20 | desk2 | Close | Returns to the landing and rests on the call to action | 9.5s |
 
-Narration totals 472 words, about 2 minutes 51 seconds. With the title card, five act cards, the
-end card and a beat of quiet after each line, the render lands near 3 minutes 20 seconds.
+Measured narration is 2 minutes 41 seconds across the twenty clips. With the title card, five act
+cards, the end card and a beat of quiet after each line, the render is 3 minutes 10 seconds, which
+is 5,695 frames at 30 fps.
 
 **If a three-minute limit applies**, drop n11 and n19 from `script.json`. Their capture marks stay
-in place and are simply unused, so nothing else has to change, and the cut lands near 3 minutes.
+in place and are simply unused, so nothing else has to change, and the cut lands near 2 minutes 55
+seconds.
 
 ## Features this cut does not visit
 
