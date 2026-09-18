@@ -90,3 +90,7 @@ playwright-report/
 # local env files (secrets); the webapp has its own ignore for webapp/.env*
 .env.local
 .env*.local
+video/*.log
+video/captures/
+video/out/
+video/scratch/

@@ -110,6 +110,26 @@ end card and a beat of quiet after each line, the render lands near 3 minutes 20
 **If a three-minute limit applies**, drop n11 and n19 from `script.json`. Their capture marks stay
 in place and are simply unused, so nothing else has to change, and the cut lands near 3 minutes.
 
+## Features this cut does not visit
+
+The capture walks one payment end to end and then the two consoles, so a few shipped features
+never appear on camera. They are in the app and in the deck, and they are listed here so the
+video is not mistaken for the whole product surface.
+
+| Feature | Where it lives |
+|---|---|
+| Circle CCTP V2 bridging, USDC in and out | sender app, `api/cctp/*` |
+| Passkey smart wallets | `docs/PASSKEY.md`, sender app |
+| Recurring sends and the scheduler, signed in with SEP-53 | `api/schedules/*`, `api/cron/recurring` |
+| Web Push alerts out of the operator console | `api/push/*` |
+| Reclaim proof of personhood and the idOS credential path | `api/reclaim/*`, `api/idos/credential` |
+| SEP-7 payment links, PIN-wrapped claim links, QR | `api/sep7`, receiver app |
+| The admin timelock's propose, delay and execute views | operator console, `pool-timelock` |
+| The deny-list path through the compliance circuit | sender app, pool policy |
+
+Adding any of them is a new scene plus a new driver in `capture.mjs`. Nothing in the pipeline
+stops that; it was left out to keep the cut near three minutes.
+
 ## What this cut says, and what it refuses to say
 
 Every claim in the narration is one the recording shows on screen.
