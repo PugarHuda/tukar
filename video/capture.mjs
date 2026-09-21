@@ -47,6 +47,34 @@ function end() {
   open = null;
 }
 
+// Callouts: measure the element the narration is about, at the moment it is on screen and
+// still, in this shot's viewport pixels. The composition draws a box there for as long as
+// the page stays put (holdMs of real time). An element that is missing or off screen is
+// logged and left out, never guessed.
+const boxes = []; // {id, source, atMs, x, y, w, h, label, holdMs}
+async function callout(page, target, label, holdMs = 2400) {
+  if (!open) return;
+  try {
+    const loc = typeof target === "string" ? page.locator(target).first() : target.first();
+    // bring it on screen first, the way a person would scroll to the thing they are pointing at
+    await loc.scrollIntoViewIfNeeded({ timeout: 4000 }).catch(() => {});
+    await sleep(350);
+    const b = await loc.boundingBox({ timeout: 4000 });
+    const vp = page.viewportSize();
+    if (!b || b.width < 4 || b.height < 4 || b.y > vp.height - 8 || b.y + b.height < 8) {
+      log(`    ! callout off screen, left out: ${label}`);
+      return;
+    }
+    const pad = 8;
+    const x = Math.max(3, b.x - pad), y = Math.max(3, b.y - pad);
+    const r = Math.min(vp.width - 3, b.x + b.width + pad), bt = Math.min(vp.height - 3, b.y + b.height + pad);
+    boxes.push({ id: open.id, source: src.name, atMs: Date.now() - src.t0, x: Math.round(x), y: Math.round(y), w: Math.round(r - x), h: Math.round(bt - y), label, holdMs });
+    log(`    box  ${open.id} "${label}"`);
+  } catch (e) {
+    log(`    ! callout not found, left out: ${label}`);
+  }
+}
+
 // Every scene must have at least as much real footage as it has narration, so the
 // composition never runs out of frames. Where the app genuinely made us wait (a
 // proof, a ledger confirmation) the clip ends up longer than that, and the
@@ -208,10 +236,13 @@ if (wants("desk1")) {
 
   begin("n01");
   await glide(page, "#apps", 1600);
+  await callout(page, "#apps", "Four apps, one corridor", 1100);
   await sleep(1100);
   await glide(page, "#corridor", 1600);
+  await callout(page, "#corridor", "Private in the middle", 1100);
   await sleep(1100);
   await glide(page, "#circuits", 1600);
+  await callout(page, "#circuits", "Proofs verified on-chain", 1400);
   await sleep(1400);
   await glide(page, 0, 1200);
   await safe(() => page.locator("header .launch-trigger").first().click(), "launch dialog");
@@ -248,7 +279,9 @@ if (wants("phone")) {
   await safe(() => page.locator("#corridor").selectOption("MX"), "corridor");
   await sleep(900);
   await glide(page, "aside", 1300); // the cost-and-policy packing slip
-  await sleep(2600); // let the policy registry + provider benchmark land
+  await sleep(1400); // let the policy registry + provider benchmark land
+  await callout(page, "aside", "Cap from the policy registry", 1400);
+  await sleep(1400);
   await glide(page, 0, 1000);
   await hold("n02");
 
@@ -261,6 +294,7 @@ if (wants("phone")) {
   await sleep(900);
   await safe(() => page.getByRole("button", { name: /^Send \$/ }).click(), "send");
   await safe(() => page.getByText(/Zero-knowledge proofs/).waitFor({ timeout: 20000 }), "progress");
+  await callout(page, page.getByText(/Zero-knowledge proofs/), "Proving on the device", 3000);
   await safe(
     () => page.getByRole("heading", { name: /Sent and shielded|Deposited, registration pending/ }).waitFor({ timeout: 420_000 }),
     "deposit",
@@ -269,6 +303,7 @@ if (wants("phone")) {
   // heading means the deposit landed but registration did not, which is a re-take.
   carry.registered = await page.getByRole("heading", { name: /Sent and shielded/ }).isVisible().catch(() => false);
   log(`    deposit ${carry.registered ? "registered into the tree" : "DEPOSITED BUT NOT REGISTERED (re-take)"}`);
+  await callout(page, page.getByRole("heading", { name: /Sent and shielded|Deposited, registration pending/ }), "Real USDC, now shielded", 2400);
   await hold("n03");
 
   // -- the claim note -------------------------------------------------------
@@ -276,6 +311,7 @@ if (wants("phone")) {
   await sleep(1500);
   carry.note = await page.locator("pre", { hasText: /^tukar1:/ }).first().innerText();
   await glide(page, "aside", 1200);
+  await callout(page, "aside", "Bearer claim note", 2200);
   await sleep(2200); // the string, the QR
   await glide(page, 99999, 1200);
   await safe(() => page.getByRole("button", { name: /^Copy claim link/ }).click(), "claim link");
@@ -296,6 +332,7 @@ if (wants("phone")) {
   await sleep(1400);
   await safe(() => page.getByRole("button", { name: "Claim payment" }).click(), "claim");
   await safe(() => page.getByRole("tab", { name: /Payments \(1\)/ }).waitFor({ timeout: 120_000 }), "claimed");
+  await callout(page, page.getByRole("tab", { name: /Payments \(1\)/ }), "Claimed", 1600);
   await sleep(1600);
   await hold("n05");
 
@@ -308,6 +345,7 @@ if (wants("phone")) {
   );
   await sleep(1200);
   await glide(page, page.getByText("Customs desk").first(), 1200);
+  await callout(page, page.getByText(/Off-ramp figure read on-chain|On-chain quote unavailable/), "Rate read on-chain, Reflector", 3000);
   await sleep(3000);
   await hold("n06");
 
@@ -316,6 +354,7 @@ if (wants("phone")) {
   await openDetails(page, "Cash out to fiat");
   await safe(() => page.getByText(/Indicative:/).first().waitFor({ timeout: 60_000 }), "sep-38 quote");
   await glide(page, page.getByText("Anchor desk").first(), 1100);
+  await callout(page, page.getByText(/Indicative:/), "Anchor quote, SEP-38", 3600);
   await sleep(3600); // the real SEP-38 indicative quote and what the anchor will not do
   await safe(() => page.getByRole("button", { name: /^Withdraw on-chain$/ }).scrollIntoViewIfNeeded(), "scroll withdraw");
   await sleep(600);
@@ -324,6 +363,7 @@ if (wants("phone")) {
     () => page.getByText(/withdrawn on-chain\. Tokens released|already spent|Withdraw failed|withdraw held/i).first().waitFor({ timeout: 420_000 }),
     "withdrawn",
   );
+  await callout(page, page.getByText(/withdrawn on-chain\. Tokens released|already spent|Withdraw failed|withdraw held/i), "Withdrawn on-chain", 1500);
   await sleep(1500);
   await hold("n07");
 
@@ -342,6 +382,7 @@ if (wants("phone")) {
   const dl = page.waitForEvent("download", { timeout: 300_000 }).catch(() => null);
   await safe(() => page.getByRole("button", { name: "Generate proof" }).click(), "generate");
   await safe(() => page.getByText(/Verified on-chain by the live Stellar verifier|Browser only/).waitFor({ timeout: 300_000 }), "proved");
+  await callout(page, page.getByText(/Verified on-chain by the live Stellar verifier|Browser only/), "Checked by the live verifier", 1500);
   await sleep(1500);
   await safe(() => page.getByRole("button", { name: /Export receipt/ }).click({ timeout: 60_000 }), "export");
   const d = await dl;
@@ -387,6 +428,7 @@ if (wants("desk2")) {
   await sleep(1300);
   await safe(() => page.getByRole("button", { name: /Re-verify in browser and on-chain/ }).click(), "verify");
   await safe(() => page.getByText(/Verified and bound|Proof is valid but NOT bound|Not valid/).waitFor({ timeout: 180_000 }), "verdict");
+  await callout(page, page.getByText(/Verified and bound|Proof is valid but NOT bound|Not valid/), "Verified and bound on-chain", 2200);
   await sleep(2200);
   await hold("n09");
 
@@ -403,6 +445,7 @@ if (wants("desk2")) {
   await sleep(1400);
   await safe(() => page.getByRole("button", { name: /Re-verify in browser and on-chain/ }).click(), "re-verify");
   await safe(() => page.getByText(/Not valid|Proof is valid but NOT bound/).waitFor({ timeout: 180_000 }), "rejected");
+  await callout(page, page.getByText(/Not valid|Proof is valid but NOT bound/), "One character changed, rejected", 2400);
   await sleep(2400);
   await hold("n10");
 
@@ -420,6 +463,7 @@ if (wants("desk2")) {
     await sleep(800);
     await safe(() => page.getByRole("button", { name: "Recompute commitment and look up on-chain" }).click(), "recompute");
     await safe(() => page.getByText(/Opening reproduces the commitment|not a Tukar view-only note/).waitFor({ timeout: 120_000 }), "view-note result");
+    await callout(page, page.getByText(/Opening reproduces the commitment|not a Tukar view-only note/), "Same commitment the pool stored", 2000);
     await sleep(2000);
   }
   await hold("n11");
@@ -434,6 +478,7 @@ if (wants("desk2")) {
   await sleep(700);
   await safe(() => page.getByRole("button", { name: "Compute hash and register on-chain" }).click(), "audit request");
   await safe(() => page.locator("#audit-str").waitFor({ timeout: 90_000 }), "audit string");
+  await callout(page, "#audit-str", "Request registered on-chain", 1600);
   await sleep(1600);
   await hold("n12");
 
@@ -443,8 +488,10 @@ if (wants("desk2")) {
   await glide(page, 600, 1200);
   await safe(() => page.getByRole("button", { name: "Send as TRP message" }).click(), "trp send");
   await safe(() => page.getByText(/Approved by the beneficiary VASP|TRP send failed|Rejected · TRP/).waitFor({ timeout: 90_000 }), "trp result");
+  await callout(page, page.getByText(/Approved by the beneficiary VASP|TRP send failed|Rejected · TRP/), "Real TRP 3.2.1 exchange", 2200);
   await sleep(2200);
   await glide(page, 99999, 1400); // the TRISA panel's honest not-deployed stamp
+  await callout(page, page.getByText(/TRISA companion node not deployed/), "Said plainly, not deployed", 1300);
   await sleep(1300);
   await hold("n13");
 
@@ -455,6 +502,7 @@ if (wants("desk2")) {
   await safe(() => page.getByText("reading pool events from Stellar RPC…").waitFor({ state: "detached", timeout: 150_000 }), "export ready");
   await sleep(900);
   await safe(() => page.locator("#ce-preset").selectOption("eu-tfr"), "preset");
+  await callout(page, "#ce-preset", "Jurisdiction preset", 1200);
   await sleep(1200);
   await hold("n14");
 
@@ -466,8 +514,10 @@ if (wants("desk2")) {
 
   begin("n15");
   await glide(page, page.getByText("Reserves attestation").first(), 1500);
+  await callout(page, page.getByText("Reserves attestation"), "Reserves attestation", 2400);
   await sleep(2400);
   await glide(page, page.getByText("Deployed contract inventory").first(), 1500);
+  await callout(page, page.getByText("Deployed contract inventory"), "Every contract id, openable", 2200);
   await sleep(2200);
   await hold("n15");
 
@@ -475,6 +525,7 @@ if (wants("desk2")) {
   await nav("Compliance policy");
   await sleep(800);
   await glide(page, page.getByText("Per-corridor policy registry").first(), 1400);
+  await callout(page, page.getByText("Per-corridor policy registry"), "Policy read on-chain", 2200);
   await sleep(2200);
   await nav("Oracle health");
   // the gauge card reads Reflector live; do not film its skeleton
@@ -485,6 +536,7 @@ if (wants("desk2")) {
   begin("n17");
   await nav("Monitoring");
   await safe(() => page.getByText(/reading events…/).waitFor({ state: "detached", timeout: 150_000 }), "events");
+  await callout(page, page.getByText("Monitoring is live and read-only"), "Live, read-only, limits stated", 2400);
   await sleep(2400);
   await hold("n17");
 
@@ -500,6 +552,7 @@ if (wants("desk2")) {
     await safe(() => page.getByRole("button", { name: /^Verify$/ }).click(), "verify click");
   }
   await safe(() => page.getByRole("img", { name: /passed|failed/ }).first().waitFor({ timeout: 180_000 }), "verify verdict");
+  await callout(page, page.getByRole("img", { name: /passed|failed/ }), "Checked with no wallet", 2600);
   await sleep(2600);
   await hold("n18");
 
@@ -516,6 +569,7 @@ if (wants("desk2")) {
   await safe(() => page.getByRole("heading", { name: /Send money home/i }).waitFor(), "hero");
   await sleep(2200);
   await glide(page, page.getByText("Try it now").first(), 1800);
+  await callout(page, page.getByText("Try it now"), "Try it on testnet", 2200);
   await sleep(2200);
   await hold("n20");
 
@@ -524,18 +578,19 @@ if (wants("desk2")) {
 
 await browser.close();
 
-let out = { base: BASE, sources, marks };
+let out = { base: BASE, sources, marks, boxes };
 if (ONLY.length && existsSync(MARKS_FILE)) {
   const prev = JSON.parse(readFileSync(MARKS_FILE, "utf8"));
   out = {
     base: BASE,
     sources: { ...prev.sources, ...sources },
     marks: [...prev.marks.filter((m) => !ONLY.includes(m.source)), ...marks],
+    boxes: [...(prev.boxes || []).filter((b) => !ONLY.includes(b.source)), ...boxes],
   };
   log(`merged ${marks.length} re-taken scene(s) into the existing marks`);
 }
 writeFileSync(MARKS_FILE, JSON.stringify(out, null, 2));
-log(`\nwrote captures/marks.json  (${marks.length} scenes)`);
+log(`\nwrote captures/marks.json  (${marks.length} scenes, ${boxes.length} callouts)`);
 const missing = SCRIPT.scenes.filter((s) => !out.marks.find((m) => m.id === s.id));
 if (missing.length) log(`WARNING: no mark for ${missing.map((s) => s.id).join(", ")}`);
 if (throttled.length) {

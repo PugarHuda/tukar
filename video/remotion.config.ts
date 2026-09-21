@@ -18,7 +18,7 @@ const CANDIDATES = [
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
   "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-].filter((p) => Boolean(p));
+].filter((p): p is string => Boolean(p));
 
 const browser = CANDIDATES.find((p) => existsSync(p));
 if (browser) Config.setBrowserExecutable(browser);

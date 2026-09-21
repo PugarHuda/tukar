@@ -96,3 +96,5 @@ video/out/
 video/scratch/
 !webapp/public/demo-id.mp4
 !webapp/public/demo-live.mp4
+video/public/team/
+!webapp/public/team.mp4

@@ -104,8 +104,41 @@ on settlement volume, paid by the anchors and PSPs that route through the corrid
 Go-to-market is one high-volume lane with one licensed anchor first, then more corridors;
 the post-hackathon path is a Stellar Community Fund build award on the same rail.
 
+**Recognition.** Tukar placed **5th in
+[Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)**, the hackathon
+run by the Stellar Development Foundation on DoraHacks, and was a **Grand Finalist in the
+Stellar APAC hackathon**, Payments and Consumer Applications category. That is outside
+validation by Stellar ecosystem judges. It is recognition, not users or volume, and not an
+endorsement by SDF or SCF.
+
 **Honest status.** This is a testnet build with no users or revenue yet. The above is the
 opportunity and the model, not traction.
+
+**Built by.** One person, [Pugar Huda Mantoro](https://github.com/PugarHuda), who has built
+similar systems before, solo (live links checked 2026-09-21):
+
+- Privacy and confidential settlement across several chains:
+  [Segel](https://segel.vercel.app) ([source](https://github.com/PugarHuda/segel)), a
+  confidential sealed-bid OTC desk on Stellar with Vickrey settlement proven in Circom/Groth16 on
+  BN254 and verified by Soroban, the closest prior work;
+  [Bisik](https://bisik-eight.vercel.app) on Canton; [Senyap](https://senyap.vercel.app) on
+  Midnight; [Diam](https://private-otc.vercel.app) on iExec Nox (1st, iExec Vibe Coding
+  Challenge); [Sealed Pair](https://sealed-pair.vercel.app) on Sui with Walrus (Best Walrus
+  Integration, Tatum x Sui); [Saksi](https://saksi-gilt.vercel.app), a confidential holder
+  register for tokenized RWAs; and [Jalin](https://jalin-five.vercel.app), an execution router
+  for the STRK20 shielded pool.
+- Compliance and proof of reserves: [Amanah](https://amanah-casper-rwa.vercel.app), a compliant
+  RWA treasury agent on Casper, and [Utuh](https://utuh.vercel.app), a completeness layer for
+  Creditcoin's Attestcoin Protocol.
+- Stellar: Segel, Tukar, and [Pulsar](https://github.com/PugarHuda/pulsar-stellar), AI agent
+  billing via an MPP session on testnet.
+- Payments: [KasPay](https://kaspay-flame.vercel.app), a Kaspa payment gateway (Top 10 Finalist
+  and Community Choice, Kaspathon).
+
+This is a record of building, not of scaling. None of these has run at production volume or had
+paying users. The nearest thing to reuse by others is
+[Brownie to Ape](https://pugarhuda.github.io/brownie-to-ape/), a migration codemod validated on
+five open-source repositories including Yearn Finance, and that is not scaling either.
 
 Sources: [World Bank, Migration and Development Brief 39 (Dec 2023)](https://www.worldbank.org/en/news/press-release/2023/12/18/remittance-flows-grow-2023-slower-pace-migration-development-brief)
 for remittance volume; [World Bank Remittance Prices Worldwide](https://remittanceprices.worldbank.org/)
@@ -281,7 +314,8 @@ to a production, multi-anchor corridor.
   **slide 8** of the pitch deck, or open the raw file directly at
   **[`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4)**. Short on time? The
   **[1:45 live demo cut](https://tukar-six.vercel.app/demo-live.mp4)** is the same capture
-  trimmed to the payment itself. The full cut is a 3:10 1080p walkthrough of
+  trimmed to the payment itself. The team presentation video is at
+  **[`/team.mp4`](https://tukar-six.vercel.app/team.mp4)**. The full cut is a 3:10 1080p walkthrough of
   the **real on-chain flow** across all four apps (connect → compliance proof on the device →
   on-chain deposit → claim note → the local figure read on-chain from Reflector → anchor quote →
   on-chain withdraw → selective disclosure → verified on-chain → a tampered receipt rejected
@@ -301,7 +335,8 @@ Tukar is deployed and running, not a prototype in a branch.
 
 - **Live production deployment.** [https://tukar-six.vercel.app](https://tukar-six.vercel.app)
   (Next.js static export on Vercel). Pitch deck at [`/deck`](https://tukar-six.vercel.app/deck),
-  demo video at [`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4).
+  demo video at [`/demo-id.mp4`](https://tukar-six.vercel.app/demo-id.mp4), team video at
+  [`/team.mp4`](https://tukar-six.vercel.app/team.mp4).
 - **Mobile-responsive.** Sender and Receiver are mobile-first PWAs; Regulator and Operator
   consoles adapt from desktop to a mobile drawer. No horizontal overflow at 390px on any surface.
 - **Loading and error states.** Every on-chain read shows a skeleton while pending; failures

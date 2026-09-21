@@ -50,6 +50,11 @@ for (const [name, src] of Object.entries(data.sources)) {
     m.startMs = Math.round(m.startMs * scale);
     m.endMs = Math.min(real, Math.round(m.endMs * scale));
   }
+  for (const b of data.boxes || []) {
+    if (b.source !== name) continue;
+    b.atMs = Math.round(b.atMs * scale);
+    b.holdMs = Math.round(b.holdMs * scale);
+  }
   src.file = `${name}.mp4`;
   src.durationMs = real;
 }

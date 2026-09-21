@@ -1,0 +1,181 @@
+{
+  "title": "Tukar, the team",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "voice": "en-US-AndrewNeural",
+  "rate": "+4%",
+  "note": "The team presentation. Every picture is a Playwright recording of a real public page, and every box is drawn where capture.mjs measured the element it points at. Facts are limited to what the pages show and what docs/SCF_SUBMISSION.md already states.",
+  "scenes": [
+    {
+      "id": "t01",
+      "url": "https://tukar-six.vercel.app",
+      "bar": "Tukar / the live app",
+      "vo": "Hi, I'm Pugar Huda Mantoro, and I am the whole team behind Tukar, a private remittance corridor on Stellar. This is who is building it, and why the build can be trusted.",
+      "boxes": [
+        {
+          "find": [
+            "h1"
+          ],
+          "label": "Live on Stellar testnet",
+          "from": 0.25
+        }
+      ]
+    },
+    {
+      "id": "t02",
+      "url": "https://github.com/PugarHuda",
+      "bar": "GitHub / github.com/PugarHuda",
+      "vo": "I build in public. Over a hundred repositories and thousands of contributions in the past year, and most of them are products you can open, not experiments.",
+      "boxes": [
+        {
+          "find": [
+            "nav a:has-text('Repositories')"
+          ],
+          "label": "Public repositories",
+          "from": 0.2
+        },
+        {
+          "find": [
+            "h2:has-text('contributions in the last year')"
+          ],
+          "label": "Contributions, last 12 months",
+          "from": 0.55
+        }
+      ]
+    },
+    {
+      "id": "t03",
+      "url": "https://github.com/PugarHuda",
+      "scroll": ".js-pinned-items-reorder-container",
+      "bar": "GitHub / pinned work",
+      "vo": "Several were judged well. Diam took first at the iExec Vibe Coding Challenge, the Portaldot developer kit took first, Brownie to Ape took second, and KasPay was a community choice at Kaspathon.",
+      "boxes": [
+        {
+          "find": [
+            ".js-pinned-items-reorder-container",
+            "ol.js-pinned-items-reorder-list"
+          ],
+          "label": "Shipped and judged",
+          "from": 0.15
+        }
+      ]
+    },
+    {
+      "id": "t04",
+      "url": "https://segel.vercel.app",
+      "bar": "Segel / segel.vercel.app",
+      "vo": "The closest prior work is Segel, a sealed-bid OTC desk on Stellar. Same chain and same proof stack as Tukar: Circom and Groth16 on BN254, verified on-chain by Soroban.",
+      "boxes": [
+        {
+          "find": [
+            "h1"
+          ],
+          "label": "Same chain, same proof stack",
+          "from": 0.2
+        }
+      ]
+    },
+    {
+      "id": "t05",
+      "url": "https://bisik-eight.vercel.app",
+      "bar": "Bisik / bisik-eight.vercel.app",
+      "vo": "Private settlement is the thread through most of my work: Bisik on Canton, Senyap on Midnight, Diam on iExec, and Sealed Pair on Sui.",
+      "boxes": [
+        {
+          "find": [
+            "h1"
+          ],
+          "label": "Confidential settlement, Canton",
+          "from": 0.2
+        }
+      ]
+    },
+    {
+      "id": "t06",
+      "url": "https://amanah-casper-rwa.vercel.app",
+      "bar": "Amanah / amanah-casper-rwa.vercel.app",
+      "vo": "Compliance is the other half. Amanah pairs zero-knowledge KYC with proof of reserves, across ten contracts on Casper testnet.",
+      "boxes": [
+        {
+          "find": [
+            "h1"
+          ],
+          "label": "ZK KYC and proof of reserves",
+          "from": 0.2
+        }
+      ]
+    },
+    {
+      "id": "t07",
+      "url": "https://utuh.vercel.app",
+      "bar": "Utuh / utuh.vercel.app",
+      "vo": "Utuh is a completeness layer: it bonds that nothing was left out of an attestation. That is the same question Tukar's audit requests work on.",
+      "boxes": [
+        {
+          "find": [
+            "h1"
+          ],
+          "label": "Completeness layer",
+          "from": 0.2
+        }
+      ]
+    },
+    {
+      "id": "t08",
+      "url": "https://github.com/PugarHuda/tukar",
+      "scroll": "strong:has-text('placed 5th')",
+      "bar": "GitHub / PugarHuda/tukar",
+      "vo": "Tukar itself placed fifth in Stellar Hacks: Real-World ZK, and was a Grand Finalist at Stellar APAC, in payments and consumer applications.",
+      "boxes": [
+        {
+          "find": [
+            "strong:has-text('placed 5th')"
+          ],
+          "label": "5th, Stellar Hacks: Real-World ZK",
+          "from": 0.15
+        },
+        {
+          "find": [
+            "strong:has-text('Grand Finalist')"
+          ],
+          "label": "Grand Finalist, Stellar APAC",
+          "from": 0.5,
+          "tag": "below"
+        }
+      ]
+    },
+    {
+      "id": "t09",
+      "url": "https://github.com/PugarHuda/tukar",
+      "bar": "GitHub / open source",
+      "vo": "All of it is open source: fifteen Soroban contracts, eight circuits, and three hundred thirty-three passing contract tests.",
+      "boxes": [
+        {
+          "find": [
+            "table[aria-labelledby='folders-and-files']",
+            "[aria-labelledby='folders-and-files']",
+            "div[data-hpc] table"
+          ],
+          "label": "Contracts, circuits, tests",
+          "from": 0.15
+        }
+      ]
+    },
+    {
+      "id": "t10",
+      "url": "https://tukar-six.vercel.app",
+      "bar": "Tukar / close",
+      "vo": "What I have not done yet is scale a product to real users. That is the honest gap, and the plan buys in the operational specialists for it. Private in the middle, accountable at the edges.",
+      "boxes": [
+        {
+          "find": [
+            "h1"
+          ],
+          "label": "Private in the middle, accountable at the edges",
+          "from": 0.55
+        }
+      ]
+    }
+  ]
+}

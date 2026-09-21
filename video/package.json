@@ -14,7 +14,12 @@
     "cut": "node cut.mjs",
     "render:live": "remotion render src/index.ts TukarDemo out/tukar-livedemo.mp4 --concurrency=2 --crf=20",
     "live": "node live.mjs",
-    "ship:live": "node ship.mjs 28 out/tukar-livedemo.mp4 ../webapp/public/demo-live.mp4"
+    "ship:live": "node ship.mjs 28 out/tukar-livedemo.mp4 ../webapp/public/demo-live.mp4",
+    "team:vo": "python team/vo.py",
+    "team:capture": "node team/capture.mjs",
+    "team:render": "remotion render src/index.ts TukarTeam out/tukar-team.mp4 --concurrency=2 --crf=20",
+    "team:ship": "node ship.mjs 28 out/tukar-team.mp4 ../webapp/public/team.mp4",
+    "team": "npm run team:vo && npm run team:capture && npm run team:render && npm run team:ship"
   },
   "dependencies": {
     "@remotion/cli": "4.0.418",

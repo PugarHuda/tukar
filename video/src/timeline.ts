@@ -21,11 +21,14 @@ const END_MS = 3000;
 const f = (ms: number) => Math.max(1, Math.round((ms / 1000) * FPS));
 
 type Mark = { id: string; source: string; startMs: number; endMs: number };
+type CapBox = { id: string; source: string; atMs: number; holdMs: number; x: number; y: number; w: number; h: number; label: string };
+const BOXES = ((marks as { boxes?: CapBox[] }).boxes ?? []) as CapBox[];
+const MIN_BOX_MS = 1600; // never flash a box for less than this, even inside a sped-up clip
 type Src = { file: string; durationMs: number };
 
 const SOURCES = marks.sources as Record<string, Src>;
 const MARKS = marks.marks as Mark[];
-const VO = vo as { id: string; ms: number }[];
+const VO = vo as { id: string; ms: number; words?: { w: string; s: number; e: number }[] }[];
 
 export type Item =
   | { kind: "title"; end?: boolean; from: number; durationInFrames: number }
@@ -45,6 +48,8 @@ export type Item =
       voFile: string;
       voMs: number;
       captions: string[];
+      words: { w: string; s: number; e: number }[];
+      boxes: { x: number; y: number; w: number; h: number; label: string; from: number; until: number }[];
     };
 
 export const items: Item[] = [];
@@ -90,6 +95,16 @@ for (const sc of script.scenes) {
     voFile: `vo/${sc.id}.mp3`,
     voMs,
     captions: sc.captions,
+    words: VO.find((v) => v.id === sc.id)?.words ?? [],
+    // A callout was measured at a moment in the source clip. This scene plays the source
+    // from trimBefore at `rate`, so that moment lands at (atMs - trimBefore) / rate.
+    boxes: BOXES.filter((b) => b.id === sc.id)
+      .map((b) => {
+        const fromMs = (b.atMs - trimBefore) / rate;
+        const untilMs = Math.max(fromMs + MIN_BOX_MS, (b.atMs + b.holdMs - trimBefore) / rate);
+        return { x: b.x, y: b.y, w: b.w, h: b.h, label: b.label, from: fromMs / wantMs, until: Math.min(1, untilMs / wantMs) };
+      })
+      .filter((b) => b.from >= 0 && b.from < 0.97),
   });
 }
 

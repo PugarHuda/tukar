@@ -1,6 +1,6 @@
 # Narasi deck Tukar, slide per slide
 
-Panduan baca untuk presentasi `TUKAR_SCF_DECK.pptx` (19 slide, Bahasa Indonesia). Tiap slide di
+Panduan baca untuk presentasi `TUKAR_SCF_DECK.pptx` (21 slide, Bahasa Indonesia). Tiap slide di
 bawah punya empat bagian: **tujuan** slide itu, **yang dikatakan**, **yang ditunjuk** di layar, dan
 **jangan** (jebakan yang bikin klaim jadi tidak jujur atau tidak bisa dipertahankan).
 
@@ -17,6 +17,9 @@ dan satu bukti yang bisa dibuka orang lain.
   di PowerPoint atau Keynote desktop. Kalau presentasi lewat Google Slides atau browser, buka
   cadangannya di https://tukar-six.vercel.app/demo-live.mp4 dan versi panjangnya di
   https://tukar-six.vercel.app/demo-id.mp4
+- **Slide 18 berisi video tim tertanam** (`team.mp4`, 1 menit 50 detik), dengan subtitle yang menyala
+  per kata dan kotak penanda di tiap bagian yang dijelaskan. Cadangannya di
+  https://tukar-six.vercel.app/team.mp4
 - **Siapkan satu tab browser** di https://tukar-six.vercel.app/verify untuk jaga-jaga kalau ada yang
   minta verifikasi resi langsung.
 - Kalau internet mati, deck tetap utuh: semua tangkapan layar sudah ada di dalam file.
@@ -25,9 +28,9 @@ dan satu bukti yang bisa dibuka orang lain.
 
 | Situasi | Slide | Perkiraan |
 |---|---|---|
-| Versi lengkap | 1 sampai 19 | 11 sampai 13 menit, termasuk video 1:45 |
-| Versi 5 menit | 1, 2, 7, 12, 14, 19 | video dipotong di menit pertama |
-| Versi 3 menit tanpa video | 1, 7, 12, 14, 19 | sebut saja videonya ada di tautan |
+| Versi lengkap | 1 sampai 21 | 14 sampai 16 menit, termasuk video demo 1:45 dan video tim 1:50 |
+| Versi 5 menit | 1, 2, 7, 12, 14, 17, 21 | video demo dipotong di menit pertama, video tim dilewati |
+| Versi 3 menit tanpa video | 1, 7, 12, 14, 17, 21 | sebut saja kedua videonya ada di tautan |
 
 ---
 
@@ -38,13 +41,16 @@ dan satu bukti yang bisa dibuka orang lain.
 **Yang dikatakan.** Orang yang kerja di luar negeri kirim uang ke rumah tiap bulan, dan biayanya
 masih sekitar enam persen. Tukar bikin itu privat, di atas Stellar. Dolar masuk, uang lokal keluar,
 dan bagian tengahnya tetap tertutup. Privat di tengah, akuntabel di tepinya. Statusnya disebut
-duluan: ini testnet, pra-mainnet, belum diaudit, belum ada pengguna.
+duluan: ini testnet, pra-mainnet, belum diaudit, belum ada pengguna. Dua hasil hackathon di pojok
+kanan itu pengakuan dari juri ekosistem, yaitu juara 5 Stellar Hacks: Real-World ZK dan Grand Finalist
+Stellar APAC. Itu bukan pengguna dan bukan traksi.
 
-**Yang ditunjuk.** Field DARI dan KE yang diredaksi, lalu stempel TESTNET SAJA di pojok.
+**Yang ditunjuk.** Field DARI dan KE yang diredaksi, stempel TESTNET SAJA di pojok, lalu baris
+PENGAKUAN JURI di bawahnya.
 
 **Jangan.** Jangan menunda kalimat "belum ada pengguna" ke slide belakang. Kalau juri mendengarnya
 dari kamu duluan, sisa presentasi dibaca sebagai jujur. Kalau mereka menemukannya sendiri, semua
-klaim lain ikut dicurigai.
+klaim lain ikut dicurigai. Jangan juga menyebut dua hasil hackathon itu sebagai traksi.
 
 ## 02 · Lihat langsung (video)
 
@@ -237,7 +243,42 @@ koridor di atas pool itu, dan isinya empat hal yang semuanya bisa dicek di repos
 **Jangan.** Jangan mengklaim unggul dari Remi dalam traksi. Mereka lebih dulu didanai dan punya
 distribusi yang kita tidak punya.
 
-## 17 · Yang diminta
+## 17 · Tim dan rekam jejak
+
+**Tujuan.** Menjawab risiko founder tunggal dengan pola yang bisa dicek, bukan dengan janji.
+
+**Yang dikatakan.** Tim Tukar hari ini satu orang, saya sendiri, founder dan sole engineer. Jadi
+wajar kalau ditanya kenapa satu orang bisa dipercaya. Jawabannya ada di pola, bukan di satu proyek.
+Saya sudah membangun settlement rahasia di beberapa chain. Ada segel di Stellar dengan proof Groth16
+yang diverifikasi Soroban, bisik di Canton, senyap di Midnight, diam di iExec yang juara 1 Vibe Coding
+Challenge, sealed-pair di Sui dan Walrus yang dapat Best Walrus Integration, lalu saksi dan jalin. Di
+sisi kepatuhan ada amanah-casper dengan ZK KYC dan proof-of-reserves, dan utuh sebagai completeness
+layer. Di Stellar sendiri ada tukar, segel, dan pulsar-stellar. Tukar sendiri juara 5 di Stellar
+Hacks: Real-World ZK dan Grand Finalist Stellar APAC. Itu pengakuan dari juri ekosistem, bukan
+pengguna. Batasnya saya sebut sendiri. Ini rekam jejak membangun, bukan scaling. Belum ada yang
+berjalan di volume produksi atau punya pengguna berbayar.
+
+**Yang ditunjuk.** Tiga kelompok di kartu kanan, lalu kotak YANG TIDAK DIKLAIM di kartu kiri.
+Kalau ada yang ingin cek, segel.vercel.app bisa dibuka saat itu juga.
+
+**Jangan.** Jangan menambah peringkat, jumlah bintang, jumlah pengguna, atau klaim lain yang tidak
+ada di slide. Jangan membacakan semua proyek satu per satu, sebut kelompoknya. Jangan melewatkan
+kalimat soal scaling.
+
+## 18 · Video presentasi tim
+
+**Tujuan.** Memperlihatkan orang di balik proyek ini, sebelum masuk ke angka.
+
+**Yang dikatakan.** Ini video singkat dari tim, yang saat ini satu orang. Kalau video tertanamnya
+tidak jalan, misalnya di Google Slides atau browser, videonya juga ada di
+tukar-six.vercel.app/team.mp4. Biarkan videonya yang bicara, lalu lanjut ke yang diminta.
+
+**Yang ditunjuk.** Tidak ada. Putar videonya dan diam.
+
+**Jangan.** Jangan bicara di atas video. Jangan presentasi dengan bingkai kosong, pastikan video tim
+sudah ditanam atau tab cadangannya sudah terbuka.
+
+## 19 · Yang diminta
 
 **Tujuan.** Menjelaskan angka dan ketidakcocokannya secara terbuka.
 
@@ -251,7 +292,7 @@ menyembunyikannya, supaya reviewer bisa mendebat inputnya, bukan totalnya.
 **Jangan.** Jangan menghindar kalau ditanya soal Tranche #2. Jawabannya ada di bawah, di bagian
 pertanyaan.
 
-## 18 · Sebelas deliverable dengan syarat selesainya
+## 20 · Sebelas deliverable dengan syarat selesainya
 
 **Tujuan.** Menunjukkan uangnya terikat ke hasil yang bisa diperiksa.
 
@@ -264,7 +305,7 @@ memegang syarat selesainya, dan dua hal benar-benar hilang, tidak ditutup-tutupi
 
 **Jangan.** Jangan membacakan sebelasnya.
 
-## 19 · Penutup
+## 21 · Penutup
 
 **Tujuan.** Menutup dengan kalimat posisi dan undangan memeriksa.
 
@@ -307,3 +348,13 @@ akan dipublikasikan apa adanya, termasuk yang gagal.
 horizontal. Tukar adalah koridor vertikal di atas primitif itu: tepi fiat lewat SEP, pembayaran ke
 mata uang lokal, kurs on-chain sebagai gerbang settlement, dan jawaban audit yang terikat ke
 permintaan auditor.
+
+**"Kamu kan sendirian, kenapa bisa dipercaya?"** Karena polanya sudah terlihat berulang kali. Di
+luar Tukar, saya sudah membangun settlement rahasia di beberapa chain, yaitu segel di Stellar, bisik
+di Canton Devnet, senyap di Midnight, diam di iExec Nox yang juara 1 iExec Vibe Coding Challenge,
+sealed-pair di Sui dan Walrus yang dapat Best Walrus Integration di Tatum x Sui, saksi, dan jalin. Di
+sisi kepatuhan ada amanah-casper dengan ZK KYC dan proof-of-reserves di 10 kontrak Odra yang live di
+testnet, dan utuh sebagai completeness layer untuk Attestcoin Creditcoin. Tukar sendiri juara 5
+Stellar Hacks: Real-World ZK dan Grand Finalist Stellar APAC kategori Payments dan Consumer
+Applications. Semua URL live-nya bisa dibuka. Batasnya juga jelas. Ini rekam jejak membangun, bukan
+scaling, dan belum ada yang berjalan di volume produksi atau punya pengguna berbayar.

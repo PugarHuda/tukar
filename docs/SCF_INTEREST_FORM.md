@@ -24,11 +24,13 @@ End-User Application
 
 **Current Traction**
 ```
+Tukar placed 5th in Stellar Hacks: Real-World ZK, the hackathon run by the Stellar Development Foundation on DoraHacks (https://dorahacks.io/hackathon/stellar-hacks-zk), and was a Grand Finalist in the Stellar APAC hackathon in the Payments and Consumer Applications category. That is outside validation by Stellar ecosystem judges, and it is recognition rather than user traction. It is not an endorsement by SDF or SCF.
+
 No users and no volume yet. Tukar runs on Stellar testnet, and every transaction on its contracts was made by the author or by invited testers.
 
 The need is validated in writing by the teams building Stellar's own privacy stack. OpenZeppelin's selective-disclosure specification for Stellar confidential tokens lists cryptographic completeness ("the disclosed set is exhaustive") among the things it does not do. SDF's developer preview of Stellar Private Payments says its disclosure "is not yet an attestation a user can hand to an outside party for a guarantee of transaction integrity and completeness, though this is a near-term goal for the project". SDF's developer meeting notes for 2026-08-06 call scoped audit requests and selective-disclosure tooling "wide-open design space". None of these sources has reviewed or endorsed Tukar.
 
-What can be checked today is this. 15 Soroban contracts and 8 Circom/Groth16 circuits deployed and exercised on testnet, including a pool holding real testnet USDC, eight BN254 verifier contracts, an on-chain per-corridor policy registry, proof of reserves read cross-contract, and an admin timelock on the preview track. 333 contract tests pass. A live web app has sender, receiver, regulator and operator views and a public receipt verifier. Outside recognition includes 5th place in the Stellar Privacy: Real-World ZK hackathon and Grand Finalist in the Stellar APAC hackathon (Payments & Consumer Applications).
+What can be checked today is this. 15 Soroban contracts and 8 Circom/Groth16 circuits deployed and exercised on testnet, including a pool holding real testnet USDC, eight BN254 verifier contracts, an on-chain per-corridor policy registry, proof of reserves read cross-contract, and an admin timelock on the preview track. 333 contract tests pass. A live web app has sender, receiver, regulator and operator views and a public receipt verifier.
 
 The next step, with Stellar Ambassador Chapter Indonesia, is a proposed 30-day Instaward ($5,000) for a shielded monthly ledger per verified person and a pilot in which three people who are not the author run the corridor end to end.
 ```
@@ -59,9 +61,15 @@ Individual
 ```
 Pugar Huda Mantoro, founder and sole engineer, based in Yogyakarta, Indonesia. LinkedIn https://www.linkedin.com/in/pugar-huda-mantoro/ , GitHub https://github.com/PugarHuda . Works across zero-knowledge (Circom, Groth16, snarkjs), Soroban and Rust smart contracts, and full-stack product (Next.js, TypeScript), plus Solidity. Full-time Software Engineer at SmartID since April 2026, previously at Geo Santara Indonesia and Lumintu Logic. Studying Informatics at Universitas Islam Indonesia.
 
-Prior solo work in the same domain. Sealed Pair, a privacy-preserving OTC platform on Sui with encrypted quote negotiation (Best Walrus Integration, Tatum x Sui hackathon). Diam, a confidential OTC desk on Arbitrum using iExec TEE and ERC-7984 confidential tokens (1st place, iExec Vibe Coding Challenge). Turu, sleep tracking verified with zkTLS proofs (Top 10, Manta hackathon, 2024).
+Prior solo work, grouped by what it shows. All live links were checked on 2026-09-21.
 
-Stated plainly, this is a record of building, not of scaling. None of these projects has run at production volume or had paying users, and the operational disciplines Tukar still needs are the ones the plan buys in rather than claims.
+Privacy and confidential settlement across several chains: Segel on Stellar (https://segel.vercel.app), a confidential sealed-bid OTC desk with Vickrey settlement proven in zero knowledge using Circom and Groth16 on BN254, verified on-chain by Soroban, the closest prior work with the same chain and proof stack as Tukar; Bisik on Canton (https://bisik-eight.vercel.app); Senyap on Midnight (https://senyap.vercel.app); Diam on iExec Nox (https://private-otc.vercel.app, 1st place, iExec Vibe Coding Challenge); Sealed Pair on Sui with Walrus (https://sealed-pair.vercel.app, Best Walrus Integration, Tatum x Sui hackathon); Saksi, a confidential holder register for tokenized real-world assets (https://saksi-gilt.vercel.app); and Jalin, an execution router for the STRK20 shielded pool (https://jalin-five.vercel.app).
+
+Compliance and proof of reserves: Amanah, a compliant RWA treasury agent on Casper with a K-of-N auditor quorum, ZK KYC and proof of reserves (https://amanah-casper-rwa.vercel.app), and Utuh, a completeness layer for Creditcoin's Attestcoin Protocol (https://utuh.vercel.app).
+
+Stellar: Segel, Tukar, and Pulsar, AI agent billing via an MPP session on Stellar testnet (https://github.com/PugarHuda/pulsar-stellar). Payments: KasPay, a Kaspa payment gateway (https://kaspay-flame.vercel.app, Top 10 Finalist and Community Choice, Kaspathon).
+
+Stated plainly, this is a record of building, not of scaling. None of these projects has run at production volume or had paying users. The closest thing to reuse by others is Brownie to Ape (https://pugarhuda.github.io/brownie-to-ape/), a migration codemod validated on five open-source repositories including Yearn Finance, and that is not scaling either. The operational disciplines Tukar still needs are the ones the plan buys in rather than claims.
 ```
 
 **Referral?**

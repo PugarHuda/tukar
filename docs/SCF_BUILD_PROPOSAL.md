@@ -8,9 +8,8 @@
 > Section 5, and 6a shows the two components it is made of so a reviewer can argue with
 > each input rather than with the total.
 > The team is one person and Section 8 says so plainly, including what the record does not
-> evidence. One item in this document still needs the owner to produce it: the recorded team
-> video link in Section 8. Two statements in Section 9 are commitments the owner must confirm
-> before submitting, the award-wallet custody practice and the acceptance of modified
+> evidence. The team video is served at https://tukar-six.vercel.app/team.mp4 (Section 8).
+> Two statements in Section 9 are commitments the owner must confirm before submitting, the award-wallet custody practice and the acceptance of modified
 > testnet-only milestones under Official Rules 2A. Nothing else is left open, including the
 > documentation-site question, which Section 11 now answers.
 
@@ -974,55 +973,90 @@ pretend the hours exist.
 The Open Track asks for evidence that the team has previously built and scaled similar
 products. The honest answer has two halves, and the second half is a no.
 
+**Outside recognition for Tukar itself.** Tukar placed 5th in
+[Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk), the hackathon
+run by the Stellar Development Foundation on DoraHacks, and was a Grand Finalist in the Stellar
+APAC hackathon in the Payments and Consumer Applications category. Both are judgments of the
+build by Stellar ecosystem judges. They are recognition and external validation, not users or
+volume, and neither is an endorsement by SDF or SCF.
+
 **On building: yes, repeatedly, alone, and in this exact domain.** All of the work below is
-solo, all of it is 2026 unless noted, and all of it was judged by people outside the project.
+solo. Every live link was checked on 2026-09-21 and returned HTTP 200 that day, and each
+description paraphrases the project's own repository description on
+[github.com/PugarHuda](https://github.com/PugarHuda). A placement is listed only where one is
+recorded. Read together, the projects show a pattern rather than a list.
 
-The three that matter most for this proposal, because they are the same problem in a different
-venue:
+**Privacy and confidential settlement, across several chains.** The same problem as Tukar, a
+private payment or trade that still settles verifiably, built on several different privacy
+stacks:
 
-- **Sealed Pair.** A privacy-preserving OTC trading platform on Sui, using Walrus for
-  encrypted quote negotiation with on-chain settlement. Won Best Walrus Integration at the
-  Tatum x Sui hackathon. Confidential negotiation that still settles verifiably on-chain is the
-  same shape as Tukar's private-in-the-middle, accountable-at-the-edges design.
-- **Diam.** A confidential OTC trading desk on Arbitrum, using iExec TEE confidential computing
-  with ERC-7984 confidential tokens. First place at the iExec Vibe Coding Challenge. A second
-  confidential-trading system, built on a different privacy technology, which is the evidence
-  that the domain knowledge is not tied to one toolchain.
-- **Turu.** An NFT sleep-tracking system using zkTLS proof verification. Top 10 at the Manta
-  hackathon, 2024. The zero-knowledge proof-verification work predates this project by two
-  years.
+- **[Segel](https://segel.vercel.app)** ([source](https://github.com/PugarHuda/segel)). A
+  confidential sealed-bid OTC desk on Stellar. Bids stay sealed, settlement is proven in zero
+  knowledge as a Vickrey auction, and losing bids are never revealed. Circom and Groth16 on
+  BN254, verified on-chain by Soroban. This is the closest prior work, on the same chain and
+  with the same proof stack as Tukar.
+- **[Bisik](https://bisik-eight.vercel.app).** A confidential multi-dealer RFQ OTC desk on
+  Canton, with sealed quotes, reverse-Vickrey pricing and atomic delivery versus payment. Live
+  on Canton Devnet.
+- **[Senyap](https://senyap.vercel.app).** Sealed-quote RFQ on Midnight. Makers commit binding
+  quotes the chain cannot read, and takers prove best execution.
+- **[Diam](https://private-otc.vercel.app).** A confidential OTC desk on iExec Nox, with hidden
+  amounts and Vickrey-fair RFQ pricing. First place at the iExec Vibe Coding Challenge.
+- **[Sealed Pair](https://sealed-pair.vercel.app).** Sealed peer-to-peer OTC trading on Sui
+  with Walrus blob commitments. Won Best Walrus Integration at the Tatum x Sui hackathon.
+- **[Saksi](https://saksi-gilt.vercel.app).** A confidential holder register for tokenized
+  real-world assets.
+- **[Jalin](https://jalin-five.vercel.app).** A programmable execution router for the STRK20
+  shielded pool, which runs a multi-step private DeFi plan in a single `privacy_invoke`.
 
-The rest of the record, which is shipping evidence rather than privacy evidence:
+**Compliance and proof of reserves.** The accountable-at-the-edges half of Tukar:
 
+- **[Amanah](https://amanah-casper-rwa.vercel.app)** (the amanah-casper repository). An
+  autonomous, compliant RWA treasury agent on Casper. Every AI decision is proven on-chain,
+  with a K-of-N auditor quorum, ZK KYC and proof of reserves, across 10 Odra contracts live on
+  testnet.
+- **[Utuh](https://utuh.vercel.app).** A completeness layer for Creditcoin's Attestcoin
+  Protocol, with undercollateralized credit built on it. A live console and verified contracts.
+
+**Stellar specifically.** Segel above, Tukar itself, and:
+
+- **[Pulsar](https://github.com/PugarHuda/pulsar-stellar)** (the pulsar-stellar repository, no
+  live site). AI agent billing through an MPP session on Stellar testnet.
+- **Tukar.** 15 Soroban contracts deployed and exercised on testnet with public explorer links,
+  8 Circom circuits with a multi-party phase-2 ceremony, 333 Cargo tests, 295 frontend unit
+  tests, and Playwright end-to-end suites that drive the live deployment.
+
+**Payments.**
+
+- **[KasPay](https://kaspay-flame.vercel.app).** A payment gateway for the Kaspa blockchain.
+  Top 10 Finalist and Community Choice at Kaspathon.
+
+**Other judged work**, which is shipping evidence rather than domain evidence:
+
+- **[Brownie to Ape](https://pugarhuda.github.io/brownie-to-ape/).** A Brownie to ApeWorx
+  migration codemod, a 17-pass transform with 238 tests, validated on five open-source
+  repositories including Yearn Finance. Second place at the Boring AI Hackathon.
+- **Turu**, an NFT sleep-tracking system using zkTLS proof verification. Top 10 at the Manta
+  hackathon, 2024.
 - **Portaldot Dev Kit**, a Python developer toolkit with a transaction failure decoder. First
   place.
-- **KasPay**, a Kaspa payment gateway with merchant tooling. Top 10 Finalist and Community
-  Choice at Kaspathon.
 - **Kutip**, an AI research assistant. Fifth place at the Kite AI Global Hackathon.
-- **Brownie to Ape**, an AST-based codemod published to the Codemod registry. Second place at
-  the Boring AI Hackathon.
-
-And on Stellar specifically, which is Tukar itself:
-
-- Fifth place in the Stellar Privacy / Real-World ZK hackathon, hosted on DoraHacks.
-- Payments and Consumer Applications Grand Finalist in the Stellar APAC hackathon.
-- 15 Soroban contracts deployed and exercised on testnet with public explorer links, 8 Circom
-  circuits with a multi-party phase-2 ceremony, 333 Cargo tests, 295 frontend unit tests, and
-  Playwright end-to-end suites that drive the live deployment.
 
 **On scaling: no. There is no such record, and this proposal is not going to imply one.** Not
 one of the projects above has run at production volume. None has paying users, none has
-revenue, none was operated past the end of the event it was built for, and none has been
-maintained for a live user base through an incident. Tukar is testnet with no users. The
-distinction matters and it is drawn here explicitly rather than left for a reviewer to infer,
-because a reviewer who works it out unaided will reasonably conclude the proposal was hiding
-it.
+revenue, and none has been maintained for a live user base through an incident. Tukar is
+testnet with no users. The closest thing to reuse by others is Brownie to Ape, which was
+validated on five external open-source repositories. That shows the tool working on code its
+author did not write. It is not scaling, and it is not presented as scaling. The distinction
+matters and it is drawn here explicitly rather than left for a reviewer to infer, because a
+reviewer who works it out unaided will reasonably conclude the proposal was hiding it.
 
-What the record does prove is narrower and still relevant: this person repeatedly takes a
-hard cryptographic system from nothing to something that works and that outside judges can
-verify, alone, under a deadline, across several different chains and toolchains, and has done it
-three times inside the privacy and confidential-computing domain this proposal is about. That
-is build capability and domain fit. It is not operational maturity.
+What the record does prove is narrower and still relevant. This person repeatedly takes a
+hard cryptographic system from nothing to a working deployment, alone, across several
+different chains and proof systems. Most of that work sits inside the privacy and
+confidential-settlement domain this proposal is about, and one project, Segel, already runs on
+Stellar with Tukar's own proof stack. That is build
+capability and domain fit. It is not operational maturity.
 
 **This gap is why the budget looks the way it does.** The contracted engagements in Section 6a
 are concentrated in exactly the disciplines a hackathon record does not evidence: running an
@@ -1107,8 +1141,9 @@ in that case is to cut scope and say so in the tranche completion form, not to s
 past the 90-day window.
 
 **Video presentation.** The Open Track expects a video presentation of the team in addition to a
-demo video. The link is supplied with the submission form and is the one item in this document
-that the owner still has to record.
+demo video. The team video is at https://tukar-six.vercel.app/team.mp4, and the demo videos are
+at https://tukar-six.vercel.app/demo-id.mp4 (full walkthrough) and
+https://tukar-six.vercel.app/demo-live.mp4 (short live cut).
 
 ---
 

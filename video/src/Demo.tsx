@@ -5,6 +5,7 @@ import { AbsoluteFill, Audio, OffthreadVideo, Sequence, staticFile, useCurrentFr
 import { c, type } from "./theme";
 import { ActCard, Kraft, LabelBar, Ruler, Seal, Sheet, TitleCard, clock } from "./parts";
 import { items, TOTAL, type Item } from "./timeline";
+import { Callouts, Karaoke } from "./overlays";
 
 const PHONE = { w: 430, h: 932 };
 const DESK = { w: 1600, h: 900 };
@@ -40,7 +41,7 @@ const provenance = (rate: number, realMs: number) =>
     : `sped up ${rate.toFixed(1)}x · real time ${Math.round(realMs / 1000)}s`;
 
 const Screen: React.FC<{ it: Extract<Item, { kind: "scene" }>; w: number; h: number; scale: number }> = ({ it, w, h, scale }) => (
-  <div style={{ width: w * scale, height: h * scale, overflow: "hidden", background: c.ink }}>
+  <div style={{ width: w * scale, height: h * scale, overflow: "hidden", background: c.ink, position: "relative" }}>
     <OffthreadVideo
       src={staticFile(`cap/${it.src}`)}
       trimBefore={it.trimBefore}
@@ -49,6 +50,9 @@ const Screen: React.FC<{ it: Extract<Item, { kind: "scene" }>; w: number; h: num
       muted
       style={{ width: w, height: h, transform: `scale(${scale})`, transformOrigin: "top left", display: "block" }}
     />
+    <div style={{ position: "absolute", left: 0, top: 0, width: w, height: h, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+      <Callouts boxes={it.boxes} dur={it.durationInFrames} tagSize={w < 800 ? 19 : 30} frameW={w} />
+    </div>
   </div>
 );
 
@@ -75,19 +79,14 @@ const Scene: React.FC<{ it: Extract<Item, { kind: "scene" }> }> = ({ it }) => {
   // The phone shot leaves a whole column of kraft, so the narration gets its own
   // label there. The desktop shot fills the frame, so it gets a caption slip under it.
   const caption = phone ? (
-    <Sheet style={{ opacity: t, position: "relative" }}>
-      <LabelBar left="Narration" right="captions" />
-      <div style={{ padding: "34px 34px 32px", ...type.lead, fontSize: 40, color: c.ink, minHeight: 250 }}>
-        <Captions lines={it.captions} frames={it.durationInFrames} />
-      </div>
+    <div style={{ opacity: t, position: "relative", background: c.ink, borderRadius: 10, padding: "40px 34px", minHeight: 250, display: "flex", alignItems: "center", boxShadow: "0 16px 36px -16px rgba(22,19,17,0.6)" }}>
+      {it.words.length ? <Karaoke words={it.words} fontSize={46} /> : <span style={{ ...type.lead, fontSize: 40, color: c.label }}><Captions lines={it.captions} frames={it.durationInFrames} /></span>}
       <Seal style={{ position: "absolute", right: 26, bottom: 20 }} />
-    </Sheet>
+    </div>
   ) : (
-    <Sheet style={{ opacity: t, width: sheetW }}>
-      <div style={{ padding: "22px 34px", ...type.lead, fontSize: 34, color: c.ink, minHeight: 58, display: "flex", alignItems: "center" }}>
-        <Captions lines={it.captions} frames={it.durationInFrames} />
-      </div>
-    </Sheet>
+    <div style={{ opacity: t, width: sheetW, background: c.ink, borderRadius: 10, padding: "16px 28px", minHeight: 64, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 16px 36px -16px rgba(22,19,17,0.6)" }}>
+      {it.words.length ? <Karaoke words={it.words} fontSize={36} /> : <span style={{ ...type.lead, fontSize: 34, color: c.label }}><Captions lines={it.captions} frames={it.durationInFrames} /></span>}
+    </div>
   );
 
   return (

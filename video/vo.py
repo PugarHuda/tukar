@@ -5,7 +5,8 @@
 # Speaks every scene's `vo` line from script.json with edge-tts (Microsoft's
 # neural voices, the same ones Copilot reads with, no API key) into
 # public/vo/<id>.mp3, and writes public/vo/vo.json with each clip's measured
-# duration so the Remotion composition can size its scenes to the narration.
+# duration so the Remotion composition can size its scenes to the narration, plus every
+# word's start and end from the voice's own WordBoundary events for the karaoke captions.
 import asyncio, json, os, re, subprocess, sys
 
 import edge_tts
@@ -31,10 +32,18 @@ async def main():
     meta, total = [], 0
     for sc in SCRIPT["scenes"]:
         path = os.path.join(OUT, f"{sc['id']}.mp3")
-        await edge_tts.Communicate(sc["vo"], SCRIPT["voice"], rate=SCRIPT["rate"]).save(path)
+        words = []
+        comm = edge_tts.Communicate(sc["vo"], SCRIPT["voice"], rate=SCRIPT["rate"], boundary="WordBoundary")
+        with open(path, "wb") as f:
+            async for chunk in comm.stream():
+                if chunk["type"] == "audio":
+                    f.write(chunk["data"])
+                elif chunk["type"] == "WordBoundary":
+                    st = chunk["offset"] / 10_000  # 100 ns ticks -> ms
+                    words.append({"w": chunk["text"], "s": round(st), "e": round(st + chunk["duration"] / 10_000)})
         ms = duration_ms(path)
         total += ms
-        meta.append({"id": sc["id"], "ms": ms})
+        meta.append({"id": sc["id"], "ms": ms, "words": words})
         print(f"  {sc['id']:>4}  {ms/1000:5.1f}s  {sc['vo'][:58]}...")
     json.dump(meta, open(os.path.join(OUT, "vo.json"), "w"), indent=2)
     print(f"\n{len(meta)} lines, {total/1000:.0f}s of narration -> public/vo/vo.json")

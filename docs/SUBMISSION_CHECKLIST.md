@@ -29,7 +29,8 @@ Akibatnya:
 - [ ] Jalankan Instaward lewat Ambassador Chapter Indonesia (Kenny). Ini persis jalur yang
       disarankan email penolakan, dan handbook Open Track sendiri menulis builder yang belum
       cukup berpengalaman "Better fit for Instawards". SOW ada di `INSTAWARD_SOW.md`.
-- [ ] Kirim email kelayakan (draft di bawah).
+- [ ] Kirim email kelayakan (draft di bawah). Sekarang sifatnya konfirmasi tertulis, bukan
+      pertanyaan terbuka (lihat catatan Discord di bagian email).
 - [ ] Gabung #scf-general di Stellar Developers Discord. Open Track diputuskan juga lewat
       Community Vote (Neural Quorum Governance), jadi kehadiran di komunitas ikut dihitung.
 - [ ] Security Office Hours Runtime Verification, 2026-09-15 pukul 14:00 sampai 16:00 UTC
@@ -40,7 +41,10 @@ Akibatnya:
 
 - [ ] D1 ledger, pilot tiga penguji, spec. Hasil pilot adalah traksi pertama yang bisa diverifikasi.
 - [ ] Rotasi kunci admin `corredor` yang bocor, lalu pindahkan role auditor dari demo key.
-- [ ] Rekam video presentasi tim (wajib untuk Open Track, video demo tidak menggantikannya).
+- [x] Video presentasi tim (wajib untuk Open Track, video demo tidak menggantikannya). URL-nya
+      https://tukar-six.vercel.app/team.mp4, sudah dimasukkan ke submission, proposal Section 8,
+      dan README. Video sedang diproduksi dan akan di-deploy persis di path itu. Sebelum submit,
+      buka URL-nya dan pastikan benar-benar memutar video, bukan 404.
 - [ ] Kalau memungkinkan, cari orang kedua. Official Rules 1.2 meminta minimal dua Eligible
       Individuals untuk webinar, bootcamp, dan demo day.
 
@@ -61,7 +65,15 @@ Akibatnya:
 Official Rules 1.1 menyebut program terbuka untuk Teams dan Organizations, dan 1.2 meminta minimal
 dua Eligible Individuals. Tapi halaman Build Award, bagian KYC, menulis "If applying as an
 individual: you must complete the form", dan LumenShade (SCF #37) tercatat dengan team size 1.
-Teks handbook tidak menjawab ini, jadi tanyakan.
+Teks handbook tidak menjawab ini.
+
+Update 2026-09-21. Di Stellar Developers Discord ada yang bertanya "can i apply scf as solo not team?" dan
+user bernama KingRon menjawab "Sure you can". Catat ini sebagai jawaban informal saja. Peran
+KingRon (staf SDF, moderator, atau anggota komunitas biasa) belum kita verifikasi, jadi jangan
+dikutip di aplikasi sebagai jawaban resmi. Jawaban tertulis dari communityfund@stellar.org tetap
+bukti yang lebih kuat, jadi email di bawah tetap dikirim, tapi sekarang fungsinya konfirmasi,
+bukan pertanyaan terbuka. Yang masih ambigu adalah Official Rules 1.2: minimal dua Eligible
+Individuals untuk webinar, bootcamp, dan demo day. Jawaban Discord tidak menyentuh poin itu.
 
 Ke communityfund@stellar.org:
 
@@ -77,8 +89,10 @@ Ke communityfund@stellar.org:
 > 1.2 asks a Team or Organization to appoint at least two Eligible Individuals for the preparation
 > webinars, the bootcamp and the investor demo day. The Build Award page, in its KYC section, says
 > "If applying as an individual: you must complete the form", and LumenShade is listed on the SCF
-> site with a team size of 1 for SCF #37. Is a single-person team eligible for the Open Track, and
-> if so, how should the two-individual requirement in 1.2 be met?
+> site with a team size of 1 for SCF #37. I was told informally on the Stellar Developers Discord
+> that a solo applicant can apply, and I would like to confirm that in writing. Could you confirm
+> that a single-person team is eligible for the Open Track, and say how the two-individual
+> requirement in 1.2 should be met?
 >
 > Second, budget structure. Should each deliverable's amount be what that deliverable costs, with
 > the 10/20/30/40 payments following from the total, or should the deliverable amounts inside each
@@ -149,13 +163,26 @@ gaji pasar Indonesia), $109,100 (ceremony dicoret, paling buruk), $114,700 (desa
 - [ ] Wallet award baru, multisig, kunci di hardware, tidak berbagi key material dengan admin
       koridor atau relayer (Official Rules 5.9). Buat sebelum submit.
 - [ ] Rotasi kunci admin `corredor` yang bocor (D1.3 dan THREAT_MODEL 3.5).
-- [ ] Role auditor di pool live dipindah dari demo key (Repudiation.1).
-- [ ] Video presentasi tim terisi (field terakhir yang masih kosong di submission).
+- [ ] Role auditor di pool live dipindah dari demo key (Repudiation.1). Dibaca on-chain
+      2026-09-21, masih demo key yang dipublikasikan
+      GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ.
+- [x] Video presentasi tim terisi: https://tukar-six.vercel.app/team.mp4 (cek URL-nya hidup
+      sebelum submit).
 
 ## Status materi submission
 
 - [x] Team Description lengkap, dan "built and scaled" dijawab jujur: building ya, scaling tidak.
       **Jangan diubah jadi lebih tebal.**
+- [x] Traction dan rekam jejak diperbarui 2026-09-21. Juara 5 Stellar Hacks: Real-World ZK
+      (DoraHacks, diselenggarakan SDF) dan Grand Finalist Stellar APAC (Payments and Consumer
+      Applications) ditaruh di awal Current Traction dan README, dengan label pengakuan dari juri
+      ekosistem Stellar, **bukan** user atau volume. Kalimat "no users and no volume" tetap ada.
+      Jangan tambahkan nominal hadiah, kutipan juri, atau peringkat peserta lain.
+- [x] Produk serupa sebelumnya (segel, bisik, senyap, diam, sealed-pair, saksi, jalin,
+      amanah-casper, utuh, pulsar-stellar, kaspay, brownie-to-ape) dikelompokkan dan ditautkan
+      di Team Description, proposal Section 8, interest form, dan README. Semua URL live dicek
+      2026-09-21 (HTTP 200). Placement hanya ditempel ke proyek yang sudah terdokumentasi;
+      jangan tempelkan placement ke proyek lain.
 - [x] Threat model dan monitoring plan di-inline penuh (STRIDE index dan tabel sinyal).
 - [x] Competitive differentiation di-inline. Klaim completeness sudah dibatasi 2026-09-15: yang
       diklaim adalah jawaban terikat ke set yang didaftarkan auditor, bukan completeness atas

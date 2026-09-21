@@ -30,6 +30,21 @@ The scene length rule has not changed: a scene lasts as long as its narration, a
 genuinely made us wait, the clip is sped up and the label bar says by how much rather than
 implying the work was instant.
 
+## Lit captions and callout boxes
+
+Both cuts, and the team video, share two overlays in `video/src/overlays.tsx`.
+
+- **Lit captions.** The narration is shown one line at a time and the word being spoken lights up.
+  The timing is not estimated: `vo.py` asks edge-tts for its WordBoundary events and stores every
+  word's start and end in `public/vo/vo.json`.
+- **Callout boxes.** At the moments the page is still, `capture.mjs` calls `callout()`, which
+  measures the element the narration is about (the verdict, the registered request, the TRISA
+  stamp, the reserves attestation, and so on) in that shot's own pixels, and records when it was on
+  screen. The composition draws a stamp-ink box there, dims the rest of the frame, and adds a label.
+  An element that is missing or off screen is logged and left out, never guessed. Because a clip
+  can be sped up, the box keeps its real on-screen window scaled by the same rate, with a floor of
+  1.6 seconds so it never just flashes.
+
 ## Two cuts, one capture
 
 `video/cuts/` holds the cuts and `node cut.mjs <name>` moves one into `script.json`. Both cuts
