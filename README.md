@@ -3,6 +3,23 @@
 > **A private way to send money home, on Stellar.**
 > Fiat in → shielded USDC transfer → fiat out. Private in the middle, accountable at the edges.
 
+### Find Your Way (Sep 1 – Oct 12, 2026): what is new in this window
+
+Tukar started in June 2026, so it is not a from-scratch build. This is what changed during
+Find Your Way, so judges can tell the new work from the old:
+
+- **Protocol 28.** Moved to Stellar SDK v17 and corrected the code that had drifted from it.
+- **A guard closed.** A rules audit found a check that stopped at the write path, so it was
+  extended to cover the rest.
+- **Operator monitoring.** It now sees every deposit that is actually in the pool.
+- **Judge feedback answered.** Claims the code did not support were corrected, untested paths
+  got tests, and the open audit-request gate on the live pool is
+  [disclosed](docs/SECURITY.md).
+- **Demo.** Re-recorded from the live site, with every sped-up second labelled, plus a
+  [1:45 live cut](https://tukar-six.vercel.app/demo-live.mp4).
+
+Full list: `git log --since=2026-09-01`.
+
 Tukar is a **consumer cross-border payments app**: the everyday job of sending
 money home to family, made private. It ships as **mobile-first Sender and Receiver
 apps** (`/sender`, `/receiver`) with **real fiat in and out** at the edges, and a
