@@ -37,7 +37,9 @@ vi.mock("@upstash/redis", () => {
 });
 
 import { BlobNotFoundError } from "@vercel/blob";
-import { parseOwnerFile, readSchedules, readOwnerFile, writeOwnerFile, deleteSchedule, spendsFromPlans, computeNextDate, listAllOwners, backend, isConfigured, CorruptScheduleFile } from "./schedules";
+import { parseOwnerFile, readSchedules, readOwnerFile, writeOwnerFile, deleteSchedule, spendsFromPlans, computeNextDate, listAllOwners, backend, isConfigured, CorruptScheduleFile, depositMismatch } from "./schedules";
+import * as Sdk from "@stellar/stellar-sdk";
+import { PASSPHRASE, POOL } from "./constants";
 
 const OWNER = "G" + "A".repeat(55);
 const plan = { id: "p1", amount: "12.5", code: "MX", recipient: "María", frequency: "weekly", nextDate: "2026-09-03", history: [] };
@@ -255,9 +257,34 @@ describe("Upstash Redis backend (no Blob token)", () => {
     expect(await listAllOwners()).toEqual([OWNER]);
   });
 
-  it("accepts a plan carrying its signed approval and rejects a malformed one", () => {
+  it("drops the retired relayer approval on read and keeps reminder subscriptions", () => {
     const approval = { hash: "ab".repeat(32), spender: OTHER, amount: "50", expirationLedger: 123456 };
-    expect(parseOwnerFile(JSON.stringify([{ ...plan, approval }])).plans[0].approval).toEqual(approval);
-    expect(() => parseOwnerFile(JSON.stringify([{ ...plan, approval: { ...approval, hash: "xyz" } }]))).toThrow("bad approval");
+    expect(parseOwnerFile(JSON.stringify([{ ...plan, approval }])).plans[0]).not.toHaveProperty("approval");
+    const sub = { endpoint: "https://push.example/1", keys: { p256dh: "p", auth: "a" } };
+    expect(parseOwnerFile(JSON.stringify({ plans: [], guard: {}, subs: [sub, { endpoint: 5 }] })).subs).toEqual([sub]);
+  });
+});
+
+describe("depositMismatch (mark-done verification)", () => {
+  const owner = Sdk.Keypair.random().publicKey();
+  const deposit = (source: string, from: string, stroops: bigint, contract = POOL, fn = "deposit") =>
+    new Sdk.TransactionBuilder(new Sdk.Account(source, "1"), { fee: "100", networkPassphrase: PASSPHRASE })
+      .addOperation(Sdk.Operation.invokeContractFunction({ contract, function: fn, args: [Sdk.nativeToScVal(from, { type: "address" }), Sdk.nativeToScVal(stroops, { type: "i128" }), Sdk.xdr.ScVal.scvVoid()] }))
+      .setTimeout(60)
+      .build()
+      .toEnvelope();
+
+  it("accepts the owner's own deposit of exactly the plan amount", () => {
+    expect(depositMismatch(deposit(owner, owner, 100_000_000n), owner, 100_000_000n)).toBeNull();
+  });
+  it("rejects a transaction from another source, even one depositing 'from' the owner", () => {
+    const other = Sdk.Keypair.random().publicKey();
+    expect(depositMismatch(deposit(other, other, 100_000_000n), owner, 100_000_000n)).toMatch(/not sent from your wallet/);
+    expect(depositMismatch(deposit(owner, other, 100_000_000n), owner, 100_000_000n)).toMatch(/not made from your wallet/);
+  });
+  it("rejects a wrong amount and a call that is not POOL.deposit", () => {
+    expect(depositMismatch(deposit(owner, owner, 99_999_999n), owner, 100_000_000n)).toMatch(/amount does not match/);
+    expect(depositMismatch(deposit(owner, owner, 100_000_000n, POOL, "withdraw"), owner, 100_000_000n)).toBe("not a pool deposit");
+    expect(depositMismatch(deposit(owner, owner, 100_000_000n, Sdk.StrKey.encodeContract(Buffer.alloc(32, 7))), owner, 100_000_000n)).toBe("not a pool deposit");
   });
 });

@@ -2,8 +2,10 @@
 
 > Filled in on 2026-09-14 and revised on 2026-10-13 against the Instawards "Never do these" list, in
 > the order of the Instawards SOW template. The revision cut the user pilot (rules 6 and 68), made
-> every deliverable guaranteed (rule 67), moved pre-sprint fixes out of the billed hours (rule 70)
-> and added a trust and key-management model (rule 41). A copy-friendly version with a copy button per field, for pasting into the Airtable form,
+> every deliverable guaranteed (rule 67), moved pre-sprint fixes out of the billed hours (rule 70),
+> added a trust and key-management model (rule 41), and removed every server-held key that could
+> touch user funds from the app (rules 26 and 31).
+> A copy-friendly version with a copy button per field, for pasting into the Airtable form,
 > is published as a Claude artifact.
 
 ## 1. Project & Team Information
@@ -142,11 +144,10 @@ status page and reproducible from a published spec.
   contract Tukar already runs eight of, generated from the new verification key.
 - **No pre-sprint fixes in the billed hours.** Rotating the corridor admin key and applying the
   preview-pool upgrade that is already queued are done before the sprint starts and are not billed.
-- **No change to the scheduler relayer or the fee sponsor.** The web app has two server-held testnet
-  keys: a fee sponsor that only pays network fees through CAP-15 fee-bumps and can move no user
-  funds, and a recurring-send relayer that can only pull USDC a user has approved for it, up to the
-  approved amount and expiry. Neither is touched by this sprint, and neither signs anything the
-  ledger depends on.
+- **No server-held keys.** No Tukar server holds a key that can move, pull, mint or authorize user
+  funds or pay a user's fees. Recurring sends are reminders: on the due day the server sends a push
+  notification and the user signs the deposit in their own wallet. The ledger in this sprint adds no
+  server key either.
 - **No licensed anchor integration.** Cash-out continues against SDF's testnet reference anchor. A
   licensed anchor is a business relationship on someone else's timeline and cannot be promised inside
   30 days.
@@ -167,9 +168,9 @@ status page and reproducible from a published spec.
 
 ### Trust, Key-Management and Failure Model
 
-- **Who holds funds.** No one but the users. Deposits and withdraws are signed by the user's own
-  wallet through Stellar Wallets Kit. The pool contract holds the shielded USDC, and no operator key
-  can withdraw it.
+- **Who holds funds.** No one but the users. Deposits, withdraws and CCTP mints are signed by the
+  user's own wallet through Stellar Wallets Kit. The pool contract holds the shielded USDC, and no
+  operator or server key can withdraw it, pull it or sign for it.
 - **Who can change policy.** The corridor admin key sets the allow-list root, the deny list and the
   tier caps. On the preview pool these setters go through a timelock (propose, mandatory delay,
   execute, cancel), so a change is public before it takes effect. The key is rotated before the

@@ -266,14 +266,12 @@ export async function readAccountTxs(account: string, limit = 200): Promise<TxRe
 export const watchedOnly = (recs: TxRecord[]): TxRecord[] => recs.filter((r) => r.invocations.some((i) => i.contract in WATCHED));
 
 /**
- * The relayer / demo key, which signs the recurring sends and the no-install demo's real writes.
- * RELAYER_SECRET is server-only, so a browser resolves this to the demo key and the cron sweep
- * resolves it to the deployment's real relayer when one is configured. Both are correct for where
- * they run; the console labels whichever account it actually read.
+ * The public demo key, which signs the no-install demo's real writes. No server key signs for users
+ * any more (recurring sends are user-signed reminders), so this is the only shared signer to watch.
  */
 export function relayerAddress(): string | null {
   try {
-    return Sdk.Keypair.fromSecret(process.env.RELAYER_SECRET || DEMO_SECRET).publicKey();
+    return Sdk.Keypair.fromSecret(DEMO_SECRET).publicKey();
   } catch {
     return null;
   }

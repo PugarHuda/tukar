@@ -30,7 +30,7 @@ import { newNote, usdcToStroops, encodeBearerNote, decodePaymentRequest, getPose
 import { qrSvgString } from "@/components/sender/qr";
 import { CostCard } from "@/components/sender/CostCard";
 import { SentNotes, loadSentNotes, saveSentNotes, type SentNote } from "@/components/sender/SentNotes";
-import { SchedulePlans, type SchedulePlan } from "@/components/sender/SchedulePlans";
+import { SchedulePlans, SELF_SIGNED, todayUtc, type SchedulePlan } from "@/components/sender/SchedulePlans";
 import { SpendingGuard } from "@/components/sender/SpendingGuard";
 import { guardCheck, spentInWindows, loadLocalGuard, saveLocalGuard, type SpendingGuard as Guard } from "@/lib/spending-guard";
 import { buildClaimLink, isValidPin, normalizePin } from "@/lib/claim-link";
@@ -39,9 +39,7 @@ import { SavingsNote } from "@/components/SavingsNote";
 import { CctpFund } from "@/components/CctpFund";
 import { CctpSend } from "@/components/CctpSend";
 import { scheduleSignIn } from "@/lib/auth-client";
-import { approveRelayer, RUNS_COVERED } from "@/components/sender/approve";
-import { FeeSponsor } from "@/components/sender/FeeSponsor";
-import { installSponsoredSigner, type Sponsored } from "@/components/sender/sponsor";
+import { LowXlm } from "@/components/sender/LowXlm";
 import { checkPayUri } from "@/lib/sep7";
 
 // The 10 corridors, codes/currencies match app.js CORRIDORS (the receiver keys off `corridor`
@@ -77,7 +75,6 @@ type SendResult = {
   claimLink: string; // /receiver#claim=... wrapping the bearer note (PIN-wrapped when a PIN was set)
   pinned: boolean;
   depHash: string;
-  sponsor?: string; // fee-bump fee payer, when "Pay network fee for me" was on
   regOk: boolean;
   regError?: string;
   svg: string | null;
@@ -86,10 +83,11 @@ type SendResult = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MAX_USDC = 1_000_000_000; // same cap the send path enforces on-chain
 
-// A saved send plan. In device-local mode it is a reminder only. When the server scheduler is
-// configured (a plan store + AUTH_SECRET + cron), the plan is stored server-side, the owner's wallet
-// approves USDC to the relayer, and the daily cron pulls each run's amount from that wallet and
-// executes the deposit + shielded-tree registration on-chain (history carries the run receipts).
+// A saved send plan, always a reminder the owner signs. Device-local mode keeps it on this device.
+// When the server scheduler is configured (a plan store + AUTH_SECRET + cron), the plan is stored
+// with the signed-in wallet and the daily cron pushes a due-day reminder that opens
+// /sender#plan=<id>; the owner sends it here, and the client marks the run done with the deposit
+// hash (POST /api/schedules { id, txHash }, verified on-chain). No server key moves money.
 type Frequency = "one-time" | "weekly" | "monthly";
 type Schedule = SchedulePlan;
 const SCHEDULES_KEY = "tukar:schedules";
@@ -118,7 +116,7 @@ export default function SenderPage() {
   const [amount, setAmount] = useState("200");
   const [code, setCode] = useState("MX");
   const [recipient, setRecipient] = useState("");
-  // Recurring/scheduled send: a device reminder, or a server plan the cron executes (serverMode).
+  // Recurring/scheduled send: a device reminder, or a server-stored plan the cron reminds about (serverMode).
   const [frequency, setFrequency] = useState<Frequency>("one-time");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   // "Send only when USD to <local> is at least X" for a scheduled plan; oracle corridors only.
@@ -131,12 +129,12 @@ export default function SenderPage() {
   const [schedBusy, setSchedBusy] = useState(false);
   // Notes this sender created (device-local), listed with live status + cancel-and-refund below the form.
   const [sent, setSent] = useState<SentNote[]>([]);
-  // null = still probing; true = server scheduler live (cron executes on-chain); false = device-local reminder.
+  // null = still probing; true = server scheduler live (plans stored + push reminders); false = device-local reminder.
   const [serverMode, setServerMode] = useState<boolean | null>(null);
-  // "Pay network fee for me": route the deposit + registration through the /api/sponsor fee bump.
-  const [sponsorFee, setSponsorFee] = useState(false);
-  // Server mode: the relayer the owner approves USDC to. Device mode: the env vars the server lacks.
-  const [relayer, setRelayer] = useState("");
+  // The plan this send settles (tapped, or opened from a reminder at /sender#plan=<id>). After the
+  // deposit lands the run is marked done with its hash.
+  const [activePlan, setActivePlan] = useState<string | null>(null);
+  // Device mode: the env vars the server scheduler lacks.
   const [schedMissing, setSchedMissing] = useState<string[]>([]);
   // Scheduler bearer token from sign-in-with-wallet. Null until the connected wallet signs in.
   const [schedToken, setSchedToken] = useState<string | null>(null);
@@ -180,7 +178,6 @@ export default function SenderPage() {
       try {
         const j = await (await fetch("/api/schedules/nonce")).json();
         if (j?.configured) {
-          setRelayer(String(j.relayer || ""));
           setServerMode(true);
           return;
         }
@@ -191,10 +188,14 @@ export default function SenderPage() {
         const raw = localStorage.getItem(SCHEDULES_KEY);
         if (raw) {
           const arr = JSON.parse(raw);
-          if (Array.isArray(arr)) setSchedules(arr);
+          if (Array.isArray(arr)) {
+            setSchedules(arr);
+            openPlanFromHash(arr);
+          }
         }
       } catch {}
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sign in with the connected wallet, then load THIS owner's private plans. Runs once per
@@ -213,7 +214,10 @@ export default function SenderPage() {
         if (!alive || !token) return;
         setSchedToken(token);
         const j = await (await fetch("/api/schedules", { headers: { Authorization: `Bearer ${token}` } })).json();
-        if (alive && Array.isArray(j?.schedules)) setSchedules(j.schedules);
+        if (alive && Array.isArray(j?.schedules)) {
+          setSchedules(j.schedules);
+          openPlanFromHash(j.schedules);
+        }
         // The scheduler's copy of the guard fills an unset device guard, never overrides one.
         if (alive && j?.guard && (j.guard.daily != null || j.guard.monthly != null)) {
           setGuard((cur) => (cur.daily == null && cur.monthly == null ? (saveLocalGuard(j.guard), j.guard) : cur));
@@ -227,6 +231,56 @@ export default function SenderPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverMode, connected, address, kind]);
+  // A reminder tapped while /sender is already open only changes the fragment (no reload), so the
+  // mount effects above never see it: re-read the plans and open the named one on hashchange too.
+  useEffect(() => {
+    const onHash = () => {
+      if (!/^#plan=/.test(window.location.hash)) return;
+      if (serverMode === true) return openPlanFromHash(schedules);
+      try {
+        const arr = JSON.parse(localStorage.getItem(SCHEDULES_KEY) || "[]");
+        if (Array.isArray(arr)) {
+          setSchedules(arr);
+          openPlanFromHash(arr);
+        }
+      } catch {}
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverMode, schedules]);
+  // A reminder notification opens /sender#plan=<id>: load that plan into the form once the plans are
+  // in, then drop the fragment so a reload does not re-load it over the user's edits.
+  function openPlanFromHash(list: Schedule[]) {
+    const m = window.location.hash.match(/^#plan=([A-Za-z0-9-]{1,64})$/);
+    const s = m && list.find((x) => x.id === m[1]);
+    if (!s) return;
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    prefillSchedule(s);
+  }
+  // After a send that settles the active plan: server mode records the deposit hash (the server
+  // verifies it on-chain); device mode advances the reminder on this device.
+  async function markPlanDone(txHash: string) {
+    const id = activePlan;
+    const plan = id ? schedules.find((x) => x.id === id) : null;
+    if (!plan || !txHash || plan.amount !== amount.trim() || plan.code !== code) return;
+    setActivePlan(null);
+    if (!serverMode) {
+      persistSchedules(schedules.map((x) => (x.id === id ? { ...x, nextDate: computeNextDate(x.frequency), history: [{ at: new Date().toISOString(), depHash: txHash }, ...(x.history ?? [])].slice(0, 20) } : x)));
+      return;
+    }
+    if (!schedToken) return;
+    try {
+      const r = await fetch("/api/schedules", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${schedToken}` }, body: JSON.stringify({ id, txHash }) });
+      const j = await r.json();
+      if (j?.schedule) {
+        setSchedules((cur) => cur.map((x) => (x.id === id ? j.schedule : x)));
+        toast("Plan run marked done. Next one is " + j.schedule.nextDate + ".", "success");
+      } else toast("The send landed, but the plan was not marked done: " + (j?.error || `HTTP ${r.status}`), "error");
+    } catch {
+      toast("The send landed, but the scheduler could not be reached to mark the plan done.", "error");
+    }
+  }
   function persistSchedules(next: Schedule[]) {
     setSchedules(next);
     try {
@@ -253,26 +307,15 @@ export default function SenderPage() {
       }
       setSchedBusy(true);
       try {
-        // The wallet approves USDC to the relayer first, so every run spends THIS wallet's USDC. The
-        // relayer key scheduling for itself has nothing to approve.
-        let approval: { hash: string; expirationLedger: number } | undefined;
-        if (address !== relayer) {
-          try {
-            approval = await approveRelayer(address, relayer, amount.trim(), frequency);
-          } catch (e: any) {
-            toast("USDC approval was not signed: " + ((e && e.message) || e), "error");
-            return;
-          }
-        }
         const r = await fetch("/api/schedules", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${schedToken}` },
-          body: JSON.stringify({ amount: amount.trim(), code, recipient: recipient.trim(), frequency, ...(condition ? { condition } : {}), ...(approval ? { approval } : {}) }),
+          body: JSON.stringify({ amount: amount.trim(), code, recipient: recipient.trim(), frequency, ...(condition ? { condition } : {}) }),
         });
         const j = await r.json();
         if (j?.schedule) {
           setSchedules([j.schedule, ...schedules]);
-          toast("Plan scheduled. The daily cron pulls each run from your wallet and runs it on-chain.", "success");
+          toast("Plan saved. On the due day you get a reminder and sign the send yourself.", "success");
         } else {
           toast(j?.error || "Could not schedule the plan", "error");
         }
@@ -313,6 +356,7 @@ export default function SenderPage() {
     else persistSchedules(schedules.filter((s) => s.id !== id));
   }
   function prefillSchedule(s: Schedule) {
+    setActivePlan(s.id);
     setAmount(s.amount);
     setCode(s.code);
     setRecipient(s.recipient);
@@ -490,46 +534,39 @@ export default function SenderPage() {
       setTimeout(() => setScreen("send"), 2600);
       return;
     }
-    // Sponsored: the same signer signs, but the fee-bump sponsor pays the fee (restored after the send).
-    const sponsored: Sponsored[] = [];
-    const restoreSigner = sponsorFee ? installSponsoredSigner((s) => sponsored.push(s)) : () => {};
-    let reg: Awaited<ReturnType<typeof registerNote>>;
-    let dep: Awaited<ReturnType<typeof depositOnChain>>;
-    try {
-      dep = await depositOnChain(note);
-      if (!dep.ok) {
-        // Three distinct compliance outcomes, each said as what it is: a deny-listed source (the
-        // non-membership constraint is unsatisfiable, no proof exists), a source that is simply not
-        // on the ASP allow-list (no membership path to prove), and PoolError #4 BadDenyList (the
-        // proof's deny-list inputs no longer match the pool's on-chain list, so retry proves against
-        // the current one). Everything else is a plain deposit failure with its reason.
-        const notListed = /not an approved ASP source/.test(dep.error || "");
-        const blocked = dep.denyRejected || notListed || dep.code === 4;
-        setSteps({ proof: "fail", deposit: "pend", register: "pend" });
-        setProgStatus(
-          dep.denyRejected
-            ? "This source is on the sanctions deny-list, so the compliance proof is unsatisfiable and the deposit cannot proceed."
-            : notListed
-              ? "This wallet is not on the ASP allow-list, so no compliance proof can be built for it. Send with the built-in testnet key, or ask the operator to add this key to the allow-list."
-              : dep.code === 4
-                ? "The pool's on-chain deny-list changed since this proof was built, so the deny-list check failed on-chain. Send again to prove against the current list."
-                : "Deposit failed: " + dep.error,
-        );
-        setBusy(false);
-        setTimeout(() => setScreen("send"), blocked ? 4200 : 3200);
-        return;
-      }
-      setSteps({ proof: "done", deposit: "done", register: "run" });
-      setDepHash(dep.hash || "");
-      setProgStatus(`${ref}: USDC deposited on-chain. Registering into the shielded tree…`);
-      const after = await refreshPool();
-      if (isFinite(after) && after !== before) setPoolBumped(true);
-
-      // 2) Advance the on-chain root so the commitment is spendable.
-      reg = await registerNote(note);
-    } finally {
-      restoreSigner();
+    const dep = await depositOnChain(note);
+    if (!dep.ok) {
+      // Three distinct compliance outcomes, each said as what it is: a deny-listed source (the
+      // non-membership constraint is unsatisfiable, no proof exists), a source that is simply not
+      // on the ASP allow-list (no membership path to prove), and PoolError #4 BadDenyList (the
+      // proof's deny-list inputs no longer match the pool's on-chain list, so retry proves against
+      // the current one). Everything else is a plain deposit failure with its reason.
+      const notListed = /not an approved ASP source/.test(dep.error || "");
+      const blocked = dep.denyRejected || notListed || dep.code === 4;
+      setSteps({ proof: "fail", deposit: "pend", register: "pend" });
+      setProgStatus(
+        dep.denyRejected
+          ? "This source is on the sanctions deny-list, so the compliance proof is unsatisfiable and the deposit cannot proceed."
+          : notListed
+            ? "This wallet is not on the ASP allow-list, so no compliance proof can be built for it. Send with the built-in testnet key, or ask the operator to add this key to the allow-list."
+            : dep.code === 4
+              ? "The pool's on-chain deny-list changed since this proof was built, so the deny-list check failed on-chain. Send again to prove against the current list."
+              : "Deposit failed: " + dep.error,
+      );
+      setBusy(false);
+      setTimeout(() => setScreen("send"), blocked ? 4200 : 3200);
+      return;
     }
+    setSteps({ proof: "done", deposit: "done", register: "run" });
+    setDepHash(dep.hash || "");
+    setProgStatus(`${ref}: USDC deposited on-chain. Registering into the shielded tree…`);
+    // The deposit is what settles a plan run; record it now (registration is a separate step).
+    void markPlanDone(dep.hash || "");
+    const after = await refreshPool();
+    if (isFinite(after) && after !== before) setPoolBumped(true);
+
+    // 2) Advance the on-chain root so the commitment is spendable.
+    const reg = await registerNote(note);
     setSteps((s) => ({ ...s, register: reg.ok ? "done" : "fail" }));
     await refreshPool();
 
@@ -548,7 +585,7 @@ export default function SenderPage() {
     } catch {
       svg = null;
     }
-    setResult({ ref, usdc: num, corridor: c, rate: liveRate, rateSource: fx[code]?.source, note, bearer, claimLink, pinned: !!pin, depHash: dep.hash || "", sponsor: sponsored.find((s) => s.fn === "deposit")?.sponsor, regOk: reg.ok, regError: reg.error, svg });
+    setResult({ ref, usdc: num, corridor: c, rate: liveRate, rateSource: fx[code]?.source, note, bearer, claimLink, pinned: !!pin, depHash: dep.hash || "", regOk: reg.ok, regError: reg.error, svg });
     setBusy(false);
     setScreen("success");
   }
@@ -693,6 +730,7 @@ export default function SenderPage() {
   // the packing slip (cost, request, standing orders) on the right from 1024px, one column below.
   // <main> stays the 520px label column; the slip is an <aside> sibling on the same box, and the
   // stubs that end each screen (Continue, Edit, Share) sit under the label in their own row.
+  const duePlans = schedules.filter((x) => x.nextDate <= todayUtc());
   const canContinue = isFinite(num) && num > 0 && num <= MAX_USDC && !guardBlocked && !!recipient.trim();
   return (
     <div className="min-h-screen">
@@ -732,6 +770,20 @@ export default function SenderPage() {
                 testnet key is on the demo ASP allow-list, but this connected wallet is not, so a deposit will
                 be rejected by the compliance check. Use the testnet key to send, or have the operator add this
                 key to the allow-list. Receiving and cashing out work with any wallet.
+              </div>
+            )}
+            {screen === "compose" && duePlans.length > 0 && (
+              <div className={`mb-5 ${NOTICE}`} role="status" data-testid="due-plans">
+                <b className="text-ink">{duePlans.length === 1 ? "A scheduled send is due." : `${duePlans.length} scheduled sends are due.`}</b>{" "}
+                {duePlans.map((d, i) => (
+                  <span key={d.id}>
+                    {i > 0 && " · "}
+                    <button className="underline decoration-ink/40 underline-offset-2 hover:text-ink" onClick={() => prefillSchedule(d)}>
+                      ${d.amount} USDC to {d.recipient || d.code}
+                    </button>
+                  </span>
+                ))}
+                . Tap one to load it, then sign the send from your wallet. Tukar never holds a key that can move your money.
               </div>
             )}
             {screen === "compose" && (
@@ -808,7 +860,7 @@ export default function SenderPage() {
             )}
             {screen === "send" && (
               <>
-                <FeeSponsor className="mt-4" address={connected ? address : null} on={sponsorFee} setOn={setSponsorFee} />
+                <LowXlm className="mt-4" address={connected ? address : null} />
                 <CctpFund className="mt-4" stellarRecipient={connected && address ? address : ""} />
                 <CctpSend className="mt-3" />
               </>
@@ -920,8 +972,8 @@ function ComposeScreen(props: {
 }) {
   const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, minRate, setMinRate, schedules, serverMode, schedMissing, schedBusy, onSaveSchedule, guard, spent, guardBlocked, overridden, onOverride, onSaveGuard, signedIn, sentNotes, onSentChange, connected, corridor, fxSource, fxLoaded, liveRate, receive, locked, canContinue } = props;
   const rateNote = fxSource === "reflector" ? "Reflector oracle, on-chain" : "open.er-api.com, HTTP";
-  // The plan box's save button ignores the spending guard: scheduling is not a send, and the cron
-  // applies the guard at run time. It does need a real recipient.
+  // The plan box's save button ignores the spending guard: scheduling is not a send (the guard gates
+  // the send itself, and holds the cron's reminder). It does need a real recipient.
   const canSchedule = isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= MAX_USDC && !!recipient.trim();
   return (
     <div className="animate-tk-pop">
@@ -1001,12 +1053,12 @@ function ComposeScreen(props: {
           <div className="flex items-start justify-between gap-3">
             <p className="text-[13px] leading-relaxed text-ink-2">
               {serverMode
-                ? `Automated on-chain. Scheduling asks your wallet to approve USDC to the Tukar relayer for ${RUNS_COVERED} runs. A daily cron pulls each run's amount from your wallet under that approval, mints a note and executes the deposit + shielded-tree registration on-chain. If the approval or your balance runs short, the run is held and nothing moves. Delivering the claim note to the recipient (the withdraw leg) stays a manual step.`
+                ? `${SELF_SIGNED} The plan is saved with your signed-in wallet; turn on reminders under Scheduled sends to get a notification that opens this form pre-filled.`
                 : serverMode === false
                   ? `Not automated on this deployment${schedMissing.length ? `: the server scheduler needs ${schedMissing.join(" and ")} set` : ""}. Your plan is saved on this device as a reminder. Tap a saved plan to pre-fill and send it yourself.`
                   : "Checking whether the server scheduler is available…"}
             </p>
-            <Badge tone={serverMode ? "green" : "amber"} className="shrink-0">{serverMode ? "AUTOMATED" : "THIS DEVICE"}</Badge>
+            <Badge tone={serverMode ? "green" : "amber"} className="shrink-0">{serverMode ? "REMINDERS" : "THIS DEVICE"}</Badge>
           </div>
           {corridor.oracle ? (
             <div className="mt-3">
@@ -1025,7 +1077,7 @@ function ComposeScreen(props: {
               />
               <p className={`mt-2 ${TYPED}`}>
                 {serverMode
-                  ? `Each daily run reads USD to ${corridor.currency} from the Reflector oracle on-chain and holds the plan while the rate is below this; a held run is recorded with the rate it saw and re-checked the next day. If the feed cannot be read, the plan is held, not sent blind.`
+                  ? `Before each reminder the server reads USD to ${corridor.currency} from the Reflector oracle on-chain and holds the reminder while the rate is below this; a held day is recorded with the rate it saw and re-checked the next day. If the feed cannot be read, the reminder is held.`
                   : `Saved with the reminder on this device. Nothing checks the rate automatically here; the server scheduler is not configured on this deployment.`}
               </p>
             </div>
@@ -1035,7 +1087,7 @@ function ComposeScreen(props: {
             </p>
           )}
           <Button variant="reveal" full className="mt-3" busy={schedBusy} disabled={!canSchedule || schedBusy} onClick={onSaveSchedule}>
-            {serverMode ? "Schedule" : "Save"} {frequency} plan for {recipient || "recipient"}
+            Save {frequency} plan for {recipient || "recipient"}
           </Button>
         </Label>
       )}
@@ -1326,12 +1378,6 @@ function SuccessScreen({ result }: { result: SendResult }) {
           <Field k="They receive ≈" mono>
             {local != null ? `${fmtLocal(local, result.corridor)} ${result.corridor.currency} · ${result.rateSource === "reflector" ? "Reflector oracle" : "open.er-api.com"}` : `${result.corridor.currency} rate was unavailable`}
           </Field>
-          {result.sponsor && (
-            <Field k="Network fee" mono>
-              paid by sponsor <Ext href={`https://stellar.expert/explorer/testnet/account/${result.sponsor}`}>{short(result.sponsor)}</Ext> · fee-bump{" "}
-              <Ext href={txExplorer(result.depHash)}>{short(result.depHash)}</Ext>
-            </Field>
-          )}
           <Field k="Deposit tx" mono last>
             {result.depHash ? <Ext href={txExplorer(result.depHash)}>{short(result.depHash)}</Ext> : "confirmed"}
           </Field>

@@ -6,11 +6,11 @@ import "server-only";
 //     UPSTASH_REDIS_REST_URL/_TOKEN set, the same env lib/lock.ts and lib/ratelimit.ts use): one key
 //     per owner, schedules:<owner>, plus the set schedules:owners the cron sweeps.
 // Blob wins when both are set. Both hold the same JSON text, so parsing is shared. The file is an
-// OwnerFile: the owner's plans plus their self-set spending guard. Per plan we store metadata and
-// per-run receipts (depHash / regOk / error, or a `skipped` reason when the run held the plan) plus,
-// per run that deposited, the encoded bearer note the cron minted, because without it the scheduled
-// deposit could never be claimed. The file is owner-private and server-only; the owner's wallet key
-// is never stored.
+// OwnerFile: the owner's plans, their self-set spending guard, and the Web Push subscriptions the
+// due-day reminder goes to. Per plan we store metadata and per-run receipts (the hash of the deposit
+// the OWNER signed and the server verified on-chain, or a `skipped` reason when the reminder was
+// held). No key that can move the owner's money exists server-side: the cron only reminds, the
+// owner's wallet signs every deposit.
 //
 // A read distinguishes three outcomes: no file yet (head() 404 -> empty file), a valid file, and a
 // corrupt file (logged + thrown as CorruptScheduleFile, never silently treated as empty, so a later
@@ -20,21 +20,19 @@ import { BlobNotFoundError, get, head, list, put } from "@vercel/blob";
 import { Redis } from "@upstash/redis";
 import { log, errMsg } from "./log";
 import { parseGuard, type SpendingGuard, type Spend } from "./spending-guard";
+import type { PushSub } from "./push";
+import * as Sdk from "@stellar/stellar-sdk";
+import { PASSPHRASE, POOL } from "./constants";
+import { server } from "./soroban/rpc";
 
 export type Frequency = "weekly" | "monthly";
-// `note` is the encoded bearer note the cron minted for that run: it is what the owner hands to
-// the recipient to claim the scheduled deposit, so it is stored with the receipt (the owner's
-// file is private, server-only). Older receipts have no note. `skipped` marks a run that held the
-// plan without moving money (rate condition not met, oracle unreadable, spending guard); the plan
-// stays due and is re-checked by the next daily run. `observedRate` is the oracle rate seen then.
-// `pullHash` is the USDC SAC transfer_from that pulled the plan amount from the owner's wallet into
-// the relayer under the owner's allowance; `refundHash` the transfer back when the deposit then failed.
-export type RunReceipt = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number; pullHash?: string; refundHash?: string };
-// The USDC SAC approve(from=owner, spender=relayer, ...) the owner's wallet signed when the plan was
-// created. `amount` is the allowance in USDC read back on-chain at creation; the cron re-reads the
-// live allowance before every run, so this is the receipt, not the authority.
-export type Approval = { hash: string; spender: string; amount: string; expirationLedger: number };
-// `condition`: send only when the Reflector USD->`symbol` rate is at least `minRate`. Only
+// `depHash` = the owner-signed pool deposit that settled this run, verified on-chain (verifyPlanDeposit)
+// before it was recorded. `skipped` = the reminder was held (rate condition not met, oracle
+// unreadable, spending guard); the plan stays due and is re-checked the next day. `note`/`regOk`/
+// `error` only appear on receipts from the retired server-executed runs; they are kept so an owner
+// can still copy the claim note those runs minted.
+export type RunReceipt = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number };
+// `condition`: remind only when the Reflector USD->`symbol` rate is at least `minRate`. Only
 // corridors with an on-chain oracle feed can carry one (the POST route checks the corridor).
 export type StoredSchedule = {
   id: string;
@@ -45,9 +43,10 @@ export type StoredSchedule = {
   nextDate: string; // YYYY-MM-DD
   history: RunReceipt[];
   condition?: { symbol: string; minRate: number };
-  approval?: Approval;
 };
-export type OwnerFile = { plans: StoredSchedule[]; guard: SpendingGuard };
+// `subs`: the owner's browsers that asked for due-day reminders (Web Push subscriptions, public
+// endpoints + keys only).
+export type OwnerFile = { plans: StoredSchedule[]; guard: SpendingGuard; subs?: PushSub[] };
 
 const PREFIX = "schedules/";
 const G_RE = /^G[A-Z2-7]{55}$/;
@@ -136,10 +135,6 @@ function invalidPlan(p: any): string | null {
     const c = p.condition;
     if (!c || typeof c !== "object" || !/^[A-Z]{3}$/.test(String(c.symbol)) || typeof c.minRate !== "number" || !(c.minRate > 0) || !Number.isFinite(c.minRate)) return "condition";
   }
-  if (p.approval !== undefined) {
-    const a = p.approval;
-    if (!a || typeof a !== "object" || !/^[0-9a-f]{64}$/.test(String(a.hash)) || !G_RE.test(String(a.spender)) || typeof a.amount !== "string" || !AMOUNT_RE.test(a.amount) || !Number.isInteger(a.expirationLedger)) return "approval";
-  }
   return null;
 }
 
@@ -159,9 +154,12 @@ export function parseOwnerFile(text: string): OwnerFile {
   const plans = raw.plans.map((p: any, i: number) => {
     const why = invalidPlan(p);
     if (why) throw new CorruptScheduleFile(`plan ${i}: bad ${why}`);
-    return { ...p, history: p.history ?? [] } as StoredSchedule;
+    // `approval` was the retired USDC allowance to the server relayer: dropped on read.
+    const { approval: _retired, ...rest } = p;
+    return { ...rest, history: p.history ?? [] } as StoredSchedule;
   });
-  return { plans, guard };
+  const subs = Array.isArray(raw.subs) ? raw.subs.filter((x: any) => typeof x?.endpoint === "string" && typeof x?.keys?.p256dh === "string" && typeof x?.keys?.auth === "string") : [];
+  return subs.length ? { plans, guard, subs } : { plans, guard };
 }
 
 // Shared tail of both backends: the text must parse, and a corrupt file is logged and thrown.
@@ -224,9 +222,8 @@ export async function deleteSchedule(owner: string, id: string): Promise<boolean
   return true;
 }
 
-/** What the scheduler has actually deposited for this owner: one Spend per run receipt that
- *  carries a deposit hash, at the plan's amount. This is the cron's source of truth for the
- *  owner's spending guard (the relayer's own sends, not the owner's browser sends). */
+/** What the owner has settled through their plans: one Spend per run receipt that carries a
+ *  verified deposit hash, at the plan's amount. The cron's view of the owner's spending guard. */
 export function spendsFromPlans(plans: StoredSchedule[]): Spend[] {
   const out: Spend[] = [];
   for (const p of plans) for (const r of p.history) if (r.depHash) out.push({ at: r.at, usdc: Number(p.amount) });
@@ -256,4 +253,50 @@ export async function listAllOwners(): Promise<string[]> {
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);
   return owners;
+}
+
+/** Why `env` is not `owner`'s own pool deposit of exactly `stroops`, or null when it is. Pure: the
+ *  (inner, if fee-bumped) transaction source must be the owner, its single operation must invoke
+ *  POOL.deposit, and the deposit's `from` and `amount` arguments must be the owner and the amount. */
+export function depositMismatch(env: Sdk.xdr.TransactionEnvelope, owner: string, stroops: bigint): string | null {
+  let tx: Sdk.Transaction;
+  try {
+    const t = Sdk.TransactionBuilder.fromXDR(env, PASSPHRASE);
+    tx = t instanceof Sdk.FeeBumpTransaction ? t.innerTransaction : t;
+  } catch {
+    return "unreadable transaction";
+  }
+  if (tx.source !== owner) return "the transaction was not sent from your wallet";
+  const op = tx.operations[0];
+  if (tx.operations.length !== 1 || op.type !== "invokeHostFunction" || op.func.type !== "hostFunctionTypeInvokeContract") return "not a pool deposit";
+  const ic = op.func.invokeContract;
+  const [from, amount] = ic.args;
+  try {
+    if (Sdk.Address.fromScAddress(ic.contractAddress).toString() !== POOL || ic.functionName.toString() !== "deposit") return "not a pool deposit";
+    if (Sdk.scValToNative(from) !== owner) return "the deposit was not made from your wallet";
+    if (BigInt(Sdk.scValToNative(amount)) !== stroops) return "the deposit amount does not match the plan";
+  } catch {
+    return "not a pool deposit";
+  }
+  return null;
+}
+
+/** Read `hash` from the network and check it is a SUCCESSFUL deposit of the plan amount from the
+ *  owner's own wallet (depositMismatch), made at or after `notBefore` (ms). Returns why not, or null. */
+export async function verifyPlanDeposit(hash: string, owner: string, stroops: bigint, notBefore: number): Promise<string | null> {
+  let r: Awaited<ReturnType<typeof server.getTransaction>>;
+  try {
+    r = await server.getTransaction(hash);
+  } catch {
+    return "could not read the transaction from the network; try again";
+  }
+  if (r.status !== "SUCCESS") return r.status === "NOT_FOUND" ? "transaction not found on the network yet" : "the transaction did not succeed";
+  if (r.createdAt * 1000 < notBefore) return "the transaction is older than this run of the plan";
+  return depositMismatch(r.envelopeXdr, owner, stroops);
+}
+
+/** Start of the run that is due on `nextDate`: one period before it (monthly approximated as 31
+ *  days). A deposit older than this belongs to an earlier run. */
+export function runWindowStart(plan: Pick<StoredSchedule, "frequency" | "nextDate">): number {
+  return Date.parse(plan.nextDate + "T00:00:00Z") - (plan.frequency === "weekly" ? 7 : 31) * 86_400_000;
 }

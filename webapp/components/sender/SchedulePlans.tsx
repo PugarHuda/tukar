@@ -1,23 +1,27 @@
 "use client";
-// The sender's "Scheduled sends": standing orders on a slip. Tap a plan to pre-fill it; Cancel
-// removes it (server mode: confirm, then DELETE /api/schedules/[id] with the scheduler bearer token,
-// so the cron never runs it again; local mode: the device reminder is dropped). Each server run that
-// minted a note shows it as a copyable "Claim note" (same reveal/copy pattern as the success screen)
-// so the owner can hand it to the recipient; without that string a scheduled deposit is unspendable.
-import { useState } from "react";
+// The sender's "Scheduled sends": standing orders on a slip. Tap a plan to pre-fill it and send it
+// yourself; Cancel removes it (server mode: confirm, then DELETE /api/schedules/[id] with the
+// scheduler bearer token, so no more reminders; local mode: the device reminder is dropped). In
+// server mode the owner can turn on due-day push reminders for this browser. Receipts from the
+// retired server-executed runs still show their claim note so it can be handed to the recipient.
+import { useEffect, useState } from "react";
+import { remindersOn, subscribeReminders } from "@/components/sender/reminders";
 import { txExplorer } from "@/lib/stellar";
 import { short } from "@/lib/zk";
 import { Button, useToast } from "@/components/ui";
 import { Label, Ext, CAP, TYPED } from "@/components/sender/Label";
 
-// `skipped` = the run held the plan without moving money (rate condition not met, oracle
-// unreadable, spending guard); it stays due and is re-checked the next day.
-// `pullHash` = the transfer_from that took this run's USDC from the owner's wallet under the approval.
-export type PlanRun = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number; pullHash?: string; refundHash?: string };
+// `depHash` = the deposit the owner signed for this run (verified on-chain before it was recorded).
+// `skipped` = the reminder was held (rate condition not met, oracle unreadable, spending guard); the
+// plan stays due and is re-checked the next day.
+export type PlanRun = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number };
 export type PlanCondition = { symbol: string; minRate: number };
-// The USDC SAC approve(owner -> relayer) the owner's wallet signed for a server plan.
-export type PlanApproval = { hash: string; spender: string; amount: string; expirationLedger: number };
-export type SchedulePlan = { id: string; amount: string; code: string; recipient: string; frequency: "weekly" | "monthly"; nextDate: string; history?: PlanRun[]; condition?: PlanCondition; approval?: PlanApproval };
+export type SchedulePlan = { id: string; amount: string; code: string; recipient: string; frequency: "weekly" | "monthly"; nextDate: string; history?: PlanRun[]; condition?: PlanCondition };
+
+/** The plain promise every plan surface repeats. */
+export const SELF_SIGNED = "Tukar never holds a key that can move your money; on the due day you get a reminder and sign the send yourself.";
+/** Today as a UTC calendar date, the day plans are due on. */
+export const todayUtc = () => new Date().toISOString().slice(0, 10);
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso + "T00:00:00");
@@ -40,6 +44,16 @@ export function SchedulePlans(props: {
   const { toast } = useToast();
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [reminding, setReminding] = useState<"off" | "on" | "busy">("off");
+  useEffect(() => setReminding(remindersOn() ? "on" : "off"), []);
+
+  async function turnOnReminders() {
+    if (!token) return;
+    setReminding("busy");
+    const r = await subscribeReminders(token);
+    setReminding(r.ok ? "on" : "off");
+    toast(r.ok ? "Reminders on. On the due day this browser gets a notification to sign the send." : r.error, r.ok ? "success" : "error");
+  }
 
   async function cancel(id: string) {
     if (!serverMode) {
@@ -50,7 +64,7 @@ export function SchedulePlans(props: {
       setErrors((e) => ({ ...e, [id]: "Connect a wallet to cancel (it signs you in)." }));
       return;
     }
-    if (!window.confirm("Cancel this scheduled send? The cron will not run it again.")) return;
+    if (!window.confirm("Cancel this scheduled send? You will get no more reminders for it.")) return;
     setErrors((e) => ({ ...e, [id]: "" }));
     setCancelingId(id);
     try {
@@ -71,7 +85,7 @@ export function SchedulePlans(props: {
 
   if (schedules.length === 0) return null;
   return (
-    <Label className="mt-4" bar="Scheduled sends" right={serverMode ? "runs on-chain daily" : "saved on this device"}>
+    <Label className="mt-4" bar="Scheduled sends" right={serverMode ? "reminders, you sign" : "saved on this device"}>
       <ul className="m-0 list-none divide-y divide-ink/25 p-0">
         {schedules.map((s) => {
           const sc = corridors.find((c) => c.code === s.code);
@@ -84,12 +98,12 @@ export function SchedulePlans(props: {
                     ${s.amount} USDC · {sc ? sc.country : s.code}
                   </div>
                   <div className={`mt-0.5 truncate ${TYPED}`}>
-                    {s.frequency} · to {s.recipient || "recipient"} · next {fmtDate(s.nextDate)} (UTC)
+                    {s.frequency} · to {s.recipient || "recipient"} · {s.nextDate <= todayUtc() ? "due now" : `next ${fmtDate(s.nextDate)}`} (UTC)
                   </div>
                   {s.condition && (
                     <div className={`mt-0.5 truncate ${TYPED}`}>
                       only when USD to {s.condition.symbol} is at least {fmtRate(s.condition.minRate)}
-                      {serverMode ? " (Reflector oracle, checked each daily run)" : " (saved with the reminder; nothing checks it on this device)"}
+                      {serverMode ? " (Reflector oracle, checked before each reminder)" : " (saved with the reminder; nothing checks it on this device)"}
                     </div>
                   )}
                 </button>
@@ -103,40 +117,14 @@ export function SchedulePlans(props: {
                 </button>
               </div>
               {/* Links live outside the prefill button: an <a> inside a <button> is invalid markup. */}
-              {s.approval && (
-                <div className={`mt-1 truncate ${TYPED}`}>
-                  <Ext href={txExplorer(s.approval.hash)}>
-                    approved {s.approval.amount} USDC to relayer {short(s.approval.spender)} · tx {short(s.approval.hash)}
-                  </Ext>{" "}
-                  · expires at ledger {s.approval.expirationLedger.toLocaleString("en-US")}
-                </div>
-              )}
               {last && (
                 <div className={`mt-1 truncate ${TYPED}`}>
                   {last.skipped ? (
                     <span className="text-ink-2">last run held: {last.skipped}</span>
                   ) : last.depHash ? (
-                    <>
-                      {last.pullHash && (
-                        <>
-                          <Ext href={txExplorer(last.pullHash)}>pulled from your wallet {short(last.pullHash)}</Ext>
-                          {" · "}
-                        </>
-                      )}
-                      <Ext href={txExplorer(last.depHash)} className={last.regOk ? "" : "text-ink-2"}>
-                        last run: tx {short(last.depHash)} {last.regOk ? "registered" : "· registering"}
-                      </Ext>
-                    </>
+                    <Ext href={txExplorer(last.depHash)}>last run: you signed tx {short(last.depHash)}</Ext>
                   ) : (
-                    <span className="text-tape-deep">
-                      last run failed: {last.error || "unknown error"}
-                      {last.refundHash && (
-                        <>
-                          {" · "}
-                          <Ext href={txExplorer(last.refundHash)}>refunded {short(last.refundHash)}</Ext>
-                        </>
-                      )}
-                    </span>
+                    <span className="text-tape-deep">last run failed: {last.error || "unknown error"}</span>
                   )}
                 </div>
               )}
@@ -147,10 +135,19 @@ export function SchedulePlans(props: {
         })}
       </ul>
       <p className={`mt-3 border-t border-ink/25 pt-2 ${TYPED}`}>
-        {serverMode
-          ? "Runs daily on-chain: each due plan pulls its amount from your wallet under the USDC approval you signed, then its deposit and shielded-tree registration execute automatically. A short approval or balance holds the run; approve again from your wallet to resume. Handing the claim note to the recipient (the withdraw leg) stays the next step."
-          : "Reminders only. Tap a plan to pre-fill the form, then send it yourself. No money moves automatically."}
+        {SELF_SIGNED} Tap a plan to pre-fill the form{serverMode ? "; once your send lands, the plan is marked done and moves to its next date." : "."}
       </p>
+      {serverMode && token && (
+        <div className="mt-2">
+          {reminding === "on" ? (
+            <p className={TYPED}>Due-day reminders are on for this browser.</p>
+          ) : (
+            <Button variant="subtle" busy={reminding === "busy"} disabled={reminding === "busy"} onClick={turnOnReminders}>
+              Remind me on the due day
+            </Button>
+          )}
+        </div>
+      )}
     </Label>
   );
 }

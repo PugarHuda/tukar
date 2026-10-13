@@ -1,7 +1,7 @@
 // PUT /api/schedules/guard — set the AUTHENTICATED owner's spending guard, stored in the same
 // private owner file as the plans. Body: { daily?: number|null, monthly?: number|null } in USDC;
-// null or absent clears that cap. The cron enforces it before every automatic deposit
-// (lib/spending-guard.ts guardCheck over the owner's run receipts). Same bearer token as
+// null or absent clears that cap. The daily reminder cron holds a due plan's reminder while it would
+// break the guard (lib/spending-guard.ts guardCheck over the owner's run receipts). Same bearer token as
 // /api/schedules, so only the wallet that signed in can change its own guard.
 import { NextResponse } from "next/server";
 import { isConfigured, readOwnerFile, writeOwnerFile, CorruptScheduleFile } from "@/lib/schedules";

@@ -5,8 +5,8 @@
 //      TokenMessengerV2, with mintRecipient = destinationCaller = the Stellar CctpForwarder
 //      (bytes32), and the real Stellar recipient encoded in hookData.
 //   2. attest: server polls Circle Iris (/api/cctp/attest) until the attestation is ready.
-//   3. mint: server signs mint_and_forward on the forwarder (/api/cctp/mint), minting native
-//      USDC on Stellar and forwarding it to the recipient.
+//   3. mint: the user's connected Stellar wallet signs + sends mint_and_forward on the forwarder,
+//      minting native USDC on Stellar and forwarding it to the recipient. No server key signs.
 // The only thing the user must provide is a funded Base Sepolia wallet (test USDC from
 // faucet.circle.com + a little gas). No wallet -> we say so, we never fake a burn.
 // A sent burn is remembered in localStorage until the mint lands, so a closed tab or a slow
@@ -26,8 +26,11 @@ import {
   fetchBurnFees,
   minimumFeeBps,
   feeForAmount,
+  mintAndForward,
   type CctpBurnFee,
 } from "@/lib/cctp";
+import { useWallet } from "@/components/WalletProvider";
+import { walletSigner } from "@/lib/stellar";
 
 type Phase = "idle" | "burning" | "attesting" | "minting" | "done" | "error";
 const short = (s: string) => (s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s);
@@ -61,6 +64,9 @@ const fmtUsdc6 = (units: bigint) => (Number(units) / 1e6).toFixed(6).replace(/\.
 
 export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRecipient?: string; className?: string }) {
   const [open, setOpen] = useState(false);
+  // The mint is signed by the user's own Stellar wallet (installed in lib/stellar by WalletProvider).
+  const { kind } = useWallet();
+  const ownWallet = !!kind && kind !== "demo";
   const [hasWallet, setHasWallet] = useState<boolean | null>(null);
   const [amount, setAmount] = useState("1");
   const [recipient, setRecipient] = useState(stellarRecipient);
@@ -145,22 +151,17 @@ export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRec
       if (!alive.current) return;
       if (!attest) throw new Error("Attestation not ready yet. The burn is safe; use Resume pending transfer later to finish the mint.");
 
-      // Step 3: mint_and_forward on Stellar.
+      // Step 3: mint_and_forward on Stellar, signed by the user's own wallet. The forwarder verifies
+      // Circle's attestation on-chain, so bytes that are not Circle's simply fail to mint.
+      const wallet = ownWallet ? walletSigner() : null;
+      if (!wallet) throw new Error("Attestation ready. Connect your Stellar wallet (on Testnet) to sign the mint; the burn is safe, then use Resume pending transfer.");
       setPhase("minting");
-      setStatus("Minting native USDC on Stellar…");
-      // The server re-reads the attestation from Circle for this burn hash rather than trusting
-      // bytes from the browser, so it only ever signs a payload Circle itself issued.
-      const mintRes = await fetch("/api/cctp/mint", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ txHash: p.burnTx }),
-      }).then((x) => x.json());
+      setStatus("Confirm the Stellar mint in your wallet…");
+      const hash = await mintAndForward(attest.message, attest.attestation, wallet);
       if (!alive.current) return;
-      if (mintRes.status === "pending") throw new Error("Circle's attestation is not ready yet. The burn is safe; use Resume pending transfer to finish the mint.");
-      if (mintRes.error || !mintRes.txHash) throw new Error(mintRes.error || "Mint failed on Stellar.");
       writePending(null);
       setPending(null);
-      setMintTx(mintRes.txHash);
+      setMintTx(hash);
       setPhase("done");
       setStatus("Native USDC minted on Stellar and forwarded to the recipient.");
     } catch (e: any) {
@@ -289,7 +290,7 @@ export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRec
           <ol className={`mb-3 flex flex-col gap-1.5 ${TYPED} text-ink-2`}>
             <li>1 · Your wallet burns USDC on Base Sepolia (depositForBurnWithHook).</li>
             <li>2 · Circle attests the burn (Iris).</li>
-            <li>3 · The Stellar forwarder mints native USDC and forwards it to the recipient.</li>
+            <li>3 · Your Stellar wallet signs mint_and_forward; the forwarder mints native USDC to the recipient.</li>
           </ol>
 
           {hasWallet === false && (
@@ -297,6 +298,12 @@ export function CctpFund({ stellarRecipient = "", className = "" }: { stellarRec
               No EVM wallet detected. Install a wallet like <b>MetaMask</b> on <b>Base Sepolia</b>, then get test USDC from{" "}
               <Ext href="https://faucet.circle.com">faucet.circle.com</Ext>{" "}
               (and a little test ETH for gas) to sign the burn.
+            </p>
+          )}
+
+          {!ownWallet && (
+            <p className={`mb-3 ${NOTICE}`}>
+              The Stellar mint is signed by <b>your own Stellar wallet</b> (Testnet). Connect one before the attestation lands, or resume the transfer later.
             </p>
           )}
 

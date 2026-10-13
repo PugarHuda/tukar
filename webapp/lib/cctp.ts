@@ -1,7 +1,8 @@
 // Real Circle CCTP V2 inbound: burn USDC on Base Sepolia (EVM, domain 6) -> mint native USDC on
 // Stellar testnet (domain 27). Isomorphic module: the client (CctpFund) builds the EVM burn tx and
-// uses the encoding + constants below; the server routes (attest/mint) poll Circle Iris and sign
-// mint_and_forward. These are Circle's OWN contracts, separate from Tukar's 8 live contracts.
+// uses the encoding + constants below; the server route (attest) only polls Circle Iris and holds no
+// key. The Stellar mint_and_forward is built, signed and sent in the browser by the user's own
+// wallet. These are Circle's OWN contracts, separate from Tukar's 8 live contracts.
 //
 // Encodings verified against circlefin/stellar-cctp (examples/stellar-utils.ts, examples/stellar.ts):
 //   - contractStrkeyToBytes32  -> stellar-utils.ts contractStrkeyToBytes32
@@ -152,53 +153,8 @@ export function feeForAmount(amount: bigint, bps: number): bigint {
   return (amount * BigInt(bps) + 9999n) / 10000n;
 }
 
-// ---- Stellar mint_and_forward (server route calls this) ----
 const hexToScvBytes = (hex: string): Sdk.xdr.ScVal =>
   Sdk.xdr.ScVal.scvBytes(Buffer.from(hex.startsWith("0x") ? hex.slice(2) : hex, "hex"));
-
-function relayerKeypair(): Sdk.Keypair {
-  // Same fallback pattern as lib/relayer.ts: a funded testnet key so the mint works with no env.
-  return Sdk.Keypair.fromSecret(process.env.STELLAR_RELAYER_SECRET || process.env.RELAYER_SECRET || DEMO_SECRET);
-}
-
-/**
- * Sign + submit mint_and_forward(message, attestation) on the Stellar CctpForwarder. Any funded
- * Stellar account can relay this (the destinationCaller in the burn is the forwarder contract, not
- * this key). Mirrors circlefin/stellar-cctp submitSorobanTx. Returns the Stellar tx hash.
- */
-export async function mintAndForward(messageHex: string, attestationHex: string): Promise<string> {
-  const server = makeServer();
-  const kp = relayerKeypair();
-  const account = await server.getAccount(kp.publicKey());
-  const contract = new Sdk.Contract(CCTP.forwarder);
-
-  const tx = new Sdk.TransactionBuilder(account, { fee: "10000000", networkPassphrase: PASSPHRASE })
-    .addOperation(contract.call("mint_and_forward", hexToScvBytes(messageHex), hexToScvBytes(attestationHex)))
-    .setTimeout(120)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (Sdk.rpc.Api.isSimulationError(sim)) throw new Error(`simulation failed: ${sim.error}`);
-  const prepared = Sdk.rpc.assembleTransaction(tx, sim).build();
-  prepared.sign(kp);
-
-  const sent = await server.sendTransaction(prepared);
-  let status = sent.status as string;
-  const hash = sent.hash;
-  if (status === "ERROR") throw new Error(`send failed: ${JSON.stringify(sent.errorResult ?? "")}`);
-  for (let i = 0; i < 30 && (status === "PENDING" || status === "NOT_FOUND" || status === "TRY_AGAIN_LATER"); i++) {
-    await new Promise((r) => setTimeout(r, 1500));
-    try {
-      const g = await server.getTransaction(hash);
-      status = g.status as string;
-      if (status === "FAILED") throw new Error(`mint_and_forward failed on-chain (tx ${hash})`);
-    } catch (e) {
-      if (String(e).includes("failed on-chain")) throw e;
-    }
-  }
-  if (status !== "SUCCESS") throw new Error(`mint_and_forward not confirmed (status ${status}, tx ${hash})`);
-  return hash;
-}
 
 // ===========================================================================
 // OUTBOUND: burn USDC on Stellar testnet (domain 27) -> mint on Base Sepolia (domain 6).
@@ -294,6 +250,19 @@ async function submitSoroban(contractId: string, method: string, args: Sdk.xdr.S
   if ((sent.status as string) === "ERROR") throw new Error(`${method} send failed: ${JSON.stringify(sent.errorResult ?? "")}`);
   await waitForSoroban(server, sent.hash, method);
   return sent.hash;
+}
+
+/**
+ * Inbound finish: mint_and_forward(message, attestation) on the Stellar CctpForwarder, built, signed
+ * and sent by the USER's connected wallet (no server key, no demo fallback). Relaying is
+ * permissionless: the forwarder checks Circle's attestation on-chain and pays the recipient fixed
+ * inside the attested message, so the signer only pays the fee. Mirrors circlefin/stellar-cctp
+ * submitSorobanTx. Returns the Stellar tx hash.
+ */
+export async function mintAndForward(messageHex: string, attestationHex: string, wallet: StellarWallet): Promise<string> {
+  // A contract account (passkey, C...) cannot be a transaction source.
+  if (!Sdk.StrKey.isValidEd25519PublicKey(wallet.address)) throw new Error("Connect a Stellar account wallet (G…) to submit the mint; a contract wallet cannot pay the fee.");
+  return submitSoroban(CCTP.forwarder, "mint_and_forward", [hexToScvBytes(messageHex), hexToScvBytes(attestationHex)], wallet);
 }
 
 /**

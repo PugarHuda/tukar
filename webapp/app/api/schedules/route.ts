@@ -1,23 +1,21 @@
 // GET  /api/schedules — list the AUTHENTICATED owner's recurring plans and spending guard.
 //                        Requires a valid bearer token (sign-in-with-wallet, see
 //                        /api/schedules/nonce). 401 otherwise.
-// POST /api/schedules — append a plan for the authenticated owner. Body: { amount, code, recipient,
-//                       frequency, condition?, approval? }. `approval` = { hash, expirationLedger }
-//                       of the USDC SAC approve(owner -> relayer) the owner's wallet just signed;
-//                       the server re-reads that allowance on-chain and refuses the plan unless it
-//                       covers at least one run, so every scheduled deposit spends the owner's USDC. `condition` = { symbol, minRate } ("send only when
-//                       USD to <symbol> is at least minRate") and is accepted only for corridors
-//                       whose rate comes from the Reflector on-chain oracle: an HTTP-fallback
-//                       corridor has no feed the cron could check, so it is refused, not ignored.
-//                       The server owns id + nextDate + history and derives `owner` from the token
-//                       (never the body), so a caller can only touch its own plans.
+// POST /api/schedules — two shapes, both for the authenticated owner only:
+//   { amount, code, recipient, frequency, condition? } -> store a plan. `condition` = { symbol,
+//     minRate } ("remind only when USD to <symbol> is at least minRate"), accepted only for corridors
+//     whose rate comes from the Reflector on-chain oracle (an HTTP-fallback corridor has no feed the
+//     cron could check, so it is refused, not ignored).
+//   { id, txHash } -> mark the plan's due run done. The server reads txHash from the network and
+//     records it only if it is a successful POOL.deposit, sourced from the owner's own wallet, of
+//     exactly the plan amount, made in this run's window and never recorded before; then the plan
+//     advances to its next date.
+// The server owns id + nextDate + history and derives `owner` from the token (never the body).
 //
-// SECURITY: production auth. Every fund-moving plan is scoped to the wallet that signed in; the
-// store is private (server-only reads). Caps below (amount + plan-count) are enforced per owner.
-// The cron is the privileged executor and fails closed on CRON_SECRET.
+// SECURITY: Tukar holds no key that can move the owner's money. A plan is a reminder: the daily cron
+// pushes "your send is due" and the owner's wallet signs the deposit in the normal send flow.
 import { NextResponse } from "next/server";
-import { isConfigured, readOwnerFile, writeOwnerFile, computeNextDate, CorruptScheduleFile, type StoredSchedule, type Frequency, type Approval } from "@/lib/schedules";
-import { relayerAddress, readAllowance, relayerConfigured, RELAYER_NOT_CONFIGURED } from "@/lib/relayer";
+import { isConfigured, readOwnerFile, writeOwnerFile, computeNextDate, verifyPlanDeposit, runWindowStart, CorruptScheduleFile, type StoredSchedule, type Frequency } from "@/lib/schedules";
 import { usdcToStroops } from "@/lib/zk";
 import { CORRIDORS } from "@/components/receiver/corridors";
 import { authOwner } from "@/lib/auth";
@@ -26,7 +24,7 @@ import { log, requestId, errMsg } from "@/lib/log";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MAX_AMOUNT_USDC = 100; // per-plan cap: bounds how much the relayer can be made to deposit
+const MAX_AMOUNT_USDC = 100; // per-plan cap for the demo
 const MAX_ACTIVE_PLANS = 25; // per-owner cap so one owner can't flood the store
 
 const unauthorized = () => NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -50,14 +48,13 @@ export async function POST(req: Request) {
   const owner = authOwner(req);
   if (!owner) return unauthorized();
   if (!isConfigured()) return NextResponse.json({ configured: false });
-  // A plan grants the relayer an allowance; without a PRIVATE relayer key there is no safe spender.
-  if (!relayerConfigured()) return NextResponse.json({ error: RELAYER_NOT_CONFIGURED }, { status: 503 });
   let body: any;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "expected a JSON body" }, { status: 400 });
   }
+  if (body?.txHash != null) return markDone(req, owner, body);
   const amount = String(body?.amount ?? "").trim();
   const code = String(body?.code ?? "").trim();
   const recipient = String(body?.recipient ?? "").trim();
@@ -77,19 +74,6 @@ export async function POST(req: Request) {
     if (!Number.isFinite(minRate) || minRate <= 0 || minRate > 1e7) return NextResponse.json({ error: "invalid minimum rate" }, { status: 400 });
     condition = { symbol: oracle, minRate };
   }
-  // The owner's allowance to the relayer, read live. The relayer key scheduling for itself spends its
-  // own USDC, so it needs none.
-  let approval: Approval | undefined;
-  const spender = relayerAddress();
-  if (owner !== spender) {
-    const hash = String(body?.approval?.hash ?? "");
-    const expirationLedger = Number(body?.approval?.expirationLedger);
-    if (!/^[0-9a-f]{64}$/.test(hash) || !Number.isInteger(expirationLedger)) return NextResponse.json({ error: "approve USDC to the relayer from your wallet first" }, { status: 400 });
-    const allowance = await readAllowance(owner);
-    if (allowance == null) return NextResponse.json({ error: "could not read your USDC allowance on-chain; try again" }, { status: 503 });
-    if (allowance < usdcToStroops(amount)) return NextResponse.json({ error: `your USDC allowance to the relayer (${(Number(allowance) / 1e7).toFixed(2)}) does not cover one ${amount} USDC run` }, { status: 400 });
-    approval = { hash, spender, amount: (Number(allowance) / 1e7).toFixed(7).replace(/\.?0+$/, ""), expirationLedger };
-  }
   const plan: StoredSchedule = {
     id: globalThis.crypto?.randomUUID?.() ?? String(Date.now()),
     amount,
@@ -99,7 +83,6 @@ export async function POST(req: Request) {
     nextDate: computeNextDate(frequency),
     history: [],
     ...(condition ? { condition } : {}),
-    ...(approval ? { approval } : {}),
   };
   try {
     const file = await readOwnerFile(owner);
@@ -111,5 +94,37 @@ export async function POST(req: Request) {
     // readOwnerFile threw on a corrupt file, so the write above never ran: nothing was overwritten.
     if (e instanceof CorruptScheduleFile) return NextResponse.json({ error: "Your stored schedules are unreadable; the new plan was not saved.", corrupt: true }, { status: 500 });
     return NextResponse.json({ error: "Could not save the schedule." }, { status: 500 });
+  }
+}
+
+// Mark a due run done with the deposit the owner's own wallet signed. Verified on-chain before it is
+// recorded: a hash from another wallet, of another amount, of another call, from an earlier run, or
+// already used for any plan is refused.
+async function markDone(req: Request, owner: string, body: any) {
+  const id = String(body?.id ?? "");
+  const txHash = String(body?.txHash ?? "").toLowerCase();
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(id)) return NextResponse.json({ error: "invalid plan id" }, { status: 400 });
+  if (!/^[0-9a-f]{64}$/.test(txHash)) return NextResponse.json({ error: "invalid transaction hash" }, { status: 400 });
+  const used = (plans: StoredSchedule[]) => plans.some((p) => p.history.some((r) => r.depHash === txHash));
+  try {
+    const file = await readOwnerFile(owner);
+    const plan = file.plans.find((p) => p.id === id);
+    if (!plan) return NextResponse.json({ error: "plan not found" }, { status: 404 });
+    if (used(file.plans)) return NextResponse.json({ error: "this transaction is already recorded for a plan" }, { status: 409 });
+    const why = await verifyPlanDeposit(txHash, owner, usdcToStroops(plan.amount), runWindowStart(plan));
+    if (why) return NextResponse.json({ error: why }, { status: 400 });
+    // Re-read after the network round-trip so a concurrent write is not clobbered, then record.
+    const fresh = await readOwnerFile(owner);
+    const p = fresh.plans.find((x) => x.id === id);
+    if (!p) return NextResponse.json({ error: "plan not found" }, { status: 404 });
+    if (used(fresh.plans)) return NextResponse.json({ error: "this transaction is already recorded for a plan" }, { status: 409 });
+    p.history = [{ at: new Date().toISOString(), depHash: txHash }, ...p.history].slice(0, 20);
+    p.nextDate = computeNextDate(p.frequency);
+    await writeOwnerFile(owner, fresh);
+    return NextResponse.json({ configured: true, schedule: p });
+  } catch (e) {
+    log.error("mark done failed", { route: "schedules", reqId: requestId(req), err: errMsg(e) });
+    if (e instanceof CorruptScheduleFile) return NextResponse.json({ error: "Your stored schedules are unreadable; nothing was recorded.", corrupt: true }, { status: 500 });
+    return NextResponse.json({ error: "Could not record the run." }, { status: 500 });
   }
 }

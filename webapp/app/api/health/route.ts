@@ -8,10 +8,14 @@ import { rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { idosConfigured } from "@/lib/idos/consumer.server";
 import { isAuthConfigured } from "@/lib/auth";
 import { backend as schedulesBackend, STORAGE_ENV_HINT } from "@/lib/schedules";
-import { relayerConfigured } from "@/lib/relayer";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// Env names that used to hold server-side keys signing fund-moving txs (CCTP mint relayer, recurring
+// relayer, fee sponsor). No code reads them any more (route.test.ts greps app/ and lib/ to keep that
+// true), so the server holds no fund key; if one is still set, name it so the operator deletes it.
+const RETIRED_FUND_KEYS = ["RELAYER_SECRET", "STELLAR_RELAYER_SECRET", "SPONSOR_SECRET"] as const;
 
 // One cheap, safe liveness probe: Soroban RPC getHealth over the same URL the app already uses.
 // Short timeout so a hung RPC cannot hang /api/health; any failure degrades to "unreachable".
@@ -64,10 +68,6 @@ export async function GET(req: Request) {
     webPush: Boolean(env.WEB_PUSH_PRIVATE_KEY && env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY) && redisEnv,
     schedulesStore: store !== null,
     schedules: store !== null && auth,
-    // Same test the scheduler routes gate on: a private key set, and not the published demo key.
-    relayer: relayerConfigured(),
-    // false = the CCTP relayer (lib/cctp.ts) signs with the PUBLIC demo key.
-    cctpRelayer: Boolean(env.STELLAR_RELAYER_SECRET || env.RELAYER_SECRET),
     trisa: Boolean(trisaUrl),
     notabene: Boolean(env.NOTABENE_API_KEY),
     idos: idosConfigured,
@@ -81,8 +81,6 @@ export async function GET(req: Request) {
     webPush: ["WEB_PUSH_PRIVATE_KEY", "NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY", ...(redisEnv ? [] : ["KV_REST_API_URL + KV_REST_API_TOKEN"])],
     schedulesStore: [STORAGE_ENV_HINT],
     schedules: [...(store ? [] : [STORAGE_ENV_HINT]), ...(auth ? [] : ["AUTH_SECRET (16+ chars)"])],
-    relayer: ["RELAYER_SECRET"],
-    cctpRelayer: ["STELLAR_RELAYER_SECRET or RELAYER_SECRET"],
     trisa: ["TRISA_NODE_URL"],
     notabene: ["NOTABENE_API_KEY"],
     idos: ["IDOS_CONSUMER_SIGNER", "IDOS_RECIPIENT_ENC_PRIVATE_KEY"],
@@ -104,5 +102,8 @@ export async function GET(req: Request) {
       ...(trisaNode ? { trisaNode } : {}),
     },
     missing,
+    // Instawards #26: no server-side key signs a tx that moves or mints user funds.
+    serverHoldsFundKeys: false,
+    unusedSecrets: RETIRED_FUND_KEYS.filter((k) => Boolean(env[k])),
   });
 }

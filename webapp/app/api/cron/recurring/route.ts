@@ -1,33 +1,25 @@
-// GET /api/cron/recurring — the real scheduler. Vercel Cron hits this daily (vercel.json) with
-// Authorization: Bearer $CRON_SECRET. For each DUE plan it pulls the plan amount from the OWNER's
-// wallet (USDC SAC transfer_from under the allowance the owner signed when scheduling), mints a
-// fresh note, then executes the on-chain deposit + shielded-tree registration via the server relayer.
-// An allowance or balance short of the plan amount HOLDS the plan; the relayer's own USDC is never
-// spent on someone's plan. It deposits for at most ONE
-// plan per run to stay well under maxDuration (proving + two signed txs); plans it HOLDS (rate
-// condition not met, oracle unreadable, owner's spending guard) cost one oracle read each and do
-// not use up the run, so a waiting conditional plan never starves the others.
+// GET /api/cron/recurring — the daily reminder sweep. Vercel Cron hits this daily (vercel.json) with
+// Authorization: Bearer $CRON_SECRET. It finds every DUE plan and sends a Web Push reminder to the
+// plan owner's subscribed browsers; the notification opens /sender#plan=<id>, where the owner's own
+// wallet signs the deposit in the normal send flow and the client marks the run done
+// (POST /api/schedules { id, txHash }, verified on-chain).
 //
-// HONEST SCOPE: this automates the deposit + tree registration (the money moves and the note
-// becomes spendable on-chain, automatically). It does NOT auto-deliver the claim note to the
-// recipient or auto-withdraw — that transfer+withdraw leg stays a labeled manual step.
+// It moves no money and holds no key that could: no allowance, no transfer_from, no server deposit.
+// A due plan whose rate condition is not met (or whose oracle is unreadable), or that would break the
+// owner's spending guard, is HELD: no reminder, a skip receipt, re-checked the next day. A plan stays
+// due (and is reminded daily) until the owner settles it.
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
-import { isConfigured, readOwnerFile, writeOwnerFile, listAllOwners, computeNextDate, spendsFromPlans, type OwnerFile, type RunReceipt, type StoredSchedule } from "@/lib/schedules";
+import { isConfigured, readOwnerFile, writeOwnerFile, listAllOwners, spendsFromPlans, type OwnerFile, type StoredSchedule, type RunReceipt } from "@/lib/schedules";
 import { guardCheck, spentInWindows } from "@/lib/spending-guard";
 import { readReflectorFx } from "@/lib/soroban/oracle";
-import { relayerDeposit, relayerRegister, relayerAddress, relayerConfigured, RELAYER_NOT_CONFIGURED, readAllowance, readUsdcBalance, pullFromOwner, refundOwner } from "@/lib/relayer";
-import { newNote, usdcToStroops, encodeBearerNote } from "@/lib/zk";
-import { withLock } from "@/lib/lock";
+import { sendPush, type PushSub } from "@/lib/push";
 import { log, requestId, errMsg } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-// Lock TTL sits above maxDuration so a runner that dies mid-deposit still holds the lock until well
-// after Vercel would have killed it, then it auto-expires for a later run. (maxDuration is seconds.)
-const LOCK_TTL_MS = 90_000;
 
 // Constant-time bearer check that also fails closed on a missing/short secret. Comparing raw
 // strings would let `Bearer undefined` through when CRON_SECRET is unset, and would leak length.
@@ -43,9 +35,7 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  // Sentry cron check-in around the authorised run (no-op with no DSN): a missed 09:00 UTC run, a
-  // thrown run, or one that outlives maxDuration shows up as a monitor issue. Schedule mirrors
-  // vercel.json; maxRuntime/checkinMargin are minutes.
+  // Sentry cron check-in around the authorised run (no-op with no DSN). Schedule mirrors vercel.json.
   return Sentry.withMonitor("recurring-deposit", () => run(req), {
     schedule: { type: "crontab", value: "0 9 * * *" },
     maxRuntime: 2,
@@ -53,12 +43,9 @@ export async function GET(req: Request) {
   });
 }
 
-/**
- * Why this due plan must NOT deposit right now, or null when it may. Reads the live oracle for a
- * rate condition (fail-closed: an unreadable feed holds the plan rather than sending blind) and
- * applies the owner's spending guard over what the scheduler has already deposited for them.
- */
-async function holdReason(owner: string, plan: StoredSchedule, file: OwnerFile): Promise<{ reason: string; observedRate?: number } | null> {
+/** Why this due plan's reminder is held today, or null when it should go out. Fail-closed on an
+ *  unreadable oracle: no "send now" nudge on a rate nobody could check. */
+async function holdReason(plan: StoredSchedule, file: OwnerFile): Promise<{ reason: string; observedRate?: number } | null> {
   if (plan.condition) {
     const { symbol, minRate } = plan.condition;
     const fx = await readReflectorFx(symbol);
@@ -67,126 +54,18 @@ async function holdReason(owner: string, plan: StoredSchedule, file: OwnerFile):
   }
   const v = guardCheck(file.guard, spentInWindows(spendsFromPlans(file.plans)), Number(plan.amount));
   if (!v.ok) return { reason: `held by your spending guard: ${v.reason}` };
-  return fundsShort(owner, plan);
-}
-
-const usdc = (stroops: bigint) => (Number(stroops) / 1e7).toFixed(2);
-
-// The owner's USDC must be there and approved to the relayer before anything is claimed. Read-only
-// (two simulations); a SAC read that fails holds the plan rather than guessing. The relayer key
-// scheduling for itself (owner === relayer) spends its own USDC, so there is nothing to pull.
-async function fundsShort(owner: string, plan: StoredSchedule): Promise<{ reason: string } | null> {
-  if (owner === relayerAddress()) return null;
-  const need = usdcToStroops(plan.amount);
-  const [allowance, balance] = await Promise.all([readAllowance(owner), readUsdcBalance(owner)]);
-  if (allowance == null || balance == null) return { reason: "could not read your USDC allowance or balance on-chain, so nothing was pulled" };
-  if (allowance < need) {
-    const exp = plan.approval ? ` (approved through ledger ${plan.approval.expirationLedger})` : "";
-    return { reason: `allowance short: ${usdc(allowance)} USDC approved to the relayer${exp}, this run needs ${plan.amount}. Approve again from your wallet to resume.` };
-  }
-  if (balance < need) return { reason: `balance short: your wallet holds ${usdc(balance)} USDC, this run needs ${plan.amount}` };
   return null;
 }
 
-type PlanOutcome = { skipped: string; held?: true } | { depHash?: string; depositOk: boolean; regOk: boolean; error?: string };
-
-// Inside the plan's lock: re-read, hold-check, CLAIM (advance nextDate), then move money.
-async function runPlan(req: Request, owner: string, target: StoredSchedule, today: string): Promise<PlanOutcome> {
-  const runAt = new Date().toISOString();
-  // Re-read inside the lock and act on THAT copy: the sweep's read is stale by now, and writing
-  // it back would silently drop a plan the owner added or removed in between. Skip if the plan
-  // vanished or was already advanced by another run.
-  const file = await readOwnerFile(owner);
-  const plan = file.plans.find((x) => x.id === target.id);
-  if (!plan) return { skipped: "plan removed before the run" };
-  if (plan.nextDate > today) return { skipped: "plan already advanced" };
-
-  // Hold checks first, before the claim: a held plan keeps its nextDate (still due) and gets a
-  // skip receipt with the observed rate, so the owner sees why nothing moved and the next daily
-  // run re-checks it. No money moves on this path.
-  const hold = await holdReason(owner, plan, file);
-  if (hold) {
-    plan.history = [{ at: runAt, skipped: hold.reason, observedRate: hold.observedRate }, ...plan.history].slice(0, 20);
-    await writeOwnerFile(owner, file);
-    return { skipped: hold.reason, held: true };
-  }
-
-  plan.nextDate = computeNextDate(plan.frequency);
-  await writeOwnerFile(owner, file); // claim: the plan is no longer due for any concurrent run
-
-  // Pull the owner's USDC to the relayer first. A failed pull ends the run here: no deposit, so the
-  // relayer's own USDC is never spent. Then mint a fresh note, deposit + register on-chain.
-  const stroops = usdcToStroops(plan.amount);
-  let pullHash: string | undefined;
-  if (owner !== relayerAddress()) {
-    const pull = await pullFromOwner(owner, stroops);
-    if (!pull.ok) {
-      await appendReceipt(req, owner, target.id, { at: runAt, error: `could not pull ${plan.amount} USDC from your wallet: ${pull.error}` });
-      return { depositOk: false, regOk: false, error: pull.error };
-    }
-    pullHash = pull.hash;
-  }
-  const note = await newNote(stroops);
-  const dep = await relayerDeposit(note);
-  // The deposit failed after the pull: hand the owner's USDC straight back.
-  let refundHash: string | undefined;
-  let refundError: string | undefined;
-  if (!dep.ok && pullHash !== undefined) {
-    const back = await refundOwner(owner, stroops);
-    if (back.ok) refundHash = back.hash;
-    else refundError = `; refund of ${plan.amount} USDC also failed (${back.error}), the relayer holds it`;
-  }
-  let regOk = false;
-  let regError: string | undefined;
-  if (dep.ok) {
-    const reg = await relayerRegister(note);
-    regOk = reg.ok;
-    regError = reg.error;
-  }
-
-  // Record the result. Re-read this owner's file so a concurrent write to a different plan in the
-  // same file is not clobbered; update only our target's history. The bearer note (the ONLY
-  // spending key for the deposit just made) goes into the owner-private receipt, else the USDC
-  // the relayer just locked in the pool would be unspendable forever.
-  const receipt: RunReceipt = {
-    at: runAt,
-    depHash: dep.hash,
-    regOk,
-    error: dep.ok ? regError : `${dep.error}${refundError ?? ""}`, // deposit error, else the (optional) register error
-    note: dep.ok ? encodeBearerNote({ ...note, ref: "SCHEDULED", corridor: plan.code }) : undefined,
-    pullHash,
-    refundHash,
-  };
-  await appendReceipt(req, owner, target.id, receipt);
-  return { depHash: dep.hash, depositOk: dep.ok, regOk, error: receipt.error };
-}
-
-// Re-read this owner's file so a concurrent write to a different plan in the same file is not
-// clobbered; update only the target's history. Logged, never thrown: money may already have moved.
-async function appendReceipt(req: Request, owner: string, id: string, receipt: RunReceipt): Promise<void> {
-  try {
-    const fresh = await readOwnerFile(owner);
-    const p = fresh.plans.find((x) => x.id === id);
-    if (p) {
-      p.history = [receipt, ...p.history].slice(0, 20);
-      await writeOwnerFile(owner, fresh);
-    }
-  } catch (e) {
-    log.error("result write-back failed (on-chain effects already happened)", { route: "cron/recurring", reqId: requestId(req), owner, id, err: errMsg(e) });
-  }
-}
+const vapidConfigured = () => !!(process.env.WEB_PUSH_PRIVATE_KEY && process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY);
 
 async function run(req: Request) {
   if (!isConfigured()) return NextResponse.json({ configured: false });
-  // Pulls go through owner allowances to the relayer: only ever with a private relayer key.
-  if (!relayerConfigured()) return NextResponse.json({ configured: false, error: RELAYER_NOT_CONFIGURED }, { status: 503 });
-
-  // Sweep every owner's private schedule file and collect the plans due today across all of them.
-  // ponytail: reads each owner file per run (fine for a demo's handful of owners); add an index
-  // if owner count grows. We still deposit for ONE plan per run to stay under maxDuration.
   const owners = await listAllOwners();
   const today = new Date().toISOString().slice(0, 10);
-  const due: { owner: string; plan: StoredSchedule }[] = [];
+  const tally = { owners: owners.length, due: 0, reminded: 0, held: 0, noSubscription: 0, failed: 0 };
+  const push = vapidConfigured();
+  // ponytail: reads each owner file per run, fine for a demo's handful of owners; index if it grows.
   for (const owner of owners) {
     // A corrupt file throws (readOwnerFile never treats it as empty); skip that owner, not the run.
     let file: OwnerFile;
@@ -196,38 +75,56 @@ async function run(req: Request) {
       log.error("skipping owner: unreadable schedule file", { route: "cron/recurring", owner, err: errMsg(e) });
       continue;
     }
-    for (const plan of file.plans) if (plan.nextDate <= today) due.push({ owner, plan });
-  }
-  if (due.length === 0) return NextResponse.json({ configured: true, processed: 0, due: 0, owners: owners.length });
-
-  // Oldest due first, so nothing starves across owners.
-  due.sort((a, b) => a.plan.nextDate.localeCompare(b.plan.nextDate));
-
-  // DISTRIBUTED LOCK, then CLAIM FIRST, then move money. Two layers against a double deposit:
-  //   1. An Upstash Redis SET NX lock keyed by this plan for today. When Redis is configured this is
-  //      atomic and cluster-wide: a concurrent run or a Vercel retry that hits the same plan cannot
-  //      acquire it and SKIPs without depositing. This makes a double deposit impossible.
-  //   2. Inside the lock, the claim-first advance (persist nextDate BEFORE depositing) stays as a
-  //      second layer, and is the ONLY protection when Redis is not configured (withLock then runs
-  //      the body unguarded — see lib/lock.ts). A failed deposit is recorded in history and rolls
-  //      to the next cycle rather than being retried same-day.
-  // Held or skipped plans move on to the next due plan; the first plan that actually runs a
-  // deposit ends the run.
-  const skipped: { id: string; reason: string }[] = [];
-  for (let i = 0; i < due.length; i++) {
-    const { owner, plan: target } = due[i];
-    const outcome = await withLock(`recurring:${owner}:${target.id}:${today}`, LOCK_TTL_MS, () => runPlan(req, owner, target, today));
-    // Lock already held: a concurrent run / retry is processing this exact plan. Move on without
-    // moving money rather than risk a second deposit.
-    if (!outcome.ran) {
-      skipped.push({ id: target.id, reason: outcome.reason });
-      continue;
+    const held = new Map<string, RunReceipt>();
+    const dead = new Set<string>();
+    for (const plan of file.plans) {
+      if (plan.nextDate > today) continue;
+      tally.due++;
+      const hold = await holdReason(plan, file);
+      if (hold) {
+        tally.held++;
+        held.set(plan.id, { at: new Date().toISOString(), skipped: hold.reason, observedRate: hold.observedRate });
+        continue;
+      }
+      const subs = (file.subs ?? []).filter((s) => !dead.has(s.endpoint));
+      if (!push || subs.length === 0) {
+        tally.noSubscription++; // the owner sees the due banner when they open /sender
+        continue;
+      }
+      const payload = JSON.stringify({
+        title: "Your scheduled send is due",
+        body: `${plan.amount} USDC to ${plan.recipient || plan.code}. Open Tukar and sign it from your wallet.`,
+        url: `/sender#plan=${encodeURIComponent(plan.id)}`,
+        kind: "plan",
+      });
+      let sent = false;
+      for (const sub of subs) {
+        try {
+          await sendPush(sub as PushSub, payload);
+          sent = true;
+        } catch (e: any) {
+          // 404/410: the browser unsubscribed, drop it. Anything else: keep it for tomorrow.
+          if (e?.statusCode === 404 || e?.statusCode === 410) dead.add(sub.endpoint);
+          else log.warn("reminder push failed", { route: "cron/recurring", reqId: requestId(req), status: e?.statusCode, err: errMsg(e) });
+        }
+      }
+      if (sent) tally.reminded++;
+      else tally.failed++;
     }
-    if ("skipped" in outcome.result) {
-      skipped.push({ id: target.id, reason: outcome.result.skipped });
-      continue;
+    if (held.size || dead.size) {
+      // Re-read so an owner write since the sweep read (a new plan, a mark-done) is not clobbered.
+      try {
+        const fresh = await readOwnerFile(owner);
+        for (const p of fresh.plans) {
+          const r = held.get(p.id);
+          if (r) p.history = [r, ...p.history].slice(0, 20);
+        }
+        if (fresh.subs) fresh.subs = fresh.subs.filter((x) => !dead.has(x.endpoint));
+        await writeOwnerFile(owner, fresh);
+      } catch (e) {
+        log.error("reminder receipt write failed", { route: "cron/recurring", reqId: requestId(req), owner, err: errMsg(e) });
+      }
     }
-    return NextResponse.json({ configured: true, processed: 1, pending: due.length - i - 1, id: target.id, ...outcome.result, skipped });
   }
-  return NextResponse.json({ configured: true, processed: 0, due: due.length, pending: 0, skipped });
+  return NextResponse.json({ configured: true, ...tally });
 }

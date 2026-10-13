@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// A scheduled run must spend the OWNER's USDC (pulled under the allowance they signed), never the
-// relayer's. Store, relayer, oracle, prover and lock are mocked at their module boundary; the
-// route's own decision logic runs for real.
+// The cron only REMINDS: for each due plan it pushes "your send is due" to the owner's subscribed
+// browsers. It never pulls, deposits or signs anything. Store, oracle and push transport are mocked
+// at their module boundary; the route's own decision logic runs for real.
 const OWNER = "G" + "A".repeat(55);
-const RELAYER = "G" + "R".repeat(55);
 const file = vi.hoisted(() => ({ current: null as any }));
+const pushed = vi.hoisted(() => ({ send: vi.fn() }));
 
 vi.mock("@sentry/nextjs", () => ({ withMonitor: (_: string, fn: () => unknown) => fn() }));
-vi.mock("@/lib/lock", () => ({ withLock: async (_k: string, _t: number, fn: () => Promise<unknown>) => ({ ran: true, result: await fn() }) }));
 vi.mock("@/lib/soroban/oracle", () => ({ readReflectorFx: vi.fn() }));
+vi.mock("@/lib/push", () => ({ sendPush: pushed.send }));
 vi.mock("@/lib/schedules", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/schedules")>();
   return {
@@ -22,24 +22,9 @@ vi.mock("@/lib/schedules", async (importOriginal) => {
     }),
   };
 });
-vi.mock("@/lib/zk", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/zk")>();
-  return { ...actual, newNote: vi.fn(async (amount: bigint) => ({ commitment: "1", amount: amount.toString(), pubKey: "2", blinding: "3", privKey: "4" })), encodeBearerNote: () => "tukar1:note" };
-});
-vi.mock("@/lib/relayer", () => ({
-  RELAYER_NOT_CONFIGURED: "scheduler relayer key not configured (RELAYER_SECRET)",
-  relayerConfigured: vi.fn(() => true),
-  relayerAddress: () => RELAYER,
-  readAllowance: vi.fn(),
-  readUsdcBalance: vi.fn(),
-  pullFromOwner: vi.fn(),
-  refundOwner: vi.fn(),
-  relayerDeposit: vi.fn(),
-  relayerRegister: vi.fn(),
-}));
 
 import { GET } from "./route";
-import * as relayer from "@/lib/relayer";
+import { readReflectorFx } from "@/lib/soroban/oracle";
 
 const SECRET = "cron-secret-0123456789";
 const call = async () => {
@@ -48,72 +33,57 @@ const call = async () => {
 };
 const today = new Date().toISOString().slice(0, 10);
 const plan = (extra: object = {}) => ({ id: "p1", amount: "10", code: "MX", recipient: "Ana", frequency: "weekly", nextDate: today, history: [], ...extra });
+const SUB = { endpoint: "https://push.example/a", keys: { p256dh: "p", auth: "a" } };
 
 beforeEach(() => {
   process.env.CRON_SECRET = SECRET;
-  vi.mocked(relayer.relayerConfigured).mockReturnValue(true);
-  for (const f of ["readAllowance", "readUsdcBalance", "pullFromOwner", "refundOwner", "relayerDeposit", "relayerRegister"] as const) vi.mocked(relayer[f]).mockReset();
-  file.current = { plans: [plan({ approval: { hash: "ab".repeat(32), spender: RELAYER, amount: "40", expirationLedger: 999 } })], guard: {} };
+  process.env.WEB_PUSH_PRIVATE_KEY = "priv";
+  process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY = "pub";
+  pushed.send.mockReset().mockResolvedValue(undefined);
+  vi.mocked(readReflectorFx).mockReset();
+  file.current = { plans: [plan(), plan({ id: "later", nextDate: "2999-01-01" })], guard: {}, subs: [SUB] };
 });
 
-describe("GET /api/cron/recurring", () => {
-  it("holds the plan and moves no money when the allowance is short", async () => {
-    vi.mocked(relayer.readAllowance).mockResolvedValue(5n * 10_000_000n); // 5 USDC left, run needs 10
-    vi.mocked(relayer.readUsdcBalance).mockResolvedValue(100n * 10_000_000n);
+describe("GET /api/cron/recurring (reminders only)", () => {
+  it("rejects a missing or wrong bearer", async () => {
+    const res = await GET(new Request("https://x/api/cron/recurring", { headers: { authorization: "Bearer nope" } }));
+    expect(res.status).toBe(401);
+  });
+
+  it("pushes a reminder for the due plan that opens /sender with the plan prefilled, and moves nothing", async () => {
     const r = await call();
     expect(r.status).toBe(200);
-    expect(r.body.processed).toBe(0);
-    expect(relayer.pullFromOwner).not.toHaveBeenCalled();
-    expect(relayer.relayerDeposit).not.toHaveBeenCalled();
-    const p = file.current.plans[0];
-    expect(p.nextDate).toBe(today); // still due, re-checked tomorrow
-    expect(p.history[0].skipped).toMatch(/allowance short: 5\.00 USDC approved .*ledger 999.*needs 10/);
+    expect(r.body).toMatchObject({ configured: true, due: 1, reminded: 1, held: 0 });
+    expect(pushed.send).toHaveBeenCalledTimes(1);
+    const [sub, payload] = pushed.send.mock.calls[0];
+    expect(sub).toEqual(SUB);
+    expect(JSON.parse(payload)).toMatchObject({ url: "/sender#plan=p1", kind: "plan", title: "Your scheduled send is due" });
+    // The plan stays due until the owner signs the send and marks it done; no receipt is invented.
+    expect(file.current.plans[0]).toMatchObject({ nextDate: today, history: [] });
   });
 
-  it("holds when the owner's balance is short", async () => {
-    vi.mocked(relayer.readAllowance).mockResolvedValue(40n * 10_000_000n);
-    vi.mocked(relayer.readUsdcBalance).mockResolvedValue(1n);
-    await call();
-    expect(relayer.pullFromOwner).not.toHaveBeenCalled();
-    expect(file.current.plans[0].history[0].skipped).toMatch(/balance short/);
+  it("has no money-moving dependency at all", async () => {
+    const src = await import("node:fs").then((fs) => fs.readFileSync(new URL("./route.ts", import.meta.url), "utf8"));
+    expect(src).not.toMatch(/@\/lib\/relayer|Keypair|RELAYER_SECRET|signTransaction|sendTx/);
   });
 
-  it("pulls the owner's USDC before depositing, and records the pull", async () => {
-    vi.mocked(relayer.readAllowance).mockResolvedValue(40n * 10_000_000n);
-    vi.mocked(relayer.readUsdcBalance).mockResolvedValue(40n * 10_000_000n);
-    vi.mocked(relayer.pullFromOwner).mockResolvedValue({ ok: true, hash: "pull" });
-    vi.mocked(relayer.relayerDeposit).mockResolvedValue({ ok: true, hash: "dep" });
-    vi.mocked(relayer.relayerRegister).mockResolvedValue({ ok: true });
+  it("holds the reminder (skip receipt, still due) while the rate condition is not met", async () => {
+    file.current.plans[0] = plan({ condition: { symbol: "MXN", minRate: 20 } });
+    vi.mocked(readReflectorFx).mockResolvedValue({ rate: 18.5 } as any);
     const r = await call();
-    expect(r.body).toMatchObject({ processed: 1, depositOk: true });
-    expect(relayer.pullFromOwner).toHaveBeenCalledWith(OWNER, 100_000_000n);
-    expect(vi.mocked(relayer.pullFromOwner).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(relayer.relayerDeposit).mock.invocationCallOrder[0]);
-    expect(file.current.plans[0].history[0]).toMatchObject({ pullHash: "pull", depHash: "dep", regOk: true });
+    expect(r.body).toMatchObject({ due: 1, reminded: 0, held: 1 });
+    expect(pushed.send).not.toHaveBeenCalled();
+    expect(file.current.plans[0].history[0]).toMatchObject({ skipped: expect.stringMatching(/rate below minimum/), observedRate: 18.5 });
+    expect(file.current.plans[0].nextDate).toBe(today);
   });
 
-  it("does not deposit when the pull fails, and refunds when the deposit fails after a pull", async () => {
-    vi.mocked(relayer.readAllowance).mockResolvedValue(40n * 10_000_000n);
-    vi.mocked(relayer.readUsdcBalance).mockResolvedValue(40n * 10_000_000n);
-    vi.mocked(relayer.pullFromOwner).mockResolvedValueOnce({ ok: false, error: "insufficient allowance" });
-    await call();
-    expect(relayer.relayerDeposit).not.toHaveBeenCalled();
-    expect(file.current.plans[0].history[0].error).toMatch(/could not pull 10 USDC/);
+  it("counts an owner with no subscription (they get the due banner on /sender) and drops a gone subscription", async () => {
+    file.current.subs = [];
+    expect((await call()).body).toMatchObject({ due: 1, reminded: 0, noSubscription: 1 });
 
-    file.current.plans[0].nextDate = today;
-    vi.mocked(relayer.pullFromOwner).mockResolvedValueOnce({ ok: true, hash: "pull" });
-    vi.mocked(relayer.relayerDeposit).mockResolvedValueOnce({ ok: false, error: "deposit reverted" });
-    vi.mocked(relayer.refundOwner).mockResolvedValueOnce({ ok: true, hash: "back" });
-    await call();
-    expect(relayer.refundOwner).toHaveBeenCalledWith(OWNER, 100_000_000n);
-    expect(file.current.plans[0].history[0]).toMatchObject({ pullHash: "pull", refundHash: "back", error: "deposit reverted" });
-  });
-
-  it("answers 503 naming RELAYER_SECRET and touches nothing when no private relayer key is set", async () => {
-    vi.mocked(relayer.relayerConfigured).mockReturnValue(false);
-    const r = await call();
-    expect(r.status).toBe(503);
-    expect(r.body.error).toBe("scheduler relayer key not configured (RELAYER_SECRET)");
-    expect(relayer.readAllowance).not.toHaveBeenCalled();
-    expect(relayer.pullFromOwner).not.toHaveBeenCalled();
+    file.current.subs = [SUB];
+    pushed.send.mockRejectedValueOnce(Object.assign(new Error("gone"), { statusCode: 410 }));
+    expect((await call()).body).toMatchObject({ reminded: 0, failed: 1 });
+    expect(file.current.subs).toEqual([]);
   });
 });

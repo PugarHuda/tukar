@@ -21,7 +21,6 @@ const POST_ONLY = [
   "/api/reclaim/verify",
   "/api/idos/credential",
   "/api/cctp/attest",
-  "/api/cctp/mint",
   "/api/travel-rule",
   "/api/travel-rule/send",
   "/api/travel-rule/trisa",
@@ -37,8 +36,10 @@ const XSS = `<img src=x onerror="window.__xss=1">`;
 
 type Health = {
   status: string;
-  checks: { rpc: string; reclaim: boolean; schedules: boolean; relayer: boolean; trisa: boolean; notabene: boolean } & Record<string, unknown>;
+  checks: { rpc: string; reclaim: boolean; schedules: boolean; trisa: boolean; notabene: boolean } & Record<string, unknown>;
   missing: Record<string, string[]>;
+  serverHoldsFundKeys: boolean;
+  unusedSecrets: string[];
 };
 let health: Health;
 test.beforeAll(async ({ request }) => {
@@ -270,7 +271,7 @@ test.describe("API: methods, malformed bodies, gates", () => {
   test("/api/health: 200 JSON, presence-only booleans, rpc ok|unreachable, POST → 405", async ({ request }) => {
     expect(health.status).toBe("ok");
     expect(["ok", "unreachable"]).toContain(health.checks.rpc);
-    const flags = ["reclaim", "auth", "sep7Signing", "webPush", "schedulesStore", "schedules", "relayer", "cctpRelayer", "trisa", "notabene", "idos"];
+    const flags = ["reclaim", "auth", "sep7Signing", "webPush", "schedulesStore", "schedules", "trisa", "notabene", "idos"];
     for (const k of flags) expect(typeof health.checks[k], k).toBe("boolean");
     // `checks` never leaks a value, only booleans (+ the rpc/trisaNode reachability words)
     expect(JSON.stringify(health.checks)).not.toMatch(/secret|token|key=/i);
@@ -280,7 +281,12 @@ test.describe("API: methods, malformed bodies, gates", () => {
       expect(names.length, k).toBeGreaterThan(0);
       for (const n of names) expect(n, k).toMatch(/^[A-Z][A-Z0-9_]+( |$)/);
     }
-    if (!health.checks.relayer) expect(health.missing.relayer).toEqual(["RELAYER_SECRET"]);
+    // Instawards #26: no server key signs fund-moving txs; no relayer/sponsor checks remain
+    for (const k of ["relayer", "cctpRelayer", "sponsor"]) expect(health.checks, k).not.toHaveProperty(k);
+    expect(health.checks.schedules).toBe(health.checks.schedulesStore === true && health.checks.auth === true);
+    expect(health.serverHoldsFundKeys).toBe(false);
+    expect(Array.isArray(health.unusedSecrets)).toBe(true);
+    for (const n of health.unusedSecrets) expect(["RELAYER_SECRET", "STELLAR_RELAYER_SECRET", "SPONSOR_SECRET"]).toContain(n);
     if (!health.checks.notabene) expect(health.missing.notabene).toEqual(["NOTABENE_API_KEY"]);
     if (!health.checks.trisa) expect(health.missing.trisa).toEqual(["TRISA_NODE_URL"]);
     expect((await request.post("/api/health", { data: {} })).status()).toBe(405);
@@ -300,7 +306,7 @@ test.describe("API: methods, malformed bodies, gates", () => {
   test("POST invalid JSON (text/plain) → 400 on every body-parsing route, gated routes answer honestly first", async ({ request }) => {
     const junk = { headers: { "content-type": "text/plain" }, data: "not json {{{" };
     // parse-first routes -> 400 (route.ts try/catch around req.json())
-    for (const p of ["/api/verify", "/api/note-status", "/api/cctp/attest", "/api/cctp/mint", "/api/travel-rule/send"]) {
+    for (const p of ["/api/verify", "/api/note-status", "/api/cctp/attest", "/api/travel-rule/send"]) {
       const r = await request.post(p, junk);
       expect(r.status(), p).toBe(400);
       expect((await r.json()).error, p).toBeTruthy();
@@ -390,7 +396,7 @@ test.describe("API: methods, malformed bodies, gates", () => {
     expect((await n.json()).status).toBe("unregistered");
   });
 
-  test("/api/cctp: attest validates the hash shape; mint refuses without message+attestation", async ({ request }) => {
+  test("/api/cctp: attest validates the hash shape; no server mint route exists", async ({ request }) => {
     for (const h of ["", "0x123", "1".repeat(64), "0x" + "g".repeat(64)]) {
       const r = await request.post("/api/cctp/attest", { headers: J, data: { txHash: h } });
       expect(r.status(), h).toBe(400);
@@ -402,10 +408,8 @@ test.describe("API: methods, malformed bodies, gates", () => {
     const ok = await request.post("/api/cctp/attest", { headers: J, data: { txHash: "0x" + "1".repeat(64), sourceDomain: 6 } });
     expect(ok.status()).toBe(200);
     expect(["pending", "error"]).toContain((await ok.json()).status);
-    for (const body of [{}, { message: "0x01" }, { attestation: "0x01" }]) {
-      const r = await request.post("/api/cctp/mint", { headers: J, data: body });
-      expect(r.status(), JSON.stringify(body)).toBe(400);
-    }
+    // the Stellar mint is signed client-side by the user's wallet; the old key-holding route is gone
+    expect((await request.post("/api/cctp/mint", { headers: J, data: { txHash: "0x" + "1".repeat(64) } })).status()).toBe(404);
   });
 
   test("/api/travel-rule (inbound TRP 3.2.1): header + token + IVMS101 validation", async ({ request }) => {
@@ -476,20 +480,19 @@ test.describe("API: methods, malformed bodies, gates", () => {
       expect(nj.missing).toEqual(health.missing.schedules);
     }
     // the scheduler probe /sender reads on load: always 200 (a capability report, not a failed call);
-    // live only with a private relayer key too, and it names exactly what is missing otherwise
+    // live with the plan store + AUTH_SECRET alone (plans are reminders the owner signs, no server
+    // key), and it names exactly what is missing otherwise. It never hands out a spender address.
     const probe = await request.get("/api/schedules/nonce");
     expect(probe.status()).toBe(200);
     const pj = await probe.json();
-    const live = health.checks.schedules && health.checks.relayer;
-    expect(pj.configured).toBe(live);
-    if (live) expect(pj.relayer).toMatch(/^G[A-Z2-7]{55}$/);
-    else {
-      expect(pj.relayer).toBeUndefined(); // never hands out a spender without a private relayer key
-      expect(pj.missing).toEqual([...(health.missing.schedules ?? []), ...(health.checks.relayer ? [] : ["RELAYER_SECRET"])]);
-      if (!health.checks.relayer) expect(pj.error).toBe("scheduler relayer key not configured (RELAYER_SECRET)");
-    }
-    // recurring plans themselves need the relayer key: an authenticated POST without it is a 503
-    // (unit-tested in webapp/app/api/schedules/route.test.ts; unauthenticated it is 401 above)
+    expect(pj.configured).toBe(health.checks.schedules);
+    expect(pj.relayer).toBeUndefined();
+    if (!health.checks.schedules) expect(pj.missing).toEqual(health.missing.schedules);
+    // mark-done (POST { id, txHash }) and the reminder subscription are owner-only too
+    expect((await request.post("/api/schedules", { headers: J, data: { id: "p1", txHash: "ab".repeat(32) } })).status()).toBe(401);
+    expect((await request.put("/api/schedules/push", { headers: J, data: { subscription: { endpoint: "https://push.example/x", keys: { p256dh: "p", auth: "a" } } } })).status()).toBe(401);
+    // the fee sponsor is gone: no server key pays anyone's fee
+    expect((await request.get("/api/sponsor")).status()).toBe(404);
     // a malformed address never yields a nonce
     const bad = await request.get("/api/schedules/nonce?address=" + XSS);
     expect((await bad.json()).nonce).toBeUndefined();
@@ -965,23 +968,27 @@ test.describe("sender", () => {
     expect(w.crashes()).toEqual([]);
   });
 
-  test("scheduled sends: weekly/monthly reveal the plan box in the deployment's real mode; save/remove/persist (device mode) or auth-gated (server mode)", async ({ page }) => {
+  test("scheduled sends: weekly/monthly reveal the plan box in the deployment's real mode; save/remove/persist (device mode) or auth-gated (server mode); always self-signed", async ({ page }) => {
     const w = await watchAll(page);
     await goto200(page, "/sender");
     const amount = await senderReady(page);
     await fillStable(amount, "20");
     await page.locator("#frequency").selectOption("weekly");
     await expect(page.getByText(/Schedule a weekly send/)).toBeVisible();
-    // automated only with a plan store + AUTH_SECRET + a private RELAYER_SECRET (the nonce probe)
-    const automated = health.checks.schedules && health.checks.relayer;
-    const badge = page.getByText(automated ? "AUTOMATED" : "THIS DEVICE", { exact: true });
+    // server reminders with a plan store + AUTH_SECRET (the nonce probe); no relayer key in either mode
+    const automated = health.checks.schedules;
+    const badge = page.getByText(automated ? "REMINDERS" : "THIS DEVICE", { exact: true });
     await expect(badge).toBeVisible({ timeout: 20_000 }); // waits for the /api/schedules/nonce probe
-    if (!automated) {
+    if (automated) {
+      await expect(page.getByText("Tukar never holds a key that can move your money; on the due day you get a reminder and sign the send yourself.").first()).toBeVisible();
+    } else {
       // names the exact env vars the server scheduler lacks
-      const need = [...(health.missing.schedules ?? []), ...(health.checks.relayer ? [] : ["RELAYER_SECRET"])].join(" and ");
+      const need = (health.missing.schedules ?? []).join(" and ");
       await expect(page.getByText(`Not automated on this deployment: the server scheduler needs ${need} set.`, { exact: false })).toBeVisible();
     }
-    const save = page.getByRole("button", { name: /(Save|Schedule) weekly plan/ });
+    // nothing on the page asks to approve USDC to anyone
+    await expect(page.getByText(/approve USDC/i)).toHaveCount(0);
+    const save = page.getByRole("button", { name: /Save weekly plan/ });
     await expect(save).toBeEnabled();
     // a plan needs a recipient too
     const rec = page.locator("#recipient");
@@ -1000,6 +1007,7 @@ test.describe("sender", () => {
     await expect(page.getByText(/\$20 USDC · Mexico/)).toBeVisible();
     await expect(page.getByText(QA_RECIPIENT).first()).toBeVisible();
     await expect(page.getByText("saved on this device", { exact: true })).toBeVisible();
+    await expect(page.getByText("Tukar never holds a key that can move your money; on the due day you get a reminder and sign the send yourself.", { exact: false })).toBeVisible();
     // reload -> persisted via localStorage tukar:schedules
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByText(/\$20 USDC · Mexico/)).toBeVisible({ timeout: 20_000 });
@@ -1010,12 +1018,21 @@ test.describe("sender", () => {
     // remove
     await page.getByRole("button", { name: "Remove scheduled plan" }).click();
     await expect(page.getByText("Scheduled sends")).toHaveCount(0);
+    // a plan that is due shows the due banner on open, and its reminder link (/sender#plan=<id>) loads it
+    await page.evaluate(() => localStorage.setItem("tukar:schedules", JSON.stringify([{ id: "due-1", amount: "7", code: "MX", recipient: "Due Ana", frequency: "weekly", nextDate: "2000-01-03" }])));
+    await page.goto("/sender#plan=due-1", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("due-plans")).toContainText("A scheduled send is due.", { timeout: 20_000 });
+    await expect(toast(page)).toContainText("Plan loaded");
+    await expect(page.locator("#recipient")).toHaveValue("Due Ana");
+    await expect(page.getByRole("button", { name: "Remove scheduled plan" })).toBeVisible();
+    await page.getByRole("button", { name: "Remove scheduled plan" }).click();
+    await expect(page.getByTestId("due-plans")).toHaveCount(0);
     // monthly also shows the annual estimate (SavingsNote.tsx:30-38)
     await page.locator("#frequency").selectOption("monthly");
     await expect(page.getByText(/every month, traditional fees would total/)).toBeVisible();
     // an unsendable amount disables the save button too
     await fillStable(amount, "0");
-    await expect(page.getByRole("button", { name: /(Save|Schedule) monthly plan/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Save monthly plan/ })).toBeDisabled();
     expect(w.crashes()).toEqual([]);
   });
 
