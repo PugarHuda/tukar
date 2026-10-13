@@ -1,6 +1,9 @@
 // GET /api/cron/recurring — the real scheduler. Vercel Cron hits this daily (vercel.json) with
-// Authorization: Bearer $CRON_SECRET. For each DUE plan it mints a fresh note, then executes the
-// on-chain deposit + shielded-tree registration via the server relayer. It deposits for at most ONE
+// Authorization: Bearer $CRON_SECRET. For each DUE plan it pulls the plan amount from the OWNER's
+// wallet (USDC SAC transfer_from under the allowance the owner signed when scheduling), mints a
+// fresh note, then executes the on-chain deposit + shielded-tree registration via the server relayer.
+// An allowance or balance short of the plan amount HOLDS the plan; the relayer's own USDC is never
+// spent on someone's plan. It deposits for at most ONE
 // plan per run to stay well under maxDuration (proving + two signed txs); plans it HOLDS (rate
 // condition not met, oracle unreadable, owner's spending guard) cost one oracle read each and do
 // not use up the run, so a waiting conditional plan never starves the others.
@@ -14,7 +17,7 @@ import * as Sentry from "@sentry/nextjs";
 import { isConfigured, readOwnerFile, writeOwnerFile, listAllOwners, computeNextDate, spendsFromPlans, type OwnerFile, type RunReceipt, type StoredSchedule } from "@/lib/schedules";
 import { guardCheck, spentInWindows } from "@/lib/spending-guard";
 import { readReflectorFx } from "@/lib/soroban/oracle";
-import { relayerDeposit, relayerRegister } from "@/lib/relayer";
+import { relayerDeposit, relayerRegister, relayerAddress, relayerConfigured, RELAYER_NOT_CONFIGURED, readAllowance, readUsdcBalance, pullFromOwner, refundOwner } from "@/lib/relayer";
 import { newNote, usdcToStroops, encodeBearerNote } from "@/lib/zk";
 import { withLock } from "@/lib/lock";
 import { log, requestId, errMsg } from "@/lib/log";
@@ -55,7 +58,7 @@ export async function GET(req: Request) {
  * rate condition (fail-closed: an unreadable feed holds the plan rather than sending blind) and
  * applies the owner's spending guard over what the scheduler has already deposited for them.
  */
-async function holdReason(plan: StoredSchedule, file: OwnerFile): Promise<{ reason: string; observedRate?: number } | null> {
+async function holdReason(owner: string, plan: StoredSchedule, file: OwnerFile): Promise<{ reason: string; observedRate?: number } | null> {
   if (plan.condition) {
     const { symbol, minRate } = plan.condition;
     const fx = await readReflectorFx(symbol);
@@ -64,6 +67,24 @@ async function holdReason(plan: StoredSchedule, file: OwnerFile): Promise<{ reas
   }
   const v = guardCheck(file.guard, spentInWindows(spendsFromPlans(file.plans)), Number(plan.amount));
   if (!v.ok) return { reason: `held by your spending guard: ${v.reason}` };
+  return fundsShort(owner, plan);
+}
+
+const usdc = (stroops: bigint) => (Number(stroops) / 1e7).toFixed(2);
+
+// The owner's USDC must be there and approved to the relayer before anything is claimed. Read-only
+// (two simulations); a SAC read that fails holds the plan rather than guessing. The relayer key
+// scheduling for itself (owner === relayer) spends its own USDC, so there is nothing to pull.
+async function fundsShort(owner: string, plan: StoredSchedule): Promise<{ reason: string } | null> {
+  if (owner === relayerAddress()) return null;
+  const need = usdcToStroops(plan.amount);
+  const [allowance, balance] = await Promise.all([readAllowance(owner), readUsdcBalance(owner)]);
+  if (allowance == null || balance == null) return { reason: "could not read your USDC allowance or balance on-chain, so nothing was pulled" };
+  if (allowance < need) {
+    const exp = plan.approval ? ` (approved through ledger ${plan.approval.expirationLedger})` : "";
+    return { reason: `allowance short: ${usdc(allowance)} USDC approved to the relayer${exp}, this run needs ${plan.amount}. Approve again from your wallet to resume.` };
+  }
+  if (balance < need) return { reason: `balance short: your wallet holds ${usdc(balance)} USDC, this run needs ${plan.amount}` };
   return null;
 }
 
@@ -83,7 +104,7 @@ async function runPlan(req: Request, owner: string, target: StoredSchedule, toda
   // Hold checks first, before the claim: a held plan keeps its nextDate (still due) and gets a
   // skip receipt with the observed rate, so the owner sees why nothing moved and the next daily
   // run re-checks it. No money moves on this path.
-  const hold = await holdReason(plan, file);
+  const hold = await holdReason(owner, plan, file);
   if (hold) {
     plan.history = [{ at: runAt, skipped: hold.reason, observedRate: hold.observedRate }, ...plan.history].slice(0, 20);
     await writeOwnerFile(owner, file);
@@ -93,9 +114,28 @@ async function runPlan(req: Request, owner: string, target: StoredSchedule, toda
   plan.nextDate = computeNextDate(plan.frequency);
   await writeOwnerFile(owner, file); // claim: the plan is no longer due for any concurrent run
 
-  // Mint a fresh note for the plan amount, then deposit + register on-chain.
-  const note = await newNote(usdcToStroops(plan.amount));
+  // Pull the owner's USDC to the relayer first. A failed pull ends the run here: no deposit, so the
+  // relayer's own USDC is never spent. Then mint a fresh note, deposit + register on-chain.
+  const stroops = usdcToStroops(plan.amount);
+  let pullHash: string | undefined;
+  if (owner !== relayerAddress()) {
+    const pull = await pullFromOwner(owner, stroops);
+    if (!pull.ok) {
+      await appendReceipt(req, owner, target.id, { at: runAt, error: `could not pull ${plan.amount} USDC from your wallet: ${pull.error}` });
+      return { depositOk: false, regOk: false, error: pull.error };
+    }
+    pullHash = pull.hash;
+  }
+  const note = await newNote(stroops);
   const dep = await relayerDeposit(note);
+  // The deposit failed after the pull: hand the owner's USDC straight back.
+  let refundHash: string | undefined;
+  let refundError: string | undefined;
+  if (!dep.ok && pullHash !== undefined) {
+    const back = await refundOwner(owner, stroops);
+    if (back.ok) refundHash = back.hash;
+    else refundError = `; refund of ${plan.amount} USDC also failed (${back.error}), the relayer holds it`;
+  }
   let regOk = false;
   let regError: string | undefined;
   if (dep.ok) {
@@ -112,25 +152,34 @@ async function runPlan(req: Request, owner: string, target: StoredSchedule, toda
     at: runAt,
     depHash: dep.hash,
     regOk,
-    error: dep.ok ? regError : dep.error, // deposit error, else the (optional) register error
+    error: dep.ok ? regError : `${dep.error}${refundError ?? ""}`, // deposit error, else the (optional) register error
     note: dep.ok ? encodeBearerNote({ ...note, ref: "SCHEDULED", corridor: plan.code }) : undefined,
+    pullHash,
+    refundHash,
   };
+  await appendReceipt(req, owner, target.id, receipt);
+  return { depHash: dep.hash, depositOk: dep.ok, regOk, error: receipt.error };
+}
+
+// Re-read this owner's file so a concurrent write to a different plan in the same file is not
+// clobbered; update only the target's history. Logged, never thrown: money may already have moved.
+async function appendReceipt(req: Request, owner: string, id: string, receipt: RunReceipt): Promise<void> {
   try {
     const fresh = await readOwnerFile(owner);
-    const p = fresh.plans.find((x) => x.id === target.id);
+    const p = fresh.plans.find((x) => x.id === id);
     if (p) {
       p.history = [receipt, ...p.history].slice(0, 20);
       await writeOwnerFile(owner, fresh);
     }
   } catch (e) {
-    log.error("result write-back failed (the deposit already executed on-chain)", { route: "cron/recurring", reqId: requestId(req), owner, id: target.id, err: errMsg(e) });
+    log.error("result write-back failed (on-chain effects already happened)", { route: "cron/recurring", reqId: requestId(req), owner, id, err: errMsg(e) });
   }
-
-  return { depHash: dep.hash, depositOk: dep.ok, regOk, error: receipt.error };
 }
 
 async function run(req: Request) {
   if (!isConfigured()) return NextResponse.json({ configured: false });
+  // Pulls go through owner allowances to the relayer: only ever with a private relayer key.
+  if (!relayerConfigured()) return NextResponse.json({ configured: false, error: RELAYER_NOT_CONFIGURED }, { status: 503 });
 
   // Sweep every owner's private schedule file and collect the plans due today across all of them.
   // ponytail: reads each owner file per run (fine for a demo's handful of owners); add an index

@@ -9,8 +9,35 @@ vi.mock("@vercel/blob", () => {
   return { ...blob, BlobNotFoundError };
 });
 
+// Upstash Redis is the other network boundary: an in-memory stand-in with the calls the store makes
+// (GET, MULTI SET+SADD, SMEMBERS). Constructor options are recorded to pin raw-string mode.
+const kv = vi.hoisted(() => ({ strings: new Map<string, string>(), sets: new Map<string, Set<string>>(), opts: [] as any[] }));
+vi.mock("@upstash/redis", () => {
+  class Redis {
+    constructor(o: any) {
+      kv.opts.push(o);
+    }
+    async get(k: string) {
+      return kv.strings.get(k) ?? null;
+    }
+    async smembers(k: string) {
+      return [...(kv.sets.get(k) ?? [])];
+    }
+    multi() {
+      const ops: (() => void)[] = [];
+      const tx = {
+        set: (k: string, v: string) => (ops.push(() => kv.strings.set(k, v)), tx),
+        sadd: (k: string, m: string) => (ops.push(() => kv.sets.set(k, (kv.sets.get(k) ?? new Set()).add(m))), tx),
+        exec: async () => ops.forEach((f) => f()),
+      };
+      return tx;
+    }
+  }
+  return { Redis };
+});
+
 import { BlobNotFoundError } from "@vercel/blob";
-import { parseOwnerFile, readSchedules, readOwnerFile, deleteSchedule, spendsFromPlans, computeNextDate, listAllOwners, CorruptScheduleFile } from "./schedules";
+import { parseOwnerFile, readSchedules, readOwnerFile, writeOwnerFile, deleteSchedule, spendsFromPlans, computeNextDate, listAllOwners, backend, isConfigured, CorruptScheduleFile } from "./schedules";
 
 const OWNER = "G" + "A".repeat(55);
 const plan = { id: "p1", amount: "12.5", code: "MX", recipient: "María", frequency: "weekly", nextDate: "2026-09-03", history: [] };
@@ -178,5 +205,59 @@ describe("listAllOwners (blob paging)", () => {
   it("ignores blobs that are not owner schedule files", async () => {
     blob.list.mockResolvedValueOnce({ blobs: [{ pathname: "schedules/README.md" }, { pathname: `schedules/${addr(9)}.json` }], hasMore: false });
     expect(await listAllOwners()).toEqual([addr(9)]);
+  });
+});
+
+// Production has Upstash Redis but no Blob token, so the Redis backend is the one that runs there.
+describe("Upstash Redis backend (no Blob token)", () => {
+  const OTHER = "G" + "B".repeat(55);
+  beforeEach(() => {
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    process.env.KV_REST_API_URL = "https://kv.example";
+    process.env.KV_REST_API_TOKEN = "kv-token";
+    kv.strings.clear();
+    kv.sets.clear();
+  });
+
+  it("picks Blob when its token is set, Redis otherwise, and nothing with neither", () => {
+    expect(backend()).toBe("redis");
+    process.env.BLOB_READ_WRITE_TOKEN = "t";
+    expect(backend()).toBe("blob");
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.KV_REST_API_URL;
+    expect(backend()).toBe(null);
+    expect(isConfigured()).toBe(false);
+  });
+
+  it("round-trips an owner file, registers the owner for the sweep, never touches Blob", async () => {
+    expect(await readOwnerFile(OWNER)).toEqual({ plans: [], guard: {} });
+    await writeOwnerFile(OWNER, { plans: [plan as any], guard: { daily: 50 } });
+    await writeOwnerFile(OTHER, { plans: [], guard: {} });
+    expect(await readOwnerFile(OWNER)).toEqual({ plans: [plan], guard: { daily: 50 } });
+    expect((await listAllOwners()).sort()).toEqual([OWNER, OTHER].sort());
+    expect(await deleteSchedule(OWNER, "p1")).toBe(true);
+    expect(await readSchedules(OWNER)).toEqual([]);
+    expect(blob.head).not.toHaveBeenCalled();
+    expect(blob.put).not.toHaveBeenCalled();
+    expect(kv.opts.at(-1)).toMatchObject({ automaticDeserialization: false });
+  });
+
+  it("throws CorruptScheduleFile on a corrupt stored value instead of treating it as empty", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    kv.strings.set(`schedules:${OWNER}`, "{nope");
+    await expect(readOwnerFile(OWNER)).rejects.toBeInstanceOf(CorruptScheduleFile);
+    spy.mockRestore();
+  });
+
+  it("rejects a non G-address owner and ignores junk members in the owner set", async () => {
+    await expect(readOwnerFile("../x")).rejects.toThrow("invalid owner");
+    kv.sets.set("schedules:owners", new Set([OWNER, "junk"]));
+    expect(await listAllOwners()).toEqual([OWNER]);
+  });
+
+  it("accepts a plan carrying its signed approval and rejects a malformed one", () => {
+    const approval = { hash: "ab".repeat(32), spender: OTHER, amount: "50", expirationLedger: 123456 };
+    expect(parseOwnerFile(JSON.stringify([{ ...plan, approval }])).plans[0].approval).toEqual(approval);
+    expect(() => parseOwnerFile(JSON.stringify([{ ...plan, approval: { ...approval, hash: "xyz" } }]))).toThrow("bad approval");
   });
 });

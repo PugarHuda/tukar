@@ -36,6 +36,7 @@ import { readTxMonitoring, evaluate, severityForError, THRESHOLDS, HORIZON, WATC
 import { subscribeOperatorAlerts, unsubscribeOperatorAlerts, operatorAlertId, pushSupport } from "@/lib/push-client";
 import { fmtUsdc } from "@/lib/zk";
 import { POOL_ENFORCED } from "@/lib/constants";
+import { liveUsdRates, type FxQuote } from "@/lib/fx";
 
 // Public contract IDs from deployments/testnet.json that lib/stellar doesn't re-export
 // (the pool admin identity + token + the three verifiers only referenced for display).
@@ -609,17 +610,78 @@ const DISCLOSURE_NOTE: Record<Disclosure, string> = {
 };
 const DISCLOSURES: Disclosure[] = ["exact", "threshold", "range", "aggregate"];
 
-// Illustrative jurisdiction presets. These are NOT real regulatory rulesets; they are shapes an
-// anchor could start from and then tune. "Default" is the varied per-corridor baseline; the rest
-// apply one illustrative threshold + disclosure to every corridor so the difference is legible.
+// Cited regulatory thresholds. Each figure was checked against the linked source; `preset` is set
+// only where the rule is stated in USD (or has no de-minimis), so it can be applied to the USDC
+// table without an FX conversion. The others are listed with their native currency for reference.
+// "Threshold" here means the amount from which the rule's information/reporting duty applies; it is
+// a modelling input for the table below, not a change to the on-chain registry.
+type RegRule = { key: string; label: string; amount: string; rule: string; href: string; preset?: { usdc: number; disclosure: Disclosure } };
+const REG_RULES: RegRule[] = [
+  {
+    key: "eu-tfr",
+    label: "EU TFR · CASP to CASP",
+    amount: "from €0 (no de-minimis)",
+    rule: "Regulation (EU) 2023/1113 Art. 14(1)-(2): originator and beneficiary information accompanies every crypto-asset transfer, with no amount floor",
+    href: "https://eur-lex.europa.eu/eli/reg/2023/1113/oj",
+    preset: { usdc: 0, disclosure: "exact" },
+  },
+  {
+    key: "eu-self-hosted",
+    label: "EU TFR · self-hosted wallet",
+    amount: "over €1,000",
+    rule: "Regulation (EU) 2023/1113 Art. 14(5) / 16(2): for a transfer exceeding EUR 1 000 to or from a self-hosted address, the CASP assesses whether the client owns or controls it",
+    href: "https://eur-lex.europa.eu/eli/reg/2023/1113/oj",
+  },
+  {
+    key: "fatf",
+    label: "FATF R.16",
+    amount: "over USD/EUR 1,000",
+    rule: "FATF Recommendation 16 (revised June 2025): cross-border transfers above USD/EUR 1,000 carry full originator and beneficiary information; VASPs are bound via INR.15",
+    href: "https://www.mayerbrown.com/en/insights/publications/2025/08/fatf-revises-aml-standards-for-certain-funds-transfers",
+    preset: { usdc: 1000, disclosure: "exact" },
+  },
+  {
+    key: "us-travel",
+    label: "US Travel Rule",
+    amount: "$3,000 or more",
+    rule: "31 CFR 1010.410(f): transmittor and intermediary institutions pass originator/beneficiary information on transmittals of funds of $3,000 or more",
+    href: "https://www.law.cornell.edu/cfr/text/31/1010.410",
+    preset: { usdc: 3000, disclosure: "exact" },
+  },
+  {
+    key: "us-ctr",
+    label: "US CTR",
+    amount: "over $10,000 (currency)",
+    rule: "31 CFR 1010.311: a Currency Transaction Report is filed for transactions in currency (cash) of more than $10,000",
+    href: "https://www.law.cornell.edu/cfr/text/31/1010.311",
+    preset: { usdc: 10000, disclosure: "threshold" },
+  },
+  {
+    key: "ph-bsp",
+    label: "Philippines BSP",
+    amount: "PHP 50,000 or more",
+    rule: "BSP Circular No. 1108 (2021): VASPs obtain and transmit originator and beneficiary information for VA transfers of PHP 50,000 or more, or the foreign-currency equivalent",
+    href: "https://lpr.adb.org/resource/guidelines-virtual-asset-providers-bangko-sentral-ng-pilipinas-circular-no-1108",
+  },
+  {
+    key: "id-ppatk",
+    label: "Indonesia PPATK",
+    amount: "IDR 500,000,000 or more (cash)",
+    rule: "PPATK Regulation PER-11/1.02/PPATK/09/2012 Art. 1(7): a cash transaction (one or several in one working day) of at least Rp500,000,000 is a reportable Transaksi Keuangan Tunai",
+    href: "https://www.peraturan.go.id/files/bn928-2012.pdf",
+  },
+];
 const uniformPolicy = (thresholdUsdc: number, disclosure: Disclosure): PolicyMap =>
   Object.fromEntries(Object.keys(CORRIDOR_POLICY).map((c) => [c, { thresholdUsdc, disclosure }]));
 const PRESETS: { key: string; label: string; note: string; build: () => PolicyMap }[] = [
   // Label + note for "default" are overridden at render time by whether the registry read succeeded.
   { key: "default", label: "Default", note: "", build: () => ({ ...CORRIDOR_POLICY }) },
-  { key: "eu", label: "EU (MiCA / TFR)", note: "illustrative EU-style travel-rule shape", build: () => uniformPolicy(1000, "exact") },
-  { key: "us", label: "US (FinCEN)", note: "illustrative US-style CTR reporting shape", build: () => uniformPolicy(10000, "threshold") },
-  { key: "apac", label: "APAC", note: "illustrative APAC mixed shape", build: () => uniformPolicy(3000, "range") },
+  ...REG_RULES.filter((r) => r.preset).map((r) => ({
+    key: r.key,
+    label: r.label,
+    note: `${r.label}: ${r.amount}, applied to every corridor`,
+    build: () => uniformPolicy(r.preset!.usdc, r.preset!.disclosure),
+  })),
 ];
 
 // Build the YAML-ish policy-as-code from the SAME model the table renders, so the snippet and
@@ -656,7 +718,7 @@ function DemonstratedPolicy({ rootHex, livePolicy }: { rootHex: string | null; l
     const p = PRESETS.find((x) => x.key === key);
     if (!p) return;
     setPresetKey(key);
-    // "Default" resets to the live on-chain base; the rest are illustrative uniform shapes.
+    // "Default" resets to the live on-chain base; the rest apply one cited threshold to every corridor.
     setPolicy(key === "default" ? { ...base } : p.build());
   };
   const editThreshold = (code: string, v: string) => {
@@ -688,7 +750,7 @@ function DemonstratedPolicy({ rootHex, livePolicy }: { rootHex: string | null; l
       </p>
 
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="mr-1 font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-2">Jurisdiction preset (illustrative)</span>
+        <span className="mr-1 font-mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-2">Jurisdiction preset (cited)</span>
         {PRESETS.map((p) => (
           <button
             key={p.key}
@@ -703,8 +765,19 @@ function DemonstratedPolicy({ rootHex, livePolicy }: { rootHex: string | null; l
         {presetKey === "custom" && <Badge tone="amber">custom edits</Badge>}
       </div>
       <p className="mb-4 font-mono text-[11px] leading-relaxed text-ink-3">
-        {activeNote}. The non-default presets are illustrative shapes, not regulatory rulesets. Edit any threshold or disclosure inline to model a corridor; the table and the policy-as-code below update together.
+        {activeNote}. A preset sets the amount from which that rule&apos;s information duty applies, to model it here; it does not write the on-chain registry. Edit any threshold or disclosure inline; the table and the policy-as-code below update together.
       </p>
+      <ul className="mb-4 flex flex-col gap-1.5 text-[12.5px] leading-relaxed text-ink-2">
+        {REG_RULES.map((r) => (
+          <li key={r.key}>
+            <b className="text-ink">{r.label}</b> <span className="font-mono text-[11.5px] text-ink">{r.amount}</span> · {r.rule}.{" "}
+            <a href={r.href} target="_blank" rel="noreferrer" className={TYPED_LINK}>
+              source
+              <Ext />
+            </a>
+          </li>
+        ))}
+      </ul>
 
       <TableWrap>
         <thead>
@@ -1048,18 +1121,7 @@ function OracleCardView({ card }: { card: OracleCard }) {
 }
 
 // ---------- CORRIDOR / ANCHOR CONFIG: the routing tariff ----------
-const CORRIDORS: { code: string; country: string; currency: string; rate: number; oracle?: string }[] = [
-  { code: "MX", country: "Mexico", currency: "MXN", rate: 17.1, oracle: "MXN" },
-  { code: "BR", country: "Brazil", currency: "BRL", rate: 5.2, oracle: "BRL" },
-  { code: "AR", country: "Argentina", currency: "ARS", rate: 1450, oracle: "ARS" },
-  { code: "PH", country: "Philippines", currency: "PHP", rate: 58.5 },
-  { code: "ID", country: "Indonesia", currency: "IDR", rate: 18080 },
-  { code: "VN", country: "Vietnam", currency: "VND", rate: 26206 },
-  { code: "TH", country: "Thailand", currency: "THB", rate: 33.5, oracle: "THB" },
-  { code: "IN", country: "India", currency: "INR", rate: 83.4 },
-  { code: "NG", country: "Nigeria", currency: "NGN", rate: 1570 },
-  { code: "CO", country: "Colombia", currency: "COP", rate: 3950 },
-];
+// Rates are read live per corridor (lib/fx: Reflector on-chain, else open.er-api.com); no static figures.
 
 const ANCHORS: { pill: string; tone: "green" | "amber" | "muted"; name: string; body: React.ReactNode; href?: string }[] = [
   {
@@ -1093,32 +1155,58 @@ const ANCHORS: { pill: string; tone: "green" | "amber" | "muted"; name: string; 
 ];
 
 function CorridorAnchorSection() {
+  const [fx, setFx] = useState<Record<string, FxQuote | null> | null>(null);
+  useEffect(() => {
+    let live = true;
+    liveUsdRates(RECEIVER_CORRIDORS).then((r) => live && setFx(r)).catch(() => live && setFx({}));
+    return () => { live = false; };
+  }, []);
   return (
     <Sheet>
       <SheetHead title="Corridor & anchor config" caption="Routing tariff" status={<span className="font-mono text-[11px] text-ink-3">10 corridors · oracle-backed vs FX-API fallback</span>} />
       <p className="mb-4 max-w-[75ch] text-[13px] leading-relaxed text-ink-2">
-        Read-only config. The indicative rate is the static fallback each corridor ships with. Oracle-backed corridors price live on-chain (see Oracle health above); the rest fall back to a public FX API.
+        Live USD rate per corridor, read when this page loaded. Oracle-backed corridors read the Reflector SEP-40 feed on-chain (see Oracle health above); the rest, and any oracle corridor whose feed is stale or unreachable, read open.er-api.com. Each row shows which source answered and when that source stamped the price. If both fail the row says unavailable.
       </p>
       <TableWrap>
         <thead>
           <tr>
             <th className={TH}>Corridor</th>
             <th className={TH}>Currency</th>
-            <th className={TH}>Indicative rate</th>
-            <th className={TH}>Rate source</th>
+            <th className={TH}>Live rate (per 1 USD)</th>
+            <th className={TH}>Rate source · as of</th>
           </tr>
         </thead>
         <tbody>
-          {CORRIDORS.map((c) => (
-            <tr key={c.code}>
-              <td className={`${TD} whitespace-nowrap`}>
-                <b className="text-ink">{c.country}</b> <span className="font-mono text-[11px] text-ink-3">{c.code}</span>
-              </td>
-              <td className={`${TD} font-mono text-ink`}>{c.currency}</td>
-              <td className={`${TD} font-mono tabular-nums text-ink-2`}>{fmtRate(c.rate)}</td>
-              <td className={TD}>{c.oracle ? <Badge tone="green">Reflector oracle · on-chain</Badge> : <Badge tone="muted">public FX API · fallback</Badge>}</td>
-            </tr>
-          ))}
+          {RECEIVER_CORRIDORS.map((c) => {
+            const q = fx?.[c.code];
+            return (
+              <tr key={c.code}>
+                <td className={`${TD} whitespace-nowrap`}>
+                  <b className="text-ink">{c.country}</b> <span className="font-mono text-[11px] text-ink-3">{c.code}</span>
+                </td>
+                <td className={`${TD} font-mono text-ink`}>{c.currency}</td>
+                <td className={`${TD} font-mono tabular-nums text-ink-2`}>
+                  {!fx ? <Skeleton className="h-3.5 w-16" /> : q ? fmtRate(q.rate) : <span className="text-tape-deep">unavailable</span>}
+                </td>
+                <td className={TD}>
+                  {!fx ? (
+                    <Skeleton className="h-3.5 w-40" />
+                  ) : q ? (
+                    <span className="flex flex-wrap items-center gap-2">
+                      {q.source === "reflector" ? (
+                        <Badge tone="green">Reflector oracle · on-chain</Badge>
+                      ) : (
+                        <Badge tone="muted">{c.oracle ? "open.er-api.com · oracle fallback" : "open.er-api.com"}</Badge>
+                      )}
+                      <span className="font-mono text-[11px] text-ink-3">{fmtUtc(q.at)}</span>
+                    </span>
+                  ) : (
+                    <Badge tone="red">oracle + FX API both failed</Badge>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </TableWrap>
 

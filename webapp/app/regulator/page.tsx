@@ -47,10 +47,20 @@ import {
 import { CORRIDORS, corridorByCode, type Corridor } from "@/components/receiver/corridors";
 import { DEMO_TRAVEL_ADDRESS } from "@/lib/trp";
 import { isValidLei, lookupLei, type LeiRecord } from "@/lib/gleif";
+import {
+  buildParties,
+  emptyParty,
+  validateParty,
+  validateVasp,
+  vaspLegalPerson,
+  type PartyInput,
+  type VaspInput,
+} from "@/lib/ivms101";
 import { validateReceipt } from "@/lib/receipt-link";
 import { scheduleSignIn } from "@/lib/auth-client";
 import { ViewNoteCard } from "@/components/regulator/ViewNoteCard";
 import { ComplianceExportCard } from "@/components/regulator/ComplianceExportCard";
+import { PartyFields, VaspFields } from "@/components/regulator/Ivms101Fields";
 import { Sheet, Stamp, Ledger, Field, Out, captionCls, fieldCls, preCls, noteCls, td } from "@/components/regulator/desk";
 import { disclosureFromReceipt, type DisclosureRecord, type AuditRequestRecord } from "@/lib/compliance-export";
 
@@ -794,12 +804,11 @@ function IssueTab({
   );
 }
 
-// ================= TRAVEL RULE (REFERENCE) =================
-// A client-side reference mapping only. Tukar holds NO PII: the licensed anchors at the edges
-// run KYC and would exchange the actual IVMS101 message. Personal fields are shown as clearly
-// marked anchor-held placeholders; the amount/asset/corridor/reference come from a real verified
-// disclosure receipt when one is loaded.
-const ANCHOR_PII = "(held by the anchor's KYC, not by Tukar)";
+// ================= TRAVEL RULE =================
+// The operator (the sending anchor's compliance desk) types the originator, beneficiary and VASP
+// identities; lib/ivms101 validates them and builds the IVMS101 blocks in this browser. They ride
+// in the TRP body to the peer and are not stored by Tukar. The amount/asset/corridor/reference
+// come from a real verified disclosure receipt when one is loaded.
 
 // The disclosed figure that drives the payload's amount, derived from the proven public signals
 // (not the receipt's own metadata). Non-exact types prove a bound, not a single amount, so they
@@ -818,56 +827,9 @@ function disclosedFigure(res: ReceiptVerification, r: AuditReceipt): string {
   }
 }
 
-// An IVMS101 naturalPerson block. Every identity field is the anchor-held placeholder: Tukar
-// never sees a real person, so nothing here is ever fabricated. Only the shape follows the spec.
-function placeholderNaturalPerson() {
-  return {
-    name: {
-      nameIdentifier: [
-        { primaryIdentifier: ANCHOR_PII, secondaryIdentifier: ANCHOR_PII, nameIdentifierType: "LEGL" },
-      ],
-    },
-    geographicAddress: [
-      {
-        addressType: "HOME",
-        streetName: ANCHOR_PII,
-        buildingNumber: ANCHOR_PII,
-        postCode: ANCHOR_PII,
-        townName: ANCHOR_PII,
-        country: ANCHOR_PII,
-      },
-    ],
-    nationalIdentification: {
-      nationalIdentifier: ANCHOR_PII,
-      nationalIdentifierType: ANCHOR_PII,
-      countryOfIssue: ANCHOR_PII,
-    },
-    customerIdentification: ANCHOR_PII,
-    dateAndPlaceOfBirth: {
-      dateOfBirth: ANCHOR_PII,
-      placeOfBirth: ANCHOR_PII,
-    },
-  };
-}
-
-// An IVMS101 legalPerson block for a VASP. The role and geographic scope are real (they follow
-// from the corridor and the sending/receiving side); the registered name is a descriptive
-// placeholder because the specific licensed anchor is chosen at production integration time.
-// When an LEI is supplied it becomes the legalPerson's nationalIdentification (IVMS101 type
-// LEIX, no countryOfIssue for an LEI), and a GLEIF-resolved record replaces the placeholder name
-// and country of registration with the registered legal entity.
+// The full Travel Rule message: IVMS101 originator/beneficiary/VASP blocks built from the typed
+// inputs (lib/ivms101), plus the transaction facts from the verified disclosure.
 type OriginatorLei = { lei: string; record: LeiRecord | null };
-function vaspLegalPerson(name: string, country: string, lei?: OriginatorLei) {
-  return {
-    name: {
-      nameIdentifier: [{ legalPersonName: lei?.record?.legalName || name, legalPersonNameIdentifierType: "LEGL" }],
-    },
-    countryOfRegistration: lei?.record?.country || country,
-    ...(lei ? { nationalIdentification: { nationalIdentifier: lei.lei, nationalIdentifierType: "LEIX" } } : {}),
-    customerNumber: ANCHOR_PII,
-  };
-}
-
 function buildTravelRulePayload(opts: {
   amount: string;
   reference: string;
@@ -875,32 +837,28 @@ function buildTravelRulePayload(opts: {
   corridor: Corridor;
   network: string;
   exampleOnly: boolean;
+  originator: PartyInput;
+  beneficiary: PartyInput;
+  originatingVasp: VaspInput;
+  beneficiaryVasp: VaspInput;
   originatorLei?: OriginatorLei;
 }) {
   const { amount, reference, anchorTx, corridor, network, exampleOnly, originatorLei } = opts;
+  // A GLEIF-resolved LEI record is the registered legal entity, so it wins over the typed name/country.
+  const origVasp = originatorLei?.record ? { name: originatorLei.record.legalName, country: originatorLei.record.country } : opts.originatingVasp;
   return {
     _note: exampleOnly
-      ? "REFERENCE / EXAMPLE, no receipt loaded. Verify a disclosure to drive this from a real disclosed figure."
-      : "REFERENCE mapping, derived from a verified Tukar disclosure receipt. Tukar holds no PII.",
-    _spec: "IVMS101-shaped data-mapping reference. Not exchanged on a live Travel Rule network (see TRISA / TRP / OpenVASP note).",
-    originator: {
-      // real: role and side; placeholder: the natural person, held by the anchor's KYC.
-      naturalPerson: placeholderNaturalPerson(),
-      accountNumber: ANCHOR_PII,
-    },
-    beneficiary: {
-      naturalPerson: placeholderNaturalPerson(),
-      accountNumber: ANCHOR_PII,
-    },
+      ? "No receipt loaded: the amount below is an example figure. Verify a disclosure to drive it from a real disclosed figure."
+      : "Transaction facts derived from a verified Tukar disclosure receipt.",
+    _spec: "IVMS101 (originator, beneficiary, VASP legal persons) carried in a TRP 3.2.1 transfer inquiry.",
+    ...buildParties(opts.originator, opts.beneficiary),
     originatingVASP: {
-      // real: this is the sending side of the corridor (United States on-ramp anchor).
       role: "Sending anchor (VASP), on-ramped the originator, holds their KYC identity",
-      legalPerson: vaspLegalPerson("Sending anchor (licensed USD on-ramp VASP)", "US", originatorLei),
+      legalPerson: vaspLegalPerson(origVasp, originatorLei?.lei),
     },
     beneficiaryVASP: {
-      // real: this is the receiving side, fixed by the selected corridor.
       role: `Receiving anchor (VASP) in ${corridor.country}, off-ramps to ${corridor.currency}, holds the beneficiary's KYC identity`,
-      legalPerson: vaspLegalPerson(`Receiving anchor (licensed ${corridor.currency} off-ramp VASP)`, corridor.code),
+      legalPerson: vaspLegalPerson(opts.beneficiaryVasp),
     },
     transaction: {
       amount, // real: the disclosed figure from the verified receipt
@@ -990,8 +948,48 @@ function TravelRuleTab({
   const anchorTx = last?.receipt.anchor?.txHash;
   const network = last?.receipt.network || "Test SDF Network ; September 2015";
 
-  const payload = buildTravelRulePayload({ amount, reference, anchorTx, corridor, network, exampleOnly, originatorLei });
+  // IVMS101 identities, typed by the operator. Empty by default; nothing is sent until they validate.
+  const [originator, setOriginator] = useState<PartyInput>(emptyParty);
+  const [beneficiary, setBeneficiary] = useState<PartyInput>(emptyParty);
+  const [originatingVasp, setOriginatingVasp] = useState<VaspInput>({ name: "", country: "" });
+  const [beneficiaryVasp, setBeneficiaryVasp] = useState<VaspInput>({ name: "", country: "" });
+  const origErr = validateParty(originator, "originator");
+  const benErr = validateParty(beneficiary, "beneficiary");
+  // A GLEIF-resolved LEI supplies the originating VASP's registered name and country.
+  const origVaspErr = originatorLei?.record ? {} : validateVasp(originatingVasp);
+  const benVaspErr = validateVasp(beneficiaryVasp);
+  const ivmsOk = [origErr, benErr, origVaspErr, benVaspErr].every((e) => Object.keys(e).length === 0);
+  const [showIvmsErrors, setShowIvmsErrors] = useState(false);
+
+  const payload = buildTravelRulePayload({
+    amount,
+    reference,
+    anchorTx,
+    corridor,
+    network,
+    exampleOnly,
+    originator,
+    beneficiary,
+    originatingVasp,
+    beneficiaryVasp,
+    originatorLei,
+  });
   const json = JSON.stringify(payload, null, 2);
+  // The exact IVMS101 JSON of the last transmission, for the regulator to download and inspect.
+  const [sentJson, setSentJson] = useState<{ json: string; via: string } | null>(null);
+
+  // Which integrations this deployment has wired (booleans only), to gate the Notabene option.
+  const [health, setHealth] = useState<{ notabene?: boolean; auth?: boolean } | "error" | null>(null);
+  useEffect(() => {
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((d) => setHealth(d?.checks ?? "error"))
+      .catch(() => setHealth("error"));
+  }, []);
+  const notabeneReady = health !== null && health !== "error" && health.notabene === true;
+  useEffect(() => {
+    if (!notabeneReady && dest === "notabene") setDest("self");
+  }, [notabeneReady, dest]);
 
   // Drop any earlier response when the shown payload or destination changes.
   useEffect(() => {
@@ -1013,7 +1011,7 @@ function TravelRuleTab({
     try {
       const token = await scheduleSignIn(address, kind);
       if (!token) {
-        setLifecycle({ status: 0, body: "Wallet sign-in is not configured on this server, so the lifecycle read cannot be authorized." });
+        setLifecycle({ status: 0, body: "Wallet sign-in is not configured on this server (AUTH_SECRET is not set), so the lifecycle read cannot be authorized." });
         return;
       }
       const res = await fetch(`/api/travel-rule/callback?id=${encodeURIComponent(trp.requestIdentifier)}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -1037,6 +1035,11 @@ function TravelRuleTab({
   // set) or to our own inbound TRP endpoint (real protocol, single operator). We then show the
   // beneficiary's real TRP response.
   const sendTrp = async () => {
+    if (!ivmsOk) {
+      setShowIvmsErrors(true);
+      toast("Complete the IVMS101 identities first (see the marked fields on the originator copy)", "info");
+      return;
+    }
     setSending(true);
     setTrp(null);
     try {
@@ -1050,7 +1053,7 @@ function TravelRuleTab({
         }
         const token = await scheduleSignIn(address, kind);
         if (!token) {
-          setTrp({ ok: false, mode: "notabene", note: "", status: 0, requestIdentifier: "—", error: "Wallet sign-in is not configured on this server (AUTH_SECRET), so the Notabene send cannot be authorized." });
+          setTrp({ ok: false, mode: "notabene", note: "", status: 0, requestIdentifier: "—", error: "Wallet sign-in is not configured on this server (AUTH_SECRET is not set), so the Notabene send cannot be authorized." });
           return;
         }
         headers.Authorization = `Bearer ${token}`;
@@ -1068,6 +1071,8 @@ function TravelRuleTab({
       });
       const data = await res.json();
       const inner = data.response || {};
+      // The route forwarded the inquiry iff it returns a request-identifier; keep exactly what went out.
+      if (data.requestIdentifier) setSentJson({ json: JSON.stringify(payload, null, 2), via: data.mode || dest });
       setTrp({
         ok: Boolean(data.ok),
         mode: data.mode || "self-hosted",
@@ -1091,6 +1096,11 @@ function TravelRuleTab({
   // route; when TRISA_NODE_URL is set the node performs a real GDS lookup + sealed Transfer,
   // otherwise the route reports it is not deployed and the operator uses the TRP send above.
   const sendTrisa = async () => {
+    if (!ivmsOk) {
+      setShowIvmsErrors(true);
+      toast("Complete the IVMS101 identities first (see the marked fields on the originator copy)", "info");
+      return;
+    }
     setTrisaSending(true);
     setTrisa(null);
     try {
@@ -1107,7 +1117,8 @@ function TravelRuleTab({
       });
       const data = await res.json();
       setTrisa(data);
-      if (data.configured === false) toast("TRISA node not deployed, use the TRP send on the beneficiary copy", "info");
+      if (data.configured && data.status) setSentJson({ json: JSON.stringify(payload, null, 2), via: "trisa" });
+      if (data.configured === false) toast("TRISA node not deployed (TRISA_NODE_URL is not set), use the TRP send on the beneficiary copy", "info");
       else if (data.ok && data.result && !data.result.rejected) toast("TRISA beneficiary VASP accepted the transfer", "success");
     } catch (e: any) {
       setTrisa({ configured: true, ok: false, error: "TRISA send failed: " + ((e && e.message) || String(e)) });
@@ -1116,13 +1127,13 @@ function TravelRuleTab({
     }
   };
 
-  // Client-side blob download of the exact payload shown. Guarded for the browser (SSR-safe).
-  const downloadJson = () => {
+  // Client-side blob download of a payload (the one shown, or the one last transmitted). SSR-safe.
+  const downloadJson = (text: string, tag: string) => {
     if (typeof window === "undefined" || !window.URL?.createObjectURL) return;
-    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tukar-ivms101-${corridor.code}-${exampleOnly ? "example" : "receipt"}-${Date.now()}.json`;
+    a.download = `tukar-ivms101-${corridor.code}-${tag}-${Date.now()}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast("IVMS101 payload downloaded", "success");
@@ -1145,9 +1156,10 @@ function TravelRuleTab({
             protocol so this is a working VASP-to-VASP handshake, not a mock.
           </p>
           <p className="mt-3 text-[13px] leading-relaxed text-ink-3">
-            Tukar never holds names or addresses, so every personal field below is a marked placeholder{" "}
-            <span className="font-mono text-ink">{ANCHOR_PII}</span>. The amount, asset, corridor, and reference are the real, on-chain
-            facts a disclosure proves.
+            The identities below are entered by the sending anchor&apos;s compliance desk from its own KYC records. They are validated
+            against IVMS101 (required fields, ISO 3166 countries, constraint C1 for the originator), built into the payload in this
+            browser, and carried in the TRP body to the peer; Tukar does not store them. The amount, asset, corridor, and reference are
+            the real, on-chain facts a disclosure proves.
           </p>
 
           <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-ink/25 pt-4">
@@ -1186,10 +1198,34 @@ function TravelRuleTab({
               </p>
             )}
             {leiResolved && !leiResolved.record && !leiResolved.error && (
-              <p className="mt-1 text-[11px] text-tape-deep">Check digits OK, but GLEIF has no record for this LEI. It is still sent as LEIX; the name stays the anchor placeholder.</p>
+              <p className="mt-1 text-[11px] text-tape-deep">Check digits OK, but GLEIF has no record for this LEI. It is still sent as LEIX, with the name you type below.</p>
             )}
             {leiResolved?.error && <p className="mt-1 text-[11px] text-tape-deep">GLEIF unreachable ({leiResolved.error}). The LEI is still sent as LEIX.</p>}
           </div>
+
+          {!originatorLei?.record && (
+            <VaspFields
+              id="tr-ovasp"
+              title="Originating VASP (sending anchor)"
+              value={originatingVasp}
+              errors={origVaspErr}
+              onChange={setOriginatingVasp}
+              showErrors={showIvmsErrors}
+              namePlaceholder="Your licensed entity's registered name"
+            />
+          )}
+          <PartyFields id="tr-orig" title="Originator (natural person)" value={originator} errors={origErr} onChange={setOriginator} showErrors={showIvmsErrors} />
+          <p className="mt-1 text-[11px] text-ink-3">IVMS101 C1: the originator needs a national ID or a date and place of birth.</p>
+          <VaspFields
+            id="tr-bvasp"
+            title="Beneficiary VASP (receiving anchor)"
+            value={beneficiaryVasp}
+            errors={benVaspErr}
+            onChange={setBeneficiaryVasp}
+            showErrors={showIvmsErrors}
+            namePlaceholder={`Registered name of the ${corridor.currency} off-ramp VASP`}
+          />
+          <PartyFields id="tr-ben" title="Beneficiary (natural person)" value={beneficiary} errors={benErr} onChange={setBeneficiary} showErrors={showIvmsErrors} />
 
           {!exampleOnly && last && (
             <p className="mt-3 text-[12.5px] text-ink-3">
@@ -1199,9 +1235,9 @@ function TravelRuleTab({
           )}
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className={captionCls}>IVMS101-shaped Travel Rule payload</div>
+            <div className={captionCls}>IVMS101 Travel Rule payload{ivmsOk ? "" : " (incomplete, not sendable yet)"}</div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="subtle" onClick={downloadJson}>
+              <Button variant="subtle" onClick={() => downloadJson(json, exampleOnly ? "example" : "receipt")}>
                 Download IVMS101 payload (.json)
               </Button>
               <Button
@@ -1227,8 +1263,28 @@ function TravelRuleTab({
           <div className="mt-3 w-full max-w-xl">
             <Select id="trp-dest" label="Beneficiary VASP" value={dest} onChange={(e) => setDest(e.target.value as "self" | "notabene")}>
               <option value="self">Our own inbound endpoint (real TRP, single operator)</option>
-              <option value="notabene">Notabene sandbox (real independent VASP, needs NOTABENE_API_KEY)</option>
+              <option value="notabene" disabled={!notabeneReady}>
+                {notabeneReady
+                  ? "Notabene sandbox (real independent VASP)"
+                  : health === null
+                    ? "Notabene sandbox (checking /api/health…)"
+                    : health === "error"
+                      ? "Notabene sandbox (unavailable: /api/health could not be read)"
+                      : "Notabene sandbox (unavailable: NOTABENE_API_KEY is not set)"}
+              </option>
             </Select>
+            {health !== null && health !== "error" && !health.notabene && (
+              <p className="mt-2 text-[12.5px] text-ink-3">
+                The Notabene sandbox is disabled on this deployment because <span className="font-mono text-ink">NOTABENE_API_KEY</span> is not
+                set{health.auth === false ? (
+                  <>
+                    {" "}
+                    (sending to it also needs wallet sign-in, which needs <span className="font-mono text-ink">AUTH_SECRET</span>)
+                  </>
+                ) : null}
+                .
+              </p>
+            )}
             <p className="mt-2 font-mono text-[11px] break-all text-ink-3">
               Travel Address: <span className="text-ink">{DEMO_TRAVEL_ADDRESS}</span>
             </p>
@@ -1254,6 +1310,15 @@ function TravelRuleTab({
             </Button>
             {sending && <Spinner label="posting the TRP transfer inquiry…" />}
           </div>
+          {!ivmsOk && <p className="mt-2 text-[12.5px] text-ink-3">Complete the IVMS101 identities on the originator copy to send.</p>}
+          {sentJson && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-[12.5px] text-ink-2">
+              <span>Last transmitted IVMS101 ({sentJson.via}).</span>
+              <Button variant="subtle" onClick={() => downloadJson(sentJson.json, `sent-${sentJson.via}`)}>
+                Download transmitted IVMS101 (.json)
+              </Button>
+            </div>
+          )}
 
           {trp && trp.approved && (
             <div className="mt-5 border-t-2 border-ink pt-4 text-[13px]">
@@ -1415,14 +1480,14 @@ function TravelRuleTab({
             </ul>
           </div>
           <div className="text-[13px] leading-relaxed">
-            <h3 className="m-0 font-stencil text-[15px] tracking-[0.02em] text-ink uppercase">Placeholder, held by the anchor</h3>
+            <h3 className="m-0 font-stencil text-[15px] tracking-[0.02em] text-ink uppercase">Entered by the anchor, from its KYC</h3>
             <ul className="mt-2 list-disc pl-4 text-ink-2">
-              <li>Originator and beneficiary names</li>
-              <li>Geographic addresses</li>
-              <li>National identification</li>
-              <li>Account numbers and customer ids</li>
+              <li>Originator and beneficiary names and country of residence</li>
+              <li>Account numbers (Stellar address or VASP account)</li>
+              <li>National identification, date and place of birth</li>
+              <li>VASP registered names and countries (or the GLEIF record for an LEI)</li>
             </ul>
-            <p className="mt-2 text-ink-3">Tukar never sees these. The licensed anchors run KYC and exchange them out of band.</p>
+            <p className="mt-2 text-ink-3">Validated against IVMS101 in this browser and carried in the TRP body. Tukar does not store them.</p>
           </div>
         </div>
 

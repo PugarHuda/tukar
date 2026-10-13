@@ -35,7 +35,11 @@ const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64");
 const FAKE_NOTE = "tukar1:" + b64(FAKE_NOTE_PAYLOAD);
 const XSS = `<img src=x onerror="window.__xss=1">`;
 
-type Health = { status: string; checks: { rpc: string; reclaim: boolean; schedules: boolean; trisa: boolean; notabene: boolean } };
+type Health = {
+  status: string;
+  checks: { rpc: string; reclaim: boolean; schedules: boolean; relayer: boolean; trisa: boolean; notabene: boolean } & Record<string, unknown>;
+  missing: Record<string, string[]>;
+};
 let health: Health;
 test.beforeAll(async ({ request }) => {
   const r = await request.get("/api/health");
@@ -87,18 +91,26 @@ async function watchAll(page: Page) {
 
 // Sender hydration proof: SSR renders Continue ENABLED (default "200"); it only goes DISABLED once
 // React's onChange is live (app/sender/page.tsx:577). Leaves the amount field empty.
+const QA_RECIPIENT = "Ana · QA";
 async function senderReady(page: Page): Promise<Locator> {
   const amount = page.locator("#amount");
+  const recipient = page.locator("#recipient");
   await expect(amount).toBeVisible();
   const cont = page.getByRole("button", { name: /Continue/ });
-  // Alternate two values on every attempt: React's value tracker only fires onChange when the DOM
-  // value CHANGES from what it last saw, so re-filling the same string after a pre-hydration fill
-  // never reaches state (that is the WebKit /verify baseline failure; see the report).
+  // SSR renders Continue DISABLED (the recipient starts empty and is required), so seeing it go
+  // ENABLED after typing a recipient proves React's onChange pipeline is live. Alternate values on
+  // every attempt: React's value tracker only fires onChange when the DOM value CHANGES from what it
+  // last saw, so re-filling the same string after a pre-hydration fill never reaches state.
   await expect(async () => {
+    await recipient.fill("x");
+    await recipient.fill(QA_RECIPIENT);
     await amount.fill("0");
-    await amount.fill("");
-    await expect(cont).toBeDisabled({ timeout: 1500 });
+    await amount.fill("200");
+    await expect(cont).toBeEnabled({ timeout: 1500 });
   }).toPass({ timeout: 40_000 });
+  // Leave the amount empty (Continue disabled) with the recipient filled, as callers expect.
+  await amount.fill("");
+  await expect(cont).toBeDisabled();
   return amount;
 }
 async function fillStable(loc: Locator, v: string) {
@@ -121,6 +133,27 @@ async function connectDemo(page: Page) {
   }).toPass({ timeout: 30_000 });
 }
 // Dashboard nav (components/dashboard/Sidebar.tsx:56-59): buttons with aria-current="page" when active.
+// The Travel Rule tab sends nothing until the IVMS101 identities validate (lib/ivms101). Fill a
+// complete, valid set: both VASPs, an originator with a national ID (constraint C1), a beneficiary.
+async function fillIvms(page: Page, corridorCountry = "MX") {
+  const ovasp = page.locator("#tr-ovasp-name");
+  if (await ovasp.isVisible()) {
+    await ovasp.fill("QA Remit LLC");
+    await page.locator("#tr-ovasp-country").fill("US");
+  }
+  await page.locator("#tr-orig-primary").fill("Santos");
+  await page.locator("#tr-orig-secondary").fill("Maria");
+  await page.locator("#tr-orig-country").fill("US");
+  await page.locator("#tr-orig-account").fill("GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS");
+  await page.locator("#tr-orig-idtype").selectOption("CCPT");
+  await page.locator("#tr-orig-nid").fill("P1234567");
+  await page.locator("#tr-bvasp-name").fill("QA Off-ramp SA");
+  await page.locator("#tr-bvasp-country").fill(corridorCountry);
+  await page.locator("#tr-ben-primary").fill("Silva");
+  await page.locator("#tr-ben-country").fill(corridorCountry);
+  await page.locator("#tr-ben-account").fill("qa-account-001");
+  await expect(page.getByText("IVMS101 Travel Rule payload", { exact: true })).toBeVisible();
+}
 async function selectNav(page: Page, label: RegExp) {
   const btn = page.locator("aside nav button", { hasText: label }).first();
   await expect(async () => {
@@ -237,9 +270,19 @@ test.describe("API: methods, malformed bodies, gates", () => {
   test("/api/health: 200 JSON, presence-only booleans, rpc ok|unreachable, POST → 405", async ({ request }) => {
     expect(health.status).toBe("ok");
     expect(["ok", "unreachable"]).toContain(health.checks.rpc);
-    for (const k of ["reclaim", "schedules", "trisa", "notabene"] as const) expect(typeof health.checks[k], k).toBe("boolean");
-    // never leaks a value, only booleans
-    expect(JSON.stringify(health)).not.toMatch(/secret|token|key=/i);
+    const flags = ["reclaim", "auth", "sep7Signing", "webPush", "schedulesStore", "schedules", "relayer", "cctpRelayer", "trisa", "notabene", "idos"];
+    for (const k of flags) expect(typeof health.checks[k], k).toBe("boolean");
+    // `checks` never leaks a value, only booleans (+ the rpc/trisaNode reachability words)
+    expect(JSON.stringify(health.checks)).not.toMatch(/secret|token|key=/i);
+    // `missing` names the env vars behind exactly the false flags: names only, never values
+    expect(Object.keys(health.missing).sort()).toEqual(flags.filter((k) => health.checks[k] === false).sort());
+    for (const [k, names] of Object.entries(health.missing)) {
+      expect(names.length, k).toBeGreaterThan(0);
+      for (const n of names) expect(n, k).toMatch(/^[A-Z][A-Z0-9_]+( |$)/);
+    }
+    if (!health.checks.relayer) expect(health.missing.relayer).toEqual(["RELAYER_SECRET"]);
+    if (!health.checks.notabene) expect(health.missing.notabene).toEqual(["NOTABENE_API_KEY"]);
+    if (!health.checks.trisa) expect(health.missing.trisa).toEqual(["TRISA_NODE_URL"]);
     expect((await request.post("/api/health", { data: {} })).status()).toBe(405);
     expect((await request.delete("/api/health")).status()).toBe(405);
   });
@@ -406,9 +449,15 @@ test.describe("API: methods, malformed bodies, gates", () => {
     expect(j.signature.alg).toBeTruthy();
     // empty IVMS is answered by our own inbound node with a rejection, transported honestly
     expect(j.response.rejected).toMatch(/IVMS101 validation failed/);
-    // asking for Notabene without the key silently falls back to self-hosted (route.ts:56-64)
+    // asking for Notabene without the key is refused with the env var name, never re-routed to the loopback
     const nb = await request.post("/api/travel-rule/send", { headers: J, data: { ivms101: {}, destination: { notabene: true } }, timeout: 30_000 });
-    expect((await nb.json()).mode).toBe(health.checks.notabene ? "notabene" : "self-hosted");
+    const nbj = await nb.json();
+    expect(nbj.mode).toBe("notabene");
+    if (!health.checks.notabene) {
+      expect(nb.status()).toBe(503);
+      expect(nbj.ok).toBe(false);
+      expect(nbj.error).toBe("Notabene is not configured on this deployment: NOTABENE_API_KEY is not set.");
+    }
   });
 
   test("/api/schedules + nonce + cron: auth fails closed, gates are honest", async ({ request }) => {
@@ -416,12 +465,31 @@ test.describe("API: methods, malformed bodies, gates", () => {
     expect((await request.get("/api/schedules", { headers: { authorization: "Bearer garbage" } })).status()).toBe(401);
     expect((await request.get("/api/schedules", { headers: { authorization: "Bearer " } })).status()).toBe(401);
     expect((await request.post("/api/schedules", { headers: J, data: { amount: "1", code: "MX", recipient: "x", frequency: "weekly" } })).status()).toBe(401);
+    // wallet sign-in (shared with the regulator's TRP lifecycle read): needs the plan store + AUTH_SECRET only
     const n = await request.get("/api/schedules/nonce?address=" + G);
     expect(n.status()).toBe(200);
     const nj = await n.json();
     expect(nj.configured).toBe(health.checks.schedules);
     if (health.checks.schedules) expect(nj.nonce).toBeTruthy();
-    else expect(nj.nonce).toBeUndefined();
+    else {
+      expect(nj.nonce).toBeUndefined();
+      expect(nj.missing).toEqual(health.missing.schedules);
+    }
+    // the scheduler probe /sender reads on load: always 200 (a capability report, not a failed call);
+    // live only with a private relayer key too, and it names exactly what is missing otherwise
+    const probe = await request.get("/api/schedules/nonce");
+    expect(probe.status()).toBe(200);
+    const pj = await probe.json();
+    const live = health.checks.schedules && health.checks.relayer;
+    expect(pj.configured).toBe(live);
+    if (live) expect(pj.relayer).toMatch(/^G[A-Z2-7]{55}$/);
+    else {
+      expect(pj.relayer).toBeUndefined(); // never hands out a spender without a private relayer key
+      expect(pj.missing).toEqual([...(health.missing.schedules ?? []), ...(health.checks.relayer ? [] : ["RELAYER_SECRET"])]);
+      if (!health.checks.relayer) expect(pj.error).toBe("scheduler relayer key not configured (RELAYER_SECRET)");
+    }
+    // recurring plans themselves need the relayer key: an authenticated POST without it is a 503
+    // (unit-tested in webapp/app/api/schedules/route.test.ts; unauthenticated it is 401 above)
     // a malformed address never yields a nonce
     const bad = await request.get("/api/schedules/nonce?address=" + XSS);
     expect((await bad.json()).nonce).toBeUndefined();
@@ -794,16 +862,27 @@ test.describe("wallet bar", () => {
 
 // ================================================================ 9. SENDER
 test.describe("sender", () => {
-  test("corridor select drives recipient + currency; recipient is capped at 24 chars; XSS string is inert", async ({ page }) => {
+  test("corridor select drives the recipient example + currency; recipient is required, capped at 24 chars; XSS string is inert", async ({ page }) => {
     const w = await watchAll(page);
     await goto200(page, "/sender");
     const amount = await senderReady(page);
-    await page.locator("#corridor").selectOption("BR");
-    await expect(page.locator("#recipient")).toHaveValue("João · São Paulo"); // app/sender/page.tsx:40
-    await expect(page.getByText(/BRL at/)).toBeVisible();
-    await page.locator("#corridor").selectOption("NG");
-    await expect(page.locator("#recipient")).toHaveValue("Chidi · Lagos");
     const rec = page.locator("#recipient");
+    await expect(rec).toHaveAttribute("required", "");
+    // the corridor only changes the example placeholder; what the sender typed is kept
+    await page.locator("#corridor").selectOption("BR");
+    await expect(rec).toHaveAttribute("placeholder", "e.g. João · São Paulo"); // app/sender/page.tsx CORRIDORS
+    await expect(rec).toHaveValue(QA_RECIPIENT);
+    // no built-in rate: a live BRL rate with its source, or the honest reading/unavailable line
+    await expect(page.getByText(/BRL at [\d.,]+ · (Reflector oracle, on-chain|open\.er-api\.com, HTTP)|BRL rate unavailable right now|Reading the live BRL rate…/)).toBeVisible();
+    await page.locator("#corridor").selectOption("NG");
+    await expect(rec).toHaveAttribute("placeholder", "e.g. Chidi · Lagos");
+    // an empty recipient blocks Continue with an honest hint, even with a valid amount
+    await fillStable(amount, "12.5");
+    await rec.fill("");
+    await expect(page.getByRole("button", { name: /Continue/ })).toBeDisabled();
+    await expect(page.getByText("Enter who you are sending to.")).toBeVisible();
+    await rec.fill("   ");
+    await expect(page.getByRole("button", { name: /Continue/ })).toBeDisabled(); // whitespace is not a recipient
     await rec.fill("");
     await rec.pressSequentially("x".repeat(40));
     expect((await rec.inputValue()).length).toBe(24); // maxLength={24} (page.tsx:702)
@@ -893,11 +972,24 @@ test.describe("sender", () => {
     await fillStable(amount, "20");
     await page.locator("#frequency").selectOption("weekly");
     await expect(page.getByText(/Schedule a weekly send/)).toBeVisible();
-    const badge = page.getByText(health.checks.schedules ? "AUTOMATED" : "PREVIEW", { exact: true });
+    // automated only with a plan store + AUTH_SECRET + a private RELAYER_SECRET (the nonce probe)
+    const automated = health.checks.schedules && health.checks.relayer;
+    const badge = page.getByText(automated ? "AUTOMATED" : "THIS DEVICE", { exact: true });
     await expect(badge).toBeVisible({ timeout: 20_000 }); // waits for the /api/schedules/nonce probe
+    if (!automated) {
+      // names the exact env vars the server scheduler lacks
+      const need = [...(health.missing.schedules ?? []), ...(health.checks.relayer ? [] : ["RELAYER_SECRET"])].join(" and ");
+      await expect(page.getByText(`Not automated on this deployment: the server scheduler needs ${need} set.`, { exact: false })).toBeVisible();
+    }
     const save = page.getByRole("button", { name: /(Save|Schedule) weekly plan/ });
     await expect(save).toBeEnabled();
-    if (health.checks.schedules) {
+    // a plan needs a recipient too
+    const rec = page.locator("#recipient");
+    await rec.fill("");
+    await expect(save).toBeDisabled();
+    await rec.fill(QA_RECIPIENT);
+    await expect(save).toBeEnabled();
+    if (automated) {
       await save.click();
       await expect(toast(page)).toContainText(/Connect a wallet to schedule/);
       return;
@@ -906,6 +998,7 @@ test.describe("sender", () => {
     await expect(toast(page)).toContainText("Plan saved on this device");
     await expect(page.getByText("Scheduled sends")).toBeVisible();
     await expect(page.getByText(/\$20 USDC · Mexico/)).toBeVisible();
+    await expect(page.getByText(QA_RECIPIENT).first()).toBeVisible();
     await expect(page.getByText("saved on this device", { exact: true })).toBeVisible();
     // reload -> persisted via localStorage tukar:schedules
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -964,7 +1057,11 @@ test.describe("sender", () => {
     await page.getByRole("button", { name: /^Clear$/ }).click();
     await expect(page.locator("#amount")).toHaveValue("200");
     await expect(page.locator("#amount")).not.toHaveAttribute("readonly", "");
-    await expect(page.locator("#recipient")).toHaveValue("Andrea · Manila");
+    // Clear empties the payee (no made-up name); the corridor's example is only the placeholder
+    await expect(page.locator("#recipient")).toHaveValue("");
+    await expect(page.locator("#recipient")).toHaveAttribute("placeholder", "e.g. Andrea · Manila");
+    await expect(page.getByRole("button", { name: /Continue/ })).toBeDisabled();
+    await expect(page.getByText("Enter who you are sending to.")).toBeVisible();
     expect(w.crashes()).toEqual([]);
   });
 
@@ -1320,7 +1417,9 @@ test.describe("regulator", () => {
     await goto200(page, "/regulator");
     await selectNav(page, /Travel Rule/);
     await expect(page.getByText("FATF Travel Rule (TRP 3.2.1)")).toBeVisible();
-    await expect(page.getByText(/IVMS101-shaped Travel Rule payload/)).toBeVisible();
+    // identities start empty: the payload is marked incomplete and nothing can be sent yet
+    await expect(page.getByText("IVMS101 Travel Rule payload (incomplete, not sendable yet)")).toBeVisible();
+    await expect(page.getByText("Complete the IVMS101 identities on the originator copy to send.")).toBeVisible();
     await page.getByRole("button", { name: "Verify a disclosure to fill this in" }).click();
     await expect(page.locator("aside nav button", { hasText: "Verify disclosure" })).toHaveAttribute("aria-current", "page");
     await selectNav(page, /Travel Rule/);
@@ -1329,8 +1428,18 @@ test.describe("regulator", () => {
       await expect(toast(page)).toContainText("Payload copied");
     }
     await page.locator("#tr-corridor").selectOption("BR");
-    // real TRP send (self-hosted, single operator) — the beneficiary approves (qa6 baseline)
     const send = page.getByRole("button", { name: "Send as TRP message" });
+    // an incomplete IVMS101 is refused in the browser, with the fields marked; nothing is posted
+    await send.click();
+    await expect(toast(page)).toContainText("Complete the IVMS101 identities first");
+    await expect(page.getByText("Required (IVMS101 primaryIdentifier).").first()).toBeVisible();
+    await expect(page.getByText("IVMS101 C1: the originator needs a national ID or a date and place of birth.").first()).toBeVisible();
+    await expect(page.getByText(/Approved by the beneficiary VASP/)).toHaveCount(0);
+    // an invalid country code is called out
+    await page.locator("#tr-orig-country").fill("ZZ");
+    await expect(page.getByText("Not an ISO 3166-1 alpha-2 code (IVMS101 C3).").first()).toBeVisible();
+    await fillIvms(page, "BR");
+    // real TRP send (self-hosted, single operator) — the beneficiary approves (qa6 baseline)
     await send.click({ clickCount: 2, delay: 30 }); // busy flag blocks the second fire
     await expect(page.getByText(/Approved by the beneficiary VASP · TRP 200/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/Approved by the beneficiary VASP/)).toHaveCount(1);

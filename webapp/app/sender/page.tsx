@@ -39,23 +39,28 @@ import { SavingsNote } from "@/components/SavingsNote";
 import { CctpFund } from "@/components/CctpFund";
 import { CctpSend } from "@/components/CctpSend";
 import { scheduleSignIn } from "@/lib/auth-client";
+import { approveRelayer, RUNS_COVERED } from "@/components/sender/approve";
+import { FeeSponsor } from "@/components/sender/FeeSponsor";
+import { installSponsoredSigner, type Sponsored } from "@/components/sender/sponsor";
 import { checkPayUri } from "@/lib/sep7";
 
 // The 10 corridors, codes/currencies match app.js CORRIDORS (the receiver keys off `corridor`
 // in the bearer note, so codes must line up). `oracle` = the symbol Reflector's on-chain SEP-40
-// feed carries; those refresh to a live on-chain rate, the rest via a public FX API.
-type Corridor = { code: string; country: string; recipient: string; currency: string; symbol: string; rate: number; oracle?: string };
+// feed carries; those refresh to a live on-chain rate, the rest via a public FX API. There is no
+// built-in rate: until a live one loads the form says so and shows no figure. `example` is only the
+// recipient field's placeholder.
+type Corridor = { code: string; country: string; example: string; currency: string; symbol: string; oracle?: string };
 const CORRIDORS: Corridor[] = [
-  { code: "MX", country: "Mexico", recipient: "María · Mexico City", currency: "MXN", symbol: "$", rate: 17.1, oracle: "MXN" },
-  { code: "BR", country: "Brazil", recipient: "João · São Paulo", currency: "BRL", symbol: "R$", rate: 5.2, oracle: "BRL" },
-  { code: "AR", country: "Argentina", recipient: "Sofía · Buenos Aires", currency: "ARS", symbol: "$", rate: 1450, oracle: "ARS" },
-  { code: "PH", country: "Philippines", recipient: "Andrea · Manila", currency: "PHP", symbol: "₱", rate: 58.5 },
-  { code: "ID", country: "Indonesia", recipient: "Dewi · Jakarta", currency: "IDR", symbol: "Rp", rate: 18080 },
-  { code: "VN", country: "Vietnam", recipient: "Linh · Ho Chi Minh", currency: "VND", symbol: "₫", rate: 26206 },
-  { code: "TH", country: "Thailand", recipient: "Malee · Bangkok", currency: "THB", symbol: "฿", rate: 33.5, oracle: "THB" },
-  { code: "IN", country: "India", recipient: "Rohan · Mumbai", currency: "INR", symbol: "₹", rate: 83.4 },
-  { code: "NG", country: "Nigeria", recipient: "Chidi · Lagos", currency: "NGN", symbol: "₦", rate: 1570 },
-  { code: "CO", country: "Colombia", recipient: "Camila · Bogotá", currency: "COP", symbol: "$", rate: 3950 },
+  { code: "MX", country: "Mexico", example: "María · Mexico City", currency: "MXN", symbol: "$", oracle: "MXN" },
+  { code: "BR", country: "Brazil", example: "João · São Paulo", currency: "BRL", symbol: "R$", oracle: "BRL" },
+  { code: "AR", country: "Argentina", example: "Sofía · Buenos Aires", currency: "ARS", symbol: "$", oracle: "ARS" },
+  { code: "PH", country: "Philippines", example: "Andrea · Manila", currency: "PHP", symbol: "₱" },
+  { code: "ID", country: "Indonesia", example: "Dewi · Jakarta", currency: "IDR", symbol: "Rp" },
+  { code: "VN", country: "Vietnam", example: "Linh · Ho Chi Minh", currency: "VND", symbol: "₫" },
+  { code: "TH", country: "Thailand", example: "Malee · Bangkok", currency: "THB", symbol: "฿", oracle: "THB" },
+  { code: "IN", country: "India", example: "Rohan · Mumbai", currency: "INR", symbol: "₹" },
+  { code: "NG", country: "Nigeria", example: "Chidi · Lagos", currency: "NGN", symbol: "₦" },
+  { code: "CO", country: "Colombia", example: "Camila · Bogotá", currency: "COP", symbol: "$" },
 ];
 
 type Fx = Record<string, { rate: number; source: "reflector" | "fx-api" }>;
@@ -65,13 +70,14 @@ type SendResult = {
   ref: string;
   usdc: number;
   corridor: Corridor;
-  rate: number;
-  rateSource?: "reflector" | "fx-api"; // undefined = the static preview rate was all we had
+  rate: number | null; // null = no live rate had loaded when this was sent
+  rateSource?: "reflector" | "fx-api";
   note: Note;
   bearer: string;
   claimLink: string; // /receiver#claim=... wrapping the bearer note (PIN-wrapped when a PIN was set)
   pinned: boolean;
   depHash: string;
+  sponsor?: string; // fee-bump fee payer, when "Pay network fee for me" was on
   regOk: boolean;
   regError?: string;
   svg: string | null;
@@ -81,8 +87,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MAX_USDC = 1_000_000_000; // same cap the send path enforces on-chain
 
 // A saved send plan. In device-local mode it is a reminder only. When the server scheduler is
-// configured (Vercel Blob + cron), the plan is stored server-side and the daily cron executes its
-// deposit + shielded-tree registration on-chain automatically (history carries the run receipts).
+// configured (a plan store + AUTH_SECRET + cron), the plan is stored server-side, the owner's wallet
+// approves USDC to the relayer, and the daily cron pulls each run's amount from that wallet and
+// executes the deposit + shielded-tree registration on-chain (history carries the run receipts).
 type Frequency = "one-time" | "weekly" | "monthly";
 type Schedule = SchedulePlan;
 const SCHEDULES_KEY = "tukar:schedules";
@@ -110,8 +117,8 @@ export default function SenderPage() {
   const [screen, setScreen] = useState<Screen>("compose");
   const [amount, setAmount] = useState("200");
   const [code, setCode] = useState("MX");
-  const [recipient, setRecipient] = useState(CORRIDORS[0].recipient);
-  // Recurring/scheduled send, a saved plan (reminder) only, never auto-executes on-chain.
+  const [recipient, setRecipient] = useState("");
+  // Recurring/scheduled send: a device reminder, or a server plan the cron executes (serverMode).
   const [frequency, setFrequency] = useState<Frequency>("one-time");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   // "Send only when USD to <local> is at least X" for a scheduled plan; oracle corridors only.
@@ -126,6 +133,11 @@ export default function SenderPage() {
   const [sent, setSent] = useState<SentNote[]>([]);
   // null = still probing; true = server scheduler live (cron executes on-chain); false = device-local reminder.
   const [serverMode, setServerMode] = useState<boolean | null>(null);
+  // "Pay network fee for me": route the deposit + registration through the /api/sponsor fee bump.
+  const [sponsorFee, setSponsorFee] = useState(false);
+  // Server mode: the relayer the owner approves USDC to. Device mode: the env vars the server lacks.
+  const [relayer, setRelayer] = useState("");
+  const [schedMissing, setSchedMissing] = useState<string[]>([]);
   // Scheduler bearer token from sign-in-with-wallet. Null until the connected wallet signs in.
   const [schedToken, setSchedToken] = useState<string | null>(null);
   // fulfilling a Receiver-issued payment request (tukreq1:), amount + payee are locked
@@ -135,6 +147,7 @@ export default function SenderPage() {
   // Optional 6-digit PIN that wraps the claim link (AES-GCM under PBKDF2). Protects the link in transit only.
   const [pin, setPin] = useState("");
   const [fx, setFx] = useState<Fx>({});
+  const [fxLoaded, setFxLoaded] = useState(false); // the live FX fetch finished (a corridor may still have no rate)
   const [pool, setPool] = useState<{ commitments: string; balance: string } | null>(null);
   const [poolBumped, setPoolBumped] = useState(false);
   const [sendStatus, setSendStatus] = useState("");
@@ -167,9 +180,11 @@ export default function SenderPage() {
       try {
         const j = await (await fetch("/api/schedules/nonce")).json();
         if (j?.configured) {
+          setRelayer(String(j.relayer || ""));
           setServerMode(true);
           return;
         }
+        if (Array.isArray(j?.missing)) setSchedMissing(j.missing.map(String));
       } catch {}
       setServerMode(false);
       try {
@@ -220,6 +235,10 @@ export default function SenderPage() {
   }
   async function saveSchedule() {
     if (schedBusy || frequency === "one-time" || !(num > 0) || num > MAX_USDC) return;
+    if (!recipient.trim()) {
+      toast("Enter who this plan pays.", "error");
+      return;
+    }
     // A rate condition only where the cron can read the rate on-chain (Reflector feed).
     const minRateNum = Number(minRate);
     if (minRate.trim() && !(minRateNum > 0 && Number.isFinite(minRateNum))) {
@@ -228,21 +247,32 @@ export default function SenderPage() {
     }
     const condition = corridor.oracle && minRate.trim() ? { symbol: corridor.oracle, minRate: minRateNum } : undefined;
     if (serverMode) {
-      if (!schedToken) {
+      if (!schedToken || !address) {
         toast("Connect a wallet to schedule (it signs you in).", "error");
         return;
       }
       setSchedBusy(true);
       try {
+        // The wallet approves USDC to the relayer first, so every run spends THIS wallet's USDC. The
+        // relayer key scheduling for itself has nothing to approve.
+        let approval: { hash: string; expirationLedger: number } | undefined;
+        if (address !== relayer) {
+          try {
+            approval = await approveRelayer(address, relayer, amount.trim(), frequency);
+          } catch (e: any) {
+            toast("USDC approval was not signed: " + ((e && e.message) || e), "error");
+            return;
+          }
+        }
         const r = await fetch("/api/schedules", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${schedToken}` },
-          body: JSON.stringify({ amount: amount.trim(), code, recipient, frequency, ...(condition ? { condition } : {}) }),
+          body: JSON.stringify({ amount: amount.trim(), code, recipient: recipient.trim(), frequency, ...(condition ? { condition } : {}), ...(approval ? { approval } : {}) }),
         });
         const j = await r.json();
         if (j?.schedule) {
           setSchedules([j.schedule, ...schedules]);
-          toast("Plan scheduled. The daily cron will run it on-chain.", "success");
+          toast("Plan scheduled. The daily cron pulls each run from your wallet and runs it on-chain.", "success");
         } else {
           toast(j?.error || "Could not schedule the plan", "error");
         }
@@ -254,7 +284,7 @@ export default function SenderPage() {
       return;
     }
     const id = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-    const plan: Schedule = { id, amount: amount.trim(), code, recipient, frequency, nextDate: computeNextDate(frequency), ...(condition ? { condition } : {}) };
+    const plan: Schedule = { id, amount: amount.trim(), code, recipient: recipient.trim(), frequency, nextDate: computeNextDate(frequency), ...(condition ? { condition } : {}) };
     persistSchedules([plan, ...schedules]);
     toast("Plan saved on this device", "success");
   }
@@ -297,9 +327,10 @@ export default function SenderPage() {
   }
 
   const corridor = CORRIDORS.find((c) => c.code === code) || CORRIDORS[0];
-  const effRate = fx[code]?.rate ?? corridor.rate;
+  // Live rate only (Reflector, else open.er-api.com). null = not loaded yet, or unavailable.
+  const liveRate = fx[code]?.rate ?? null;
   const num = Number(amount);
-  const receive = isFinite(num) && num > 0 ? num * effRate : 0;
+  const receive = liveRate != null && isFinite(num) && num > 0 ? num * liveRate : null;
   // Spending guard over the real Sent notes store (stroops -> USDC), for the amount in the form.
   const spent = spentInWindows(sent.map((n) => ({ at: n.createdAt, usdc: Number(n.amount) / 1e7 })));
   const guardVerdict = guardCheck(guard, spent, num);
@@ -330,7 +361,7 @@ export default function SenderPage() {
     setSent(loadSentNotes());
     setGuard(loadLocalGuard());
     // Real USD->local FX: Reflector on-chain oracle where the testnet feed carries it, a public
-    // FX API for the rest. Non-blocking; failure keeps the static fallback so the preview is sane.
+    // FX API for the rest. Non-blocking; a corridor with no rate shows "rate unavailable", no figure.
     (async () => {
       const next: Fx = {};
       await Promise.all(
@@ -351,6 +382,7 @@ export default function SenderPage() {
           }
       } catch {}
       setFx(next);
+      setFxLoaded(true);
     })();
     // Warm the Poseidon prover + mirror the on-chain tree so the first registration inserts at
     // the real next index. (registerNote re-syncs before acting regardless.)
@@ -458,37 +490,46 @@ export default function SenderPage() {
       setTimeout(() => setScreen("send"), 2600);
       return;
     }
-    const dep = await depositOnChain(note);
-    if (!dep.ok) {
-      // Three distinct compliance outcomes, each said as what it is: a deny-listed source (the
-      // non-membership constraint is unsatisfiable, no proof exists), a source that is simply not
-      // on the ASP allow-list (no membership path to prove), and PoolError #4 BadDenyList (the
-      // proof's deny-list inputs no longer match the pool's on-chain list, so retry proves against
-      // the current one). Everything else is a plain deposit failure with its reason.
-      const notListed = /not an approved ASP source/.test(dep.error || "");
-      const blocked = dep.denyRejected || notListed || dep.code === 4;
-      setSteps({ proof: "fail", deposit: "pend", register: "pend" });
-      setProgStatus(
-        dep.denyRejected
-          ? "This source is on the sanctions deny-list, so the compliance proof is unsatisfiable and the deposit cannot proceed."
-          : notListed
-            ? "This wallet is not on the ASP allow-list, so no compliance proof can be built for it. Send with the built-in testnet key, or ask the operator to add this key to the allow-list."
-            : dep.code === 4
-              ? "The pool's on-chain deny-list changed since this proof was built, so the deny-list check failed on-chain. Send again to prove against the current list."
-              : "Deposit failed: " + dep.error,
-      );
-      setBusy(false);
-      setTimeout(() => setScreen("send"), blocked ? 4200 : 3200);
-      return;
-    }
-    setSteps({ proof: "done", deposit: "done", register: "run" });
-    setDepHash(dep.hash || "");
-    setProgStatus(`${ref}: USDC deposited on-chain. Registering into the shielded tree…`);
-    const after = await refreshPool();
-    if (isFinite(after) && after !== before) setPoolBumped(true);
+    // Sponsored: the same signer signs, but the fee-bump sponsor pays the fee (restored after the send).
+    const sponsored: Sponsored[] = [];
+    const restoreSigner = sponsorFee ? installSponsoredSigner((s) => sponsored.push(s)) : () => {};
+    let reg: Awaited<ReturnType<typeof registerNote>>;
+    let dep: Awaited<ReturnType<typeof depositOnChain>>;
+    try {
+      dep = await depositOnChain(note);
+      if (!dep.ok) {
+        // Three distinct compliance outcomes, each said as what it is: a deny-listed source (the
+        // non-membership constraint is unsatisfiable, no proof exists), a source that is simply not
+        // on the ASP allow-list (no membership path to prove), and PoolError #4 BadDenyList (the
+        // proof's deny-list inputs no longer match the pool's on-chain list, so retry proves against
+        // the current one). Everything else is a plain deposit failure with its reason.
+        const notListed = /not an approved ASP source/.test(dep.error || "");
+        const blocked = dep.denyRejected || notListed || dep.code === 4;
+        setSteps({ proof: "fail", deposit: "pend", register: "pend" });
+        setProgStatus(
+          dep.denyRejected
+            ? "This source is on the sanctions deny-list, so the compliance proof is unsatisfiable and the deposit cannot proceed."
+            : notListed
+              ? "This wallet is not on the ASP allow-list, so no compliance proof can be built for it. Send with the built-in testnet key, or ask the operator to add this key to the allow-list."
+              : dep.code === 4
+                ? "The pool's on-chain deny-list changed since this proof was built, so the deny-list check failed on-chain. Send again to prove against the current list."
+                : "Deposit failed: " + dep.error,
+        );
+        setBusy(false);
+        setTimeout(() => setScreen("send"), blocked ? 4200 : 3200);
+        return;
+      }
+      setSteps({ proof: "done", deposit: "done", register: "run" });
+      setDepHash(dep.hash || "");
+      setProgStatus(`${ref}: USDC deposited on-chain. Registering into the shielded tree…`);
+      const after = await refreshPool();
+      if (isFinite(after) && after !== before) setPoolBumped(true);
 
-    // 2) Advance the on-chain root so the commitment is spendable.
-    const reg = await registerNote(note);
+      // 2) Advance the on-chain root so the commitment is spendable.
+      reg = await registerNote(note);
+    } finally {
+      restoreSigner();
+    }
     setSteps((s) => ({ ...s, register: reg.ok ? "done" : "fail" }));
     await refreshPool();
 
@@ -507,7 +548,7 @@ export default function SenderPage() {
     } catch {
       svg = null;
     }
-    setResult({ ref, usdc: num, corridor: c, rate: effRate, rateSource: fx[code]?.source, note, bearer, claimLink, pinned: !!pin, depHash: dep.hash || "", regOk: reg.ok, regError: reg.error, svg });
+    setResult({ ref, usdc: num, corridor: c, rate: liveRate, rateSource: fx[code]?.source, note, bearer, claimLink, pinned: !!pin, depHash: dep.hash || "", sponsor: sponsored.find((s) => s.fn === "deposit")?.sponsor, regOk: reg.ok, regError: reg.error, svg });
     setBusy(false);
     setScreen("success");
   }
@@ -643,7 +684,7 @@ export default function SenderPage() {
   function clearRequest() {
     setRequest(null);
     setReqStatus("");
-    setRecipient(corridor.recipient);
+    setRecipient("");
     setAmount(preReqAmount.current || "200");
   }
 
@@ -652,7 +693,7 @@ export default function SenderPage() {
   // the packing slip (cost, request, standing orders) on the right from 1024px, one column below.
   // <main> stays the 520px label column; the slip is an <aside> sibling on the same box, and the
   // stubs that end each screen (Continue, Edit, Share) sit under the label in their own row.
-  const canContinue = isFinite(num) && num > 0 && num <= MAX_USDC && !guardBlocked;
+  const canContinue = isFinite(num) && num > 0 && num <= MAX_USDC && !guardBlocked && !!recipient.trim();
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-[1100px] px-3 pb-16 pt-5 sm:px-7">
@@ -698,12 +739,7 @@ export default function SenderPage() {
                 amount={amount}
                 setAmount={setAmount}
                 code={code}
-                onCorridorChange={(v) => {
-                  setCode(v);
-                  if (request) return; // keep the requested-payee label while fulfilling a request
-                  const nc = CORRIDORS.find((c) => c.code === v);
-                  if (nc) setRecipient(nc.recipient);
-                }}
+                onCorridorChange={setCode}
                 recipient={recipient}
                 setRecipient={setRecipient}
                 frequency={frequency}
@@ -712,6 +748,7 @@ export default function SenderPage() {
                 setMinRate={setMinRate}
                 schedules={schedules}
                 serverMode={serverMode}
+                schedMissing={schedMissing}
                 schedBusy={schedBusy}
                 onSaveSchedule={saveSchedule}
                 guard={guard}
@@ -726,7 +763,8 @@ export default function SenderPage() {
                 connected={connected}
                 corridor={corridor}
                 fxSource={fx[code]?.source}
-                effRate={effRate}
+                fxLoaded={fxLoaded}
+                liveRate={liveRate}
                 receive={receive}
                 locked={!!request}
                 canContinue={canContinue}
@@ -761,7 +799,7 @@ export default function SenderPage() {
 
           {/* The packing slip. CostCard stays first so it keeps its policy + benchmark reads across screens. */}
           <aside aria-label="Packing slip" className="relative z-[1] mx-auto mt-4 w-full max-w-[520px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:max-w-none">
-            {screen !== "success" && <CostCard code={code} usdc={num} receive={receive} fxSource={fx[code]?.source} />}
+            {screen !== "success" && <CostCard code={code} usdc={num} receive={receive} fxSource={fx[code]?.source} fxLoaded={fxLoaded} />}
             {screen === "compose" && (
               <>
                 <RequestLoader request={request} reqInput={reqInput} setReqInput={setReqInput} reqStatus={reqStatus} onLoad={loadRequest} onClear={clearRequest} />
@@ -770,6 +808,7 @@ export default function SenderPage() {
             )}
             {screen === "send" && (
               <>
+                <FeeSponsor className="mt-4" address={connected ? address : null} on={sponsorFee} setOn={setSponsorFee} />
                 <CctpFund className="mt-4" stellarRecipient={connected && address ? address : ""} />
                 <CctpSend className="mt-3" />
               </>
@@ -786,7 +825,9 @@ export default function SenderPage() {
                     ? "Keep it under 1,000,000,000 USDC to continue."
                     : guardBlocked
                       ? "Your spending guard holds this amount. Lower it, raise the guard, or type the amount in the guard to send anyway."
-                      : "Enter an amount greater than 0 to continue."
+                      : !(num > 0)
+                        ? "Enter an amount greater than 0 to continue."
+                        : "Enter who you are sending to."
                 }
                 pool={pool}
                 poolBumped={poolBumped}
@@ -799,7 +840,7 @@ export default function SenderPage() {
                     setSendStatus("Keep it under 1,000,000,000 USDC.");
                     return;
                   }
-                  if (guardBlocked) return;
+                  if (guardBlocked || !recipient.trim()) return;
                   setScreen("send");
                 }}
               />
@@ -856,6 +897,7 @@ function ComposeScreen(props: {
   setMinRate: (v: string) => void;
   schedules: Schedule[];
   serverMode: boolean | null;
+  schedMissing: string[];
   schedBusy: boolean;
   onSaveSchedule: () => void;
   guard: Guard;
@@ -870,16 +912,17 @@ function ComposeScreen(props: {
   connected: boolean;
   corridor: Corridor;
   fxSource?: "reflector" | "fx-api";
-  effRate: number;
-  receive: number;
+  fxLoaded: boolean;
+  liveRate: number | null;
+  receive: number | null;
   locked: boolean; // fulfilling a payment request: amount and recipient are read-only
   canContinue: boolean;
 }) {
-  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, minRate, setMinRate, schedules, serverMode, schedBusy, onSaveSchedule, guard, spent, guardBlocked, overridden, onOverride, onSaveGuard, signedIn, sentNotes, onSentChange, connected, corridor, fxSource, effRate, receive, locked, canContinue } = props;
-  const rateNote = fxSource === "reflector" ? "via Reflector oracle (on-chain)" : fxSource === "fx-api" ? "live" : "indicative (static rate)";
+  const { amount, setAmount, code, onCorridorChange, recipient, setRecipient, frequency, setFrequency, minRate, setMinRate, schedules, serverMode, schedMissing, schedBusy, onSaveSchedule, guard, spent, guardBlocked, overridden, onOverride, onSaveGuard, signedIn, sentNotes, onSentChange, connected, corridor, fxSource, fxLoaded, liveRate, receive, locked, canContinue } = props;
+  const rateNote = fxSource === "reflector" ? "Reflector oracle, on-chain" : "open.er-api.com, HTTP";
   // The plan box's save button ignores the spending guard: scheduling is not a send, and the cron
-  // applies the guard at run time.
-  const canSchedule = isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= MAX_USDC;
+  // applies the guard at run time. It does need a real recipient.
+  const canSchedule = isFinite(Number(amount)) && Number(amount) > 0 && Number(amount) <= MAX_USDC && !!recipient.trim();
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
@@ -924,7 +967,7 @@ function ComposeScreen(props: {
               </option>
             ))}
           </Select>
-          <Input label="Recipient" id="recipient" maxLength={24} value={recipient} onChange={(e) => setRecipient(e.target.value)} readOnly={locked} aria-label="Recipient name" />
+          <Input label="Recipient" id="recipient" maxLength={24} value={recipient} onChange={(e) => setRecipient(e.target.value)} readOnly={locked} required placeholder={`e.g. ${corridor.example}`} aria-label="Recipient name" />
           <Select label="Repeat" id="frequency" value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)}>
             <option value="one-time">One time</option>
             <option value="weekly">Weekly</option>
@@ -935,11 +978,15 @@ function ComposeScreen(props: {
         <div className="mt-4 flex items-end justify-between gap-3 border-t border-ink pt-3">
           <div className="min-w-0">
             <div className={CAP}>They receive ≈</div>
-            <div className={`mt-1 ${TYPED}`}>
-              {corridor.currency} at {fmtRate(effRate)} · {rateNote}
+            <div className={`mt-1 ${TYPED}`} aria-live="polite">
+              {liveRate != null
+                ? `${corridor.currency} at ${fmtRate(liveRate)} · ${rateNote}`
+                : fxLoaded
+                  ? `${corridor.currency} rate unavailable right now (Reflector and open.er-api.com both unreadable)`
+                  : `Reading the live ${corridor.currency} rate…`}
             </div>
           </div>
-          <div className="shrink-0 font-mono text-2xl font-bold tabular-nums text-ink">{fmtLocal(receive, corridor)}</div>
+          <div className="shrink-0 font-mono text-2xl font-bold tabular-nums text-ink">{receive != null ? fmtLocal(receive, corridor) : "—"}</div>
         </div>
       </Label>
 
@@ -954,10 +1001,12 @@ function ComposeScreen(props: {
           <div className="flex items-start justify-between gap-3">
             <p className="text-[13px] leading-relaxed text-ink-2">
               {serverMode
-                ? "Automated on-chain. A daily cron runs this plan: it mints a note and executes the deposit + shielded-tree registration on-chain for you. Delivering the claim note to the recipient (the withdraw leg) stays a manual step."
-                : "Preview. Your plan is saved on this device as a reminder. Automatic on-chain execution needs a scheduler or relayer and is on the roadmap. Tap a saved plan to pre-fill and send it yourself."}
+                ? `Automated on-chain. Scheduling asks your wallet to approve USDC to the Tukar relayer for ${RUNS_COVERED} runs. A daily cron pulls each run's amount from your wallet under that approval, mints a note and executes the deposit + shielded-tree registration on-chain. If the approval or your balance runs short, the run is held and nothing moves. Delivering the claim note to the recipient (the withdraw leg) stays a manual step.`
+                : serverMode === false
+                  ? `Not automated on this deployment${schedMissing.length ? `: the server scheduler needs ${schedMissing.join(" and ")} set` : ""}. Your plan is saved on this device as a reminder. Tap a saved plan to pre-fill and send it yourself.`
+                  : "Checking whether the server scheduler is available…"}
             </p>
-            <Badge tone={serverMode ? "green" : "amber"} className="shrink-0">{serverMode ? "AUTOMATED" : "PREVIEW"}</Badge>
+            <Badge tone={serverMode ? "green" : "amber"} className="shrink-0">{serverMode ? "AUTOMATED" : "THIS DEVICE"}</Badge>
           </div>
           {corridor.oracle ? (
             <div className="mt-3">
@@ -970,14 +1019,14 @@ function ComposeScreen(props: {
                 step="any"
                 value={minRate}
                 onChange={(e) => setMinRate(e.target.value)}
-                placeholder={`now ${fmtRate(effRate)}`}
+                placeholder={liveRate != null ? `now ${fmtRate(liveRate)}` : "live rate not loaded"}
                 aria-label={`Minimum USD to ${corridor.currency} rate for this plan`}
                 className="font-mono tabular-nums"
               />
               <p className={`mt-2 ${TYPED}`}>
                 {serverMode
                   ? `Each daily run reads USD to ${corridor.currency} from the Reflector oracle on-chain and holds the plan while the rate is below this; a held run is recorded with the rate it saw and re-checked the next day. If the feed cannot be read, the plan is held, not sent blind.`
-                  : `Saved with the reminder on this device. Nothing checks the rate automatically in preview mode; the scheduler does once it is provisioned.`}
+                  : `Saved with the reminder on this device. Nothing checks the rate automatically here; the server scheduler is not configured on this deployment.`}
               </p>
             </div>
           ) : (
@@ -1091,7 +1140,7 @@ function SendScreen(props: {
   usdc: number;
   recipient: string;
   corridor: Corridor;
-  receive: number;
+  receive: number | null;
   fxSource?: "reflector" | "fx-api";
   pin: string;
   setPin: (v: string) => void;
@@ -1119,8 +1168,7 @@ function SendScreen(props: {
             ${usdc} USDC
           </Field>
           <Field k="They receive ≈" mono>
-            {fmtLocal(receive, corridor)} {corridor.currency}
-            {fxSource ? "" : " · indicative (static rate)"}
+            {receive != null ? `${fmtLocal(receive, corridor)} ${corridor.currency} · ${fxSource === "reflector" ? "Reflector oracle" : "open.er-api.com"}` : `${corridor.currency} rate unavailable`}
           </Field>
           <Field k="Destination" last>
             {corridor.country}
@@ -1249,7 +1297,7 @@ function ProgressScreen(props: {
 // The sealed box: a receipt label with the customs stamp landing on it. The claim note with its QR
 // goes on the packing slip (ClaimNoteCard); the tear-off stubs sit under the label (SuccessActions).
 function SuccessScreen({ result }: { result: SendResult }) {
-  const local = result.usdc * result.rate;
+  const local = result.rate != null ? result.usdc * result.rate : null;
   return (
     <div className="animate-tk-pop">
       <div className="mb-6">
@@ -1276,9 +1324,14 @@ function SuccessScreen({ result }: { result: SendResult }) {
             ${result.usdc} USDC
           </Field>
           <Field k="They receive ≈" mono>
-            {fmtLocal(local, result.corridor)} {result.corridor.currency}
-            {result.rateSource ? "" : " · indicative (static rate)"}
+            {local != null ? `${fmtLocal(local, result.corridor)} ${result.corridor.currency} · ${result.rateSource === "reflector" ? "Reflector oracle" : "open.er-api.com"}` : `${result.corridor.currency} rate was unavailable`}
           </Field>
+          {result.sponsor && (
+            <Field k="Network fee" mono>
+              paid by sponsor <Ext href={`https://stellar.expert/explorer/testnet/account/${result.sponsor}`}>{short(result.sponsor)}</Ext> · fee-bump{" "}
+              <Ext href={txExplorer(result.depHash)}>{short(result.depHash)}</Ext>
+            </Field>
+          )}
           <Field k="Deposit tx" mono last>
             {result.depHash ? <Ext href={txExplorer(result.depHash)}>{short(result.depHash)}</Ext> : "confirmed"}
           </Field>

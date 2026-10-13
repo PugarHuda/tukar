@@ -12,9 +12,12 @@ import { Label, Ext, CAP, TYPED } from "@/components/sender/Label";
 
 // `skipped` = the run held the plan without moving money (rate condition not met, oracle
 // unreadable, spending guard); it stays due and is re-checked the next day.
-export type PlanRun = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number };
+// `pullHash` = the transfer_from that took this run's USDC from the owner's wallet under the approval.
+export type PlanRun = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number; pullHash?: string; refundHash?: string };
 export type PlanCondition = { symbol: string; minRate: number };
-export type SchedulePlan = { id: string; amount: string; code: string; recipient: string; frequency: "weekly" | "monthly"; nextDate: string; history?: PlanRun[]; condition?: PlanCondition };
+// The USDC SAC approve(owner -> relayer) the owner's wallet signed for a server plan.
+export type PlanApproval = { hash: string; spender: string; amount: string; expirationLedger: number };
+export type SchedulePlan = { id: string; amount: string; code: string; recipient: string; frequency: "weekly" | "monthly"; nextDate: string; history?: PlanRun[]; condition?: PlanCondition; approval?: PlanApproval };
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso + "T00:00:00");
@@ -99,17 +102,41 @@ export function SchedulePlans(props: {
                   {cancelingId === s.id ? "Cancelling…" : serverMode ? "Cancel" : "Remove"}
                 </button>
               </div>
-              {/* Link lives outside the prefill button: an <a> inside a <button> is invalid markup. */}
+              {/* Links live outside the prefill button: an <a> inside a <button> is invalid markup. */}
+              {s.approval && (
+                <div className={`mt-1 truncate ${TYPED}`}>
+                  <Ext href={txExplorer(s.approval.hash)}>
+                    approved {s.approval.amount} USDC to relayer {short(s.approval.spender)} · tx {short(s.approval.hash)}
+                  </Ext>{" "}
+                  · expires at ledger {s.approval.expirationLedger.toLocaleString("en-US")}
+                </div>
+              )}
               {last && (
                 <div className={`mt-1 truncate ${TYPED}`}>
                   {last.skipped ? (
                     <span className="text-ink-2">last run held: {last.skipped}</span>
                   ) : last.depHash ? (
-                    <Ext href={txExplorer(last.depHash)} className={last.regOk ? "" : "text-ink-2"}>
-                      last run: tx {short(last.depHash)} {last.regOk ? "registered" : "· registering"}
-                    </Ext>
+                    <>
+                      {last.pullHash && (
+                        <>
+                          <Ext href={txExplorer(last.pullHash)}>pulled from your wallet {short(last.pullHash)}</Ext>
+                          {" · "}
+                        </>
+                      )}
+                      <Ext href={txExplorer(last.depHash)} className={last.regOk ? "" : "text-ink-2"}>
+                        last run: tx {short(last.depHash)} {last.regOk ? "registered" : "· registering"}
+                      </Ext>
+                    </>
                   ) : (
-                    <span className="text-tape-deep">last run failed: {last.error || "unknown error"}</span>
+                    <span className="text-tape-deep">
+                      last run failed: {last.error || "unknown error"}
+                      {last.refundHash && (
+                        <>
+                          {" · "}
+                          <Ext href={txExplorer(last.refundHash)}>refunded {short(last.refundHash)}</Ext>
+                        </>
+                      )}
+                    </span>
                   )}
                 </div>
               )}
@@ -121,7 +148,7 @@ export function SchedulePlans(props: {
       </ul>
       <p className={`mt-3 border-t border-ink/25 pt-2 ${TYPED}`}>
         {serverMode
-          ? "Runs daily on-chain: each due plan's deposit and shielded-tree registration execute automatically. Handing the claim note to the recipient (the withdraw leg) stays the next step."
+          ? "Runs daily on-chain: each due plan pulls its amount from your wallet under the USDC approval you signed, then its deposit and shielded-tree registration execute automatically. A short approval or balance holds the run; approve again from your wallet to resume. Handing the claim note to the recipient (the withdraw leg) stays the next step."
           : "Reminders only. Tap a plan to pre-fill the form, then send it yourself. No money moves automatically."}
       </p>
     </Label>

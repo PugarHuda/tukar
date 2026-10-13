@@ -20,7 +20,8 @@ const DISCLOSURE = ["exact", "threshold", "range", "aggregate"];
 const SEND_FEE_XLM = ((OBSERVED_SEND_FEE_STROOPS.deposit + OBSERVED_SEND_FEE_STROOPS.register) / 1e7).toFixed(4);
 const BENCH_MAX_USD = 1_000_000; // the route's upper bound
 
-export function CostCard({ code, usdc, receive, fxSource, className = "" }: { code: string; usdc: number; receive: number; fxSource?: "reflector" | "fx-api"; className?: string }) {
+// `receive` is null while no live rate is loaded (or none could be read); `fxLoaded` tells those apart.
+export function CostCard({ code, usdc, receive, fxSource, fxLoaded, className = "" }: { code: string; usdc: number; receive: number | null; fxSource?: "reflector" | "fx-api"; fxLoaded: boolean; className?: string }) {
   const cor = corridorByCode(code);
   const [policy, setPolicy] = useState<Policy | undefined>(undefined); // undefined = reading
   const [bench, setBench] = useState<Bench>({ state: "loading" });
@@ -76,11 +77,13 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
   const fxText =
     fxSource === "reflector"
       ? "Reflector on-chain oracle (SEP-40). Settlement prices at the median of 5 records."
-      : cor.oracle
-        ? `HTTP FX fallback. Reflector's ${cor.currency} feed is stale or unreadable right now.`
-        : fxSource === "fx-api"
-          ? `HTTP FX fallback. Reflector carries no ${cor.currency} feed.`
-          : "Static preview rate. The live FX rate has not loaded yet.";
+      : fxSource === "fx-api"
+        ? cor.oracle
+          ? `open.er-api.com (HTTP fallback). Reflector's ${cor.currency} feed is stale or unreadable right now.`
+          : `open.er-api.com (HTTP). Reflector carries no ${cor.currency} feed.`
+        : fxLoaded
+          ? `Unavailable. Neither Reflector nor open.er-api.com returned a ${cor.currency} rate, so no local amount is shown.`
+          : `Reading the live ${cor.currency} rate.`;
 
   let policyText: string;
   if (policy === undefined) policyText = "Reading the policy registry.";
@@ -92,7 +95,7 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
     if (usdc > p.capUsdc) policyText += " This amount is above the cap. The cap is enforced on the preview pool, not yet on the live pool.";
   }
 
-  const diff = bench.state === "ok" ? receive - bench.best.receivedAmount : 0;
+  const diff = bench.state === "ok" && receive != null ? receive - bench.best.receivedAmount : 0;
 
   // The on-chain leg is deposit -> registered in the shielded tree (spendable), paired per
   // commitment from real events. A withdraw cannot be paired to its deposit (the pool hides that
@@ -128,9 +131,16 @@ export function CostCard({ code, usdc, receive, fxSource, className = "" }: { co
           <>
             Best of {bench.count} providers: {bench.best.name} delivers {cor.symbol}
             {fmtLocal(bench.best.receivedAmount)} {cor.currency} after a ${bench.best.fee.toFixed(2)} fee
-            {bench.best.deliveryHours != null ? `, about ${bench.best.deliveryHours}h` : ""}. Tukar quote: {cor.symbol}
-            {fmtLocal(receive)} {cor.currency} ({diff >= 0 ? "+" : "-"}
-            {fmtLocal(Math.abs(diff))} vs {bench.best.name}), before the cash-out provider&apos;s fee.
+            {bench.best.deliveryHours != null ? `, about ${bench.best.deliveryHours}h` : ""}.{" "}
+            {receive == null ? (
+              "No Tukar quote to compare until a live rate loads."
+            ) : (
+              <>
+                Tukar quote: {cor.symbol}
+                {fmtLocal(receive)} {cor.currency} ({diff >= 0 ? "+" : "-"}
+                {fmtLocal(Math.abs(diff))} vs {bench.best.name}), before the cash-out provider&apos;s fee.
+              </>
+            )}
           </>
         )}
       </Row>

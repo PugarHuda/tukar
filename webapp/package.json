@@ -27,6 +27,8 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.8.0",
     "@vercel/speed-insights": "^2.0.0",
+    "@x402/core": "^2.28.0",
+    "@x402/stellar": "^2.28.0",
     "circomlibjs": "^0.1.7",
     "js-sha3": "^0.9.3",
     "marked": "^16.4.2",

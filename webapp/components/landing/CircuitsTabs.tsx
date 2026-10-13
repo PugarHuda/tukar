@@ -1,31 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LIVE_CONTRACTS, contractExplorer, type ContractStatus } from "@/lib/live-contracts";
 
 // CIRCUITS / CONTRACTS / CORRIDOR FLOW / DISCLOSURE tabs. Each tab is a page of the manifest: one
-// ruled row per item, its status as a stamp at the row's end. Data ported from frontend/landing.js.
+// ruled row per item, its status as a stamp at the row's end. Rows backed by a contract stamp the live
+// on-ledger check from /api/contracts/status (with the ledger it was read at), not a static claim.
 type TabKey = "circuits" | "contracts" | "flow" | "disclosure";
-type Row = { tag: string; code: string; name: string; type: string; status: string; meta: string; icon: keyof typeof ICONS };
+// `cid` = the live contract behind the row: its id links to stellar.expert and its stamp is the
+// live on-ledger check from /api/contracts/status, not a static claim.
+type Row = { tag: string; code: string; name: string; type: string; status: string; meta: string; icon: keyof typeof ICONS; cid?: string };
+const L = LIVE_CONTRACTS;
 
 const DATA: Record<TabKey, Row[]> = {
   circuits: [
-    { tag: "Groth16 · BN254", code: "transfer.circom", name: "Shielded transfer", type: "2-in / 2-out JoinSplit", status: "Verified on-chain", meta: "depth 10", icon: "swap" },
-    { tag: "Groth16 · BN254", code: "compliance.circom", name: "ASP compliance", type: "allow ∈ / deny ∉", status: "Verified on-chain", meta: "bound", icon: "shield" },
-    { tag: "Groth16 · BN254", code: "disclosure.circom", name: "Selective disclosure", type: "commitment → amount", status: "Verified on-chain", meta: "tamper → reject", icon: "eye" },
-    { tag: "Groth16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "Verified on-chain", meta: "fake → reject", icon: "tree" },
-    { tag: "Groth16 · BN254", code: "thresholdDisclosure.circom", name: "Threshold disclosure", type: "amount ≤ figure, hidden", status: "Verified on-chain", meta: "amount hidden", icon: "eye" },
-    { tag: "Groth16 · BN254", code: "aggregateDisclosure.circom", name: "Aggregate disclosure", type: "Σ portfolio ≤ cap", status: "Verified on-chain", meta: "audit-bound", icon: "layers" },
-    { tag: "Groth16 · BN254", code: "rangeDisclosure.circom", name: "Range disclosure", type: "lower ≤ amount ≤ upper", status: "Verified on-chain", meta: "amount hidden", icon: "eye" },
+    { tag: "Groth16 · BN254", code: "transfer.circom", name: "Shielded transfer", type: "2-in / 2-out JoinSplit", status: "", meta: "depth 10", icon: "swap", cid: L.transfer },
+    { tag: "Groth16 · BN254", code: "compliance.circom", name: "ASP compliance", type: "allow ∈ / deny ∉", status: "", meta: "bound", icon: "shield", cid: L.compliance },
+    { tag: "Groth16 · BN254", code: "disclosure.circom", name: "Selective disclosure", type: "commitment → amount", status: "", meta: "tamper → reject", icon: "eye", cid: L.disclosure },
+    { tag: "Groth16 · BN254", code: "merkleUpdate.circom", name: "Trustless update", type: "old_root → new_root", status: "", meta: "fake → reject", icon: "tree", cid: L.merkleUpdate },
+    { tag: "Groth16 · BN254", code: "thresholdDisclosure.circom", name: "Threshold disclosure", type: "amount ≤ figure, hidden", status: "", meta: "amount hidden", icon: "eye", cid: L.threshold },
+    { tag: "Groth16 · BN254", code: "aggregateDisclosure.circom", name: "Aggregate disclosure", type: "Σ portfolio ≤ cap", status: "", meta: "audit-bound", icon: "layers", cid: L.aggregate },
+    { tag: "Groth16 · BN254", code: "rangeDisclosure.circom", name: "Range disclosure", type: "lower ≤ amount ≤ upper", status: "", meta: "amount hidden", icon: "eye", cid: L.range },
   ],
   contracts: [
-    { tag: "Soroban", code: "CBIYQAC…DK2MHTWJ", name: "pool", type: "orchestration · nullifiers", status: "52/52 tests pass", meta: "no double-spend", icon: "layers" },
-    { tag: "Soroban", code: "CACHZSW…3PUNE", name: "transfer verifier", type: "shielded JoinSplit", status: "verify → true", meta: "BN254", icon: "chip" },
-    { tag: "Soroban", code: "CDXYGM3…XBCG2", name: "compliance verifier", type: "ASP allow / deny", status: "verify → true", meta: "tx ✓", icon: "shield" },
-    { tag: "Soroban", code: "CAYGURQ…J4W4V", name: "disclosure verifier", type: "selective disclosure", status: "verify → true", meta: "tamper → reject", icon: "eye" },
-    { tag: "Soroban", code: "CCA3T54…S3X6H", name: "merkleUpdate verifier", type: "trustless root advance", status: "verify → true", meta: "fake → reject", icon: "tree" },
-    { tag: "Soroban", code: "CDGOSIZ…KLHVR", name: "threshold verifier", type: "amount ≤ figure, hidden", status: "verify → true", meta: "amount hidden", icon: "eye" },
-    { tag: "Soroban", code: "CCTN437…AZJYA", name: "aggregate verifier", type: "Σ portfolio ≤ cap", status: "verify → true", meta: "audit-bound", icon: "layers" },
-    { tag: "Soroban", code: "CDUONEV…NUPQW", name: "range verifier", type: "lower ≤ amount ≤ upper", status: "verify → true", meta: "amount hidden", icon: "eye" },
+    { tag: "Soroban", code: "", name: "pool", type: "orchestration · nullifiers", status: "", meta: "no double-spend", icon: "layers", cid: L.pool },
+    { tag: "Soroban", code: "", name: "transfer verifier", type: "shielded JoinSplit", status: "", meta: "BN254", icon: "chip", cid: L.transfer },
+    { tag: "Soroban", code: "", name: "compliance verifier", type: "ASP allow / deny", status: "", meta: "BN254", icon: "shield", cid: L.compliance },
+    { tag: "Soroban", code: "", name: "disclosure verifier", type: "selective disclosure", status: "", meta: "tamper → reject", icon: "eye", cid: L.disclosure },
+    { tag: "Soroban", code: "", name: "merkleUpdate verifier", type: "trustless root advance", status: "", meta: "fake → reject", icon: "tree", cid: L.merkleUpdate },
+    { tag: "Soroban", code: "", name: "threshold verifier", type: "amount ≤ figure, hidden", status: "", meta: "amount hidden", icon: "eye", cid: L.threshold },
+    { tag: "Soroban", code: "", name: "aggregate verifier", type: "Σ portfolio ≤ cap", status: "", meta: "audit-bound", icon: "layers", cid: L.aggregate },
+    { tag: "Soroban", code: "", name: "range verifier", type: "lower ≤ amount ≤ upper", status: "", meta: "amount hidden", icon: "eye", cid: L.range },
   ],
   flow: [
     { tag: "Edge A", code: "fiat → USDC", name: "Deposit", type: "compliance proof bound", status: "On-chain", meta: "pinned ASP", icon: "in" },
@@ -76,7 +81,17 @@ function IconSVG({ name }: { name: keyof typeof ICONS }) {
   );
 }
 
-function CircRow({ c }: { c: Row }) {
+// The stamp for a row backed by a live contract: what the on-ledger check found, and at which ledger.
+function liveStamp(cid: string, st: ContractStatus | null | undefined): { text: string; red: boolean } {
+  if (st === undefined) return { text: "checking…", red: false };
+  const s = st?.contracts[cid];
+  if (s === "live") return { text: `live · ledger ${st!.ledger}`, red: false };
+  if (s === "missing") return { text: `not found · ledger ${st!.ledger}`, red: true };
+  return { text: "unreachable", red: true };
+}
+
+function CircRow({ c, st }: { c: Row; st: ContractStatus | null | undefined }) {
+  const stamp = c.cid ? liveStamp(c.cid, st) : { text: c.status, red: RED.test(c.status) };
   return (
     <li className="circ-row">
       <span className="circ-icon">
@@ -86,16 +101,34 @@ function CircRow({ c }: { c: Row }) {
         <span className="circ-name">{c.name}</span>
         <span className="circ-type">{c.type}</span>
         <span className="circ-code">
-          {c.code} · {c.tag} · {c.meta}
+          {c.code && <>{c.code} · </>}
+          {c.cid && (
+            <>
+              <a href={contractExplorer(c.cid)} target="_blank" rel="noopener" title={c.cid}>
+                {c.cid.slice(0, 7)}…{c.cid.slice(-8)}
+              </a>{" "}
+              ·{" "}
+            </>
+          )}
+          {c.tag} · {c.meta}
         </span>
       </span>
-      <span className={"tk-stamp stamp-xs circ-stamp" + (RED.test(c.status) ? " tk-stamp-red" : "")}>{c.status}</span>
+      <span className={"tk-stamp stamp-xs circ-stamp" + (stamp.red ? " tk-stamp-red" : "")} title={c.cid && st ? `checked ${st.checkedAt}` : undefined}>
+        {stamp.text}
+      </span>
     </li>
   );
 }
 
 export function CircuitsTabs() {
   const [active, setActive] = useState<TabKey>("circuits");
+  // undefined = checking, null = the status route itself failed (every contract stamp reads unreachable).
+  const [status, setStatus] = useState<ContractStatus | null | undefined>(undefined);
+  useEffect(() => {
+    fetch("/api/contracts/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setStatus, () => setStatus(null));
+  }, []);
 
   // The header "Contracts" nav points at #contracts (the tablist). Reading the hash lets that
   // click actually show the Contracts tab, not just scroll to the still-Circuits-active tablist.
@@ -129,7 +162,7 @@ export function CircuitsTabs() {
       <div id="circ-panel" role="tabpanel" aria-labelledby={`tab-${active}`}>
         <ul className="circ-rows">
           {DATA[active].map((c, i) => (
-            <CircRow key={i} c={c} />
+            <CircRow key={i} c={c} st={status} />
           ))}
         </ul>
       </div>

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   if (!nodeUrl) {
     return NextResponse.json({
       configured: false,
-      note: "TRISA companion node not deployed; using self-hosted TRP",
+      note: "TRISA companion node not deployed: TRISA_NODE_URL is not set. Use the self-hosted TRP send instead.",
     });
   }
 

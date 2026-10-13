@@ -6,31 +6,18 @@ import { LaunchButton } from "@/components/landing/LaunchModal";
 import { Wordmark } from "@/components/landing/Wordmark";
 import { Seal } from "@/components/ui/Seal";
 import { CORRIDORS } from "@/components/receiver/corridors";
-import { POOL, DISCLOSURE_VERIFIER, THRESHOLD_VERIFIER, AGGREGATE_VERIFIER, RANGE_VERIFIER } from "@/lib/constants";
+import { POOL } from "@/lib/constants";
+import { LIVE_CONTRACTS } from "@/lib/live-contracts";
 
 const POOL_URL = `https://stellar.expert/explorer/testnet/contract/${POOL}`;
 const REPO = "https://github.com/PugarHuda/tukar";
 
-// The live corridor contracts on testnet: the pool plus its seven Groth16 verifiers, the same set
-// public/.well-known/stellar.toml publishes. The additive contracts (policy registry, reserves,
-// enforced pool) are not counted here. The three verifiers lib/constants does not export are the
-// transfer, compliance, and merkleUpdate verifiers (ids from stellar.toml).
-const LIVE_CONTRACTS = [
-  POOL,
-  "CACHZSWXJJAGW5UKA5KME73YV5BVYOXFKGT5KUSXIAS3JJJM4QY3PUNE", // transfer_verifier
-  "CDXYGM37TRH4JXBZKVPOOEIDX5L7NUVUXJ63E5BHW2W7O4SKQMWXBCG2", // compliance_verifier
-  DISCLOSURE_VERIFIER,
-  "CCA3T54EKN3RJD77LRQJ2P664ZF3U4STPRQIK4IIQWPACRLXB3JS3X6H", // merkleUpdate_verifier
-  THRESHOLD_VERIFIER,
-  AGGREGATE_VERIFIER,
-  RANGE_VERIFIER,
-];
 // One entry per circuits/*.circom file in the repo.
 const CIRCUITS = ["transfer", "compliance", "disclosure", "merkleUpdate", "thresholdDisclosure", "aggregateDisclosure", "rangeDisclosure", "reserves"];
-// `cargo test` total across the contract crates (pool 52, pool-enforced 71, pool-timelock 89,
-// pool-accumulator 78, policy-registry 6, reserves 6, reserves-aggregate 12) on 2026-08-28.
-// Refresh: run `cargo test` in each contracts/* crate and sum. Shown floored to tens with a "+".
-const CONTRACT_TESTS = 314;
+// `cargo test` total across the seven contract crates, matching docs/TESTING.md (333): pool 55,
+// pool-enforced 82, pool-timelock 89, pool-accumulator 83, policy-registry 6, reserves 6,
+// reserves-aggregate 12. Refresh: run `cargo test` in each contracts/* crate and sum.
+const CONTRACT_TESTS = 333;
 const CONTRACT_TESTS_LABEL = `${Math.floor(CONTRACT_TESTS / 10) * 10}+`;
 
 export const metadata: Metadata = {
@@ -230,7 +217,7 @@ export default function Home() {
             </ol>
             <p className="manifest-totals">
               <span>
-                Totals: <b>{LIVE_CONTRACTS.length}</b> live contracts on testnet, <b>{CONTRACT_TESTS_LABEL}</b> contract tests (cargo),{" "}
+                Totals: <b>{Object.keys(LIVE_CONTRACTS).length}</b> live contracts on testnet, <b>{CONTRACT_TESTS_LABEL}</b> contract tests (cargo),{" "}
                 <b>{CIRCUITS.length}</b> ZK circuits, all verified on-chain.
               </span>
               <a className="tot-link" href={POOL_URL} target="_blank" rel="noopener">Inspect the pool on stellar.expert</a>

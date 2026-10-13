@@ -3,14 +3,16 @@ import "server-only";
 //
 // Mirrors depositOnChain + registerRootOnChain from lib/stellar.ts, with two differences the
 // server needs: (1) snarkjs reads wasm/zkey from disk (fs paths) instead of "/circuit/..." URLs,
-// (2) asp-witness.json is read from disk instead of a browser fetch. Signs with RELAYER_SECRET
-// (falls back to the already-public DEMO_SECRET). It ONLY calls pool.deposit + register_root_verified
-// against the existing POOL — never the corridor admin key, never a redeploy.
+// (2) asp-witness.json is read from disk instead of a browser fetch. Signs with RELAYER_SECRET (or
+// STELLAR_RELAYER_SECRET), a PRIVATE key with no demo fallback. It calls pool.deposit + register_root_verified
+// against the existing POOL, and USDC SAC transfer_from/transfer to move the plan owner's USDC under
+// the allowance that owner signed — never the corridor admin key, never a redeploy.
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import * as Sdk from "@stellar/stellar-sdk";
 import { RPC, PASSPHRASE, POOL, DEMO_SECRET } from "./constants";
-import { server as rpcServer } from "./soroban/rpc";
+import { server as rpcServer, simulate } from "./soroban/rpc";
+import { USDC_SAC } from "./passkey";
 import { addrField, readDenyList, loadLeavesFromChain, readCurrentRoot, type WriteResult } from "./stellar";
 import { getPoseidon, makeTree, type Note } from "./zk";
 // snarkjs proof -> Soroban contract args: the ONE shared server-safe copy (was re-implemented here).
@@ -33,8 +35,21 @@ async function aspWitness(): Promise<any> {
   return _asp;
 }
 
+// The relayer RECEIVES user allowances (approve owner -> relayer), so it must be a private key. The
+// published DEMO_SECRET is never a fallback here: anyone holding it could transfer_from every owner
+// who approved it. No private key = no scheduler (routes answer 503 RELAYER_NOT_CONFIGURED).
+function relayerSecret(): string | null {
+  return process.env.RELAYER_SECRET || process.env.STELLAR_RELAYER_SECRET || null;
+}
+export const RELAYER_NOT_CONFIGURED = "scheduler relayer key not configured (RELAYER_SECRET)";
+/** True iff a private relayer key is set and it is not the published demo key. */
+export function relayerConfigured(): boolean {
+  const s = relayerSecret();
+  return !!s && s !== DEMO_SECRET;
+}
 function relayerKeypair(): Sdk.Keypair {
-  return Sdk.Keypair.fromSecret(process.env.RELAYER_SECRET || DEMO_SECRET);
+  if (!relayerConfigured()) throw new Error(RELAYER_NOT_CONFIGURED);
+  return Sdk.Keypair.fromSecret(relayerSecret()!);
 }
 export function relayerAddress(): string {
   return relayerKeypair().publicKey();
@@ -72,6 +87,58 @@ function poolErr(e: any): { error: string; code: number | null } {
   const m = msg.match(/Error\(Contract,\s*#(\d+)\)/);
   const code = m ? Number(m[1]) : null;
   return { error: (code && POOL_ERRORS[code]) || msg, code };
+}
+
+// ---- the owner's USDC, under the owner's own allowance -----------------------------------------
+// A scheduled run spends the OWNER's USDC, never the relayer's: when the plan is created the owner's
+// wallet signs USDC SAC approve(from=owner, spender=relayer, amount, expiration_ledger), and before
+// each deposit the cron pulls exactly the plan amount with transfer_from(spender=relayer, from=owner,
+// to=relayer). The relayer then deposits that USDC into the pool. No allowance, no money moves.
+const addrVal = (a: string) => Sdk.nativeToScVal(a, { type: "address" });
+const i128 = (v: bigint) => Sdk.nativeToScVal(v, { type: "i128" });
+
+/** Live allowance owner -> relayer in stroops (0 once expired), or null when the SAC is unreadable. */
+export async function readAllowance(owner: string): Promise<bigint | null> {
+  const r = await simulate(USDC_SAC, "allowance", addrVal(owner), addrVal(relayerAddress()));
+  return r.ok ? BigInt(r.value) : null;
+}
+/** Live USDC SAC balance of `owner` in stroops, or null when unreadable. */
+export async function readUsdcBalance(owner: string): Promise<bigint | null> {
+  const r = await simulate(USDC_SAC, "balance", addrVal(owner));
+  return r.ok ? BigInt(r.value) : null;
+}
+
+// A relayer-signed USDC SAC call. The SAC has no contract spec to fetch, so build the call directly.
+async function sacCall(method: string, args: Sdk.xdr.ScVal[]): Promise<WriteResult> {
+  try {
+    const kp = relayerKeypair();
+    const signer = Sdk.contract.basicNodeSigner(kp, PASSPHRASE);
+    const res = await sendTx(() =>
+      Sdk.contract.AssembledTransaction.build({
+        contractId: USDC_SAC,
+        networkPassphrase: PASSPHRASE,
+        rpcUrl: RPC,
+        server: rpcServer,
+        publicKey: kp.publicKey(),
+        signTransaction: signer.signTransaction,
+        method,
+        args,
+        parseResultXdr: (r) => r,
+      }),
+    );
+    return { ok: true, hash: res?.sendTransactionResponse?.hash || res?.getTransactionResponse?.txHash || "" };
+  } catch (e) {
+    return { ok: false, error: _msg(e) };
+  }
+}
+/** Pull `stroops` of the owner's USDC to the relayer under the owner's allowance. */
+export function pullFromOwner(owner: string, stroops: bigint): Promise<WriteResult> {
+  const me = relayerAddress();
+  return sacCall("transfer_from", [addrVal(me), addrVal(owner), addrVal(me), i128(stroops)]);
+}
+/** Send pulled USDC back to the owner (a run whose deposit failed after the pull). */
+export function refundOwner(owner: string, stroops: bigint): Promise<WriteResult> {
+  return sacCall("transfer", [addrVal(relayerAddress()), addrVal(owner), i128(stroops)]);
 }
 
 /**

@@ -116,15 +116,26 @@ async function watchCrashes(page: Page) {
     csp: () => page.evaluate(() => (window as any).__cspv as string[]),
   };
 }
+const QA_RECIPIENT = "Ana · QA";
 async function senderReady(page: Page): Promise<Locator> {
   const amount = page.locator("#amount");
+  const recipient = page.locator("#recipient");
   await expect(amount).toBeVisible();
   const cont = page.getByRole("button", { name: /Continue/ });
+  // SSR renders Continue DISABLED (the recipient starts empty and is required), so seeing it go
+  // ENABLED after typing a recipient proves React's onChange pipeline is live. Alternate values on
+  // every attempt: React's value tracker only fires onChange when the DOM value CHANGES from what it
+  // last saw, so re-filling the same string after a pre-hydration fill never reaches state.
   await expect(async () => {
+    await recipient.fill("x");
+    await recipient.fill(QA_RECIPIENT);
     await amount.fill("0");
-    await amount.fill("");
-    await expect(cont).toBeDisabled({ timeout: 1500 });
+    await amount.fill("200");
+    await expect(cont).toBeEnabled({ timeout: 1500 });
   }).toPass({ timeout: 40_000 });
+  // Leave the amount empty (Continue disabled) with the recipient filled, as callers expect.
+  await amount.fill("");
+  await expect(cont).toBeDisabled();
   return amount;
 }
 async function fillStable(loc: Locator, v: string) {
@@ -139,6 +150,27 @@ async function connectDemo(page: Page) {
     await page.getByRole("button", { name: /Use testnet key/ }).first().click();
     await expect(page.getByRole("button", { name: /^Disconnect$/ })).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 30_000 });
+}
+// The Travel Rule tab sends nothing until the IVMS101 identities validate (lib/ivms101). Fill a
+// complete, valid set: both VASPs, an originator with a national ID (constraint C1), a beneficiary.
+async function fillIvms(page: Page, corridorCountry = "MX") {
+  const ovasp = page.locator("#tr-ovasp-name");
+  if (await ovasp.isVisible()) {
+    await ovasp.fill("QA Remit LLC");
+    await page.locator("#tr-ovasp-country").fill("US");
+  }
+  await page.locator("#tr-orig-primary").fill("Santos");
+  await page.locator("#tr-orig-secondary").fill("Maria");
+  await page.locator("#tr-orig-country").fill("US");
+  await page.locator("#tr-orig-account").fill("GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS");
+  await page.locator("#tr-orig-idtype").selectOption("CCPT");
+  await page.locator("#tr-orig-nid").fill("P1234567");
+  await page.locator("#tr-bvasp-name").fill("QA Off-ramp SA");
+  await page.locator("#tr-bvasp-country").fill(corridorCountry);
+  await page.locator("#tr-ben-primary").fill("Silva");
+  await page.locator("#tr-ben-country").fill(corridorCountry);
+  await page.locator("#tr-ben-account").fill("qa-account-001");
+  await expect(page.getByText("IVMS101 Travel Rule payload", { exact: true })).toBeVisible();
 }
 async function selectNav(page: Page, label: RegExp) {
   const btn = page.locator("aside nav button", { hasText: label }).first();
@@ -207,6 +239,8 @@ test.describe("live deposit (one real send, outputs reused below)", () => {
     const heading = page.getByRole("heading", { name: /Sent and shielded|Deposited, registration pending/ });
     await expect(heading).toBeVisible({ timeout: 420_000 });
     const regOk = /Sent and shielded/.test((await heading.textContent()) || "");
+    // the receipt's local amount names the live rate's source, or says no live rate had loaded
+    await expect(page.getByText(/[\d,.]+ MXN · (Reflector oracle|open\.er-api\.com)|MXN rate was unavailable/).first()).toBeVisible();
     // success screen: bearer string (page.tsx:1181), PIN-wrapped copy (page.tsx:1219), view-only export (page.tsx:1226)
     const bearer = (await page.locator("pre", { hasText: /^tukar1:/ }).innerText()).trim();
     await expect(page.getByText(/The link is PIN-wrapped: the recipient needs the 6-digit PIN you set/)).toBeVisible();
@@ -614,8 +648,8 @@ test.describe("sender: cost and policy card", () => {
     expect(policyText, "MX has a policy in the registry").toMatch(/^Cap \$[\d,]+ USDC/);
     const cap = Number(policyText.match(/Cap \$([\d,]+)/)![1].replace(/,/g, ""));
     await expect(card.getByText("Fetching provider quotes.")).toHaveCount(0, { timeout: 45_000 });
-    await expect(card.getByText(/Best of \d+ providers: .+ delivers \$[\d,.]+ MXN after a \$[\d.]+ fee.*Tukar quote: \$[\d,.]+ MXN \([+-][\d,.]+ vs .+\), before the cash-out provider's fee\.|Benchmark unavailable\.|no benchmark for MXN/)).toBeVisible();
-    await expect(card.getByText(/Reflector on-chain oracle \(SEP-40\)|HTTP FX fallback\. Reflector's MXN feed is stale or unreadable right now\.|Static preview rate\./)).toBeVisible();
+    await expect(card.getByText(/Best of \d+ providers: .+ delivers \$[\d,.]+ MXN after a \$[\d.]+ fee.*(Tukar quote: \$[\d,.]+ MXN \([+-][\d,.]+ vs .+\), before the cash-out provider's fee\.|No Tukar quote to compare until a live rate loads\.)|Benchmark unavailable\.|no benchmark for MXN/)).toBeVisible();
+    await expect(card.getByText(/Reflector on-chain oracle \(SEP-40\)|open\.er-api\.com \(HTTP fallback\)\. Reflector's MXN feed is stale or unreadable right now\.|Unavailable\. Neither Reflector nor open\.er-api\.com returned a MXN rate/)).toBeVisible();
     // over the cap: CostCard.tsx:77
     await fillStable(amount, String(cap + 1));
     await expect(card.getByText(/This amount is above the cap\. The cap is enforced on the preview pool, not yet on the live pool\./)).toBeVisible();
@@ -627,31 +661,64 @@ test.describe("sender: cost and policy card", () => {
     expect(w.crashes()).toEqual([]);
   });
 
-  test("non-oracle corridor with the FX API blocked: 'indicative (static rate)' on compose + confirm, card says static preview", async ({ page }) => {
+  test("non-oracle corridor with the FX API blocked: no made-up rate, 'rate unavailable' on compose + confirm, card says why", async ({ page }) => {
     const w = await watchCrashes(page);
     await page.route(/open\.er-api\.com/, (r) => r.abort());
     await goto200(page, "/sender");
     const amount = await senderReady(page);
     await fillStable(amount, "50");
-    await page.locator("#corridor").selectOption("PH"); // no `oracle` (sender/page.tsx:49)
-    await expect(page.getByText(/PHP at 58\.50 · indicative \(static rate\)/)).toBeVisible(); // page.tsx:779
+    await page.locator("#corridor").selectOption("PH"); // no `oracle`: open.er-api.com is its only source
+    // there is no built-in rate: no figure, the reason, and a dash where the local amount would be
+    await expect(page.getByText("PHP rate unavailable right now (Reflector and open.er-api.com both unreadable)")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/PHP at [\d.,]+/)).toHaveCount(0);
+    await expect(page.getByText("—", { exact: true }).first()).toBeVisible();
     const card = page.locator("aside", { hasText: "Cost and policy" });
-    await expect(card.getByText("Static preview rate. The live FX rate has not loaded yet.")).toBeVisible(); // CostCard.tsx:68
+    await expect(card.getByText("Unavailable. Neither Reflector nor open.er-api.com returned a PHP rate, so no local amount is shown.")).toBeVisible();
     await page.getByRole("button", { name: /Continue/ }).click();
     await expect(page.getByText(/Confirm and send/)).toBeVisible();
-    await expect(page.getByText(/PHP · indicative \(static rate\)/)).toBeVisible(); // page.tsx:992
-    // the card is still there on the confirm screen (page.tsx:680) with the same honest source line
-    await expect(card.getByText("Static preview rate. The live FX rate has not loaded yet.")).toBeVisible();
+    await expect(page.getByText("PHP rate unavailable", { exact: true })).toBeVisible();
+    // the card is still there on the confirm screen with the same honest source line
+    await expect(card.getByText("Unavailable. Neither Reflector nor open.er-api.com returned a PHP rate, so no local amount is shown.")).toBeVisible();
     expect(w.crashes()).toEqual([]);
   });
 
-  test("oracle corridor labels its source: Reflector on-chain, or the honest HTTP/static fallback", async ({ page }) => {
+  test("non-oracle corridor with the FX API live: the rate names open.er-api.com on compose, card and confirm", async ({ page }) => {
+    const w = await watchCrashes(page);
+    await goto200(page, "/sender");
+    const amount = await senderReady(page);
+    await fillStable(amount, "50");
+    await page.locator("#corridor").selectOption("PH");
+    const line = page.getByText(/PHP at [\d.,]+ · open\.er-api\.com, HTTP|PHP rate unavailable right now/);
+    await expect(line).toBeVisible({ timeout: 30_000 });
+    const card = page.locator("aside", { hasText: "Cost and policy" });
+    if (/unavailable/.test(await line.innerText())) {
+      // the public FX API itself is down for this run: assert the honest state, not a figure
+      console.log("open.er-api.com unreachable during this run; asserted the unavailable state");
+      await expect(card.getByText(/Unavailable\. Neither Reflector nor open\.er-api\.com returned a PHP rate/)).toBeVisible();
+    } else {
+      await expect(card.getByText("open.er-api.com (HTTP). Reflector carries no PHP feed.")).toBeVisible();
+      await page.getByRole("button", { name: /Continue/ }).click();
+      await expect(page.getByText(/[\d,.]+ PHP · open\.er-api\.com/)).toBeVisible();
+    }
+    expect(w.crashes()).toEqual([]);
+  });
+
+  test("oracle corridor labels its source: Reflector on-chain, or the honest HTTP fallback / unavailable", async ({ page }) => {
     const w = await watchCrashes(page);
     await goto200(page, "/sender");
     await senderReady(page);
-    await expect(page.getByText(/MXN at [\d.,]+ · (via Reflector oracle \(on-chain\)|live|indicative \(static rate\))/)).toBeVisible({ timeout: 30_000 });
-    const note = await page.getByText(/MXN at [\d.,]+ · /).innerText();
+    const line = page.getByText(/MXN at [\d.,]+ · (Reflector oracle, on-chain|open\.er-api\.com, HTTP)|MXN rate unavailable right now/);
+    await expect(line).toBeVisible({ timeout: 30_000 });
+    const note = await line.innerText();
     console.log("MX rate note:", note);
+    // the card's source line agrees with the compose label
+    const card = page.locator("aside", { hasText: "Cost and policy" });
+    const expected = /Reflector oracle/.test(note)
+      ? /Reflector on-chain oracle \(SEP-40\)/
+      : /open\.er-api/.test(note)
+        ? /open\.er-api\.com \(HTTP fallback\)\. Reflector's MXN feed is stale or unreadable right now\./
+        : /Unavailable\. Neither Reflector nor open\.er-api\.com returned a MXN rate/;
+    await expect(card.getByText(expected)).toBeVisible();
     expect(w.crashes()).toEqual([]);
   });
 });
@@ -811,16 +878,28 @@ test.describe("regulator: Travel Rule lifecycle", () => {
     const w = await watchCrashes(page);
     await goto200(page, "/regulator");
     await selectNav(page, /Travel Rule/);
-    // Notabene destination while disconnected (regulator/page.tsx:1159, 996-999)
-    await page.locator("#trp-dest").selectOption("notabene");
-    await expect(page.getByText("Connect a wallet to send to the Notabene sandbox.").first()).toBeVisible();
-    await page.getByRole("button", { name: "Send as TRP message" }).click();
-    await expect(page.getByText("TRP send failed.")).toBeVisible();
-    await expect(page.getByText("Connect a wallet to send to the Notabene sandbox.")).toHaveCount(2);
-    await expect(page.locator(".tk-stamp", { hasText: "Failed" })).toBeVisible();
+    await fillIvms(page);
+    const hc = (await (await request.get("/api/health")).json()).checks;
+    const nbOption = page.locator("#trp-dest option[value=notabene]");
+    if (!hc.notabene) {
+      // Notabene is offered only when /api/health says NOTABENE_API_KEY is set; otherwise disabled + why
+      await expect(nbOption).toBeDisabled();
+      await expect(nbOption).toHaveText("Notabene sandbox (unavailable: NOTABENE_API_KEY is not set)");
+      await expect(page.getByText(/The Notabene sandbox is disabled on this deployment because NOTABENE_API_KEY is not\s+set/)).toBeVisible();
+      await expect(page.locator("#trp-dest")).toHaveValue("self");
+    } else {
+      // Notabene destination while disconnected
+      await expect(nbOption).toBeEnabled();
+      await page.locator("#trp-dest").selectOption("notabene");
+      await expect(page.getByText("Connect a wallet to send to the Notabene sandbox.").first()).toBeVisible();
+      await page.getByRole("button", { name: "Send as TRP message" }).click();
+      await expect(page.getByText("TRP send failed.")).toBeVisible();
+      await expect(page.getByText("Connect a wallet to send to the Notabene sandbox.")).toHaveCount(2);
+      await expect(page.locator(".tk-stamp", { hasText: "Failed" })).toBeVisible();
+      await page.locator("#trp-dest").selectOption("self");
+      await expect(page.getByText("TRP send failed.")).toHaveCount(0); // reset on destination change
+    }
     // self-hosted round trip
-    await page.locator("#trp-dest").selectOption("self");
-    await expect(page.getByText("TRP send failed.")).toHaveCount(0); // reset on destination change (page.tsx:959-963)
     await page.getByRole("button", { name: "Send as TRP message" }).click();
     await expect(page.getByText(/Approved by the beneficiary VASP · TRP 200/)).toBeVisible({ timeout: 60_000 });
     const idText = await page.locator("div", { hasText: /^request-identifier / }).last().innerText();
@@ -836,9 +915,9 @@ test.describe("regulator: Travel Rule lifecycle", () => {
     await check.click();
     // Wallet sign-in (nonce -> SEP-53 signature -> bearer) is the same one the scheduler uses, so it
     // needs Blob + AUTH_SECRET on the target. Assert the real outcome for this target either way.
-    const signInReady = (await (await request.get("/api/schedules/nonce")).json())?.configured === true;
+    const signInReady = hc.schedules === true; // the sign-in nonce needs the plan store + AUTH_SECRET
     if (!signInReady) {
-      await expect(page.getByText("Wallet sign-in is not configured on this server, so the lifecycle read cannot be authorized.")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText("Wallet sign-in is not configured on this server (AUTH_SECRET is not set), so the lifecycle read cannot be authorized.")).toBeVisible({ timeout: 30_000 });
       console.log("TRP lifecycle: wallet sign-in is not configured on this target, the authorized read was not exercised");
     } else {
       // callback/route.ts:64-68: 200 with the record, or 404 when the store has no entry
@@ -986,6 +1065,11 @@ test.describe("axe on the new panels after interaction", () => {
     await selectNav(page, /Issue audit request/);
     bad.push(...(await axeClean(page, "regulator/issue", testInfo)));
     await selectNav(page, /Travel Rule/);
+    bad.push(...(await axeClean(page, "regulator/travel+ivms-empty", testInfo)));
+    await page.getByRole("button", { name: "Send as TRP message" }).click(); // refused: marks the invalid fields
+    await expect(page.getByText("Required (IVMS101 primaryIdentifier).").first()).toBeVisible();
+    bad.push(...(await axeClean(page, "regulator/travel+ivms-errors", testInfo)));
+    await fillIvms(page);
     await page.getByRole("button", { name: "Send as TRP message" }).click();
     await expect(page.getByText(/Approved by the beneficiary VASP|TRP send failed|Rejected · TRP/)).toBeVisible({ timeout: 60_000 });
     bad.push(...(await axeClean(page, "regulator/travel+result", testInfo)));

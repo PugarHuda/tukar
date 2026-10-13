@@ -1,8 +1,8 @@
 "use client";
 
 // One incoming payment: reveal the local-fiat figure read on-chain from Reflector, withdraw
-// on-chain (real transfer proof, ported from frontend/app.js), then cash out to fiat via
-// Onramper or a SEP-24 anchor. All on-chain reads/writes and anchor calls are real.
+// on-chain (real transfer proof, ported from frontend/app.js), then cash out to fiat via a SEP-24
+// anchor (full withdraw incl. the wallet payment), with Onramper as a mainnet price reference. All calls are real.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Select, Input, Spinner, useToast } from "@/components/ui";
 import {
@@ -17,9 +17,15 @@ import {
   anchorEndpoints,
   anchorWithdrawLimits,
   anchorTxStatus,
+  anchorAsset,
+  assetHolding,
+  addTrustline,
+  payAnchorWithdraw,
+  convertViaPath,
   type AnchorAuth,
   onramperQuote,
   onramperOfframpUrl,
+  type OnramperQuote,
   activeAddress,
   txExplorer,
   explorer,
@@ -62,7 +68,10 @@ import { CORRIDORS, corridorByCode, fmtLocal, fmtAge, type ClaimedNote, type FxR
 import { buildRateAttestation, attestationCanonical, formatAttestation, summarizeAttestation } from "@/lib/rate-attestation";
 import { getQuoteInfo, getIndicativePrice, requestFirmQuote, fiatForAnchor, type Sep38Price, type Sep38Quote } from "@/lib/sep38";
 import { getKycStatus, putKycFields, type Kyc } from "@/lib/sep12";
+import { pollSep24, isTerminal, type Sep24Tx } from "@/lib/sep24";
 import { ANCHOR } from "@/lib/constants";
+import { Asset } from "@stellar/stellar-sdk";
+import { POOL_USDC, quoteStrictSend, quoteStrictReceive, bestSend, bestReceive, destMinFor, sendMaxFor, impliedRate, assetId, assetLabel, noPathMessage, pathPayError, type PathQuote } from "@/lib/pathpay";
 import { SavingsNote } from "@/components/SavingsNote";
 import { receiptLink } from "@/lib/receipt-link";
 import { qrSvgString } from "@/components/sender/qr";
@@ -116,8 +125,31 @@ function Expander({ label, children }: { label: string; children: React.ReactNod
 
 export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLeaves, updateNote, setStatus }: Props) {
   const { toast } = useToast();
-  const [onramperInfo, setOnramperInfo] = useState<string | null>(null);
-  const [anchorInfo, setAnchorInfo] = useState<string | null>(null);
+  // Onramper's live MAINNET quote, shown inline as a price reference (not a cash-out of this balance).
+  const [onramperRef, setOnramperRef] = useState<{ fiat: string; q: OnramperQuote | { reason: string } | null } | null>(null);
+  // The running SEP-24 withdraw: anchor tx record, the wallet-side payment, each status seen.
+  // phase: interactive (user fills the anchor window) -> pay (anchor waits for our payment) ->
+  // sending -> settling (paid, anchor pays out) -> done (terminal), or stopped (cancel/timeout).
+  type Sep24Run = {
+    sep24: string;
+    bearer: { Authorization: string };
+    id: string;
+    url: string;
+    assetCode: string;
+    issuer: string;
+    phase: "interactive" | "pay" | "sending" | "settling" | "done" | "stopped";
+    tx: Sep24Tx | null;
+    seen: Sep24Tx[];
+    holding: { trusted: boolean; balance: number } | null;
+    payHash: string | null;
+    trustHash: string | null;
+    error: string | null;
+  };
+  const [sep24Run, setSep24Run] = useState<Sep24Run | null>(null);
+  const sep24Abort = useRef<AbortController | null>(null);
+  // The anchor's own USDC (SEP-38 asset id "stellar:USDC:<issuer>"), read from its stellar.toml, so
+  // the button can say which asset a withdraw spends before anything starts.
+  const [anchorUsdcId, setAnchorUsdcId] = useState<string | null>(null);
   // Spot off-ramp quote (offramp_quote), shown beside the median for oracle corridors to make
   // the manipulation-resistance story visible. Component state, so it never persists to storage.
   const [spotQuote, setSpotQuote] = useState<number | null>(null);
@@ -142,7 +174,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
   // Switching receiver tabs unmounts every PaymentCard, so a running SEP-24 poll would keep
   // firing setState for ~24s on an unmounted card. Track liveness and bail out of the loop.
   const aliveRef = useRef(true);
-  useEffect(() => () => { aliveRef.current = false; }, []);
+  useEffect(() => () => { aliveRef.current = false; sep24Abort.current?.abort(); }, []);
 
   const cor = corridorByCode(note.offCorridor || note.corridor);
   const usdcStr = fmtUsdc(BigInt(note.amount));
@@ -386,29 +418,19 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     }
   }
 
-  // ---- cash out: Onramper (primary) ----
-  async function cashOutOnramper() {
+  // ---- mainnet price reference: Onramper ----
+  // Onramper's providers buy MAINNET USDC on Stellar; this card holds TESTNET USDC. So this reads
+  // their live quote as a real-world price reference and shows it inline. It is not a cash-out of
+  // this balance, and the widget is only linked, labelled for what it is.
+  async function priceReference() {
     if (cashBusy) return;
     const fiat = cor.currency || "USD";
     setCashBusy("onramper");
-    setStatus(`Fetching a live off-ramp quote for ${usdc} USDC to ${fiat}.`, true);
-    setOnramperInfo(null);
+    setOnramperRef(null);
     try {
       const q = await onramperQuote(usdc, fiat);
-      const url = onramperOfframpUrl(usdc, fiat);
-      const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=760");
-      const quoteTxt = q
-        ? `About ${q.payout.toLocaleString("en-US")} ${fiat} via ${q.ramp} (real provider quote, KYC by the provider).`
-        : `No live ${fiat} quote right now, the widget prices it live.`;
-      setOnramperInfo(quoteTxt);
-      setStatus(
-        w
-          ? `Off-ramp opened for ${usdc} USDC. Finish KYC and payout in the provider window.`
-          : `Allow pop-ups, or open the off-ramp link below. ${quoteTxt}`,
-      );
-      if (!w) setOnramperInfo(`${quoteTxt} Open: ${url}`);
-    } catch (e: any) {
-      setStatus("Onramper off-ramp failed. " + ((e && e.message) || e));
+      setOnramperRef({ fiat, q });
+      setStatus(q && "payout" in q ? `Mainnet price reference read from Onramper (${q.ramp}).` : `No mainnet price reference for ${fiat} right now.`);
     } finally {
       setCashBusy(null);
     }
@@ -428,6 +450,7 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     (async () => {
       try {
         const ep = await anchorEndpoints();
+        if (alive) setAnchorUsdcId(ep.assets.USDC || null);
         if (!ep.quote || !ep.assets.USDC) throw new Error("the anchor publishes no SEP-38 quote server for USDC");
         const [assets, lim] = await Promise.all([getQuoteInfo(ep.quote), anchorWithdrawLimits("USDC")]);
         const buyAsset = fiatForAnchor(cor.currency, assets);
@@ -447,7 +470,6 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     if (cashBusy) return;
     setCashBusy("anchor");
     setStatus("Anchor: authenticating (SEP-10) and reading your KYC status (SEP-12).", true);
-    setAnchorInfo(null);
     try {
       const auth = anchorSess || (await anchorAuth());
       setAnchorSess(auth);
@@ -501,31 +523,198 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     }
     setStatus(`Anchor: opening a USDC withdraw (SEP-24)${quote ? " bound to the firm quote" : ""}.`, true);
     const { url, id, asset, sep24, bearer } = await anchorOfframp({ auth, quote: quote ? { id: quote.id, sellAmount: quote.sellAmount, buyAsset: quote.buyAsset } : undefined });
+    const issuer = (await anchorAsset(asset)).getIssuer() || "";
     const w = window.open(url, "_blank", "noopener,noreferrer,width=460,height=720");
     setStatus(
       (w
-        ? `Anchor off-ramp opened for ${asset}${quote ? ` at the committed rate (quote ${quote.id.slice(0, 8)})` : ""}. Complete the cash-out in the anchor window (real SEP-24, tx ${String(id).slice(0, 8)}).`
-        : `Allow pop-ups, or open: ${url}`) + quoteNote,
+        ? `Anchor window opened for a ${asset} withdraw${quote ? ` at the committed rate (quote ${quote.id.slice(0, 8)})` : ""}. Fill it in there; this card then asks you to send the ${asset} (SEP-24 tx ${String(id).slice(0, 8)}).`
+        : `Allow pop-ups, or open the anchor window from the link below.`) + quoteNote,
     );
-    pollAnchorStatus(sep24, bearer, id).catch(() => {});
+    void runSep24({ sep24, bearer, id, url, assetCode: asset, issuer });
   }
 
-  // Track the real SEP-24 lifecycle (pending_user_transfer_start through completed).
-  async function pollAnchorStatus(sep24: string, bearer: { Authorization: string }, id: string) {
-    if (!sep24 || !bearer || !id) return;
-    const pretty = (s: string) => String(s).replace(/_/g, " ");
-    const terminal = /completed|refunded|error|expired|no_market/i;
-    for (let i = 0; i < 6; i++) {
-      await sleep(4000);
-      if (!aliveRef.current) return; // card unmounted (tab switch / navigation), stop polling
-      const t = await anchorTxStatus(sep24, bearer, id);
-      if (!aliveRef.current) return;
-      if (!t) continue;
-      setAnchorInfo(
-        `SEP-24 transfer ${String(id).slice(0, 8)}: ${pretty(t.status)}${t.amountOut ? `, you receive ${t.amountOut}` : ""}.` +
-          (t.moreInfoUrl ? ` Details: ${t.moreInfoUrl}` : ""),
-      );
-      if (terminal.test(t.status)) return;
+  // ---- the SEP-24 withdraw lifecycle (the part the anchor window does not do) ----
+  // 1. poll GET /transaction until the anchor reaches pending_user_transfer_start (the user is in
+  //    its window meanwhile), 2. the user sends amount_in of the ANCHOR's asset to
+  //    withdraw_anchor_account with the typed memo (sendToAnchor), 3. poll on to a terminal state.
+  const patchRun = (id: string, p: Partial<Sep24Run> | ((r: Sep24Run) => Partial<Sep24Run>)) => {
+    if (aliveRef.current) setSep24Run((r) => (r && r.id === id ? { ...r, ...(typeof p === "function" ? p(r) : p) } : r));
+  };
+  const SEP24_WAIT_MS = 30 * 60_000; // the anchor's interactive session and payout both fit inside this
+
+  function trackSep24(r: Pick<Sep24Run, "sep24" | "bearer" | "id">, until: (t: Sep24Tx) => boolean): Promise<Sep24Tx> {
+    sep24Abort.current?.abort();
+    const ac = new AbortController();
+    sep24Abort.current = ac;
+    return pollSep24(() => anchorTxStatus(r.sep24, r.bearer, r.id), until, {
+      signal: ac.signal,
+      timeoutMs: SEP24_WAIT_MS,
+      onUpdate: (t) => patchRun(r.id, (cur) => ({ tx: t, seen: [...cur.seen, t] })),
+    });
+  }
+
+  async function readHolding(r: Pick<Sep24Run, "assetCode">) {
+    return assetHolding(activeAddress(), await anchorAsset(r.assetCode));
+  }
+
+  async function runSep24(base: Pick<Sep24Run, "sep24" | "bearer" | "id" | "url" | "assetCode" | "issuer">) {
+    setSep24Run({ ...base, phase: "interactive", tx: null, seen: [], holding: null, payHash: null, trustHash: null, error: null });
+    try {
+      const t = await trackSep24(base, (x) => x.status === "pending_user_transfer_start");
+      if (isTerminal(t.status)) return patchRun(base.id, { phase: "done" });
+      const holding = await readHolding(base).catch(() => null);
+      patchRun(base.id, { phase: "pay", holding });
+      setStatus(`Anchor is waiting for ${t.amountIn} ${base.assetCode}. Review the payment on the card and send it.`);
+    } catch (e) {
+      patchRun(base.id, { phase: "stopped", error: errMsg(e) });
+    }
+  }
+
+  async function addAnchorTrustline() {
+    const r = sep24Run;
+    if (!r || cashBusy) return;
+    setCashBusy("anchor");
+    setStatus(`Adding a trustline to ${r.assetCode} (${short(r.issuer)}).`, true);
+    try {
+      const hash = await addTrustline(await anchorAsset(r.assetCode));
+      patchRun(r.id, { trustHash: hash, holding: await readHolding(r).catch(() => null), error: null });
+      setStatus(`Trustline to ${r.assetCode} added. Your balance of it is still 0 until you receive some.`);
+    } catch (e) {
+      patchRun(r.id, { error: errMsg(e) });
+      setStatus("Trustline failed. " + errMsg(e));
+    } finally {
+      setCashBusy(null);
+    }
+  }
+
+  async function sendToAnchor() {
+    const r = sep24Run;
+    if (!r || !r.tx || r.phase !== "pay" || cashBusy) return;
+    setCashBusy("anchor");
+    try {
+      const asset = await anchorAsset(r.assetCode);
+      const holding = await assetHolding(activeAddress(), asset);
+      const need = Number(r.tx.amountIn);
+      if (!holding.trusted || holding.balance < need) {
+        patchRun(r.id, { holding });
+        setStatus(
+          holding.trusted
+            ? `Not enough ${r.assetCode}: the anchor needs ${need}, this account holds ${holding.balance}.`
+            : `This account has no trustline to ${r.assetCode} (${short(r.issuer)}). Add it first.`,
+        );
+        return;
+      }
+      patchRun(r.id, { phase: "sending", error: null });
+      setStatus(`Sending ${r.tx.amountIn} ${r.assetCode} to the anchor (sign in your wallet if asked).`, true);
+      const hash = await payAnchorWithdraw(r.tx, asset);
+      patchRun(r.id, { phase: "settling", payHash: hash });
+      setStatus(`Payment sent to the anchor. Waiting for it to pay out.`, true);
+      const end = await trackSep24(r, () => false);
+      patchRun(r.id, { phase: "done", tx: end });
+      setStatus(`SEP-24 withdraw ${end.status.replace(/_/g, " ")}.`);
+    } catch (e) {
+      // Before the payment landed: back to "pay" so it can be retried. After: tracking stopped.
+      patchRun(r.id, (cur) => ({ phase: cur.payHash ? "stopped" : "pay", error: errMsg(e) }));
+      setStatus("Anchor withdraw: " + errMsg(e));
+    } finally {
+      setCashBusy(null);
+    }
+  }
+
+  function cancelSep24() {
+    sep24Abort.current?.abort();
+  }
+
+  // ---- Convert at the receiving edge: a native Stellar path payment ----
+  // The pool pays out USDC:USDC_ISSUER; the anchor only takes its own USDC. Horizon's path finder
+  // quotes the live SDEX books + AMM pools, then a pathPaymentStrictSend to yourself converts with
+  // destMin enforced on-chain. When Horizon finds no route we say so; nothing here makes a market.
+  type Route = { dest: Asset; best: PathQuote | null; trusted: boolean | null };
+  type Conv = {
+    source: "pool" | "xlm";
+    amount: string;
+    slippage: string;
+    routes: Route[] | null;
+    at: number;
+    /** strict-receive: what the anchor's exact amount_in costs from this source */
+    need: { amount: string; best: PathQuote | null } | null;
+    hash: string | null;
+    received: string | null;
+    failHash: string | null;
+    error: string | null;
+  };
+  const [conv, setConv] = useState<Conv>({ source: "pool", amount: usdcStr, slippage: "1", routes: null, at: 0, need: null, hash: null, received: null, failHash: null, error: null });
+  const [convBusy, setConvBusy] = useState<string | null>(null);
+  const convSource = conv.source === "pool" ? POOL_USDC : Asset.native();
+  const minOf = (q: PathQuote): string | null => {
+    try {
+      return destMinFor(q.destAmount, Number(conv.slippage));
+    } catch {
+      return null;
+    }
+  };
+
+  async function quoteRoutes() {
+    if (convBusy) return;
+    setConvBusy("quote");
+    setConv((c) => ({ ...c, routes: null, need: null, error: null, failHash: null }));
+    try {
+      const anchor = await anchorAsset("USDC");
+      const dests = [anchor, Asset.native()].filter((a) => !a.equals(convSource));
+      const me = activeAddress();
+      const [quotes, trusted] = await Promise.all([
+        quoteStrictSend(convSource, conv.amount.trim(), dests),
+        Promise.all(dests.map((d) => (d.isNative() ? true : assetHolding(me, d).then((h) => h.trusted, () => null)))),
+      ]);
+      const routes = dests.map((dest, i) => ({ dest, best: bestSend(quotes, dest), trusted: trusted[i] }));
+      const r = sep24Run;
+      let need: Conv["need"] = null;
+      if (r?.tx && r.phase === "pay" && !anchor.equals(convSource)) {
+        need = { amount: r.tx.amountIn, best: bestReceive(await quoteStrictReceive([convSource], anchor, r.tx.amountIn), convSource) };
+      }
+      if (aliveRef.current) setConv((c) => ({ ...c, routes, need, at: Date.now() }));
+    } catch (e) {
+      if (aliveRef.current) setConv((c) => ({ ...c, error: errMsg(e) }));
+    } finally {
+      setConvBusy(null);
+    }
+  }
+
+  async function trustRoute(rt: Route) {
+    if (convBusy) return;
+    setConvBusy(assetId(rt.dest));
+    setStatus(`Adding a trustline to ${assetLabel(rt.dest)}.`, true);
+    try {
+      const hash = await addTrustline(rt.dest);
+      setConv((c) => ({ ...c, routes: c.routes && c.routes.map((x) => (x.dest.equals(rt.dest) ? { ...x, trusted: true } : x)) }));
+      setStatus(`Trustline to ${assetLabel(rt.dest)} added (tx ${hash.slice(0, 8)}). Now convert.`);
+    } catch (e) {
+      setConv((c) => ({ ...c, error: "Trustline failed. " + errMsg(e) }));
+      setStatus("Trustline failed. " + errMsg(e));
+    } finally {
+      setConvBusy(null);
+    }
+  }
+
+  async function convert(rt: Route) {
+    const q = rt.best;
+    const min = q && minOf(q);
+    if (!q || convBusy) return;
+    if (!min) return setConv((c) => ({ ...c, error: "Slippage must be above 0% and at most 50%." }));
+    setConvBusy(assetId(rt.dest));
+    setStatus(`Converting ${q.sendAmount} ${assetLabel(q.sendAsset)} to at least ${min} ${assetLabel(q.destAsset)} (pathPaymentStrictSend; sign in your wallet if asked).`, true);
+    try {
+      const hash = await convertViaPath(q, min);
+      const held = q.destAsset.isNative() ? null : await assetHolding(activeAddress(), q.destAsset).catch(() => null);
+      setConv((c) => ({ ...c, hash, failHash: null, error: null, routes: null, received: held ? `${held.balance} ${assetLabel(q.destAsset)} now held` : null }));
+      if (sep24Run) patchRun(sep24Run.id, { holding: await readHolding(sep24Run).catch(() => null) });
+      setStatus(`Converted on the SDEX: at least ${min} ${assetLabel(q.destAsset)} received.`);
+    } catch (e: any) {
+      const msg = pathPayError(e, { destMin: min, dest: q.destAsset, source: q.sendAsset });
+      setConv((c) => ({ ...c, error: msg, failHash: e?.hash || null }));
+      setStatus("Convert failed. " + msg);
+    } finally {
+      setConvBusy(null);
     }
   }
 
@@ -1284,24 +1473,268 @@ export function PaymentCard({ note, allNotes, connected, prover, fxRates, syncLe
     </div>
   );
 
+  // ---- the running SEP-24 withdraw: which asset it spends, the payment it needs, each status ----
+  const anchorIssuer = anchorUsdcId ? anchorUsdcId.split(":")[2] || "" : "";
+  const run = sep24Run;
+  const pretty = (st: string) => st.replace(/_/g, " ");
+  const sep24Slip = run && (
+    <div className={SLIP} aria-live="polite">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className={CAP}>SEP-24 withdraw {run.id.slice(0, 8)}</span>
+        <span className="font-mono text-[11px] text-ink-3">
+          spends {run.assetCode} issued by {short(run.issuer)}
+        </span>
+      </div>
+      {run.phase === "interactive" && (
+        <div className="mt-1.5">
+          <Spinner label={`Waiting for you to finish the anchor window (status: ${run.tx ? pretty(run.tx.status) : "opening"}).`} />
+          <p className={`mt-1.5 ${NOTE}`}>
+            Window closed or blocked?{" "}
+            <a className={LINK} href={run.url} target="_blank" rel="noopener noreferrer">
+              Open the anchor window
+            </a>
+            .
+          </p>
+        </div>
+      )}
+      {(run.phase === "pay" || run.phase === "sending") && run.tx && (
+        <div className="mt-1.5">
+          <p className="font-mono text-[12px] leading-relaxed text-ink">
+            The anchor is waiting for <b>{run.tx.amountIn} {run.assetCode}</b> (issuer {short(run.issuer)}) to {short(run.tx.withdrawAnchorAccount)}, memo {run.tx.withdrawMemoType || "text"} {run.tx.withdrawMemo || "(none)"}.
+            {run.tx.amountOut && ` You receive ${run.tx.amountOut} after a ${run.tx.amountFee || "0"} fee.`}
+          </p>
+          <p className="mt-1 font-mono text-[12px] leading-relaxed text-ink-2">
+            Paid from {short(activeAddress())}.{" "}
+            {run.holding == null
+              ? "Balance not read yet."
+              : run.holding.trusted
+                ? `It holds ${run.holding.balance} ${run.assetCode}${run.holding.balance < Number(run.tx.amountIn) ? `, short of the ${run.tx.amountIn} needed` : ""}.`
+                : `It has no trustline to ${run.assetCode} (${short(run.issuer)}), so it holds none.`}
+          </p>
+          <div className="mt-2 flex flex-col gap-2">
+            {run.holding && !run.holding.trusted && (
+              <Button variant="ghost" full onClick={addAnchorTrustline} busy={cashBusy === "anchor" && run.phase === "pay"} disabled={!!cashBusy}>
+                Add {run.assetCode} trustline (changeTrust)
+              </Button>
+            )}
+            <Button variant="primary" full onClick={sendToAnchor} busy={run.phase === "sending"} disabled={!!cashBusy || !run.holding?.trusted}>
+              Send {run.tx.amountIn} {run.assetCode} to the anchor
+            </Button>
+          </div>
+        </div>
+      )}
+      {run.phase === "settling" && (
+        <div className="mt-1.5">
+          <Spinner label="Paid. Waiting for the anchor to pay out." />
+        </div>
+      )}
+      {run.seen.length > 0 && (
+        <ol className="mt-2 grid gap-0.5 font-mono text-[12px] leading-relaxed text-ink">
+          {run.seen.map((t, i) => (
+            <li key={i}>
+              {pretty(t.status)}
+              {t.stellarTxId && (
+                <>
+                  {", "}
+                  <a className={LINK} href={txExplorer(t.stellarTxId)} target="_blank" rel="noopener noreferrer">
+                    tx {short(t.stellarTxId)}
+                  </a>
+                </>
+              )}
+              {t.message && <span className="text-ink-3"> ({t.message})</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+      {(run.payHash || run.trustHash) && (
+        <p className="mt-1.5 font-mono text-[12px] leading-relaxed text-ink">
+          {run.trustHash && (
+            <a className={`${LINK} mr-3`} href={txExplorer(run.trustHash)} target="_blank" rel="noopener noreferrer">
+              trustline tx {short(run.trustHash)}
+            </a>
+          )}
+          {run.payHash && (
+            <a className={LINK} href={txExplorer(run.payHash)} target="_blank" rel="noopener noreferrer">
+              payment tx {short(run.payHash)}
+            </a>
+          )}
+        </p>
+      )}
+      {run.phase === "done" && run.tx && (
+        <p className="mt-1.5 flex flex-wrap items-center gap-2">
+          <span className={`tk-stamp stamp-xs ${run.tx.status === "completed" ? "" : "tk-stamp-red"}`}>{pretty(run.tx.status)}</span>
+          {run.tx.moreInfoUrl && (
+            <a className={LINK} href={run.tx.moreInfoUrl} target="_blank" rel="noopener noreferrer">
+              anchor details
+            </a>
+          )}
+        </p>
+      )}
+      {run.error && <p className="mt-1.5 break-words font-mono text-[12px] leading-relaxed text-tape-deep">{run.error}</p>}
+      {run.phase === "stopped" && (
+        <p className={`mt-1.5 ${NOTE}`}>
+          Tracking stopped. The transaction stays open at the anchor{run.payHash ? " and your payment is on-chain" : ""}; check it on the anchor&apos;s own details page.
+        </p>
+      )}
+      {(run.phase === "interactive" || run.phase === "settling") && (
+        <div className="mt-2">
+          <Button variant="ghost" onClick={cancelSep24}>
+            Stop tracking
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
+  // ---- mainnet price reference (Onramper), inline ----
+  const ref = onramperRef;
+  const priceRef = ref && (
+    <div className="mt-2.5 font-mono text-[12px] leading-relaxed text-ink">
+      {ref.q == null ? (
+        <p>Onramper did not answer, so there is no mainnet price reference right now.</p>
+      ) : "reason" in ref.q ? (
+        <p>No mainnet quote for {usdcStr} USDC to {ref.fiat}: {ref.q.reason}.</p>
+      ) : (
+        <p>
+          Mainnet price reference: {ref.q.amount} USDC to <b>{ref.q.payout.toLocaleString("en-US")} {ref.fiat}</b> via {ref.q.ramp}
+          {ref.q.paymentMethod && ` (${ref.q.paymentMethod})`}, rate {ref.q.rate} {ref.fiat} per USDC, provider fee {ref.q.fee} {ref.fiat}.
+        </p>
+      )}
+      <p className={`mt-1 ${NOTE}`}>
+        This is Onramper&apos;s live price for selling MAINNET USDC. Your {usdcStr} USDC is testnet USDC, which no provider buys, so this is a reference, not a cash-out.{" "}
+        <a className={LINK} href={onramperOfframpUrl(usdc, ref.fiat)} target="_blank" rel="noopener noreferrer">
+          Onramper widget (sells mainnet USDC)
+        </a>
+      </p>
+    </div>
+  );
+
+  // ---- Step 1, only when the anchor's USDC is not the pool's: convert on the SDEX ----
+  const needsConvert = !!anchorIssuer && anchorIssuer !== POOL_USDC.getIssuer();
+  const convertSlip = needsConvert && (
+    <div className={SLIP} aria-live="polite">
+      <div className={CAP}>Step 1 · Convert pool USDC to the anchor&apos;s USDC (SDEX path payment)</div>
+      <p className={`mt-1 ${NOTE}`}>
+        The pool paid you USDC issued by {short(POOL_USDC.getIssuer()!)}; {ANCHOR.home} only takes USDC issued by {short(anchorIssuer)}. Horizon&apos;s path finder quotes the live order
+        books and AMM pools, and a path payment to yourself converts with your minimum enforced on-chain.
+      </p>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Select
+          label="From"
+          value={conv.source}
+          onChange={(e) => {
+            const source = e.target.value as Conv["source"];
+            setConv((c) => ({ ...c, source, amount: source === "pool" ? usdcStr : "10", routes: null, need: null, error: null }));
+          }}
+        >
+          <option value="pool">Pool USDC (your remittance)</option>
+          <option value="xlm">XLM (gas balance, not the remittance)</option>
+        </Select>
+        <Input label="Amount" inputMode="decimal" value={conv.amount} onChange={(e) => setConv((c) => ({ ...c, amount: e.target.value, routes: null }))} />
+        <Input label="Slippage %" inputMode="decimal" value={conv.slippage} onChange={(e) => setConv((c) => ({ ...c, slippage: e.target.value }))} />
+      </div>
+      <div className="mt-2">
+        <Button variant="ghost" full onClick={quoteRoutes} busy={convBusy === "quote"} disabled={!!convBusy}>
+          {conv.routes ? "Re-quote routes" : "Quote routes (Horizon path finder)"}
+        </Button>
+      </div>
+      {conv.routes && (
+        <ul className="mt-2 grid gap-2">
+          {conv.routes.map((rt) => {
+            const q = rt.best;
+            const min = q && minOf(q);
+            return (
+              <li key={assetId(rt.dest)} className="border-t border-ink/20 pt-2 font-mono text-[12px] leading-relaxed text-ink">
+                {q ? (
+                  <>
+                    <p>
+                      {q.sendAmount} {assetLabel(q.sendAsset)} → <b>{q.destAmount} {assetLabel(q.destAsset)}</b>
+                    </p>
+                    <p className="text-ink-2">
+                      Route: {[q.sendAsset, ...q.path, q.destAsset].map(assetLabel).join(" → ")}
+                      {q.path.length ? "" : " (direct)"}. Rate {impliedRate(q).toPrecision(7)} per unit. Min received {min ?? "(fix the slippage)"} at {conv.slippage}% slippage.
+                    </p>
+                    <div className="mt-1.5">
+                      {rt.trusted === false ? (
+                        <Button variant="ghost" full onClick={() => trustRoute(rt)} busy={convBusy === assetId(rt.dest)} disabled={!!convBusy}>
+                          Add {assetLabel(rt.dest)} trustline first (changeTrust)
+                        </Button>
+                      ) : (
+                        <Button variant="primary" full onClick={() => convert(rt)} busy={convBusy === assetId(rt.dest)} disabled={!!convBusy || !min}>
+                          Convert to {assetLabel(rt.dest)}
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-tape-deep">{noPathMessage(convSource, rt.dest)}.</p>
+                )}
+              </li>
+            );
+          })}
+          {conv.routes.every((rt) => !rt.best) && (
+            <li className={NOTE}>
+              Horizon found no route from {assetLabel(convSource)} at all. Tukar does not place offers to fake one; re-quote once a market exists.
+            </li>
+          )}
+          {conv.need && (
+            <li className={NOTE}>
+              The anchor is waiting for exactly {conv.need.amount} USDC ({short(anchorIssuer)}).{" "}
+              {conv.need.best
+                ? `Receiving exactly that costs ≈ ${conv.need.best.sendAmount} ${assetLabel(convSource)} (at most ${sendMaxFor(conv.need.best.sendAmount, Number(conv.slippage) || 1)} at your slippage).`
+                : `Strict-receive also finds no route from ${assetLabel(convSource)}.`}
+            </li>
+          )}
+          <li className="font-mono text-[11px] text-ink-3">Quoted {new Date(conv.at).toLocaleTimeString()} from {assetLabel(convSource)}.</li>
+        </ul>
+      )}
+      {conv.hash && (
+        <p className="mt-1.5 font-mono text-[12px] leading-relaxed text-ink">
+          <a className={LINK} href={txExplorer(conv.hash)} target="_blank" rel="noopener noreferrer">
+            path payment tx {short(conv.hash)}
+          </a>
+          {conv.received && <span className="text-ink-2"> · {conv.received}</span>}
+        </p>
+      )}
+      {conv.error && (
+        <p className="mt-1.5 break-words font-mono text-[12px] leading-relaxed text-tape-deep">
+          {conv.error}
+          {conv.failHash && (
+            <>
+              {" "}
+              <a className={LINK} href={txExplorer(conv.failHash)} target="_blank" rel="noopener noreferrer">
+                failed tx {short(conv.failHash)}
+              </a>
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+
   // ---- cash-out section (collapsed by default, shown once revealed or withdrawn) ----
   const cashOut = (
     <Expander label="Cash out to fiat">
-      <div className="flex flex-col gap-2">
-        <Button variant="primary" full onClick={cashOutOnramper} busy={cashBusy === "onramper"} disabled={!!cashBusy}>
-          Cash out to {cor.currency}, get a live quote
-        </Button>
-      </div>
       {anchorDesk}
+      {convertSlip}
       <div className="mt-3">
-        <Button variant="ghost" full onClick={cashOutAnchor} busy={cashBusy === "anchor" && !kycNeedsSlip} disabled={!!cashBusy}>
+        {needsConvert && <div className={`mb-1.5 ${CAP}`}>Step 2 · Withdraw the anchor&apos;s USDC</div>}
+        <Button variant="primary" full onClick={cashOutAnchor} busy={cashBusy === "anchor" && !kycNeedsSlip && !run} disabled={!!cashBusy || (!!run && run.phase !== "done" && run.phase !== "stopped")}>
           Withdraw via anchor (SEP-24)
         </Button>
+        <p className={`mt-1.5 ${NOTE}`}>
+          Spends the anchor&apos;s own USDC{anchorIssuer ? ` (issuer ${short(anchorIssuer)})` : ""} from {short(activeAddress())}, not the pool&apos;s USDC: {ANCHOR.home} only takes and pays out its own asset.
+        </p>
       </div>
-      {onramperInfo && <p className="mt-2.5 break-words text-[13px] leading-relaxed text-ink">{onramperInfo}</p>}
-      {anchorInfo && <p className="mt-2 break-words text-[13px] leading-relaxed text-ink">{anchorInfo}</p>}
+      {sep24Slip}
+      <div className="mt-3 border-t border-ink/25 pt-3">
+        <Button variant="ghost" full onClick={priceReference} busy={cashBusy === "onramper"} disabled={!!cashBusy}>
+          {cor.currency} mainnet price reference (Onramper)
+        </Button>
+        {priceRef}
+      </div>
       <p className={`mt-2.5 ${NOTE}`}>
-        A licensed provider (Onramper routes to MoonPay or Transak, or a SEP-24 anchor) runs KYC and pays out the fiat. Tukar never touches the money. The anchor prices its own USDC code, not the pool&apos;s USDC contract.
+        A licensed provider (a SEP-24 anchor, or on mainnet Onramper routing to MoonPay or Transak) runs KYC and pays out the fiat. Tukar never touches the money.
       </p>
     </Expander>
   );

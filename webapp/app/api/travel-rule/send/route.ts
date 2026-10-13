@@ -27,6 +27,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Body is not valid JSON." }, { status: 400 });
   }
 
+  const useNotabene = Boolean(body?.destination?.notabene);
+  const notabeneKey = process.env.NOTABENE_API_KEY;
+  // Asked for Notabene but the key is not wired: refuse, never silently re-route to the loopback.
+  if (useNotabene && !notabeneKey) {
+    return NextResponse.json(
+      { ok: false, mode: "notabene", error: "Notabene is not configured on this deployment: NOTABENE_API_KEY is not set." },
+      { status: 503 },
+    );
+  }
+
   const ivms101 = body?.ivms101 ?? body?.IVMS101;
   if (!ivms101 || typeof ivms101 !== "object") {
     return NextResponse.json({ ok: false, error: "Missing ivms101 payload." }, { status: 400 });
@@ -61,9 +71,6 @@ export async function POST(req: Request) {
     "x-trp-signature": sig.signature,
     "x-trp-digest": sig.digest,
   };
-
-  const useNotabene = Boolean(body?.destination?.notabene);
-  const notabeneKey = process.env.NOTABENE_API_KEY;
 
   let target: string;
   let mode: "notabene" | "self-hosted";

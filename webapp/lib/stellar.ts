@@ -26,6 +26,8 @@ import { addrField, readDenyList } from "./soroban/reads";
 // signAndSend with rebuild-and-retry on PRE-send transient faults only; once the network has the
 // tx it polls that hash instead of resubmitting (see ./soroban/send for why). Shared with the relayer.
 import { sendTx } from "./soroban/send";
+import { parseSep24Tx, paymentFields, type Sep24Tx } from "./sep24";
+import { resultCodes, strictSendOp, type PathQuote } from "./pathpay";
 
 // Re-export the public contract-ID / config constants so route code can import them from
 // lib/stellar (their original home) OR lib/constants (a light, SDK-free bundle).
@@ -169,15 +171,16 @@ export async function anchorOnramp(): Promise<AnchorSession> {
 }
 
 // Onramper (imported from ./constants) — a licensed off-ramp AGGREGATOR (routes to
-// MoonPay / Transak / Alchemy Pay). The key is Onramper's PUBLIC docs key (fine for demo).
+// MoonPay / Transak / Alchemy Pay). The key is Onramper's PUBLIC docs key.
+// MAINNET ONLY: Onramper's providers buy MAINNET USDC on Stellar. Nothing they quote can be paid
+// with the testnet USDC this app releases, so the quote is a real-world price REFERENCE.
+export type OnramperQuote = { payout: number; rate: number; fee: number; ramp: string; paymentMethod: string; amount: number };
 /**
- * Live off-ramp SELL quote from Onramper's licensed providers: sell `usdc` (USDC on Stellar)
- * for `fiat`. Returns the best real quote { payout, rate, fee, ramp } or null.
+ * Live off-ramp SELL quote from Onramper's licensed providers (mainnet): sell `usdc` USDC on
+ * Stellar for `fiat`. Returns the best real quote, `{ reason }` when every provider declined
+ * (e.g. under its minimum, with the provider's own limit text), or null when Onramper is unreachable.
  */
-export async function onramperQuote(
-  usdc: number,
-  fiat: string,
-): Promise<{ payout: number; rate: number; fee: number; ramp: string } | null> {
+export async function onramperQuote(usdc: number, fiat: string): Promise<OnramperQuote | { reason: string } | null> {
   try {
     const amt = Math.max(1, Math.floor(Number(usdc) || 0));
     const r = await fetchWithTimeout(`${ONRAMPER.api}/quotes/usdc_stellar/${String(fiat).toLowerCase()}?amount=${amt}&type=sell`, {
@@ -188,13 +191,17 @@ export async function onramperQuote(
     const best = arr
       .filter((q: any) => q && typeof q.payout === "number" && q.payout > 0 && (!q.errors || q.errors.length === 0))
       .sort((a: any, b: any) => b.payout - a.payout)[0];
-    return best ? { payout: best.payout, rate: best.rate, fee: best.transactionFee, ramp: best.ramp || "a licensed provider" } : null;
+    if (best) return { payout: best.payout, rate: best.rate, fee: best.transactionFee, ramp: best.ramp || "a licensed provider", paymentMethod: best.paymentMethod || "", amount: amt };
+    // Prefer a limit message (actionable: "between 24 and 10000") over "no supported payment".
+    const errs = arr.flatMap((q: any) => (q?.errors || []).map((e: any) => ({ ramp: q.ramp, ...e })));
+    const lim = errs.find((e: any) => e.type === "LimitMismatch");
+    return { reason: lim ? `${lim.ramp}: ${lim.message}` : `no provider quotes ${amt} USDC to ${String(fiat).toUpperCase()}` };
   } catch (_) {
     return null;
   }
 }
 
-/** Build the Onramper hosted SELL (off-ramp) widget URL for USDC-on-Stellar -> `fiat`. */
+/** Build the Onramper hosted SELL (off-ramp) widget URL for USDC-on-Stellar -> `fiat`. MAINNET USDC only. */
 export function onramperOfframpUrl(usdc: number, fiat: string): string {
   const amt = Math.max(1, Math.floor(Number(usdc) || 0));
   const p = new URLSearchParams({
@@ -251,22 +258,90 @@ export async function anchorWithdrawLimits(asset = "USDC"): Promise<{ min: numbe
 }
 
 /**
- * Poll a SEP-24 transaction's status (the anchor's real lifecycle) — GET {sep24}/transaction?id=.
- * Returns { status, message, moreInfoUrl, amountOut } or null. Standard SEP-24.
+ * Read a SEP-24 transaction (the anchor's real lifecycle): GET {sep24}/transaction?id=. Returns the
+ * parsed record (status, amounts, and on a withdraw the withdraw_anchor_account / memo the wallet
+ * must pay) or null. Standard SEP-24.
  */
-export async function anchorTxStatus(
-  sep24: string,
-  bearer: { Authorization: string },
-  id: string,
-): Promise<{ status: string; message: string; moreInfoUrl: string; amountOut: string } | null> {
+export async function anchorTxStatus(sep24: string, bearer: { Authorization: string }, id: string): Promise<Sep24Tx | null> {
   try {
-    const res = await (await fetchWithTimeout(`${sep24}/transaction?id=${encodeURIComponent(id)}`, { headers: bearer }, 15000)).json();
-    const t = res && (res.transaction || res);
-    if (!t || !t.status) return null;
-    return { status: t.status, message: t.message || "", moreInfoUrl: t.more_info_url || "", amountOut: t.amount_out || "" };
+    return parseSep24Tx(await (await fetchWithTimeout(`${sep24}/transaction?id=${encodeURIComponent(id)}`, { headers: bearer }, 15000)).json());
   } catch (_) {
     return null;
   }
+}
+
+/** The anchor's OWN asset for `code`, issuer read from its stellar.toml CURRENCIES. On testnet this
+ *  is testanchor's USDC (GBBD47..., Circle's testnet issuer), NOT the pool's USDC (USDC_ISSUER):
+ *  the anchor only accepts and pays out its own asset. */
+export async function anchorAsset(code = "USDC"): Promise<Sdk.Asset> {
+  const id = (await anchorEndpoints()).assets[code];
+  const issuer = id ? id.split(":")[2] : "";
+  if (!issuer || !Sdk.StrKey.isValidEd25519PublicKey(issuer)) throw new Error(`the anchor's stellar.toml lists no issuer for ${code}`);
+  return new Sdk.Asset(code, issuer);
+}
+
+/** Does `address` trust `asset`, and how much does it hold (asset units)? One RPC ledger read. */
+export async function assetHolding(address: string, asset: Sdk.Asset): Promise<{ trusted: boolean; balance: number }> {
+  // The SDK throws "Trustline for ... not found" rather than returning an empty entry.
+  const r = await server.getAssetBalance(address, asset, PASSPHRASE).catch((e) => {
+    if (/trustline .* not found/i.test(String(e?.message))) return { balanceEntry: undefined };
+    throw e;
+  });
+  const e = r.balanceEntry;
+  return e ? { trusted: true, balance: Number(e.amount) / 1e7 } : { trusted: false, balance: 0 };
+}
+
+// Sign a classic tx with the connected wallet, else the built-in testnet key (same split as
+// anchorAuth), then submit. A contract account (passkey) cannot source a classic tx.
+async function signAndSubmitClassic(build: (source: Sdk.Account) => Sdk.Transaction): Promise<string> {
+  if (_wallet?.submit) throw new Error("a contract-account wallet cannot send a classic payment; connect a G-address wallet or use the testnet key");
+  const address = activeAddress();
+  const tx = build(await server.getAccount(address));
+  if (_wallet) {
+    const res = await _wallet.signTransaction(tx.toXDR(), { networkPassphrase: PASSPHRASE, address });
+    return submitClassic(Sdk.TransactionBuilder.fromXDR(res.signedTxXdr || res, PASSPHRASE));
+  }
+  tx.sign(Sdk.Keypair.fromSecret(DEMO_SECRET));
+  return submitClassic(tx);
+}
+
+/** changeTrust to `asset` for the active account (wallet or testnet key). Returns the tx hash. */
+export function addTrustline(asset: Sdk.Asset): Promise<string> {
+  return signAndSubmitClassic((acct) =>
+    new Sdk.TransactionBuilder(acct, { fee: Sdk.BASE_FEE, networkPassphrase: PASSPHRASE })
+      .addOperation(Sdk.Operation.changeTrust({ asset }))
+      .setTimeout(120)
+      .build(),
+  );
+}
+
+/**
+ * The wallet's half of a SEP-24 withdraw: once the anchor is at pending_user_transfer_start, pay
+ * amount_in of the anchor's asset to withdraw_anchor_account with the typed withdraw_memo. Signed
+ * by the connected wallet or the testnet key. Returns the payment tx hash.
+ */
+export function payAnchorWithdraw(t: Sep24Tx, asset: Sdk.Asset): Promise<string> {
+  const { destination, amount, memo } = paymentFields(t);
+  return signAndSubmitClassic((acct) =>
+    new Sdk.TransactionBuilder(acct, { fee: Sdk.BASE_FEE, networkPassphrase: PASSPHRASE })
+      .addOperation(Sdk.Operation.payment({ destination, asset, amount }))
+      .addMemo(memo)
+      .setTimeout(120)
+      .build(),
+  );
+}
+
+/**
+ * Convert along a Horizon-quoted route: pathPaymentStrictSend from the active account to itself,
+ * never delivering less than `destMin`. Same signer split as every classic write. Returns the hash.
+ */
+export function convertViaPath(q: PathQuote, destMin: string): Promise<string> {
+  return signAndSubmitClassic((acct) =>
+    new Sdk.TransactionBuilder(acct, { fee: Sdk.BASE_FEE, networkPassphrase: PASSPHRASE })
+      .addOperation(strictSendOp(q, acct.accountId(), destMin))
+      .setTimeout(120)
+      .build(),
+  );
 }
 
 let _poolWrite: any;
@@ -320,15 +395,19 @@ const USDC = new Sdk.Asset("USDC", USDC_ISSUER);
 async function submitClassic(tx: any): Promise<string> {
   const sent = await server.sendTransaction(tx);
   let status: string = sent.status,
-    hash = sent.hash;
+    hash = sent.hash,
+    result: Sdk.xdr.TransactionResult | undefined = (sent as any).errorResult;
   for (let i = 0; i < 15 && (status === "PENDING" || status === "NOT_FOUND" || status === "TRY_AGAIN_LATER"); i++) {
     await new Promise((r) => setTimeout(r, 1000));
     try {
       const g = await server.getTransaction(hash);
       status = g.status as any;
+      result = (g as any).resultXdr;
     } catch (_) {}
   }
-  if (status !== "SUCCESS") throw new Error("tx " + status);
+  // The result codes say WHY (e.g. pathPaymentStrictSendUnderDestmin), so callers can map them.
+  const codes = resultCodes(result);
+  if (status !== "SUCCESS") throw Object.assign(new Error("tx " + status + (codes.length ? ` [${codes.join(", ")}]` : "") + (hash ? ` ${hash}` : "")), { hash, codes });
   return hash;
 }
 

@@ -50,6 +50,20 @@ test("operator shows a degraded 'read failed' state when Soroban RPC is aborted 
   expect(w.crashes(), "uncaught error under RPC abort").toEqual([]);
 });
 
+// Fill a sendable compose form (amount + the required recipient) and wait for Continue to enable.
+// Retried with changing values: a pre-hydration fill is clobbered, and React's value tracker only
+// fires onChange when the DOM value changes from what it last saw.
+async function composeSendable(page: Page) {
+  const cont = page.getByRole("button", { name: /Continue/ });
+  await expect(async () => {
+    await page.locator("#recipient").fill("x");
+    await page.locator("#recipient").fill("Ana · QA");
+    await page.locator("#amount").fill("0");
+    await page.locator("#amount").fill("200");
+    await expect(cont).toBeEnabled({ timeout: 1500 });
+  }).toPass({ timeout: 40_000 });
+}
+
 // Sender's pool read is best-effort: aborting it must degrade gracefully (the compose form still
 // works, the pool count shows its "…" fallback) rather than blocking the UI.
 test("sender stays usable when its pool read is aborted (graceful degradation)", async ({ page }) => {
@@ -58,8 +72,7 @@ test("sender stays usable when its pool read is aborted (graceful degradation)",
   await goto200(page, "/sender");
   // The compose form renders and is interactive despite the dead RPC.
   await expect(page.getByText(/Send money\./i)).toBeVisible();
-  await page.locator("#amount").fill("200");
-  await expect(page.getByRole("button", { name: /Continue/ })).toBeEnabled();
+  await composeSendable(page);
   expect(w.crashes(), "uncaught error on sender under RPC abort").toEqual([]);
 });
 
@@ -161,7 +174,7 @@ test("browser back/forward between home and a route keeps both intact", async ({
 test("sender: refresh mid-flow recovers to a clean state (no broken half-render)", async ({ page }) => {
   const w = await watchCrashes(page);
   await goto200(page, "/sender");
-  await page.locator("#amount").fill("200");
+  await composeSendable(page);
   await page.getByRole("button", { name: /Continue/ }).click();
   await expect(page.getByText(/Confirm and send/i)).toBeVisible();
   // F5 mid-flow

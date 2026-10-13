@@ -17,19 +17,27 @@ async function fillStable(loc: Locator, v: string) {
 
 // fillStable alone can't tell "value stuck because React took it" from "value stuck because React
 // hasn't hydrated yet and will clobber it a moment later". The reliable proof that hydration is DONE
-// is watching a DERIVED state transition that SSR would never show. For the sender amount field:
-// SSR renders Continue ENABLED (default "200"), so emptying the field and seeing Continue go DISABLED
-// only happens once React's onChange pipeline is live. Leaves the field empty; returns the locator.
+// is watching a DERIVED state transition that SSR would never show. For the sender: SSR renders
+// Continue DISABLED (the required recipient starts empty), so typing a recipient and seeing Continue
+// go ENABLED only happens once React's onChange pipeline is live. Leaves the recipient filled and the
+// amount field empty (Continue disabled); returns the amount locator.
 async function senderAmountReady(page: Page): Promise<Locator> {
   const amount = page.locator("#amount");
+  const recipient = page.locator("#recipient");
   await expect(amount).toBeVisible();
   const cont = page.getByRole("button", { name: /Continue/ });
   await expect(async () => {
-    await amount.fill("");
-    await expect(cont).toBeDisabled({ timeout: 1500 });
+    await recipient.fill("x");
+    await recipient.fill("Ana · QA");
+    await amount.fill("0");
+    await amount.fill("200");
+    await expect(cont).toBeEnabled({ timeout: 1500 });
   }).toPass({ timeout: 40_000 });
+  await amount.fill("");
+  await expect(cont).toBeDisabled();
   return amount;
 }
+
 
 // Same idea for /verify: SSR renders Verify DISABLED (empty text), so ENABLE-on-fill is the live
 // signal. Once it reacts, hydration is done; clear and return the textbox.
@@ -87,7 +95,7 @@ async function watchCrashes(page: Page) {
 }
 
 // ============================ SENDER · amount field ============================
-// canContinue = isFinite(num) && num > 0 && num <= 1_000_000_000. The Continue button is
+// canContinue = isFinite(num) && num > 0 && num <= 1_000_000_000 && a recipient. The Continue button is
 // disabled whenever the amount is not sendable, with an honest hint below it.
 const AMOUNT_CASES: { label: string; value: string; sendable: boolean }[] = [
   { label: "empty", value: "", sendable: false },

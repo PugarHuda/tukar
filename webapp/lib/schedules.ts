@@ -1,7 +1,11 @@
 import "server-only";
-// Vercel Blob-backed store for recurring send plans, scoped PER OWNER and PRIVATE.
-// Each authenticated owner (Stellar G-address) gets its own private blob at schedules/<owner>.json,
-// read server-side with the store token (access:"private", no public URL). The file is an
+// Store for recurring send plans, scoped PER OWNER and PRIVATE. Two backends, picked at runtime:
+//   - Vercel Blob (BLOB_READ_WRITE_TOKEN set): one private blob per owner at schedules/<owner>.json,
+//     read server-side with the store token (access:"private", no public URL).
+//   - Upstash Redis (no Blob token, KV_REST_API_URL + KV_REST_API_TOKEN or the portable
+//     UPSTASH_REDIS_REST_URL/_TOKEN set, the same env lib/lock.ts and lib/ratelimit.ts use): one key
+//     per owner, schedules:<owner>, plus the set schedules:owners the cron sweeps.
+// Blob wins when both are set. Both hold the same JSON text, so parsing is shared. The file is an
 // OwnerFile: the owner's plans plus their self-set spending guard. Per plan we store metadata and
 // per-run receipts (depHash / regOk / error, or a `skipped` reason when the run held the plan) plus,
 // per run that deposited, the encoded bearer note the cron minted, because without it the scheduled
@@ -13,6 +17,7 @@ import "server-only";
 // write cannot clobber whatever is in there). Files written before the guard existed are a bare
 // plan array; they parse as { plans, guard: {} }.
 import { BlobNotFoundError, get, head, list, put } from "@vercel/blob";
+import { Redis } from "@upstash/redis";
 import { log, errMsg } from "./log";
 import { parseGuard, type SpendingGuard, type Spend } from "./spending-guard";
 
@@ -22,7 +27,13 @@ export type Frequency = "weekly" | "monthly";
 // file is private, server-only). Older receipts have no note. `skipped` marks a run that held the
 // plan without moving money (rate condition not met, oracle unreadable, spending guard); the plan
 // stays due and is re-checked by the next daily run. `observedRate` is the oracle rate seen then.
-export type RunReceipt = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number };
+// `pullHash` is the USDC SAC transfer_from that pulled the plan amount from the owner's wallet into
+// the relayer under the owner's allowance; `refundHash` the transfer back when the deposit then failed.
+export type RunReceipt = { at: string; depHash?: string; regOk?: boolean; error?: string; note?: string; skipped?: string; observedRate?: number; pullHash?: string; refundHash?: string };
+// The USDC SAC approve(from=owner, spender=relayer, ...) the owner's wallet signed when the plan was
+// created. `amount` is the allowance in USDC read back on-chain at creation; the cron re-reads the
+// live allowance before every run, so this is the receipt, not the authority.
+export type Approval = { hash: string; spender: string; amount: string; expirationLedger: number };
 // `condition`: send only when the Reflector USD->`symbol` rate is at least `minRate`. Only
 // corridors with an on-chain oracle feed can carry one (the POST route checks the corridor).
 export type StoredSchedule = {
@@ -34,6 +45,7 @@ export type StoredSchedule = {
   nextDate: string; // YYYY-MM-DD
   history: RunReceipt[];
   condition?: { symbol: string; minRate: number };
+  approval?: Approval;
 };
 export type OwnerFile = { plans: StoredSchedule[]; guard: SpendingGuard };
 
@@ -54,14 +66,43 @@ export class CorruptScheduleFile extends Error {
   }
 }
 
-/** True iff Blob storage is wired (BLOB_READ_WRITE_TOKEN present). The UI degrades to the
- *  device-local reminder when this is false, so the build and demo work without the token. */
+const OWNERS_KEY = "schedules:owners";
+const redisKey = (owner: string): string => {
+  if (!G_RE.test(owner)) throw new Error("invalid owner");
+  return `schedules:${owner}`;
+};
+
+function upstashEnv(): { url: string; token: string } | null {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  return url && token ? { url, token } : null;
+}
+let _redis: Redis | null = null;
+function redis(): Redis {
+  const env = upstashEnv();
+  if (!env) throw new Error("upstash redis is not configured");
+  // Raw strings in, raw strings out: parseOwnerFile does the (validating) JSON parse itself.
+  if (!_redis) _redis = new Redis({ url: env.url, token: env.token, automaticDeserialization: false });
+  return _redis;
+}
+
+/** Which store backs the plans: Blob when its token is set, else Redis, else none. */
+export function backend(): "blob" | "redis" | null {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return "blob";
+  if (upstashEnv()) return "redis";
+  return null;
+}
+/** The env a plan store needs, named exactly, for the UI to show when none is wired. */
+export const STORAGE_ENV_HINT = "KV_REST_API_URL + KV_REST_API_TOKEN (Upstash Redis) or BLOB_READ_WRITE_TOKEN (Vercel Blob)";
+
+/** True iff a plan store is wired. The UI degrades to the device-local reminder when this is
+ *  false, so the build and demo work without it. */
 export function isConfigured(): boolean {
-  return !!process.env.BLOB_READ_WRITE_TOKEN;
+  return backend() !== null;
 }
 function assertConfigured(): void {
   if (!isConfigured()) {
-    throw new Error("scheduled remittances are not configured (set BLOB_READ_WRITE_TOKEN)");
+    throw new Error(`scheduled remittances are not configured (set ${STORAGE_ENV_HINT})`);
   }
 }
 
@@ -95,6 +136,10 @@ function invalidPlan(p: any): string | null {
     const c = p.condition;
     if (!c || typeof c !== "object" || !/^[A-Z]{3}$/.test(String(c.symbol)) || typeof c.minRate !== "number" || !(c.minRate > 0) || !Number.isFinite(c.minRate)) return "condition";
   }
+  if (p.approval !== undefined) {
+    const a = p.approval;
+    if (!a || typeof a !== "object" || !/^[0-9a-f]{64}$/.test(String(a.hash)) || !G_RE.test(String(a.spender)) || typeof a.amount !== "string" || !AMOUNT_RE.test(a.amount) || !Number.isInteger(a.expirationLedger)) return "approval";
+  }
   return null;
 }
 
@@ -119,8 +164,22 @@ export function parseOwnerFile(text: string): OwnerFile {
   return { plans, guard };
 }
 
+// Shared tail of both backends: the text must parse, and a corrupt file is logged and thrown.
+function parseOrLog(owner: string, text: string): OwnerFile {
+  try {
+    return parseOwnerFile(text);
+  } catch (e) {
+    log.error("schedule file corrupt", { owner, err: errMsg(e) });
+    throw e;
+  }
+}
+
 export async function readOwnerFile(owner: string): Promise<OwnerFile> {
   assertConfigured();
+  if (backend() === "redis") {
+    const text = await redis().get<string>(redisKey(owner));
+    return text == null ? { plans: [], guard: {} } : parseOrLog(owner, text);
+  }
   const path = ownerPath(owner);
   // head() first: a missing file is a clean "no plans yet", anything after this is a real read.
   try {
@@ -133,12 +192,7 @@ export async function readOwnerFile(owner: string): Promise<OwnerFile> {
   const res = await get(path, { access: "private", useCache: false });
   if (!res) return { plans: [], guard: {} }; // deleted between head() and get(); the same as never existing
   if (res.statusCode !== 200) throw new Error(`blob read returned ${res.statusCode}`);
-  try {
-    return parseOwnerFile(await new Response(res.stream).text());
-  } catch (e) {
-    log.error("schedule file corrupt", { owner, err: errMsg(e) });
-    throw e;
-  }
+  return parseOrLog(owner, await new Response(res.stream).text());
 }
 
 export async function readSchedules(owner: string): Promise<StoredSchedule[]> {
@@ -147,6 +201,11 @@ export async function readSchedules(owner: string): Promise<StoredSchedule[]> {
 
 export async function writeOwnerFile(owner: string, file: OwnerFile): Promise<void> {
   assertConfigured();
+  if (backend() === "redis") {
+    // One MULTI: the file and the owner's membership in the cron's sweep set land together.
+    await redis().multi().set(redisKey(owner), JSON.stringify(file)).sadd(OWNERS_KEY, owner).exec();
+    return;
+  }
   await put(ownerPath(owner), JSON.stringify(file), {
     access: "private", // no public URL; readable only server-side with the store token
     contentType: "application/json",
@@ -177,6 +236,11 @@ export function spendsFromPlans(plans: StoredSchedule[]): Spend[] {
 /** All owner addresses that have a schedule file. Used by the cron to sweep due plans. */
 export async function listAllOwners(): Promise<string[]> {
   assertConfigured();
+  if (backend() === "redis") {
+    // A set, not a SCAN: every write adds its owner, so the sweep is one SMEMBERS.
+    const members = await redis().smembers(OWNERS_KEY);
+    return members.filter((m) => G_RE.test(m));
+  }
   // Follows the cursor to the end. `list` returns at most 1000 blobs per page, and a single page
   // would silently drop every owner past the cut: their due plans would never be swept and their
   // scheduled sends would simply stop, with no error anywhere. Paging is the difference between
