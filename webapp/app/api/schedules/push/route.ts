@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { isConfigured, readOwnerFile, writeOwnerFile, CorruptScheduleFile } from "@/lib/schedules";
 import { authOwner } from "@/lib/auth";
 import { log, requestId, errMsg } from "@/lib/log";
+import { isPushEndpoint, PUSH_ENDPOINT_ERROR } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -27,7 +28,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "expected a JSON body { subscription }" }, { status: 400 });
   }
   const sub = body?.subscription;
-  if (typeof sub?.endpoint !== "string" || !/^https:\/\/[^\s]{1,2000}$/.test(sub.endpoint)) return NextResponse.json({ error: "subscription.endpoint must be an https URL" }, { status: 400 });
+  if (!isPushEndpoint(sub?.endpoint)) return NextResponse.json({ error: PUSH_ENDPOINT_ERROR }, { status: 400 });
   if (typeof sub?.keys?.p256dh !== "string" || typeof sub?.keys?.auth !== "string" || !sub.keys.p256dh || !sub.keys.auth) return NextResponse.json({ error: "subscription.keys.p256dh and .auth are required" }, { status: 400 });
   const clean = { endpoint: sub.endpoint as string, keys: { p256dh: sub.keys.p256dh as string, auth: sub.keys.auth as string } };
   try {

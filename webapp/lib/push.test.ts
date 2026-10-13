@@ -20,7 +20,7 @@ describe("parseWatch", () => {
   it("requires a nullifier for a spent watch and rejects junk", () => {
     expect(parseWatch({ subscription: sub, watch: { kind: "spent", commitment: C } })).toMatch(/nullifier/);
     expect(parseWatch({ subscription: sub, watch: { kind: "spent", commitment: C, nullifier: "0x12" } })).toMatch(/nullifier/);
-    expect(parseWatch({ subscription: { endpoint: "http://x", keys: sub.keys }, watch: { kind: "spendable", commitment: C } })).toMatch(/https/);
+    expect(parseWatch({ subscription: { endpoint: "http://x", keys: sub.keys }, watch: { kind: "spendable", commitment: C } })).toMatch(/push service/);
     expect(parseWatch({ subscription: sub, watch: { kind: "later", commitment: C } })).toMatch(/kind/);
     expect(parseWatch({ subscription: sub, watch: { kind: "spendable", commitment: "abc" } })).toMatch(/commitment/);
     expect(parseWatch(null)).toMatch(/endpoint/);
@@ -64,5 +64,13 @@ describe("evaluate + fireWatch", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const flaky = async () => { throw Object.assign(new Error("Server error"), { statusCode: 500 }); };
     expect(await fireWatch("id", base, { knownLeaf: true, spent: null }, flaky)).toBe("failed");
+  });
+});
+
+describe("isPushEndpoint (SSRF guard)", () => {
+  it("accepts the browsers' push services and rejects everything else", async () => {
+    const { isPushEndpoint } = await import("./push");
+    for (const ok of ["https://fcm.googleapis.com/fcm/send/abc", "https://updates.push.services.mozilla.com/wpush/v2/x", "https://wns2-par02p.notify.windows.com/w/?token=x", "https://web.push.apple.com/QA1"]) expect(isPushEndpoint(ok)).toBe(true);
+    for (const bad of ["http://fcm.googleapis.com/x", "https://169.254.169.254/latest", "https://localhost/x", "https://fcm.googleapis.com.evil.com/x", "https://evilfcm.googleapis.com.attacker.io/", "https://fcm.googleapis.com:8443/x", "https://10.0.0.1/x", 42, null]) expect(isPushEndpoint(bad)).toBe(false);
   });
 });

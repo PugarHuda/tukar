@@ -36,12 +36,26 @@ export function pushConfigured(): boolean {
 
 // ---- pure: validation, keys, decisions ---------------------------------------------------------
 
+// The cron POSTs to whatever endpoint a browser stored, so an arbitrary https URL would let anyone
+// point it at an internal host (SSRF). Only the browsers' real push services are accepted.
+const PUSH_HOSTS = ["fcm.googleapis.com", "updates.push.services.mozilla.com", "notify.windows.com", "push.apple.com"];
+export function isPushEndpoint(endpoint: unknown): endpoint is string {
+  if (typeof endpoint !== "string" || endpoint.length > 2000) return false;
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === "https:" && !u.port && PUSH_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h));
+  } catch {
+    return false;
+  }
+}
+export const PUSH_ENDPOINT_ERROR = "subscription.endpoint must be a browser push service URL (FCM, Mozilla, Windows or Apple)";
+
 // Validate an untrusted subscribe body. Returns the Watch or an error string (400 at the route).
 export function parseWatch(body: unknown): Watch | string {
   const b = body as any;
   const sub = b?.subscription;
   const w = b?.watch;
-  if (typeof sub?.endpoint !== "string" || !/^https:\/\/[^\s]{1,2000}$/.test(sub.endpoint)) return "subscription.endpoint must be an https URL";
+  if (!isPushEndpoint(sub?.endpoint)) return PUSH_ENDPOINT_ERROR;
   if (typeof sub?.keys?.p256dh !== "string" || typeof sub?.keys?.auth !== "string" || !sub.keys.p256dh || !sub.keys.auth) return "subscription.keys.p256dh and .auth are required";
   if (w?.kind !== "spendable" && w?.kind !== "spent") return 'watch.kind must be "spendable" or "spent"';
   if (!FIELD.test(String(w?.commitment ?? ""))) return "watch.commitment must be a decimal field element";
@@ -122,8 +136,11 @@ function vapid() {
 
 /** One VAPID-signed Web Push send. Shared with lib/op-alerts.ts so operator alerts use this
  *  transport rather than adding a second channel. */
+// Re-checked at send time too, so a subscription stored before the allowlist cannot be used.
 export const sendPush = (sub: PushSub, payload: string): Promise<unknown> =>
-  webpush.sendNotification(sub, payload, { vapidDetails: vapid(), TTL: 86400 });
+  isPushEndpoint(sub.endpoint)
+    ? webpush.sendNotification(sub, payload, { vapidDetails: vapid(), TTL: 86400 })
+    : Promise.reject(Object.assign(new Error(PUSH_ENDPOINT_ERROR), { statusCode: 410 }));
 
 export type Outcome = "sent" | "kept" | "dropped" | "failed";
 
