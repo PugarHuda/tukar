@@ -801,11 +801,10 @@ test.describe("wallet bar", () => {
     await connect.click();
     // stellar-wallets-kit renders its own modal; give it up to 10s to mount (8s kit-load timeout)
     await expect(connect).toBeDisabled({ timeout: 10_000 }); // busy while the picker is open
-    await page.waitForTimeout(2000);
-    // NOTE (third-party): the kit's picker ignores Escape; a backdrop click is what closes it.
+    // wait for the picker to actually mount; dismissing before it paints is a no-op
+    await expect(page.getByText("Powered by")).toBeVisible({ timeout: 15_000 });
+    // the kit's picker ignores Escape on its own; lib/wallet-kit.ts maps Escape to its close event
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(1000);
-    if (await connect.isDisabled()) await page.mouse.click(5, 5);
     // must settle: kit rejects authModal -> WalletBar.tsx:218 toasts the error, button re-enables
     await expect(connect).toBeEnabled({ timeout: 20_000 });
     await expect(toast(page)).toContainText(/closed the modal|Could not connect/);

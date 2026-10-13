@@ -62,6 +62,8 @@ export async function walletKit(): Promise<KitStatic> {
  * outside or on the X is dropped on the floor. The picker then stays open and this promise never
  * settles, leaving "Connect wallet" spinning forever. We subscribe to the close event first and
  * re-emit it until the kit is listening, so the first dismissal always closes the picker.
+ * The kit's picker also ignores Escape, so a keyboard user had no way out; Escape emits the same
+ * close event as the X.
  */
 export async function openWalletPicker(): Promise<{ address: string }> {
   const { StellarWalletsKit, closeEvent } = await kitModule();
@@ -72,10 +74,15 @@ export async function openWalletPicker(): Promise<{ address: string }> {
   const replay = setInterval(() => {
     if (dismissed) closeEvent.next();
   }, 150);
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") closeEvent.next();
+  };
+  document.addEventListener("keydown", onKey);
   try {
     return await StellarWalletsKit.authModal();
   } finally {
     clearInterval(replay);
+    document.removeEventListener("keydown", onKey);
     unsub();
   }
 }
