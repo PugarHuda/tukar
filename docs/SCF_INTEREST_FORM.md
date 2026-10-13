@@ -2,7 +2,12 @@
 
 Answers as resubmitted on 2026-10-13 through the SCF dashboard at communityfund.stellar.org (the
 2026-08-14 form was declined on 2026-08-24). The form caps Current Traction at 1000 characters,
-Planned Stellar Integration at 1100 and Team Description at 2000. Each fenced block is the verbatim answer to the named field, in the order
+Planned Stellar Integration at 1100 and Team Description at 2000.
+
+> Changed after submission (same day): to meet the Instawards custody rules, the CAP-15 fee sponsor
+> was removed and recurring sends became user-signed reminders, so no server key touches user
+> funds. The submitted Traction text still describes the earlier sponsor and allowance pull; mention
+> this correction in the full Build submission if invited. Each fenced block is the verbatim answer to the named field, in the order
 the form lists them. The full Build submission that follows an invitation is in
 [`SCF_SUBMISSION.md`](SCF_SUBMISSION.md).
 
