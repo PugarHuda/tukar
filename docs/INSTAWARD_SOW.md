@@ -1,7 +1,9 @@
 # Instawards Statement of Work: Tukar
 
-> Filled in and checked against the project on 2026-09-14, in the order of the Instawards SOW
-> template. A copy-friendly version with a copy button per field, for pasting into the Airtable form,
+> Filled in on 2026-09-14 and revised on 2026-10-13 against the Instawards "Never do these" list, in
+> the order of the Instawards SOW template. The revision cut the user pilot (rules 6 and 68), made
+> every deliverable guaranteed (rule 67), moved pre-sprint fixes out of the billed hours (rule 70)
+> and added a trust and key-management model (rule 41). A copy-friendly version with a copy button per field, for pasting into the Airtable form,
 > is published as a Claude artifact.
 
 ## 1. Project & Team Information
@@ -14,7 +16,7 @@
 | Ambassador Chapter | Ambassador Chapter Indonesia |
 | Ambassador Chapter Lead | Kenny Rivaldi |
 | Date Submitted | 2026-09-14 |
-| Suggested Sprint Start Date | 2026-09-22 |
+| Suggested Sprint Start Date | 2026-10-20 |
 
 ## 2. Instawards Overview & Intent
 
@@ -32,11 +34,11 @@ will be delivered, why it matters, and how success will be verified.
 ### Problem Being Addressed
 
 Tukar is a private cross-border remittance corridor on Stellar, paying out to receivers in ten
-countries across Latin America, Asia and Africa. Fifteen contracts are live on
+countries across Latin America, Asia and Africa. Sixteen contracts are live on
 testnet, eight Circom circuits prove in the browser, and real deposits settle on Protocol 28. The
-blocker is not the cryptography. It is two specific things.
+blocker is not the cryptography. It is one specific thing.
 
-**First, Tukar cannot tie the money leaving the pool to the verified person it belongs to without
+**Tukar cannot tie the money leaving the pool to the verified person it belongs to without
 exposing that person.** Tukar's strongest existing claim is an auditor-registered audit request. A
 regulator pins the exact set of payments an answer must cover, and on the preview pool the cap it is
 tested against as well, and the contract rejects anything else. That set is built from deposits, and deposits on Stellar are
@@ -112,16 +114,12 @@ The nearest neighbours were each read from source, and they differ in ways that 
 - **Stellar Private Payments and OpenZeppelin confidential tokens** disclose single notes or
   transactions and, as quoted above, leave completeness for later.
 
-**Second, the project has never been used by anyone except its author.** Every design decision about
-the hardest part of the product, the twenty to sixty seconds of in-browser proving with no progress
-a person can interpret, rests on one developer's intuition.
-
 ### Objective of This Instaward
 
 By the end of the 30 days, every cash-out on the preview pool updates a shielded monthly ledger for
 the verified person behind it, so a monthly limit cannot be split around and an auditor's request for
-one person's month gets an answer that is complete by construction. The corridor will also have been
-run end to end by three people who are not the author, with what broke published.
+one person's month gets an answer that is complete by construction, checkable by anyone from a public
+status page and reproducible from a published spec.
 
 ## 4. Scope of Work (30-Day Deliverables)
 
@@ -129,14 +127,26 @@ run end to end by three people who are not the author, with what broke published
 
 | Deliverable | Description (What will be built or produced?) | Why this matters |
 |---|---|---|
-| **D1. A shielded monthly ledger for each verified person** | Each allow-listed person holds one shielded ledger note per period, carrying a count and a running total. Every withdraw on the preview pool must carry a second, small proof that spends the person's current ledger note and creates the next one, adding exactly the withdraw's own public amount, so the figure checked against the cap and the figure released are the same number. The cap is the one for the person's tier, read by the contract rather than supplied by the prover, and the period comes from the ledger clock, pinned by the contract. Opening a period publishes one nullifier derived from the person's secret and the period, so no one runs two ledgers in the same period, and those nullifiers do not link across periods. When a period closes, the audit-request registry, adapted to name a person and a closed period, accepts an answer only over the final ledger note, meaning the one whose nullifier is still unspent. Lands on the upgradeable preview pool, reusing the second-proof pattern already tested there. | Turns a monthly limit that can be split around into one that cannot, and turns a list of cash-outs into an answer that is provably whole. It is the gap OpenZeppelin lists as out of scope and Stellar Private Payments calls a near-term goal, and it closes the gap in Tukar's existing audit request, which today is complete only over public deposits. |
-| **D2. Scoped testnet pilot with a published report** | Three people who are not the author run the corridor end to end, with roles rotating so each is a first-time sender once and a first-time receiver once, giving three complete loops. Where they hesitate, what they misread and what they cannot finish is recorded in their own words. A report is published naming the sample size, how people were found, the selection bias, what broke, and what was changed because of it. The report separates first-contact findings from repeat-session findings, because a person who has already seen the app is no longer fresh evidence. | The product has never been touched by a stranger. Three is small and the report will say so, but three sessions that happen beat ten that are scheduled and cancelled. |
-| **D3. The ledger published as reusable tooling** | The ledger scheme written up as a short spec with a runnable example against the deployed testnet contract, so the teams behind Stellar Private Payments and the confidential token can adopt it without reading Tukar's source. | Both teams have said in writing that completeness is not done yet. An open spec lets them take it rather than rebuild it. |
+| **D1. A shielded monthly ledger for each verified person** | Each allow-listed person holds one shielded ledger note per period, carrying a count and a running total. Every withdraw on the preview pool must carry a second, small proof that spends the person's current ledger note and creates the next one, adding exactly the withdraw's own public amount, so the figure checked against the cap and the figure released are the same number. The cap is the one for the person's tier, read by the contract rather than supplied by the prover, and the period comes from the ledger clock, pinned by the contract. Opening a period publishes one nullifier derived from the person's secret and the period, so no one runs two ledgers in the same period, and those nullifiers do not link across periods. The proof is checked on-chain by a new instance of Tukar's existing BN254 Groth16 verifier contract, generated from the new circuit's verification key, not a verifier written from scratch. Lands on the upgradeable preview pool, reusing the second-proof pattern already tested there. | Turns a monthly limit that can be split around into one that cannot. It is the gap OpenZeppelin lists as out of scope and Stellar Private Payments calls a near-term goal. |
+| **D2. A complete audit answer over a closed period, with a public status page** | The audit-request registry is adapted to name a person and a closed period, and accepts an answer only over that person's final ledger note for the period, meaning the one whose nullifier is still unspent. An answer built on an earlier, already spent note is rejected on-chain. A public page reads the registry and shows, for each registered request, whether a complete answer is on record and the transaction that recorded it. | Closes the gap in Tukar's existing audit request, which today is complete only over public deposits, and makes completeness checkable by anyone without trusting Tukar. |
+| **D3. The ledger published as reusable tooling** | The ledger scheme written up as a short spec, with a runnable script that opens a ledger, makes a capped cash-out and answers an audit request against the deployed testnet contracts, so the teams behind Stellar Private Payments and the confidential token can adopt it without reading Tukar's source. | Both teams have said in writing that completeness is not done yet. An open spec lets them take it rather than rebuild it. |
 
 ### Out-of-Scope (Explicitly Not Included)
 
 - **No mainnet.** Nothing deploys to mainnet, no mainnet key is generated, no mainnet transaction is
   signed.
+- **No user pilot and no recruiting.** Putting the corridor in front of people who are not the author
+  matters, but it is user acquisition, and it depends on other people's availability, so it is not a
+  deliverable of this sprint and no hours are billed for it.
+- **No new verifier code.** The ledger proof is checked by an instance of the BN254 Groth16 verifier
+  contract Tukar already runs eight of, generated from the new verification key.
+- **No pre-sprint fixes in the billed hours.** Rotating the corridor admin key and applying the
+  preview-pool upgrade that is already queued are done before the sprint starts and are not billed.
+- **No change to the scheduler relayer or the fee sponsor.** The web app has two server-held testnet
+  keys: a fee sponsor that only pays network fees through CAP-15 fee-bumps and can move no user
+  funds, and a recurring-send relayer that can only pull USDC a user has approved for it, up to the
+  approved amount and expiry. Neither is touched by this sprint, and neither signs anything the
+  ledger depends on.
 - **No licensed anchor integration.** Cash-out continues against SDF's testnet reference anchor. A
   licensed anchor is a business relationship on someone else's timeline and cannot be promised inside
   30 days.
@@ -155,6 +165,25 @@ run end to end by three people who are not the author, with what broke published
   limits. Nothing here says Tukar is subject to any of them, and the ledger is not a compliance
   product for any one jurisdiction. The cap and the period are policy settings.
 
+### Trust, Key-Management and Failure Model
+
+- **Who holds funds.** No one but the users. Deposits and withdraws are signed by the user's own
+  wallet through Stellar Wallets Kit. The pool contract holds the shielded USDC, and no operator key
+  can withdraw it.
+- **Who can change policy.** The corridor admin key sets the allow-list root, the deny list and the
+  tier caps. On the preview pool these setters go through a timelock (propose, mandatory delay,
+  execute, cancel), so a change is public before it takes effect. The key is rotated before the
+  sprint because the current one was once committed to a public repository. Moving the admin to a
+  Stellar multisig account is the next step and is not claimed here.
+- **What the ledger trusts.** Nothing outside the chain. The period comes from the ledger clock, the
+  cap is read from contract storage, the released amount is the withdraw's own public amount, and
+  the nullifier rule is enforced by the contract. A prover cannot pick any of them.
+- **What happens when something fails.** A withdraw whose ledger proof does not verify reverts, so
+  no funds move. If the ledger circuit itself had a flaw, the gate can be disarmed through the same
+  timelocked setter path, which returns the preview pool to today's behaviour while the flaw is
+  fixed, and the timelock makes that switch visible before it happens. Testnet only, and no
+  independent audit has been done, so nothing here is presented as ready for real money.
+
 ### 4.2 Deliverable-Aligned Budget Request
 
 #### Requested Budget Amount
@@ -163,44 +192,35 @@ $5,000, which is 100 hours at $50 per hour.
 
 #### Rationale for Budget Request
 
-**D1, the monthly ledger, is 72 of those hours.** It produces three things. A small circuit spends
-one ledger note and creates the next, adds exactly the withdraw's public amount, and checks the
-running total against the person's tier cap. A contract gate on the preview pool pins the period from
-the ledger clock, records the nullifier that opens a period, reads the tier cap itself, and refuses a
-withdraw that carries no valid ledger proof. And an audit answer over a closed period is accepted by
-the audit-request registry only for the final, unspent ledger note. The hours split as 14 to fix the
-design and write the negative tests first, 18 for the circuit, 4 for its trusted setup, 16 for the
-contract gate, 8 to upgrade the preview pool on testnet and verify on-chain, and 12 for the audit
-answer and a public page that shows whether a request has a complete answer on record. The trusted
-setup takes its beacon from a Stellar ledger that closes after the contributions end, instead of the
-fixed byte string Tukar's current ceremonies used, which closes a known weakness at no extra cost.
-The period length is a policy setting. Testnet uses a short period so that a closed period can be
-shown inside the sprint, and the production setting is a calendar month.
+**D1, the monthly ledger, is 62 of those hours.** It produces two things. A small circuit spends one
+ledger note and creates the next, adds exactly the withdraw's public amount, and checks the running
+total against the person's tier cap. And a contract gate on the preview pool pins the period from the
+ledger clock, records the nullifier that opens a period, reads the tier cap itself, and refuses a
+withdraw that carries no valid ledger proof. The hours split as 14 to fix the design and write the
+negative tests first, 18 for the circuit, 4 for its trusted setup, 4 to generate and deploy its
+verifier from the existing template, 14 for the contract gate, and 8 to upgrade the preview pool on
+testnet and verify on-chain. The trusted setup takes its beacon from a Stellar ledger that closes
+after the contributions end, instead of the fixed byte string Tukar's current ceremonies used. The
+period length is a policy setting. Testnet uses a short period so that a closed period can be shown
+inside the sprint, and the production setting is a calendar month.
 
-It is roughly two thirds of the sprint because a mistake here is a soundness failure rather than a
-bug, which is why the five negative tests come first. A cash-out over the monthly cap must fail. A
-second ledger opened in the same period must fail. A withdraw with no ledger proof must fail once the
-gate is armed. A ledger proof whose amount differs from the amount released must fail. And an audit
-answer built on an earlier, already spent ledger note must fail, because that is exactly how a holder
-would leave a cash-out out. Making those five fail for the right reason is the deliverable.
+It is most of the sprint because a mistake here is a soundness failure rather than a bug, which is
+why the negative tests come first. A cash-out over the monthly cap must fail. A second ledger opened
+in the same period must fail. A withdraw with no ledger proof must fail once the gate is armed. A
+ledger proof whose amount differs from the amount released must fail. Making those fail for the
+right reason is the deliverable.
 
-**D2, the pilot, is 18 hours.** Three people who are not the author run the corridor end to end,
-roles rotating so each is a first-time sender once and a first-time receiver once, giving three
-complete loops, and a published report names the sample size, how people were found, the selection
-bias, what broke, and what changed as a result, separating first-contact findings from
-repeat-session ones. That is 3 hours recruiting and scheduling, 8 across three sessions of about two
-and a half hours each including setup and writing up notes, and 7 writing the report. It looks small
-for its value because it is scheduling and observation rather than code. The sessions cannot
-overlap, because the built-in testnet key is a single shared account, so two concurrent senders
-collide and the Merkle tree moves underneath the second one.
+**D2, the complete audit answer, is 22 hours.** 12 to adapt the audit-request registry to a person
+and a closed period and to accept an answer only over the final, unspent ledger note, 4 for its
+negative test (an answer built on an earlier, already spent note must fail, because that is exactly
+how a holder would leave a cash-out out), and 6 for the public status page that reads the registry.
 
-**D3, the spec, is 10 hours and optional.** The ledger scheme written up with a runnable example
-against the deployed testnet contract, so the teams behind Stellar Private Payments and the
-confidential token can adopt it without reading Tukar's source. It is the release valve. If the
-sprint runs short, this is what goes, and both core outcomes still land.
+**D3, the spec and runnable script, is 16 hours.** 8 for the spec and 8 for a script that runs the
+whole cycle against the deployed testnet contracts and prints each transaction, so a reader can check
+the spec against the chain.
 
 That totals 100 hours across 30 calendar days, about 23 hours a week, which is what fits honestly
-beside a full-time job.
+beside a full-time job. Every deliverable is guaranteed; none is optional.
 
 **On the rate.** This is not general application development. D1 is Circom circuit design and
 Soroban contract work, with the consequence described above. Independent contracting rates for
@@ -221,10 +241,11 @@ testnet is free through friendbot, and Upstash is on its free tier. The whole re
 
 | Week | Planned Work | Expected Output |
 |---|---|---|
-| **Week 1** | Rotate the corridor admin key before any contract work, since the current one was committed to a public repository and every upgrade in this sprint is signed by it. Apply the preview-pool upgrade that is already queued, so D1 does not stack on an unapplied change. Fix the ledger design and write the five negative tests first, so they fail before any code exists. Recruit the three testers in parallel, since scheduling is the long pole. | Admin key rotated, preview pool current, the design written down, five failing tests committed, three testers booked. |
+| **Before the sprint (unbilled)** | Rotate the corridor admin key, since the current one was committed to a public repository and every upgrade in this sprint is signed by it. Apply the preview-pool upgrade that is already queued, so D1 does not stack on an unapplied change. | Admin key rotated, preview pool current. |
+| **Week 1** | Fix the ledger design and write the negative tests first, so they fail before any code exists. | The design written down, failing tests committed. |
 | **Week 2** | Write the ledger circuit and run its trusted setup with a beacon from a Stellar ledger that closes after the contributions end. Add the contract gate to the preview pool and upgrade it on testnet. Make the negative tests pass for the right reason rather than by accident. | Circuit and setup transcript published, preview pool upgraded, tests green, first cash-out carrying a ledger proof on-chain. |
-| **Week 3** | Build the audit answer over a closed period and the public page that shows whether a request has a complete answer on record. Run the first pilot sessions. | A registered request answered complete on-chain, a stale answer rejected, first session notes captured. |
-| **Week 4** | Remaining pilot sessions. Write the pilot report. If time allows, D3. Fix whatever the pilot exposed that can be fixed inside the sprint, and record what cannot. | Report published, ledger scheme documented, evidence links assembled. |
+| **Week 3** | Build the audit answer over a closed period (D2) and the public page that shows whether a request has a complete answer on record. | A registered request answered complete on-chain, a stale answer rejected, the status page live. |
+| **Week 4** | Write the spec and the runnable script (D3), run it end to end against the deployed contracts, and assemble the evidence links. | Spec published, script output with its transaction hashes, evidence links assembled. |
 
 ## 6. Evidence of Completion (Required)
 
@@ -232,9 +253,9 @@ testnet is free through friendbot, and Upstash is on its free tier. The whole re
 
 | Deliverable | Evidence Type (link, repo, demo, screenshot, doc, tx hash, etc.) | Description |
 |---|---|---|
-| **Deliverable 1** | Testnet tx hashes on stellar.expert, and a public status page | Five transactions. A cash-out inside the cap, accepted with its ledger proof. A second cash-out that would pass the cap, rejected on-chain. An attempt to open a second ledger in the same period, rejected. A registered audit request answered complete and accepted, and an answer built on an earlier ledger note, rejected. Open each hash to see which were accepted and which were rejected. The rejections are the point, because each one is a way to cheat the limit or the audit that the contract refused. The status page shows whether a request has a complete answer on record. |
-| **Deliverable 2** | Doc (published pilot report) | Names the number of testers, how they were found, the selection bias, what broke, and what changed as a result. Look for findings that contradict the design; a report where everything went well is a report to distrust. |
-| **Deliverable 3** | Doc and repo (spec page with a runnable example) | Follow the example against the deployed testnet contract and see it return the same result the status page shows. |
+| **Deliverable 1** | Testnet tx hashes on stellar.expert, and the circuit's setup transcript | Four transactions. A cash-out inside the cap, accepted with its ledger proof. A second cash-out that would pass the cap, rejected on-chain. An attempt to open a second ledger in the same period, rejected. A withdraw with no ledger proof once the gate is armed, rejected. The rejections are the point, because each one is a way to cheat the limit that the contract refused. |
+| **Deliverable 2** | Testnet tx hashes and a public status page | A registered audit request answered complete and accepted, and an answer built on an earlier ledger note, rejected. The status page shows the complete answer on record with a link to its transaction. |
+| **Deliverable 3** | Doc and repo (spec page with a runnable script) | Run the script against the deployed testnet contracts and see it print the same transactions and the same result the status page shows. |
 
 ### 6.2 Evidence Verification Checklist (For Ambassador Use)
 
