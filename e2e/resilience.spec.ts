@@ -110,6 +110,9 @@ test("operator shows a loading state under a throttled RPC, then resolves", asyn
 test("sender: rapid double-click on 'Use testnet key' connects once, no crash", async ({ page }) => {
   const w = await watchCrashes(page);
   await goto200(page, "/sender");
+  // Race the double-click against React, not against hydration: a click on the SSR button before
+  // hydration is dropped, which is a different (and expected) thing from a double connect.
+  await composeSendable(page);
   const connect = page.getByRole("button", { name: /Use testnet key/ });
   await connect.click({ clickCount: 2, delay: 20 });
   // Exactly one connected state: one Disconnect button, address shown once.
