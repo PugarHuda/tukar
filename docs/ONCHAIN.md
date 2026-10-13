@@ -135,3 +135,25 @@ against the pre-ceremony key and this exact command returned `Error(Contract, #0
 the live verifier. The verifier was fine, the fixtures were stale. They now match
 `ceremony/disclosure/disclosure_vk.json`, and the cargo test above is the guard, since it
 fails if they drift again.
+
+## On-chain Merkle insert with native Poseidon (`merkle-native`)
+
+CAP-75 (Protocol 25) added the `poseidon_permutation` host function.
+[`contracts/merkle-native`](../contracts/merkle-native) uses it, through SDF's
+`soroban-poseidon` 26.0.0, to insert into the pool's exact tree on-chain (depth 10,
+empty leaf 0, circomlib Poseidon(2)). It is a new additive contract. The live pool is
+unchanged and still advances its root with the `merkleUpdate` SNARK, because it predates
+this and has no upgrade hook.
+
+- Contract: `CDH5BLR56H2JPNL56IDDZC6EYEOXEOGVDKSL3J5IN4CD7ASJSD36EFIE` (wasm hash `2d78e41a…7c57`), deployed by a fresh friendbot key `GBOD7RMI…E5IV`
+- Evidence: it replayed the live pool's 64 leaves (`pool.leaves()`) one `insert` per tx, and its `root()` equals `pool.current_root()`. Tx hashes and costs are in `deployments/testnet.json` under `merkleNative`.
+- Inputs >= r are rejected (`NonCanonicalField`, #1), checked on the raw integer, not after `Bn254Fr::from_bytes` reduction.
+
+```bash
+# unit tests: roots vs circomlibjs (gen-vectors.mjs), full 1024-leaf tree, non-canonical rejection, cost
+cd contracts/merkle-native && cargo test --release -- --nocapture
+# read-only testnet measurement (simulation + tx lookups)
+node contracts/merkle-native/measure.mjs <insert tx hash>
+stellar contract invoke --id CDH5BLR56H2JPNL56IDDZC6EYEOXEOGVDKSL3J5IN4CD7ASJSD36EFIE \
+  --source <any funded key> --network testnet --send=no -- root
+```

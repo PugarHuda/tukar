@@ -573,10 +573,11 @@ impl Pool {
 
     /// On-chain Poseidon (circomlib-compatible, t=3) computed with the BN254 host
     /// field ops — returns the SAME hash the circuits/frontend use, verifiable by
-    /// calling this on testnet. NOTE: one hash costs ~13.6M CPU, so a full depth-10
-    /// Merkle insert (10 hashes ≈ 135M) exceeds the ~100M per-tx budget — which is
-    /// exactly why the tree is advanced with a cheap merkleUpdate SNARK
-    /// (`register_root_verified`, one pairing) instead of hashing on-chain.
+    /// calling this on testnet. NOTE: this hand-rolled hash costs ~13.6M CPU, so a
+    /// depth-10 insert with it (≈135M) exceeds the ~100M per-tx budget; that is why
+    /// this pool advances its tree with a merkleUpdate SNARK (`register_root_verified`).
+    /// CAP-75 (Protocol 25) later added a native Poseidon host function (~1.5M/hash);
+    /// `contracts/merkle-native` uses it and inserts at full depth for ~12.7M per tx.
     pub fn poseidon_hash(env: Env, a: BytesN<32>, b: BytesN<32>) -> BytesN<32> {
         poseidon::hash2(&env, &a, &b)
     }

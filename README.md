@@ -568,13 +568,22 @@ professionally audited, see the caveats below). What that means concretely:
   perpetual Powers-of-Tau ceremony** (`powersOfTau28_hez_final_14.ptau`). Phase-1
   has no locally-known toxic waste. Verifiers + pool were regenerated together so
   keys and verifiers stay in sync.
-- **On-chain Poseidon (proven).** The pool exposes
+- **On-chain Poseidon, and a correction.** The live pool exposes
   [`poseidon_hash(a,b)`](contracts/pool/src/poseidon.rs), a **circomlib-exact**
-  Poseidon computed on-chain from BN254 Fr host ops. Live, `poseidon_hash(1,2)`
-  returns `0x115cc0f5...4417189a`, exactly circomlibjs `poseidon([1,2])`. We measured
-  it at ~13.6M CPU/hash, so a depth-10 insert (~135M) exceeds the per-tx budget,
-  which is *why* the tree is advanced with a cheap `merkleUpdate` SNARK rather than
-  hashed on-chain. See [`onChainPoseidonFinding`](deployments/testnet.json).
+  Poseidon hand-rolled from BN254 Fr host ops (`poseidon_hash(1,2)` returns
+  `0x115cc0f5...4417189a`, exactly circomlibjs `poseidon([1,2])`). It costs ~13.6M CPU
+  per hash, and we used that to argue a depth-10 insert (~135M) can't be hashed
+  on-chain. **That premise was outdated.** [CAP-75](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0075.md)
+  (Protocol 25) added native `poseidon_permutation` / `poseidon2_permutation` host
+  functions, which SDF wraps in the `soroban-poseidon` crate. With those, one hash costs
+  ~1.53M CPU and a full depth-10 insert ~10.8M (native test env). On testnet, a real
+  insert simulates at ~12.7M CPU, about an eighth of the per-tx budget. The
+  [`merkle-native`](contracts/merkle-native) contract is deployed on testnet. It
+  rebuilt the live pool's 64-leaf tree on-chain and reached the same root (see
+  [`merkleNative`](deployments/testnet.json)). The live pool still advances its tree
+  with the `merkleUpdate` SNARK because it was deployed before this and has no upgrade
+  hook. `merkle-native` is the measured replacement path for the next pool, not
+  something the live pool runs today.
 - **Optional real wallet.** [`webapp/components/WalletProvider.tsx`](webapp/components/WalletProvider.tsx) adds an
   optional **Freighter** connection (sign deposits with your own wallet, with a
   one-click testnet faucet); the embedded throwaway key stays the no-install

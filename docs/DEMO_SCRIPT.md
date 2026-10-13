@@ -209,8 +209,9 @@ full peer-to-peer loop."*
 ### Optional B-roll (deeper, for a longer cut)
 - **On-chain Poseidon:** in a terminal, `stellar contract invoke ... -- poseidon_hash
   --a 0x...01 --b 0x...02` returns `0x115cc0f5...4417189a`, the pool computing the
-  *circuit's* Poseidon on-chain, byte-for-byte. (We measured why a full tree insert
-  stays a SNARK rather than on-chain hashing; see the README.)
+  *circuit's* Poseidon on-chain, byte-for-byte. (That hand-rolled hash is ~13.6M CPU.
+  The CAP-75 native host function brings it to ~1.5M, and `merkle-native` does a full
+  on-chain insert in ~12.7M on testnet; see the README.)
 - **Connect Freighter:** click **Connect wallet** to sign a deposit with your own
   wallet instead of the embedded demo key (one-click testnet faucet sets it up).
 - **CLI security proofs** from `docs/ONCHAIN.md`: `pool.deposit` (USDC in),

@@ -185,13 +185,33 @@ nullifier   = Poseidon(commitment, leafIndex, privKey)    // published on spend
 ```
 
 Poseidon (a ZK-friendly hash) keeps commitments and Merkle paths cheap in-circuit.
-Soroban has **no native Poseidon host function**, but its BN254 scalar-field host
-ops (`fr_add`/`fr_mul`/`fr_pow`) are enough to compute the *same* circomlib
-Poseidon on-chain. The pool exposes `poseidon_hash(a,b)` to prove it (live,
-`poseidon_hash(1,2)` returns the exact circomlibjs value). One hash is affordable
-(~13.6M CPU), but a full depth-10 insert (~135M) exceeds the per-tx budget, so
-tree updates are verified with the `merkleUpdate` SNARK rather than hashed
-on-chain.
+The live pool exposes `poseidon_hash(a,b)`, a circomlib Poseidon hand-rolled from
+BN254 scalar-field host ops (`fr_add`/`fr_mul`/`fr_pow`). Live, `poseidon_hash(1,2)`
+returns the exact circomlibjs value. It costs ~13.6M CPU per hash, so ten of them for
+a depth-10 insert (~135M) would not fit the per-tx budget. That is why the live pool
+verifies tree updates with the `merkleUpdate` SNARK.
+
+An earlier version of this section said Soroban has no native Poseidon host function.
+That is outdated. [CAP-75](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0075.md)
+(Protocol 25, Final) added `poseidon_permutation` and `poseidon2_permutation`, and SDF's
+`soroban-poseidon` crate (26.0.0, matching soroban-sdk 26) exposes circomlib-compatible
+`poseidon_hash::<3, Bn254Fr>`. [`contracts/merkle-native`](../contracts/merkle-native)
+uses it to insert into the same tree on-chain: depth 10, empty leaf 0, node =
+Poseidon(2), index bits LSB-first. Measured costs:
+
+| | CPU instructions |
+|---|---|
+| One hash, hand-rolled (`pool` `poseidon_cost_probe`, native test env) | 13,567,966 |
+| One hash, CAP-75 native (`merkle-native` `cost` test) | 1,529,566 |
+| Full depth-10 insert, native (test env, index 1023) | 10,838,003 |
+| Full depth-10 insert, testnet simulation (whole tx, incl. VM + storage) | ~12.7M |
+
+On testnet `merkle-native` replayed the live pool's 64 leaves and reached the same root
+as `pool.current_root()`. The live pool keeps the SNARK path only because it was
+deployed before this and has no upgrade hook. A pool built on `merkle-native` would
+drop one Groth16 verification per deposit, but it would still have to gate `insert` on
+a backed commitment, as `register_root_verified` does today. Figures and tx hashes are
+in `deployments/testnet.json` under `merkleNative`.
 
 ---
 

@@ -44,6 +44,28 @@ implementation, deliberately, because a corridor built on a divergent primitive 
 a corridor nobody else can compose with. The net-new work is above the pool, and the
 sections below are about that work only.
 
+### Side by side with SPP (checked 2026-10-13)
+
+Sources: [SDF privacy docs](https://developers.stellar.org/docs/build/apps/privacy),
+the [SPP repo](https://github.com/NethermindEth/stellar-private-payments) (`main`, last
+commit 2026-10-12), its `deployments/testnet/deployments.json`, and npm
+[`stellar-private-payments` 0.1.0](https://registry.npmjs.org/stellar-private-payments).
+"Not found" means we didn't find it in those sources. It does not mean it doesn't exist.
+
+| | SPP | Tukar |
+|---|---|---|
+| ASP | **Verified.** Membership contract (binary Poseidon2 tree) and non-membership contract (sparse Merkle tree), each with a single admin and two-step admin transfer. Policy modes none/allowlist/blocklist/both are enforced in-circuit. Both testnet pools run `blocklist`. | Allow-list Merkle root plus an 8-entry deny list, proven in-circuit on every deposit, with the source key pinned on-chain to `field(from)`. Equivalent tier, and SPP's sparse-tree deny set scales further than our fixed 8. |
+| Disclosure | **Verified.** Global view key contract (`pool-gvk`, `VIEW_ONLY` or `TRACEABLE`; one testnet pool runs `traceable`), plus `selectiveDisclosure` circuits that prove note ownership and amount, bound to purpose, authority and pool. | Four disclosure proof types, each with its own Soroban verifier, and an audit-request registry that rejects unregistered context hashes. No global view key. |
+| Oracle gate | **Not found.** The only amount limit we saw is a static `maximum_deposit_amount` set in the pool constructor. | On-chain Reflector (SEP-40) FX read gates settlement. |
+| Anchors / fiat | **Not found.** The README mentions only SEP-43 (wallet interface, Draft). No SEP-6/24/31 or anchor integration. | SEP-10 + SEP-24 anchor edges against SDF's testnet anchor, and an off-ramp to local currency (see README). |
+| Merkle tree | **Verified.** Updated on-chain with the native **Poseidon2** host function (`poseidon2_permutation` via its own `soroban-utils`, not `soroban-poseidon`). Root history, two leaves per tx, depth set at deploy (examples use 20). | Live pool: depth 10, circomlib Poseidon, advanced by a `merkleUpdate` Groth16 proof. That design rested on an outdated "no Poseidon host function" premise. SPP got this right first. Tukar's `merkle-native` now does the same thing on-chain with CAP-75 Poseidon (~12.7M CPU per insert on testnet), but the live pool can't adopt it without a redeploy. |
+| Stack / status | Circom, Groth16, BN254. Testnet only, unaudited (README says so), Apache-2.0 (circuit compiler tool is GPLv3). | Circom, Groth16, BN254. Testnet only, not audited (adversarial self-review in docs/SECURITY.md). |
+
+On the Merkle row SPP is ahead, and Tukar's live pool still pays a SNARK per insert
+that SPP doesn't. On the ASP and disclosure rows the two are at parity, with
+different choices. The oracle and anchor rows are where Tukar adds something, and
+that matches the wedge argued below.
+
 ## The neighbours
 
 | Project | What it is | Compliance model | Chain / tech |
