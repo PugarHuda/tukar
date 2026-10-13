@@ -1,7 +1,8 @@
 # SCF Build interest form answers: Tukar
 
-Answers for the SCF Build interest form at communityfund.stellar.org, rewritten against the Build
-Award Submission Criteria. Each fenced block is the verbatim answer to the named field, in the order
+Answers as resubmitted on 2026-10-13 through the SCF dashboard at communityfund.stellar.org (the
+2026-08-14 form was declined on 2026-08-24). The form caps Current Traction at 1000 characters,
+Planned Stellar Integration at 1100 and Team Description at 2000. Each fenced block is the verbatim answer to the named field, in the order
 the form lists them. The full Build submission that follows an invitation is in
 [`SCF_SUBMISSION.md`](SCF_SUBMISSION.md).
 
@@ -24,17 +25,11 @@ End-User Application
 
 **Current Traction**
 ```
-Tukar placed 5th in Stellar Hacks: Real-World ZK, the hackathon run by the Stellar Development Foundation on DoraHacks (https://dorahacks.io/hackathon/stellar-hacks-zk), and was a Grand Finalist in the Stellar APAC hackathon in the Payments and Consumer Applications category. That is outside validation by Stellar ecosystem judges, and it is recognition rather than user traction. It is not an endorsement by SDF or SCF.
+5th place in Stellar Hacks: Real-World ZK (SDF on DoraHacks) and Grand Finalist in the Stellar APAC hackathon, Payments and Consumer Applications. That is recognition, not traction: there are no users or volume yet, and every testnet transaction was made by the author or invited testers.
 
-No users and no volume yet. Tukar runs on Stellar testnet, and every transaction on its contracts was made by the author or by invited testers.
+Checkable on testnet: 16 Soroban contracts and 8 Circom/Groth16 circuits, including a pool holding real testnet USDC, eight BN254 verifiers, a per-corridor policy registry and proof of reserves. 337 contract tests pass, and 176 Playwright tests pass against the live site, including a real deposit.
 
-The need is validated in writing by the teams building Stellar's own privacy stack. OpenZeppelin's selective-disclosure specification for Stellar confidential tokens lists cryptographic completeness ("the disclosed set is exhaustive") among the things it does not do. SDF's developer preview of Stellar Private Payments says its disclosure "is not yet an attestation a user can hand to an outside party for a guarantee of transaction integrity and completeness, though this is a near-term goal for the project". SDF's developer meeting notes for 2026-08-06 call scoped audit requests and selective-disclosure tooling "wide-open design space". None of these sources has reviewed or endorsed Tukar.
-
-What can be checked today is this. 16 Soroban contracts and 8 Circom/Groth16 circuits deployed and exercised on testnet, including a pool holding real testnet USDC, eight BN254 verifier contracts, an on-chain per-corridor policy registry, proof of reserves read cross-contract, and an admin timelock on the preview track. 337 contract tests pass. A live web app has sender, receiver, regulator and operator views and a public receipt verifier, and 176 Playwright end-to-end tests pass against the production site, including a real deposit.
-
-Added since the first form (all on testnet, each with a public transaction): merkle-native, a contract that inserts into the pool's Merkle tree using the CAP-75 Poseidon host function, replayed the live pool's 64 leaves to its exact root at about 12.7M CPU per insert, against 13.6M per hash for the hand-rolled Poseidon the live pool uses. A SEP-24 withdrawal now pays the anchor and reaches "completed" at SDF's reference anchor. Deposits can have their network fee paid by a sponsor through a validated CAP-15 fee-bump, so a sender needs no XLM. Recurring sends pull the sender's own USDC through a SAC approve and transfer_from. An x402 endpoint sells on-chain disclosure re-verification for 0.01 USDC and has settled live.
-
-The next step, with Stellar Ambassador Chapter Indonesia, is a proposed 30-day Instaward ($5,000) for a shielded monthly ledger per verified person and a pilot in which three people who are not the author run the corridor end to end.
+New since the first form, each with a public transaction: merkle-native uses the CAP-75 Poseidon host function and replayed the live pool's 64 leaves to its exact root at about 12.7M CPU per insert; a SEP-24 withdrawal reaches "completed"; deposits can be fee-sponsored through CAP-15; recurring sends pull the sender's own USDC; an x402 endpoint sells verification.
 ```
 
 **Website**
@@ -44,9 +39,9 @@ https://tukar-six.vercel.app (documentation at https://tukar-six.vercel.app/docs
 
 **Planned Stellar Integration**
 ```
-Already integrated on testnet. Soroban contracts in Rust include a pool that custodies testnet USDC through its SAC, plus eight BN254 Groth16 verifier contracts that use Stellar's native BN254 host functions for on-chain pairing checks. The anchor stack is SEP-1, SEP-10, SEP-24 in both directions and SEP-38 firm quotes, run against SDF's reference anchor, which proves the protocol and not a licensed payout. The Reflector SEP-40 FX oracle is read on-chain as a min-receive gate on withdraw, native fee-bump (CAP-15) lets a sender or receiver transact without holding XLM, and Circle CCTP V2 bridges USDC in and out. The receiver converts the corridor's USDC to the anchor's USDC with a native SDEX path payment before the SEP-24 cash-out. The two-sided book it uses is the operator's own testnet liquidity, which is the role a corridor operator would fund on mainnet. The CAP-75 Poseidon host function makes an on-chain Merkle insert affordable, which removes one proof per deposit in the next pool, and x402 on Stellar charges institutions per verification.
+Live on testnet: Rust Soroban contracts, a pool that custodies USDC through its SAC, and eight Groth16 verifiers on Stellar's native BN254 host functions. The anchor stack is SEP-1, SEP-10, SEP-24 in both directions and SEP-38 quotes against SDF's reference anchor, which proves the protocol, not a licensed payout. The Reflector SEP-40 oracle gates withdraw on-chain, CAP-15 fee-bump removes the need for XLM, Circle CCTP V2 bridges USDC, and a native SDEX path payment converts the corridor's USDC to the anchor's USDC before cash-out (the book is the operator's own testnet liquidity). CAP-75 Poseidon makes an on-chain Merkle insert affordable, which removes one proof per deposit in the next pool.
 
-The award would fund migrating the live corridor onto the upgradeable pool with the admin timelock and a multisig admin, a candidate licensed-anchor flow on testnet and a monitoring stack built from the threat model, and then one mainnet corridor with a live Travel Rule leg and a public SDK. MoneyGram is the one screened anchor that publishes the SEP-10 and SEP-24 endpoints Tukar already drives. It has not been contacted.
+The award would fund moving the corridor onto the upgradeable pool with an admin timelock and multisig admin, a licensed-anchor flow on testnet and monitoring built from the threat model, then one mainnet corridor with a live Travel Rule leg and a public SDK. MoneyGram publishes the SEP-10 and SEP-24 endpoints Tukar already drives; it has not been contacted.
 ```
 
 **Interested Build Track**
@@ -61,17 +56,40 @@ Individual
 
 **Team Description**
 ```
-Pugar Huda Mantoro, founder and sole engineer, based in Yogyakarta, Indonesia. LinkedIn https://www.linkedin.com/in/pugar-huda-mantoro/ , GitHub https://github.com/PugarHuda . Works across zero-knowledge (Circom, Groth16, snarkjs), Soroban and Rust smart contracts, and full-stack product (Next.js, TypeScript), plus Solidity. Full-time Software Engineer at SmartID since April 2026, previously at Geo Santara Indonesia and Lumintu Logic. Studying Informatics at Universitas Islam Indonesia.
+Pugar Huda Mantoro, founder and sole engineer, based in Yogyakarta, Indonesia. LinkedIn https://www.linkedin.com/in/pugar-huda-mantoro/ , GitHub https://github.com/PugarHuda . Works across zero-knowledge (Circom, Groth16, snarkjs), Soroban and Rust, and full-stack product (Next.js, TypeScript), plus Solidity. Full-time Software Engineer at SmartID since April 2026, previously at Geo Santara Indonesia and Lumintu Logic. Studying Informatics at Universitas Islam Indonesia.
 
-Prior solo work, grouped by what it shows. All live links were checked on 2026-09-21.
+Prior solo work. Privacy and confidential settlement: Segel on Stellar (https://segel.vercel.app), a sealed-bid OTC desk with Vickrey settlement proven in Circom/Groth16 on BN254 and verified by Soroban, the same chain and proof stack as Tukar; Bisik on Canton; Senyap on Midnight; Diam on iExec Nox (1st place, iExec Vibe Coding Challenge); Sealed Pair on Sui with Walrus (Best Walrus Integration); Saksi, a confidential holder register for tokenized RWAs; and Jalin, an execution router for the STRK20 shielded pool.
 
-Privacy and confidential settlement across several chains: Segel on Stellar (https://segel.vercel.app), a confidential sealed-bid OTC desk with Vickrey settlement proven in zero knowledge using Circom and Groth16 on BN254, verified on-chain by Soroban, the closest prior work with the same chain and proof stack as Tukar; Bisik on Canton (https://bisik-eight.vercel.app); Senyap on Midnight (https://senyap.vercel.app); Diam on iExec Nox (https://private-otc.vercel.app, 1st place, iExec Vibe Coding Challenge); Sealed Pair on Sui with Walrus (https://sealed-pair.vercel.app, Best Walrus Integration, Tatum x Sui hackathon); Saksi, a confidential holder register for tokenized real-world assets (https://saksi-gilt.vercel.app); and Jalin, an execution router for the STRK20 shielded pool (https://jalin-five.vercel.app).
+Compliance and proof of reserves: Amanah on Casper, a compliant RWA treasury agent with a K-of-N auditor quorum, ZK KYC and proof of reserves; and Utuh, a completeness layer for Creditcoin's Attestcoin Protocol.
 
-Compliance and proof of reserves: Amanah, a compliant RWA treasury agent on Casper with a K-of-N auditor quorum, ZK KYC and proof of reserves (https://amanah-casper-rwa.vercel.app), and Utuh, a completeness layer for Creditcoin's Attestcoin Protocol (https://utuh.vercel.app).
+Other Stellar work: Pulsar, AI agent billing via an MPP session on testnet. Payments: KasPay, a Kaspa payment gateway (Top 10 Finalist and Community Choice, Kaspathon).
 
-Stellar: Segel, Tukar, and Pulsar, AI agent billing via an MPP session on Stellar testnet (https://github.com/PugarHuda/pulsar-stellar). Payments: KasPay, a Kaspa payment gateway (https://kaspay-flame.vercel.app, Top 10 Finalist and Community Choice, Kaspathon).
+Stated plainly, this is a record of building, not of scaling. None of these projects has run at production volume or had paying users. The operational disciplines Tukar still needs are the ones the plan buys in rather than claims.
+```
 
-Stated plainly, this is a record of building, not of scaling. None of these projects has run at production volume or had paying users. The closest thing to reuse by others is Brownie to Ape (https://pugarhuda.github.io/brownie-to-ape/), a migration codemod validated on five open-source repositories including Yearn Finance, and that is not scaling either. The operational disciplines Tukar still needs are the ones the plan buys in rather than claims.
+**Target markets** (multi-select)
+```
+Nigeria, Brazil, India, Southeast Asia, Latin America (other)
+```
+
+**Where is your team based?**
+```
+Southeast Asia
+```
+
+**Local currencies, payment rails or financial infrastructure?**
+```
+Yes
+```
+
+**Which best describes your product?**
+```
+Cross-border remittances
+```
+
+**Nigerian Naira or Nigeria-linked transactions?**
+```
+Yes (the Nigeria corridor pays out in NGN)
 ```
 
 **Referral?**
